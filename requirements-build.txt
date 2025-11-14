@@ -1,0 +1,2 @@
+# Build-time requirements
+pyinstaller==5.13.1

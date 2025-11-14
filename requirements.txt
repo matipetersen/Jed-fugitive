@@ -1,0 +1,43 @@
+# Runtime requirements. Keep minimal; windows-curses is required on Windows to provide curses support.
+windows-curses; platform_system == "Windows"
+JediFugitive/
+│
+├── src/                        # Source code directory
+│   ├── main.py                 # Main entry point of the game
+│   ├── config.py              # Configuration settings (e.g., game settings, constants)
+│   ├── game/                   # Game logic and mechanics
+│   │   ├── __init__.py
+│   │   ├── game_manager.py     # Manages game states (start, pause, end)
+│   │   ├── player.py           # Player class and related functions
+│   │   ├── enemy.py            # Enemy class and AI behavior
+│   │   ├── level.py            # Level design and management
+│   │   ├── inventory.py         # Inventory system for items and upgrades
+│   │   └── combat.py           # Combat mechanics and interactions
+│   │
+│   ├── assets/                 # Game assets
+│   │   ├── __init__.py
+│   │   ├── images/             # Image assets (sprites, backgrounds)
+│   │   ├── sounds/             # Sound effects and music
+│   │   └── fonts/              # Font files for text rendering
+│   │
+│   ├── ui/                     # User Interface components
+│   │   ├── __init__.py
+│   │   ├── menu.py             # Main menu and pause menu
+│   │   ├── hud.py              # Heads-up display elements
+│   │   └── dialog.py           # Dialog system for NPC interactions
+│   │
+│   ├── utils/                  # Utility functions and helpers
+│   │   ├── __init__.py
+│   │   ├── logger.py           # Logging utility for debugging
+│   │   ├── math_utils.py       # Math-related functions (e.g., vector calculations)
+│   │   └── file_utils.py       # File handling utilities (e.g., saving/loading)
+│   │
+│   └── tests/                  # Unit tests for the game
+│       ├── __init__.py
+│       ├── test_player.py      # Tests for player functionality
+│       ├── test_enemy.py       # Tests for enemy behavior
+│       └── test_inventory.py    # Tests for inventory system
+│
+├── requirements.txt            # Python dependencies
+├── README.md                   # Project documentation and instructions
+└── LICENSE                     # License information

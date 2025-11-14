@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Jedi Fugitive (module)",
+            "type": "python",
+            "request": "launch",
+            "module": "jedi_fugitive.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "TERM": "xterm-256color"
+            },
+            "console": "externalTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Run Jedi Fugitive (script)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/jedi_fugitive/main.py",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "TERM": "xterm-256color"
+            },
+            "console": "externalTerminal",
+            "justMyCode": false
+        }
+    ]
+}

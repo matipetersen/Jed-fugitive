@@ -1,0 +1,29 @@
+Starting headless smoke tests...
+FORCE_ABILITIES: ['ForcePushPull', 'ForceReveal', 'ForceHeal', 'ForceLightning']
+CONSUMABLES tokens: ['+', '!', '*', 'c']
+Adding medkit to inventory: Small Medkit
+HP before: 10
+HP after: 10
+Inventory now: []
+Recent messages: [{'timestamp': '21:03:27', 'text': 'World ready: 12 items placed, 48 tomb entrances.', 'color': 0}, {'timestamp': '21:03:27', 'text': 'Placed 16 items in the world.', 'color': 0}, {'timestamp': '21:03:27', 'text': 'Used Small Medkit: healed 10 HP.', 'color': 0}]
+Spawning blaster from (120, 58) to (125, 58)
+Projectile spawned: Projectile(x=120, y=58, dx=1, dy=0, symbol='-', damage=5, owner=<jedi_fugitive.game.player.Player object at 0x104d33890>, range_remaining=10, alive=True, color_pair=9)
+Tick 1 projectiles: [(121, 58, True, 9)]
+Tick 2 projectiles: [(122, 58, True, 8)]
+Tick 3 projectiles: [(123, 58, True, 7)]
+Tick 4 projectiles: [(124, 58, True, 6)]
+Granting 1000 XP to force level up...
+Level after: 6 HP/Max: 10 / 60
+Recent msg: [{'timestamp': '21:03:27', 'text': 'Leveled up to 4! (+5 Max HP applied by default)', 'color': 0}, {'timestamp': '21:03:27', 'text': 'Leveled up to 5! (+5 Max HP applied by default)', 'color': 0}, {'timestamp': '21:03:27', 'text': 'Leveled up to 6! (+5 Max HP applied by default)', 'color': 0}]
+enter_tomb() returned: True
+Tomb floors: 3
+change_floor(1) -> True now floor 1 was 0
+Simulating 8 enemy turns to observe taunts...
+Turn 1 recent msg: {'timestamp': '21:03:27', 'text': "Cultist: Your Jedi tricks won't save you!", 'color': 0}
+Turn 2 recent msg: {'timestamp': '21:03:27', 'text': 'Cultist hits you for 1!', 'color': 0}
+Turn 3 recent msg: {'timestamp': '21:03:27', 'text': 'Cultist missed you.', 'color': 0}
+Turn 4 recent msg: {'timestamp': '21:03:27', 'text': 'Cultist hits you for 1!', 'color': 0}
+Turn 5 recent msg: {'timestamp': '21:03:27', 'text': 'Cultist hits you for 1!', 'color': 0}
+Turn 6 recent msg: {'timestamp': '21:03:27', 'text': 'You died!', 'color': 0}
+Turn 7 recent msg: {'timestamp': '21:03:27', 'text': 'You died!', 'color': 0}
+Turn 8 recent msg: {'timestamp': '21:03:27', 'text': 'You died!', 'color': 0}

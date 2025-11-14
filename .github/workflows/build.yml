@@ -1,0 +1,50 @@
+name: Build executables
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --noconfirm --onefile --name "jedi-fugitive" src/jedi_fugitive/main.py
+      - name: Upload mac artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jedi-fugitive-macos
+          path: dist/jedi-fugitive
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+          pip install -r requirements.txt
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --noconfirm --onefile --name "jedi-fugitive" src\jedi_fugitive\main.py
+      - name: Upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jedi-fugitive-windows
+          path: dist/jedi-fugitive.exe

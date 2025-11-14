@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-q"
+testpaths = ["tests"]
+
+# Minimal pyproject to allow pytest and tooling to run. The project metadata is
+# intentionally small; expand if you integrate packaging tools.

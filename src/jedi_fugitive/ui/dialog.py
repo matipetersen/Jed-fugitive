@@ -20,6 +20,9 @@ class UIMessageBuffer:
         self.max_messages = max_messages
 
     def add(self, text: str, color: int = 0):
+        # Deduplicate: don't add if the last message is identical (fixes Windows display issue)
+        if self.messages and self.messages[-1].get("text") == text:
+            return
         self.messages.append({"timestamp": strftime("%H:%M:%S"), "text": text, "color": color})
         if len(self.messages) > self.max_messages:
             self.messages = self.messages[-self.max_messages:]

@@ -10,7 +10,7 @@ NPC_TYPES = {
         'symbol': '@',
         'color': 'yellow',
         'name': 'Survivor Camp',
-        'description': 'A small group of refugees from Order 66.',
+        'description': 'A small group of refugees from the Jedi Purge.',
         'spawn_chance': 0.15,  # 15% chance per biome
         'biomes': ['forest', 'plains', 'river', 'crash_site'],
     },
@@ -74,7 +74,7 @@ SURVIVOR_DIALOGUES = {
 HERMIT_JEDI_DIALOGUES = {
     'greeting': [
         "Peace, young one. I sensed your presence through the Force.",
-        "Another survivor of Order 66. The Force guided you here.",
+        "Another survivor of the Purge. The Force guided you here.",
         "I've been waiting. The Force told me you would come.",
     ],
     'light_path': [

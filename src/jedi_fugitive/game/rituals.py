@@ -266,10 +266,10 @@ BURIAL_CEREMONIES = {
         'name': 'Memorial for the Fallen',
         'corruption_required': (0, 60),
         'description': [
-            "So many dead. Order 66 claimed countless lives.",
+            "So many dead. The Great Purge claimed countless lives.",
             "You cannot bury them all, but you can remember them.",
             "Creating a simple cairn, you speak their names to the Force.",
-            "Master, Padawans, even civilians caught in the purge.",
+            "Masters, Padawans, even civilians caught in the Sith War.",
             "'May the Force remember what the galaxy has forgotten.'",
         ],
         'effects': {

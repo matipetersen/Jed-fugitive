@@ -12,7 +12,7 @@ ENEMY_LORE = {
         'lore': [
             "Sith Acolytes are the lowest rank in the Sith hierarchy, hungry for power.",
             "They've abandoned the Jedi teachings in pursuit of strength through passion.",
-            "Many were once Jedi Padawans who fell during Order 66.",
+            "Many were once Jedi who fell during the Great Jedi Purge of the Old Republic.",
             "Their rage makes them dangerous, but their inexperience is their weakness.",
         ],
         'tactics': 'Aggressive and reckless. Exploit their overconfidence.',
@@ -44,7 +44,7 @@ ENEMY_LORE = {
         'lore': [
             "Dark Jedi retain their training but have embraced forbidden powers.",
             "Unlike true Sith, they haven't fully committed to the Sith philosophy.",
-            "Many fell during Order 66, choosing survival over principle.",
+            "Many fell during the Jedi Civil War, choosing power over principle.",
             "They walk a path of inner conflict between their past and present.",
         ],
         'tactics': 'Combines Jedi technique with dark side powers. Stay adaptable.',
@@ -127,7 +127,7 @@ ENVIRONMENT_LORE = {
     'crash_wreckage': {
         'description': 'The twisted remains of your Republic vessel.',
         'lore': [
-            "Your ship was shot down during Order 66's chaos.",
+            "Your ship was shot down during the Great Sith War's chaos.",
             "The crash killed most of the crew. You survived by chance - or destiny.",
             "This wreckage marks both an ending and a beginning.",
         ]

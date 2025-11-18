@@ -415,8 +415,16 @@ class Player:
             lines.append(f"Attack: {base_attack} (+{weapon_bonus} weapon) = {current_attack}")
         else:
             lines.append(f"Attack: {current_attack}")
+        
+        # Show defense with breakdown
+        base_defense = getattr(self, 'defense', 0)
         effective_def = getattr(self, "get_effective_defense", lambda: getattr(self, "defense", 0))()
-        lines.append(f"Defense: {getattr(self,'defense',0)} -> {effective_def}")
+        defense_bonus = effective_def - base_defense
+        if defense_bonus > 0:
+            lines.append(f"Defense: {base_defense} (+{defense_bonus} equipment) = {effective_def}")
+        else:
+            lines.append(f"Defense: {effective_def}")
+        
         effective_acc = getattr(self, "get_effective_accuracy", lambda: getattr(self, "accuracy", 0))()
         lines.append(f"Accuracy: {getattr(self,'accuracy',0)} -> {effective_acc}")
         # show stress as a stat line
@@ -516,38 +524,50 @@ class Player:
         return base + int(weapon_damage)
 
     def get_effective_defense(self) -> int:
-        """Return player's effective defense including equipped armor modifiers."""
+        """Return player's effective defense including equipped armor and shield modifiers."""
         base = int(getattr(self, "defense", 0) or 0)
+        
+        # Add armor defense
         a = getattr(self, "equipped_armor", None)
-        if not a:
-            return base
         arm_def = 0
-        try:
-            if not isinstance(a, dict):
-                arm_def = int(getattr(a, "defense", 0) or 0)
-            else:
-                if "defense" in a:
-                    arm_def = int(a.get("defense", 0) or 0)
-                elif "max_hp" in a and not isinstance(a.get("max_hp"), bool):
-                    # some armors provide HP rather than defense; do not double-count
-                    arm_def = 0
-        except Exception:
-            arm_def = 0
+        if a:
+            try:
+                if not isinstance(a, dict):
+                    arm_def = int(getattr(a, "defense", 0) or 0)
+                else:
+                    if "defense" in a:
+                        arm_def = int(a.get("defense", 0) or 0)
+                    elif "max_hp" in a and not isinstance(a.get("max_hp"), bool):
+                        # some armors provide HP rather than defense; do not double-count
+                        arm_def = 0
+            except Exception:
+                arm_def = 0
         
-        total_def = base + int(arm_def)
-        
-        # Apply shield mastery if shield equipped
-        offhand = getattr(self, "offhand", None)
+        # Add shield defense from equipped_offhand
+        offhand = getattr(self, "equipped_offhand", None)
+        shield_def = 0
         if offhand:
             try:
-                from jedi_fugitive.items.weapons import WeaponType
-                offhand_type = getattr(offhand, 'weapon_type', None)
-                if offhand_type == WeaponType.ENERGY_SHIELD:
-                    shield_bonus = getattr(self, 'shield_mastery', 0)
-                    total_def += shield_bonus
+                # Check if it's a shield
+                is_shield = False
+                if hasattr(offhand, 'is_shield') and offhand.is_shield:
+                    is_shield = True
+                elif hasattr(offhand, 'type') and offhand.type == 'shield':
+                    is_shield = True
+                elif hasattr(offhand, 'slot') and offhand.slot == 'offhand':
+                    is_shield = True
+                elif isinstance(offhand, dict) and offhand.get('type') == 'shield':
+                    is_shield = True
+                
+                if is_shield:
+                    if not isinstance(offhand, dict):
+                        shield_def = int(getattr(offhand, "defense_bonus", 0) or 0)
+                    else:
+                        shield_def = int(offhand.get("defense_bonus", 0) or 0)
             except Exception:
-                pass
+                shield_def = 0
         
+        total_def = base + int(arm_def) + int(shield_def)
         return total_def
 
     def add_stress(self, amount: int, source: str = None):

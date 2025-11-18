@@ -2,6 +2,7 @@ import curses
 import traceback
 from jedi_fugitive.game.level import Display
 from jedi_fugitive.game import equipment
+from jedi_fugitive.game import inspection
 
 
 def _fire_gun(game, tx, ty):
@@ -811,27 +812,59 @@ def handle_input(game, key):
                             continue
                     if enemy:
                         try:
-                            parts = []
-                            parts.append(f"{getattr(enemy,'name','Enemy')} @ {tx},{ty}")
+                            # Get detailed inspection with lore
+                            enemy_name = getattr(enemy, 'name', 'Enemy')
+                            player_corruption = getattr(game.player, 'dark_corruption', 50)
+                            
+                            # Get lore data
+                            lore_data = inspection.get_enemy_inspection(enemy_name, player_corruption)
+                            
+                            # Build display lines with both stats and lore
+                            lines = []
+                            lines.append(f"═══ {lore_data['title']} ═══")
+                            lines.append(f"Location: ({tx}, {ty})")
+                            lines.append("")
+                            
+                            # Stats
+                            stats = []
                             if hasattr(enemy, 'hp') and hasattr(enemy, 'max_hp'):
-                                parts.append(f"HP: {enemy.hp}/{enemy.max_hp}")
+                                stats.append(f"HP: {enemy.hp}/{enemy.max_hp}")
                             elif hasattr(enemy, 'hp'):
-                                parts.append(f"HP: {enemy.hp}")
+                                stats.append(f"HP: {enemy.hp}")
                             if hasattr(enemy, 'level'):
-                                parts.append(f"Level: {getattr(enemy,'level')}")
+                                stats.append(f"Level: {getattr(enemy,'level')}")
                             if hasattr(enemy, 'attack'):
-                                parts.append(f"Atk: {getattr(enemy,'attack')}")
+                                stats.append(f"Attack: {getattr(enemy,'attack')}")
                             if hasattr(enemy, 'defense'):
-                                parts.append(f"Def: {getattr(enemy,'defense')}")
-                            # abilities summary if present
+                                stats.append(f"Defense: {getattr(enemy,'defense')}")
+                            
+                            if stats:
+                                lines.append(" | ".join(stats))
+                                lines.append("")
+                            
+                            # Abilities
                             fas = getattr(enemy, 'force_abilities', None)
                             if fas:
                                 try:
                                     names = [getattr(a,'name',str(a)) for a in (fas.values() if hasattr(fas,'values') else fas)]
-                                    parts.append(f"Abilities: {', '.join(names)}")
+                                    lines.append(f"Force Abilities: {', '.join(names)}")
+                                    lines.append("")
                                 except Exception:
                                     pass
-                            _show_centered(game, [" -- ".join(parts)], title=getattr(enemy,'name','Enemy'))
+                            
+                            # Lore content
+                            lines.append(lore_data['description'])
+                            lines.append("")
+                            lines.append(f"Lore: {lore_data['lore']}")
+                            lines.append("")
+                            lines.append(f"Tactics: {lore_data['tactics']}")
+                            
+                            # Personal note based on corruption
+                            if lore_data.get('personal_note'):
+                                lines.append("")
+                                lines.append(f"[{lore_data['personal_note']}]")
+                            
+                            _show_centered(game, lines, title=enemy_name)
                         except Exception:
                             try: game.ui.messages.add("Inspect failed on enemy.")
                             except Exception: pass
@@ -846,28 +879,68 @@ def handle_input(game, key):
                             continue
                     if itm:
                         try:
-                            desc = itm.get('name') or itm.get('token') or str(itm)
-                            # attempt to resolve token to ITEM_DEFS
+                            # Get item name and token
+                            item_name = itm.get('name')
+                            tok = itm.get('token') or (itm.get('item') and itm.get('item').get('token'))
+                            
+                            # Try to get name from ITEM_DEFS or TOKEN_MAP if not present
+                            basic_desc = ""
                             try:
                                 from jedi_fugitive.items.consumables import ITEM_DEFS
-                                tok = itm.get('token') or (itm.get('item') and itm.get('item').get('token'))
                                 if tok:
                                     for d in ITEM_DEFS:
                                         if d.get('token') == tok or d.get('id') == tok:
-                                            desc = d.get('name') + ' - ' + d.get('description', '')
+                                            if not item_name:
+                                                item_name = d.get('name')
+                                            basic_desc = d.get('description', '')
                                             break
                             except Exception:
                                 pass
+                            
                             # TOKEN_MAP fallback
                             try:
                                 from jedi_fugitive.items.tokens import TOKEN_MAP as _tmap
-                                tok = itm.get('token') or (itm.get('item') and itm.get('item').get('token'))
                                 if tok and tok in _tmap:
                                     tinfo = _tmap.get(tok, {})
-                                    desc = (tinfo.get('name') or tok) + ' - ' + (tinfo.get('description') or '')
+                                    if not item_name:
+                                        item_name = tinfo.get('name') or tok
+                                    if not basic_desc:
+                                        basic_desc = tinfo.get('description', '')
                             except Exception:
                                 pass
-                            _show_centered(game, [f"Item: {desc} @ {tx},{ty}"], title="Item")
+                            
+                            # Get detailed inspection with lore
+                            player_corruption = getattr(game.player, 'dark_corruption', 50)
+                            lore_data = inspection.get_item_inspection(tok, item_name, player_corruption)
+                            
+                            # Build display lines
+                            lines = []
+                            lines.append(f"═══ {lore_data['name']} ═══")
+                            lines.append(f"Location: ({tx}, {ty})")
+                            lines.append("")
+                            lines.append(lore_data['description'])
+                            
+                            # Add basic description if different from lore description
+                            if basic_desc and basic_desc != lore_data['description']:
+                                lines.append("")
+                                lines.append(f"Properties: {basic_desc}")
+                            
+                            # Add lore text
+                            if lore_data.get('lore'):
+                                lines.append("")
+                                lines.append(lore_data['lore'])
+                            
+                            # Add condition text (for lightsabers)
+                            if lore_data.get('condition'):
+                                lines.append("")
+                                lines.append(lore_data['condition'])
+                            
+                            # Add choice prompt (for artifacts)
+                            if lore_data.get('choice'):
+                                lines.append("")
+                                lines.append(lore_data['choice'])
+                            
+                            _show_centered(game, lines, title=lore_data['name'])
                         except Exception:
                             try: game.ui.messages.add("Inspect failed on item.")
                             except Exception: pass

@@ -5,6 +5,15 @@ Game systems may extend these definitions into proper item objects; this file se
 catalog so the world generator can place useful consumables.
 """
 
+class Consumable:
+    """Simple consumable item class for merchant trading."""
+    def __init__(self, name, effect, value=20, description=""):
+        self.name = name
+        self.effect = effect
+        self.value = value
+        self.description = description
+        self.type = "consumable"
+
 ITEM_DEFS = [
     {
         "id": "medkit_small",
@@ -88,4 +97,16 @@ ITEM_DEFS = [
         "effect": {"heal": 12},
         "description": "Unappetizing but effective. Restores 12 HP.",
     },
+]
+
+# Create consumable objects for merchant trading
+CONSUMABLES = [
+    Consumable("Small Medkit", {"heal": 10}, value=30, description="Heals 10 HP when used."),
+    Consumable("Stimpack", {"heal": 5, "temp_speed": 1}, value=25, description="Heals 5 HP and grants energy burst."),
+    Consumable("Thermal Grenade", {"area_damage": 24, "radius": 3}, value=50, description="Deals area damage."),
+    Consumable("Jedi Meditation Focus", {"stress_reduction": 40}, value=60, description="Reduces stress by 40."),
+    Consumable("Calming Tea", {"stress_reduction": 25}, value=20, description="Reduces stress by 25."),
+    Consumable("Emergency Ration", {"heal": 8, "stress_reduction": 10}, value=25, description="Restores 8 HP, -10 stress."),
+    Consumable("Water Canteen", {"heal": 5, "stress_reduction": 15}, value=15, description="Restores 5 HP, -15 stress."),
+    Consumable("Nutrient Paste", {"heal": 12}, value=20, description="Restores 12 HP."),
 ]

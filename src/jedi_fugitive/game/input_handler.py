@@ -167,8 +167,9 @@ def _throw_grenade(game, tx, ty):
             dmg = int(eff.get('area_damage', dmg))
             radius = int(eff.get('radius', radius))
         
-        # Deal damage to all enemies in radius
+        # Deal damage to all enemies in radius and track kills
         affected = []
+        killed = []
         for e in list(getattr(game, 'enemies', []) or []):
             try:
                 ex = int(getattr(e, 'x', 0))
@@ -177,17 +178,70 @@ def _throw_grenade(game, tx, ty):
                 dy = ey - ty
                 # Circular radius check
                 if (dx*dx + dy*dy) <= (radius * radius):
+                    hp_before = getattr(e, 'hp', 0)
                     if hasattr(e, 'take_damage'):
                         e.take_damage(dmg)
                     else:
                         e.hp = getattr(e, 'hp', 0) - dmg
+                    
                     affected.append(getattr(e, 'name', 'enemy'))
+                    
+                    # Check if enemy died from grenade
+                    hp_after = getattr(e, 'hp', 0)
+                    if hp_after <= 0 and hp_before > 0:
+                        killed.append(e)
             except Exception:
                 continue
         
         # Remove grenade from inventory
         try:
             inv.pop(grenade_idx)
+        except Exception:
+            pass
+        
+        # Award XP for kills with multi-kill bonus
+        try:
+            if killed:
+                # Base XP per kill
+                base_xp = 10
+                total_xp = 0
+                
+                # Calculate XP with multi-kill bonuses
+                kill_count = len(killed)
+                for i, e in enumerate(killed):
+                    enemy_xp = base_xp
+                    
+                    # Bonus for enemy level
+                    enemy_level = getattr(e, 'level', 1)
+                    enemy_xp += (enemy_level - 1) * 5
+                    
+                    # Multi-kill multiplier: 1x, 1.5x, 2x, 2.5x, 3x, etc.
+                    if kill_count >= 2:
+                        multi_bonus = 1.0 + (0.5 * (kill_count - 1))
+                        enemy_xp = int(enemy_xp * multi_bonus)
+                    
+                    total_xp += enemy_xp
+                    
+                    # Update kill count
+                    game.player.kills_count = getattr(game.player, 'kills_count', 0) + 1
+                
+                # Award XP
+                if hasattr(game.player, 'gain_xp'):
+                    leveled = game.player.gain_xp(total_xp)
+                    
+                    # Messages
+                    if kill_count == 1:
+                        try:
+                            game.ui.messages.add(f"Killed 1 enemy! +{total_xp} XP")
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            multi_bonus_pct = int((0.5 * (kill_count - 1)) * 100)
+                            game.ui.messages.add(f"MULTI-KILL! {kill_count} enemies eliminated! +{multi_bonus_pct}% bonus XP")
+                            game.ui.messages.add(f"Gained {total_xp} total XP!")
+                        except Exception:
+                            pass
         except Exception:
             pass
         
@@ -203,11 +257,26 @@ def _throw_grenade(game, tx, ty):
         # Add to travel log
         try:
             if hasattr(game.player, 'add_log_entry') and affected:
-                entry = game.player.narrative_text(
-                    light_version=f"Used a grenade defensively, catching {len(affected)} enemies.",
-                    dark_version=f"Hurled explosive death at {len(affected)} foes, savoring the destruction!",
-                    balanced_version=f"Threw a grenade, damaging {len(affected)} enemies."
-                )
+                if killed:
+                    kill_count = len(killed)
+                    if kill_count >= 3:
+                        entry = game.player.narrative_text(
+                            light_version=f"Reluctantly used explosives, neutralizing {kill_count} hostiles to protect myself.",
+                            dark_version=f"GLORIOUS! {kill_count} enemies obliterated in a single blast of righteous fury!",
+                            balanced_version=f"Tactical grenade eliminated {kill_count} enemies in one explosion."
+                        )
+                    else:
+                        entry = game.player.narrative_text(
+                            light_version=f"Used a grenade defensively, catching {len(affected)} enemies.",
+                            dark_version=f"Hurled explosive death at {len(affected)} foes, savoring the destruction!",
+                            balanced_version=f"Threw a grenade, damaging {len(affected)} enemies."
+                        )
+                else:
+                    entry = game.player.narrative_text(
+                        light_version=f"Used a grenade defensively, catching {len(affected)} enemies.",
+                        dark_version=f"Hurled explosive death at {len(affected)} foes, savoring the destruction!",
+                        balanced_version=f"Threw a grenade, damaging {len(affected)} enemies."
+                    )
                 game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
         except Exception:
             pass
@@ -362,6 +431,21 @@ def handle_input(game, key):
             except Exception: pass
             game.running = False
             return
+        
+        # Manual save
+        if key == ord('S'):  # Capital S to avoid accidents
+            try:
+                from jedi_fugitive.game.save_system import save_game
+                if save_game(game, is_autosave=False):
+                    try: game.ui.messages.add("Game saved successfully!")
+                    except Exception: pass
+                else:
+                    try: game.ui.messages.add("Failed to save game.")
+                    except Exception: pass
+            except Exception as e:
+                try: game.ui.messages.add(f"Save error: {e}")
+                except Exception: pass
+            return
 
         if key == ord('r'):
             try:
@@ -447,6 +531,7 @@ def handle_input(game, key):
                     "OTHER:",
                     "  ? = Show this help screen",
                     "  m = Meditate (reduce stress if safe)",
+                    "  S = Save game (manual save)",
                     "  r = Reveal map (debug/cheat)",
                     "  q / ESC = Quit game",
                     "",
@@ -850,6 +935,60 @@ def handle_input(game, key):
 
         if key == ord('g'):
             try:
+                px = getattr(game.player, 'x', 0)
+                py = getattr(game.player, 'y', 0)
+                
+                # Check if standing on a loot cache
+                if hasattr(game, 'map_landmarks') and (px, py) in game.map_landmarks:
+                    landmark = game.map_landmarks[(px, py)]
+                    if landmark.get('is_loot_cache', False) and not landmark.get('looted', False):
+                        # Check if guards are nearby
+                        guards_alive = []
+                        for enemy in game.enemies:
+                            ex = getattr(enemy, 'x', -999)
+                            ey = getattr(enemy, 'y', -999)
+                            dist = abs(ex - px) + abs(ey - py)
+                            if dist <= 10:  # Guards within 10 tiles
+                                guards_alive.append(enemy)
+                        
+                        if guards_alive:
+                            try: 
+                                game.ui.messages.add(f"⚠ Cache guarded by {len(guards_alive)} hostile(s)! Clear them first.")
+                            except Exception: pass
+                            return
+                        
+                        # Open the loot cache
+                        cache_name = landmark.get('name', 'Loot Cache')
+                        try: 
+                            game.ui.messages.add(f"═══ {cache_name} ═══")
+                            game.ui.messages.add("Opening cache...")
+                        except Exception: pass
+                        
+                        # Get loot from cache
+                        loot = getattr(game, 'loot_caches', {}).get((px, py), [])
+                        
+                        if loot:
+                            try: 
+                                game.ui.messages.add(f"Found {len(loot)} items!")
+                            except Exception: pass
+                            
+                            # Add all loot to map for pickup
+                            for item in loot:
+                                game.items_on_map.append({'x': px, 'y': py, 'item': item})
+                            
+                            # Mark as looted
+                            landmark['looted'] = True
+                            
+                            try:
+                                game.ui.messages.add(f"Loot added to this location. Use 'g' again to pick up items.")
+                            except Exception: pass
+                        else:
+                            try: game.ui.messages.add("Cache is empty (already looted).")
+                            except Exception: pass
+                        
+                        return
+                
+                # Normal pickup
                 equipment.pick_up(game)
             except Exception as e:
                 try: 
@@ -1035,7 +1174,37 @@ def handle_input(game, key):
                 except Exception: pass
             return
 
-        # Throw grenade (targeting mode)
+        # Trade with merchant (capital T)
+        if key == ord('T'):
+            try:
+                px = getattr(game.player, 'x', 0)
+                py = getattr(game.player, 'y', 0)
+                
+                # Check if standing on or near merchant
+                if hasattr(game, 'merchants') and (px, py) in game.merchants:
+                    _open_merchant_menu(game, px, py)
+                else:
+                    # Check adjacent tiles
+                    found_merchant = False
+                    for dx in [-1, 0, 1]:
+                        for dy in [-1, 0, 1]:
+                            check_pos = (px + dx, py + dy)
+                            if hasattr(game, 'merchants') and check_pos in game.merchants:
+                                _open_merchant_menu(game, check_pos[0], check_pos[1])
+                                found_merchant = True
+                                break
+                        if found_merchant:
+                            break
+                    
+                    if not found_merchant:
+                        try: game.ui.messages.add("No merchant nearby. Look for merchant camps (3x3 X squares).")
+                        except Exception: pass
+            except Exception as e:
+                try: game.ui.messages.add(f"Trade failed: {e}")
+                except Exception: pass
+            return
+        
+        # Throw grenade (targeting mode - lowercase t)
         if key == ord('t'):
             try:
                 # Check if player has a grenade
@@ -1639,4 +1808,167 @@ def perform_player_attack(game, enemy):
         try:
             game.ui.messages.add("Attack failed (internal).")
         except Exception:
+            pass
+
+
+def _open_merchant_menu(game, mx, my):
+    """Open trading interface with a merchant."""
+    try:
+        from jedi_fugitive.game.merchants import get_merchant_dialogue, calculate_sell_price
+        
+        merchant_data = game.merchants[(mx, my)]
+        faction = merchant_data['faction']
+        merchant_name = merchant_data['name']
+        camp_name = merchant_data['camp_name']
+        inventory = merchant_data['inventory']
+        
+        # Show greeting
+        greeting = get_merchant_dialogue(faction, 'greeting')
+        game.ui.messages.add(f"═══ {camp_name} ═══")
+        game.ui.messages.add(f"{merchant_name}: \"{greeting}\"")
+        game.ui.messages.add(f"Gold: {getattr(game.player, 'gold_collected', 0)}")
+        
+        # Create menu options
+        options = ["[B]uy Items", "[S]ell Items", "[L]eave"]
+        
+        choice = game.ui.centered_menu(options, title=f"Trading with {merchant_name}")
+        
+        if choice == 0:  # Buy
+            _merchant_buy_menu(game, mx, my)
+        elif choice == 1:  # Sell
+            _merchant_sell_menu(game, mx, my)
+        # else: Leave (choice == 2 or None)
+        
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Trade error: {e}")
+        except:
+            pass
+
+
+def _merchant_buy_menu(game, mx, my):
+    """Show merchant's inventory for purchase."""
+    try:
+        from jedi_fugitive.game.merchants import get_merchant_dialogue
+        
+        merchant_data = game.merchants[(mx, my)]
+        faction = merchant_data['faction']
+        merchant_name = merchant_data['name']
+        inventory = merchant_data['inventory']
+        
+        if not inventory:
+            game.ui.messages.add(f"{merchant_name}: \"Sold out! Check back later.\"")
+            return
+        
+        # Create menu items
+        menu_items = []
+        for i, inv_item in enumerate(inventory):
+            item = inv_item['item']
+            price = inv_item['price']
+            quantity = inv_item.get('quantity', 1)
+            
+            item_name = getattr(item, 'name', str(item))
+            if quantity > 1:
+                menu_items.append(f"{item_name} x{quantity} - {price}g")
+            else:
+                menu_items.append(f"{item_name} - {price}g")
+        
+        menu_items.append("[Cancel]")
+        
+        choice = game.ui.centered_menu(menu_items, title=f"Buy from {merchant_name} | Gold: {getattr(game.player, 'gold_collected', 0)}")
+        
+        if choice is None or choice >= len(inventory):
+            return
+        
+        # Process purchase
+        inv_item = inventory[choice]
+        item = inv_item['item']
+        price = inv_item['price']
+        quantity = inv_item.get('quantity', 1)
+        
+        player_gold = getattr(game.player, 'gold_collected', 0)
+        
+        if player_gold < price:
+            game.ui.messages.add(f"{merchant_name}: \"Not enough credits!\"")
+            return
+        
+        # Deduct gold
+        game.player.gold_collected -= price
+        
+        # Add item to player inventory
+        if quantity > 1:
+            # Add multiple items (consumables)
+            for _ in range(quantity):
+                game.player.inventory.append(item)
+        else:
+            game.player.inventory.append(item)
+        
+        # Remove from merchant inventory
+        inventory.pop(choice)
+        
+        # Success message
+        buy_message = get_merchant_dialogue(faction, 'buy')
+        game.ui.messages.add(f"{merchant_name}: \"{buy_message}\"")
+        item_name = getattr(item, 'name', str(item))
+        if quantity > 1:
+            game.ui.messages.add(f"Purchased {item_name} x{quantity} for {price}g")
+        else:
+            game.ui.messages.add(f"Purchased {item_name} for {price}g")
+        
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Purchase failed: {e}")
+        except:
+            pass
+
+
+def _merchant_sell_menu(game, mx, my):
+    """Sell items from player inventory to merchant."""
+    try:
+        from jedi_fugitive.game.merchants import get_merchant_dialogue, calculate_sell_price
+        
+        merchant_data = game.merchants[(mx, my)]
+        faction = merchant_data['faction']
+        merchant_name = merchant_data['name']
+        
+        player_inventory = getattr(game.player, 'inventory', [])
+        
+        if not player_inventory:
+            game.ui.messages.add("You have nothing to sell.")
+            return
+        
+        # Create menu items
+        menu_items = []
+        for item in player_inventory:
+            item_name = getattr(item, 'name', str(item))
+            sell_price = calculate_sell_price(item, faction)
+            menu_items.append(f"{item_name} - Sell for {sell_price}g")
+        
+        menu_items.append("[Cancel]")
+        
+        choice = game.ui.centered_menu(menu_items, title=f"Sell to {merchant_name} | Gold: {getattr(game.player, 'gold_collected', 0)}")
+        
+        if choice is None or choice >= len(player_inventory):
+            return
+        
+        # Process sale
+        item = player_inventory[choice]
+        sell_price = calculate_sell_price(item, faction)
+        
+        # Add gold to player
+        game.player.gold_collected = getattr(game.player, 'gold_collected', 0) + sell_price
+        
+        # Remove from player inventory
+        player_inventory.pop(choice)
+        
+        # Success message
+        sell_message = get_merchant_dialogue(faction, 'sell')
+        game.ui.messages.add(f"{merchant_name}: \"{sell_message}\"")
+        item_name = getattr(item, 'name', str(item))
+        game.ui.messages.add(f"Sold {item_name} for {sell_price}g")
+        
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Sale failed: {e}")
+        except:
             pass

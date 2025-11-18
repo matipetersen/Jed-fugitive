@@ -1,0 +1,111 @@
+================================================================================
+JEDI FUGITIVE - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-17 20:47:24
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-17 20:47:24] INFO: Game started
+[2025-11-17 20:47:50] INFO: Game initialization started
+[2025-11-17 20:47:50] INFO: World generation started
+[2025-11-17 20:47:58] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:47:58] INFO: Game loop started
+[2025-11-17 20:49:15] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:49:17] INFO: Game initialization started
+[2025-11-17 20:49:17] INFO: World generation started
+[2025-11-17 20:49:22] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:49:22] INFO: Game loop started
+[2025-11-17 20:50:52] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:50:52] INFO: Game initialization started
+[2025-11-17 20:50:52] INFO: World generation started
+[2025-11-17 20:50:57] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:50:57] INFO: Game loop started
+[2025-11-17 20:51:13] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:51:13] INFO: Game initialization started
+[2025-11-17 20:51:13] INFO: World generation started
+[2025-11-17 20:51:19] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:51:19] INFO: Game loop started
+[2025-11-17 20:51:45] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:51:47] INFO: Game initialization started
+[2025-11-17 20:51:47] INFO: World generation started
+[2025-11-17 20:52:08] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:52:08] INFO: Game loop started
+[2025-11-17 20:53:17] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:53:28] INFO: Game initialization started
+[2025-11-17 20:53:28] INFO: World generation started
+[2025-11-17 20:53:48] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:53:48] INFO: Game loop started
+[2025-11-17 20:55:40] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:55:54] INFO: Game initialization started
+[2025-11-17 20:55:54] INFO: World generation started
+[2025-11-17 20:56:07] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:56:07] INFO: Game loop started
+[2025-11-17 20:57:03] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:57:10] INFO: Game initialization started
+[2025-11-17 20:57:10] INFO: World generation started
+[2025-11-17 20:57:15] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:57:15] INFO: Game loop started
+[2025-11-17 20:57:53] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:57:56] INFO: Game initialization started
+[2025-11-17 20:57:56] INFO: World generation started
+[2025-11-17 20:58:06] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:58:06] INFO: Game loop started
+[2025-11-17 20:58:21] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:58:25] INFO: Game initialization started
+[2025-11-17 20:58:25] INFO: World generation started
+[2025-11-17 20:58:30] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:58:30] INFO: Game loop started
+[2025-11-17 20:59:39] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:59:51] INFO: Game initialization started
+[2025-11-17 20:59:51] INFO: World generation started
+[2025-11-17 20:59:59] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 20:59:59] INFO: Game loop started
+[2025-11-17 21:01:48] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:01:52] INFO: Game initialization started
+[2025-11-17 21:01:52] INFO: World generation started
+[2025-11-17 21:02:11] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:02:11] INFO: Game loop started
+[2025-11-17 21:02:25] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:02:25] INFO: Game initialization started
+[2025-11-17 21:02:25] INFO: World generation started
+[2025-11-17 21:02:28] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:02:28] INFO: Game loop started
+[2025-11-17 21:03:31] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:03:33] INFO: Game initialization started
+[2025-11-17 21:03:33] INFO: World generation started
+[2025-11-17 21:03:50] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:03:50] INFO: Game loop started
+[2025-11-17 21:04:44] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:04:53] INFO: Game initialization started
+[2025-11-17 21:04:53] INFO: World generation started
+[2025-11-17 21:05:11] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:05:11] INFO: Game loop started
+[2025-11-17 21:07:22] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:07:28] INFO: Game initialization started
+[2025-11-17 21:07:28] INFO: World generation started
+[2025-11-17 21:07:31] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:07:31] INFO: Game loop started
+[2025-11-17 21:20:17] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:20:20] INFO: Game initialization started
+[2025-11-17 21:20:20] INFO: World generation started
+[2025-11-17 21:20:38] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:20:38] INFO: Game loop started
+[2025-11-17 21:22:32] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:23:04] INFO: Game initialization started
+[2025-11-17 21:23:04] INFO: World generation started
+[2025-11-17 21:23:09] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:23:09] INFO: Game loop started
+[2025-11-17 21:38:52] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:38:52] INFO: Game initialization started
+[2025-11-17 21:38:52] INFO: World generation started
+[2025-11-17 21:39:03] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-17 21:39:03] INFO: Game loop started
+[2025-11-17 21:39:59] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+SESSION ENDED
+================================================================================
+End time: 2025-11-17 21:39:59
+Session duration: 0:52:34.505239
+================================================================================

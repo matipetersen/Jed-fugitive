@@ -6,8 +6,10 @@ from typing import Optional, Tuple
 import pkgutil
 import importlib
 import random
+import traceback
 
 from jedi_fugitive.ui.silq_ui import SILQUI
+from jedi_fugitive.utils.crash_logger import get_logger, log_error, log_info, log_game_event
 from jedi_fugitive.game.player import Player
 from jedi_fugitive.game import projectiles, force_abilities, map_features, input_handler, ui_renderer, equipment
 from jedi_fugitive.game.enemy import Enemy, EnemyType, process_enemies as enemy_process_enemies
@@ -18,6 +20,7 @@ from jedi_fugitive.config import MAP_RATIO_W, MAP_RATIO_H, STATS_RATIO_W, DIFFIC
 from jedi_fugitive.game.combat import player_attack, calculate_hit
 from jedi_fugitive.game import abilities, map_features as mf
 from jedi_fugitive.game.sith_codex import SithCodex, populate_canon, populate_artifacts
+from jedi_fugitive.game.save_system import save_game, load_game, apply_save_data, get_autosave_path
 
 class GameManager:
     """Clean, defensive GameManager suitable to drive the curses UI and other subsystems."""
@@ -33,6 +36,7 @@ class GameManager:
         self.player = Player(0, 0)
         self.enemies = []
         self.game_map = []
+        self.items_on_map = []  # Initialize items list
         self.tomb_entrances = set()
         self.panels_ready = False
         self.current_depth = 1
@@ -83,6 +87,10 @@ class GameManager:
         self.last_size = (0, 0)
         self.layout = {}
         self.show_codex = False  # Toggle for Sith Codex display
+        
+        # Autosave system
+        self.autosave_interval = 20  # Save every 20 turns
+        self.last_autosave_turn = 0
         # default splash/instruction lines exposed to the command/help panel
         self.splash_instructions = [
             "═══════════════════ CONTROLS ═══════════════════",
@@ -91,8 +99,9 @@ class GameManager:
             "Combat: Walk into enemy  t=grenade  F=shoot",
             "Force: f=abilities  c=compass  m=meditate",
             "Info: j=journal  i=inventory  v=codex  @=character",
-            "Meta: ?=help  C=craft  q=quit  ESC=cancel",
+            "Meta: ?=help  S=save  C=craft  q=quit  ESC=cancel",
             "════════════════════════════════════════════════",
+            "Game autosaves every 20 turns • Press 'S' to save manually",
             "Artifacts: 'a'=ABSORB (Dark) or 'd'=DESTROY (Light)",
             "Your choices shape your Force alignment and abilities!",
         ]
@@ -108,28 +117,31 @@ class GameManager:
         return map_w, map_h, stats_w, abil_w, message_h, cmd_h
 
     def initialize(self):
-        # Loading...
+        print("⟳ Initializing game UI...")
         # compute layout and notify UI (robust, minimal)
         try:
-            # Loading...
             self.ui.term_h, self.ui.term_w = self.stdscr.getmaxyx()
+            print(f"✓ Terminal size: {self.ui.term_h}x{self.ui.term_w}")
         except Exception as e:
-            # Loading...
+            print(f"⚠ Could not get terminal size: {e}")
             self.ui.term_h, self.ui.term_w = 40, 140
-        # Loading...
+        
         mw, mh, sw, aw, mhmsg, cmdh = self._compute_layout()
-        # Loading...
+        print(f"⟳ Creating UI layout (map:{mw}x{mh}, stats:{sw}, abilities:{aw})...")
         try:
-            # Loading...
             self.ui.create_layout(mw, mh, sw, aw, mhmsg, cmdh)
+            print("✓ UI layout created")
         except Exception as e:
-            # Loading...
+            print(f"✗ UI layout creation failed: {e}")
+            import traceback
+            traceback.print_exc()
             pass
         self.panels_ready = True
+        print("⟳ Setting up message buffer...")
         # ensure message buffer
         try:
-            # Loading...
             self.ui.messages = UIMessageBuffer()
+            print("✓ Message buffer ready")
             # Display intro with theme
             intro_lines = [
                 "╔═══════════════════════════════════════════════════════════╗",
@@ -152,14 +164,14 @@ class GameManager:
             for line in intro_lines:
                 self.ui.messages.add(line)
         except Exception as e:
-            # Loading...
+            print(f"✗ Message buffer setup failed: {e}")
             try:
                 self.ui.messages = UIMessageBuffer() if 'UIMessageBuffer' in globals() else None
             except Exception:
                 self.ui.messages = None
+        print("⟳ Wiring player to UI...")
         # Wire UI/game references into player so player.level_up can present UI prompts
         try:
-            # Loading...
             if getattr(self, 'player', None) is not None:
                 try:
                     setattr(self.player, 'ui', self.ui)
@@ -188,11 +200,11 @@ class GameManager:
                     except Exception:
                         self.player._base_stats = {}
         except Exception as e:
-            # Loading...
+            print(f"✗ Player wiring failed: {e}")
             pass
+        print("⟳ Setting up starting inventory...")
         # Give the player a small starting inventory: 2 compasses and 1 stimpack
         try:
-            # Loading...
             if not hasattr(self.player, 'inventory') or self.player.inventory is None:
                 self.player.inventory = []
             # Create lightweight dict entries for the consumables so they display correctly
@@ -218,18 +230,19 @@ class GameManager:
             except Exception:
                 try: self.player.inventory.append({'id':'stimpack','name':'Stimpack'})
                 except Exception: pass
+            print("✓ Starting inventory added (2 compass, 1 stimpack)")
         except Exception as e:
-            # Loading...
+            print(f"✗ Starting inventory setup failed: {e}")
             pass
         # initial commands hint
         self.last_commands = "Move: h/j/k/l or arrows. g=pickup f=force q=quit"
+        print("⟳ Registering key commands...")
         # register inspect key so it appears in the commands/help panel
         try:
-            # Loading...
             # register a no-op handler; input handling for 'x' is implemented in input_handler
             self.register_command('x', lambda: None, 'Inspect')
         except Exception as e:
-            # Loading...
+            print(f"⚠ Inspect command registration failed: {e}")
             try:
                 # best-effort: set help entry directly
                 self.key_help['x'] = 'Inspect'
@@ -238,35 +251,39 @@ class GameManager:
                 pass
         # register a scan/compass ability (key 'c') to help locate tombs
         try:
-            # Loading...
             self.register_command('c', lambda: self.perform_scan(), 'Scan (compass)')
         except Exception as e:
-            # Loading...
+            print(f"⚠ Scan command registration failed: {e}")
             try:
                 self.key_help['c'] = 'Scan (compass)'
                 self.update_command_gui()
             except Exception:
                 pass
+        print("⟳ Initializing Sith Codex...")
         # Initialize Sith Codex (optional subsystem). Safe: if anything fails we keep going.
         try:
-            # Loading...
             self.sith_codex = SithCodex()
             populate_canon(self.sith_codex)
             populate_artifacts(self.sith_codex)
+            print("✓ Sith Codex initialized")
         except Exception as e:
-            # Loading...
+            print(f"⚠ Sith Codex initialization failed: {e}")
             self.sith_codex = None
 
-        # Loading...
+        print("✓ Game initialization complete")
 
     def generate_world(self):
         print("⟳ Generating galaxy...")
+        logger = get_logger()
         try:
             map_features.generate_world(self)
             print("✓ World generated successfully")
-        except Exception:
-            print("✗ World generation failed")
-            try: self.ui.messages.add("World generation failed.") 
+            log_game_event("WORLD_GEN", "World generation completed successfully")
+        except Exception as e:
+            print(f"✗ World generation failed: {e}")
+            log_error("WORLD_GEN_CRASH", "World generation failed", e, logger.get_game_state_snapshot(self))
+            traceback.print_exc()
+            try: self.ui.messages.add(f"World generation failed: {e}") 
             except Exception: pass
 
         # ensure items_on_map exists (map_features places tokens now)
@@ -335,27 +352,50 @@ class GameManager:
             pass
 
     def run(self):
-        self.initialize()
-        self.generate_world()
+        logger = get_logger()
+        try:
+            log_info("Game initialization started")
+            self.initialize()
+            log_info("World generation started")
+            self.generate_world()
+            log_info("Game loop started")
+        except Exception as e:
+            log_error("INIT_CRASH", "Failed during game initialization", e, logger.get_game_state_snapshot(self))
+            raise
+        
         # main loop
         while self.running:
             # redraw
             try:
                 self.draw()
-            except Exception:
+            except Exception as e:
+                log_error("RENDER_ERROR", "Error during draw()", e, logger.get_game_state_snapshot(self))
                 try: self.dump_debug_state()
                 except Exception: pass
             # input
             try:
                 key = self.stdscr.getch()
                 input_handler.handle_input(self, key)
-            except Exception:
+            except Exception as e:
+                log_error("INPUT_ERROR", "Error handling input", e, logger.get_game_state_snapshot(self))
                 try: self.ui.messages.add("Input handler error.")
                 except Exception: pass
 
             # process game tick
             try:
                 self.turns += 1
+                
+                # Autosave system
+                try:
+                    # Don't autosave if player is dead or dying
+                    if (self.turns - self.last_autosave_turn >= self.autosave_interval and
+                        getattr(self.player, "hp", 1) > 0 and
+                        not getattr(self, '_died_this_session', False)):
+                        if save_game(self, is_autosave=True):
+                            self.last_autosave_turn = self.turns
+                except Exception as e:
+                    # Silent fail - don't interrupt gameplay
+                    pass
                 
                 # Regenerate Force energy each turn
                 try:
@@ -385,24 +425,35 @@ class GameManager:
                 
                 # Check death condition
                 if getattr(self.player, "hp", 1) <= 0:
-                    # Generate death log entry for stress overload deaths
+                    # Generate death log entry
                     try:
+                        in_tomb = getattr(self, 'in_tomb', False)
+                        biome = getattr(self, 'current_biome', 'unknown wasteland')
+                        
                         if getattr(self, '_breaking_point_triggered', False):
                             # Stress death - different narrative
-                            body_fate = ""
-                            in_tomb = getattr(self, 'in_tomb', False)
                             if in_tomb:
                                 tomb_floor = getattr(self, 'tomb_floor', 1)
                                 body_fate = f"Your broken mind left your body a hollow shell in the depths of the Sith Tomb Level {tomb_floor}."
                             else:
-                                biome = getattr(self, 'current_biome', 'unknown wasteland')
                                 body_fate = f"Your sanity shattered, you collapsed in the {biome}, never to rise again."
                             
                             death_entry = f"[DEATH] Succumbed to overwhelming stress and mental anguish. {body_fate} The darkness of this place proved too much to bear."
-                            self.player.add_to_travel_log(death_entry)
+                            self.player.add_log_entry(death_entry, self.turn_count)
+                        else:
+                            # Combat death - get last enemy that attacked
+                            last_enemy = getattr(self.player, 'last_attacking_enemy', 'a Sith warrior')
+                            if in_tomb:
+                                tomb_floor = getattr(self, 'tomb_floor', 1)
+                                location_desc = f"the depths of Sith Tomb Level {tomb_floor + 1}"
+                            else:
+                                location_desc = f"the {biome}"
+                            
+                            death_entry = f"[DEATH] Struck down by {last_enemy} in {location_desc}. Your lightsaber fell from your grasp as darkness claimed you. The Force weeps for another fallen Jedi."
+                            self.player.add_log_entry(death_entry, self.turn_count)
                     except Exception:
                         try:
-                            self.player.add_to_travel_log("[DEATH] Fell to stress overload.")
+                            self.player.add_log_entry("[DEATH] Your journey ends here. May the Force be with you.", self.turn_count)
                         except Exception:
                             pass
                     
@@ -414,6 +465,27 @@ class GameManager:
                         self.death_cause = 'enemy attack'
                     self.death_biome = getattr(self, 'current_biome', 'unknown')
                     self.death_pos = (getattr(self.player, 'x', None), getattr(self.player, 'y', None))
+                    
+                    # Delete autosave on death - player can't continue from a dead state
+                    try:
+                        from jedi_fugitive.game.save_system import get_autosave_path
+                        import os
+                        autosave = get_autosave_path()
+                        if autosave.exists():
+                            autosave.unlink()
+                            # Verify deletion
+                            if autosave.exists():
+                                # Try with os.remove as backup
+                                os.remove(str(autosave))
+                        # Also mark that we've died so we don't save again
+                        self._died_this_session = True
+                    except Exception as e:
+                        # Log but don't interrupt death screen
+                        try:
+                            print(f"[DEBUG] Failed to delete autosave: {e}")
+                        except:
+                            pass
+                    
                     # Loading...
                     sys.stdout.flush()
                     self.running = False
@@ -514,15 +586,27 @@ class GameManager:
 
     def enter_tomb(self) -> bool:
         """Wrapper for entering tombs from UI/input; calls map_features.enter_tomb(self)."""
+        logger = get_logger()
         try:
+            print("⟳ Entering tomb...")
+            log_game_event("TOMB_ENTRY", f"Player entering tomb at ({self.player.x}, {self.player.y})")
             # prefer map_features implementation (import at top as mf)
             try:
                 entered = mf.enter_tomb(self)
-            except Exception:
+                print(f"✓ Tomb entry result: {entered}")
+                log_game_event("TOMB_ENTRY", f"Tomb entry successful: {entered}")
+            except Exception as e:
+                print(f"⚠ First tomb entry attempt failed: {e}")
+                log_error("TOMB_ENTRY_ERROR", "First tomb entry attempt failed", e, logger.get_game_state_snapshot(self))
                 # fallback to direct import in case alias not present
                 from jedi_fugitive.game import map_features as _mf
                 entered = _mf.enter_tomb(self)
+                print(f"✓ Tomb entry (fallback) result: {entered}")
             if not entered:
+                print(f"✗ Tomb entry failed - returned False")
+                print(f"  Current depth: {getattr(self,'current_depth',None)}")
+                print(f"  Tomb entrances: {len(getattr(self,'tomb_entrances',set()))} found")
+                print(f"  Player position: ({self.player.x}, {self.player.y})")
                 try:
                     if getattr(self, "ui", None) and getattr(self.ui, "messages", None):
                         self.ui.messages.add("Failed to enter tomb (map_features returned False).")
@@ -545,10 +629,13 @@ class GameManager:
                 pass
             return True
         except Exception as e:
+            print(f"✗ TOMB ENTRY ERROR: {e}")
+            import traceback
+            traceback.print_exc()
             try:
                 with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
                     fh.write("GameManager.enter_tomb exception:\n")
-                    import traceback; traceback.print_exc(file=fh)
+                    traceback.print_exc(file=fh)
             except Exception:
                 pass
             try:
@@ -726,8 +813,14 @@ class GameManager:
             print(f"Total entries: {len(log)}\n")
             
             for i, entry in enumerate(log, 1):
-                turn = entry.get('turn', 0)
-                text = entry.get('text', '')
+                # Handle both dict and string entries for backward compatibility
+                if isinstance(entry, dict):
+                    turn = entry.get('turn', 0)
+                    text = entry.get('text', '')
+                else:
+                    # Old format: plain string
+                    turn = 0
+                    text = str(entry)
                 
                 # Format with turn number and entry
                 if turn > 0:
@@ -1160,6 +1253,26 @@ class GameManager:
             except Exception:
                 pass
             
+            # Add victory journal entry
+            try:
+                if corruption <= 20:
+                    victory_entry = "[VICTORY] You activated the distress beacon. The Jedi Council's transmission filled you with hope - your mission is complete. The artifacts are purified, and your devotion to the Light Side has earned you honor. Rescue is coming."
+                elif corruption <= 40:
+                    victory_entry = "[VICTORY] The beacon is active. The Council's words were cautious - they sense the darkness that touched you in the tombs. You survived, but at what cost? You will return to face judgment and purification."
+                elif corruption <= 59:
+                    victory_entry = "[VICTORY] You reached the beacon, but the Council's message chills your blood. They know what you did to survive. The artifacts are tainted, as are you. Your future with the Order is uncertain. A rescue team comes... but also judgment."
+                elif corruption <= 79:
+                    victory_entry = "[VICTORY?] The beacon transmitted your location, but the Council's response was exile. You are no longer a Jedi in their eyes. The darkness consumed too much of who you were. You survived the tombs, but lost yourself. No rescue will come."
+                else:
+                    victory_entry = "[VICTORY?] You activated the beacon, sealing your fate. The Council knows you have fallen completely to the Dark Side. They don't send rescue - they send executioners. Jedi Masters hunt you now. You escaped the tombs only to face a greater threat. Was it worth it?"
+                
+                self.player.add_log_entry(victory_entry, self.turn_count)
+            except Exception:
+                try:
+                    self.player.add_log_entry("[VICTORY] You have activated the distress beacon. Your mission is complete.", self.turn_count)
+                except Exception:
+                    pass
+            
             # Set victory flag
             self.victory = True
             self.running = False
@@ -1224,10 +1337,31 @@ class GameManager:
                 "You have proven yourself a survivor. The Sith may rule this world,",
                 "but they could not claim your life. The Force honors courage and cunning.",
                 "",
+            ]
+            
+            # Add persistent stats
+            try:
+                from jedi_fugitive.utils.game_stats import get_game_stats
+                game_stats = get_game_stats()
+                game_stats.record_victory(
+                    player_level=level,
+                    enemies_killed=getattr(self.player, 'kills_count', 0)
+                )
+                stats.append("")
+                stats.append("═══ LIFETIME STATISTICS ═══")
+                stats.append(f"Total Runs: {game_stats.get_total_runs()}")
+                stats.append(f"Victories: {game_stats.get_total_victories()}")
+                stats.append(f"Deaths: {game_stats.get_total_deaths()}")
+                stats.append(f"Win Rate: {game_stats.get_win_rate():.1f}%")
+            except Exception as e:
+                pass
+            
+            stats.extend([
+                "",
                 "May the Force be with you, always.",
                 "",
                 "═" * min(term_w, 80),
-            ]
+            ])
             
             # Print victory
             for ln in victory_art:
@@ -1244,11 +1378,21 @@ class GameManager:
             except Exception:
                 pass
             
-            # Wait for final exit
+            # Offer play again option
             try:
-                input("\nPress Enter to exit...")
+                print("\n" + "="*term_w)
+                print("[P] Play Again")
+                print("[Q] Quit")
+                print("="*term_w)
+                choice = input("\nYour choice: ").strip().upper()
+                
+                if choice == 'P':
+                    # Return True to signal restart
+                    return True
+                else:
+                    return False
             except Exception:
-                pass
+                return False
         except Exception:
             print("VICTORY!")
             print("You have escaped!")
@@ -1274,7 +1418,7 @@ class GameManager:
                 "Barely a challenge. The galaxy will forget your name before your body cools.",
                 "Such weakness. The Force rejects those unworthy of its power.",
                 "You fell like so many before you. Join the endless cycle of failure.",
-                "A momentary distraction, nothing more. The Empire marches on.",
+                "A momentary distraction, nothing more. The dark side hungers for more worthy prey.",
                 "Your struggle was entertaining, but ultimately meaningless. Rest in obscurity."
             ]
             
@@ -1362,6 +1506,23 @@ class GameManager:
                 "The Dark Side has claimed another victim...",
             ])
             
+            # Add persistent stats
+            try:
+                from jedi_fugitive.utils.game_stats import get_game_stats
+                game_stats = get_game_stats()
+                game_stats.record_death(
+                    player_level=level,
+                    enemies_killed=getattr(self.player, 'kills_count', 0)
+                )
+                stats_lines.append("")
+                stats_lines.append("=== LIFETIME STATISTICS ===")
+                stats_lines.append(f"Total Runs: {game_stats.get_total_runs()}")
+                stats_lines.append(f"Victories: {game_stats.get_total_victories()}")
+                stats_lines.append(f"Deaths: {game_stats.get_total_deaths()}")
+                stats_lines.append(f"Win Rate: {game_stats.get_win_rate():.1f}%")
+            except Exception as e:
+                pass
+            
             # Add travel log summary
             try:
                 log = getattr(self.player, 'travel_log', [])
@@ -1394,14 +1555,28 @@ class GameManager:
             except Exception:
                 pass
             
-            # Wait for final exit
+            # Offer play again option
             try:
-                input("\nPress Enter to exit...")
+                print("\n" + "="*term_w)
+                print("[P] Play Again")
+                print("[Q] Quit")
+                print("="*term_w)
+                choice = input("\nYour choice: ").strip().upper()
+                
+                if choice == 'P':
+                    # Return True to signal restart
+                    return True
+                else:
+                    return False
             except Exception:
-                pass
+                return False
         except Exception:
             print("GAME OVER")
-            print("Press any key to exit.")
+            try:
+                choice = input("Play again? [P/Q]: ").strip().upper()
+                return choice == 'P'
+            except Exception:
+                return False
 
     def _try_move_player(self, dx: int, dy: int) -> bool:
         """
@@ -1467,9 +1642,11 @@ class GameManager:
                                         pass
                                     # remove from map
                                     try:
-                                        self.items_on_map.remove(it)
+                                        if hasattr(self, 'items_on_map') and self.items_on_map:
+                                            self.items_on_map.remove(it)
                                         self.game_map[ny][nx] = getattr(Display, 'FLOOR', '.')
-                                    except Exception:
+                                    except Exception as e:
+                                        log_error("ITEM_PICKUP_ERROR", "Failed to remove item from map", e)
                                         pass
                             except Exception:
                                 pass
@@ -1810,19 +1987,18 @@ class GameManager:
                             # Determine boss type based on corruption
                             if corruption >= 60:
                                 # Dark Side player -> Jedi Master arrives to stop you
-                                boss_type = EnemyType.JEDI_MASTER
+                                from jedi_fugitive.game.enemies_sith import create_jedi_master
+                                boss = create_jedi_master(level=lvl, x=nx, y=ny)
                                 boss_name = "Jedi Master Alara"
                                 taunt_msg = "A figure in tan robes appears. 'I sense great darkness in you. You will not escape!'"
                                 combat_start = "The Jedi Master ignites a blue lightsaber and assumes a defensive stance."
                             else:
                                 # Light Side player -> Sith Master hunts you
-                                boss_type = EnemyType.SITH_LORD
+                                from jedi_fugitive.game.enemies_sith import create_sith_lord
+                                boss = create_sith_lord(level=lvl, x=nx, y=ny)
                                 boss_name = "Darth Malice"
                                 taunt_msg = "A crimson blade pierces the darkness. 'The Light makes you weak, Jedi filth!'"
                                 combat_start = "The Sith Lord attacks with vicious fury!"
-                            
-                            boss = Enemy(boss_type, level=lvl)
-                            boss.is_boss = True
                             boss.name = boss_name
                             
                             # Scale boss to player
@@ -1860,18 +2036,6 @@ class GameManager:
                                         pass
                             except Exception:
                                 pass
-                            
-                            # Place boss near ship
-                            try:
-                                boss.x = nx
-                                boss.y = ny
-                            except Exception:
-                                try:
-                                    boss.x = getattr(player, 'x', 0)
-                                    boss.y = getattr(player, 'y', 0)
-                                except Exception:
-                                    boss.x = 0
-                                    boss.y = 0
                             
                             try:
                                 self.enemies.append(boss)
@@ -2492,7 +2656,7 @@ class GameManager:
                                 # Add to journal
                                 try:
                                     biome = getattr(self, 'current_biome', 'unknown')
-                                    self.player.add_to_travel_log(f"[BREAKING POINT] The pressure became unbearable in the {biome}, but my connection to the Light Side saved me. I found clarity in the chaos and recovered my composure.")
+                                    self.player.add_log_entry(f"[BREAKING POINT] The pressure became unbearable in the {biome}, but my connection to the Light Side saved me. I found clarity in the chaos and recovered my composure.", self.turn_count)
                                 except Exception:
                                     pass
                             except Exception:
@@ -2526,7 +2690,7 @@ class GameManager:
                                 # Add to journal
                                 try:
                                     biome = getattr(self, 'current_biome', 'unknown')
-                                    self.player.add_to_travel_log(f"[BREAKING POINT] I lost control in the {biome}. Pure rage erupted from me, striking down everything nearby. The dark side flows through me freely now... it felt good.")
+                                    self.player.add_log_entry(f"[BREAKING POINT] I lost control in the {biome}. Pure rage erupted from me, striking down everything nearby. The dark side flows through me freely now... it felt good.", self.turn_count)
                                 except Exception:
                                     pass
                                 # apply reckless debuff placeholder
@@ -2546,7 +2710,7 @@ class GameManager:
                                 # Add to journal
                                 try:
                                     biome = getattr(self, 'current_biome', 'unknown')
-                                    self.player.add_to_travel_log(f"[BREAKING POINT] My mind shut down in the {biome}. I couldn't fight, couldn't move, couldn't think. I just... stopped. For how long, I'm not sure.")
+                                    self.player.add_log_entry(f"[BREAKING POINT] My mind shut down in the {biome}. I couldn't fight, couldn't move, couldn't think. I just... stopped. For how long, I'm not sure.", self.turn_count)
                                 except Exception:
                                     pass
                             except Exception:

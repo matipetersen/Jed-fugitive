@@ -207,6 +207,7 @@ class EnemyType(Enum):
     STORMTROOPER = 1
     SITH_GHOST = 2
     INQUISITOR = 3
+    JEDI_MASTER = 4
 
 
 class Enemy:
@@ -1034,11 +1035,13 @@ def process_enemies(game):
                                 
                                 # Add comprehensive death entry to travel log
                                 death_entry = f"[DEATH] Struck down by {enemy_name}'s {attack_type} for {damage} damage. {body_fate} The {enemy_name} taunts: '{taunt}'"
-                                game.player.add_to_travel_log(death_entry)
+                                turn = getattr(game, 'turn_count', 0)
+                                game.player.add_log_entry(death_entry, turn)
                             except Exception as ex:
                                 # Fallback if death logging fails
                                 try:
-                                    game.player.add_to_travel_log(f"[DEATH] Fell in combat.")
+                                    turn = getattr(game, 'turn_count', 0)
+                                    game.player.add_log_entry(f"[DEATH] Fell in combat.", turn)
                                 except Exception:
                                     pass
                             

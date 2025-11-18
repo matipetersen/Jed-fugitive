@@ -1,5 +1,6 @@
 import curses
 from jedi_fugitive.game.level import Display
+from jedi_fugitive.config import MAX_INVENTORY_SIZE
 
 
 def _unlock_dark_ability(game):
@@ -188,15 +189,23 @@ def _remove_equipment_effects(game, slot):
     try:
         base = getattr(game.player, "_base_stats", None)
         if base:
+            current_hp = getattr(game.player, "hp", 10)
+            
             game.player.attack = base.get("attack", getattr(game.player, "attack", 1))
             game.player.defense = base.get("defense", getattr(game.player, "defense", 0))
             game.player.evasion = base.get("evasion", getattr(game.player, "evasion", 0))
-            game.player.max_hp = base.get("max_hp", getattr(game.player, "max_hp", getattr(game.player, "hp", 10)))
-            # restore hp without referencing undefined self
+            game.player.max_hp = base.get("max_hp", getattr(game.player, "max_hp", 10))
+            
+            # CRITICAL: Never let HP go to 0 when re-equipping
+            # Keep current HP, but cap it to new max_hp if needed
             try:
-                game.player.hp = min(getattr(game.player, "hp", game.player.max_hp), game.player.max_hp)
+                if current_hp > 0:
+                    game.player.hp = min(current_hp, game.player.max_hp)
+                else:
+                    # HP was already 0 (player is dead), don't change it
+                    game.player.hp = current_hp
             except Exception:
-                game.player.hp = getattr(game.player, "hp", game.player.max_hp)
+                game.player.hp = max(1, current_hp)  # Emergency fallback: ensure at least 1 HP
         if slot == "weapon":
             game.player.equipped_weapon = None
         elif slot == "armor":
@@ -270,7 +279,7 @@ def pick_up(game):
                 equipment_drop = game.equipment_drops.get((px, py))
                 if equipment_drop:
                     # capacity check
-                    max_inv = int(getattr(game, 'max_inventory', 9) or 9)
+                    max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
                     cur_inv = len(getattr(game.player, 'inventory', []) or [])
                     if cur_inv >= max_inv:
                         try: game.ui.messages.add("Inventory full. Can't pick up item.")
@@ -353,8 +362,8 @@ def pick_up(game):
             items_here = [it for it in getattr(game, 'items_on_map', []) or [] if it.get('x') == px and it.get('y') == py]
         except Exception:
             items_here = []
-        # inventory capacity (default 9)
-        max_inv = int(getattr(game, 'max_inventory', 9) or 9)
+        # inventory capacity (default 20)
+        max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
         cur_inv = len(getattr(game.player, 'inventory', []) or [])
         if items_here:
             it = items_here[0]
@@ -407,7 +416,7 @@ def pick_up(game):
             if not hasattr(game.player, "inventory") or game.player.inventory is None:
                 game.player.inventory = []
             # capacity check
-            max_inv = int(getattr(game, 'max_inventory', 9) or 9)
+            max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
             cur_inv = len(getattr(game.player, 'inventory', []) or [])
             if cur_inv >= max_inv:
                 try: game.ui.messages.add("Inventory full. Can't pick up item.")
@@ -516,7 +525,7 @@ def pick_up(game):
             # Note: Gold is now handled earlier in the function before pickup_map check
             
             # capacity check for regular items
-            max_inv = int(getattr(game, 'max_inventory', 9) or 9)
+            max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
             cur_inv = len(getattr(game.player, 'inventory', []) or [])
             if cur_inv >= max_inv:
                 try: game.ui.messages.add("Inventory full. Can't pick up item.")

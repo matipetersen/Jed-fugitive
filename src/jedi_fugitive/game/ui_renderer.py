@@ -407,9 +407,11 @@ def draw_stats_panel(game):
                 xp_next = 100
             panel.addstr(cur_row, left, f"Level: {getattr(game.player,'level',1)}  XP: {getattr(game.player,'xp',0)}/{xp_next}"[: panel.getmaxyx()[1] - 4])
             # Stress as a compact bar with description
-            # Only show if stress system is active (after first tomb entry)
+            # Only show if stress system is active (after first tomb entry) AND currently in a tomb
             try:
-                if getattr(game.player, '_stress_system_active', False):
+                # Check if player is in tomb (tomb_floor is not None)
+                in_tomb = getattr(game, 'tomb_floor', None) is not None
+                if getattr(game.player, '_stress_system_active', False) and in_tomb:
                     stress = int(getattr(game.player, 'stress', 0) or 0)
                     max_stress = int(getattr(game.player, 'max_stress', 100) or 100)
                     
@@ -453,14 +455,10 @@ def draw_stats_panel(game):
                             pass
             except Exception:
                 try:
-                    if getattr(game.player, '_stress_system_active', False):
-                        panel.addstr(cur_row + 1, left, f"Stress: {getattr(game.player,'stress',0)}/{getattr(game.player,'_max_stress',100)}"[: panel.getmaxyx()[1] - 4])
-                except Exception:
-                    pass
-            # Force points as slot markers
-            except Exception:
-                try:
-                    panel.addstr(cur_row + 1, left, f"Stress: {getattr(game.player,'stress',0)}/{getattr(game.player,'max_stress',100)}"[: panel.getmaxyx()[1] - 4])
+                    # Check if player is in tomb (tomb_floor is not None)
+                    in_tomb = getattr(game, 'tomb_floor', None) is not None
+                    if getattr(game.player, '_stress_system_active', False) and in_tomb:
+                        panel.addstr(cur_row + 1, left, f"Stress: {getattr(game.player,'stress',0)}/{getattr(game.player,'max_stress',100)}"[: panel.getmaxyx()[1] - 4])
                 except Exception:
                     pass
             # Force Energy bar (Phase 1 system) - Visual bar with tokens
@@ -497,14 +495,9 @@ def draw_stats_panel(game):
                 else:
                     # Fallback to legacy Force Points display
                     fp = int(getattr(game.player, 'force_points', 0) or 0)
-                    max_fp = int(getattr(game.player, 'max_force', max(3, fp)) or max(3, fp))
-                    if max_fp < 1:
-                        max_fp = max(1, fp)
-                    slots = ''.join('●' if i < fp else '○' for i in range(max_fp))
+                    # Show actual force points number instead of limited dots
                     try:
-                        panel.addstr(cur_row + 2, left, "Force: ")
-                        max_slots_w = max(1, panel.getmaxyx()[1] - (left + len("Force: ") + 2))
-                        panel.addstr(cur_row + 2, left + len("Force: "), slots[:max_slots_w])
+                        panel.addstr(cur_row + 2, left, f"Force Points: {fp}"[: panel.getmaxyx()[1] - 4])
                     except Exception:
                         panel.addstr(cur_row + 2, left, f"Force: {getattr(game.player,'force_points',0)}"[: panel.getmaxyx()[1] - 4])
             except Exception:

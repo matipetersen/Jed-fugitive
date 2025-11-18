@@ -19,3 +19,6 @@ DEPTH_DIFFICULTY_RATE = 0.20  # 20% depth-ish influence per depth step (tweak as
 # Map scaling: how much bigger maps should be compared to the generator's base.
 # Setting to 10 will produce maps ~10x larger (both width and height scaled).
 MAP_SCALE = 4
+
+# Player inventory size (number of item slots)
+MAX_INVENTORY_SIZE = 20

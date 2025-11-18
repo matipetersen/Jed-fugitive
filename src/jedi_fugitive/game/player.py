@@ -3,6 +3,7 @@ from jedi_fugitive.items.weapons import Weapon, WeaponType
 from jedi_fugitive.items.armor import Armor
 # fix import: use force_abilities module (singular file force_ability likely missing)
 from jedi_fugitive.game.force_abilities import FORCE_ABILITIES, ForceAbility, ForcePushPull
+from jedi_fugitive.config import MAX_INVENTORY_SIZE
 
 class LevelUpOption:
     MAX_HP = 1
@@ -42,6 +43,12 @@ class Player:
         self.equipped_weapon = None    # current weapon (main hand)
         self.equipped_offhand = None   # offhand weapon or shield
         self.equipped_armor = None     # body armor
+        
+        # Weapon and Shield Masteries - improve damage/defense with equipment types
+        self.melee_mastery = 0      # Bonus damage with melee weapons
+        self.ranged_mastery = 0     # Bonus damage with ranged weapons
+        self.shield_mastery = 0     # Bonus defense with shields
+        self.dual_wield_mastery = 0 # Bonus when dual-wielding
 
         # Start with a minimal set of force abilities (unlock more when leveling)
         try:
@@ -179,22 +186,31 @@ class Player:
     def level_up(self):
         """Apply level up bonuses (non-destructive)."""
         self.level = getattr(self, "level", 1) + 1
+        
+        # IMPORTANT: Update base stats FIRST before adding level bonuses
+        # This ensures we only add to the true base, not base+equipment
+        if hasattr(self, '_base_stats') and self._base_stats:
+            self._base_stats['attack'] = self._base_stats.get('attack', 1) + 1
+            self._base_stats['defense'] = self._base_stats.get('defense', 0) + 1
+            self._base_stats['evasion'] = self._base_stats.get('evasion', 0) + 1
+            self._base_stats['max_hp'] = self._base_stats.get('max_hp', 10) + 5
+        
         # scale increases per level (tweakable)
+        # Add to current stats (which may include equipment bonuses)
         self.max_hp = getattr(self, "max_hp", 10) + 5
         self.hp = min(getattr(self, "hp", self.max_hp), self.max_hp)
         self.attack = getattr(self, "attack", 1) + 1
         self.defense = getattr(self, "defense", 0) + 1
         self.evasion = getattr(self, "evasion", 0) + 1
         
-        # Update base stats so weapon bonus calculations remain accurate
-        if hasattr(self, '_base_stats') and self._base_stats:
-            self._base_stats['attack'] = self.attack
-            self._base_stats['defense'] = self.defense
-            self._base_stats['evasion'] = self.evasion
-            self._base_stats['max_hp'] = self.max_hp
-        # grant force points slowly
-        if self.level % 3 == 0:
-            self.force_points = getattr(self, "force_points", 0) + 1
+        # Grant Force Points every level (changed from every 3 levels)
+        self.force_points = getattr(self, "force_points", 0) + 1
+        try:
+            if getattr(self, 'ui', None) and getattr(self.ui, 'messages', None):
+                self.ui.messages.add(f"Force connection strengthens! +1 Force Point")
+        except Exception:
+            pass
+        
         # significantly reduce stress on level up (changed from full reset to major reduction)
         try:
             current_stress = getattr(self, 'stress', 0)
@@ -212,7 +228,19 @@ class Player:
             ui = getattr(self, 'ui', None)
             game = getattr(self, 'game', None)
             title = f"Level {self.level} - Choose reward"
-            options = ["+5 Max HP", "+1 Attack", "+1 Evasion", "Learn Force Ability"]
+            
+            # Build options list with masteries and Force points
+            options = [
+                "+5 Max HP",
+                "+1 Attack", 
+                "+1 Evasion",
+                "+2 Force Points",
+                "Melee Mastery (+2 dmg with melee)",
+                "Ranged Mastery (+2 dmg with ranged)",
+                "Shield Mastery (+2 def with shields)",
+                "Dual Wield Mastery (+1 dmg per weapon)",
+                "Learn Force Ability"
+            ]
 
             sel = None
             try:
@@ -244,31 +272,57 @@ class Player:
                         self.ui.messages.add(f"+5 Max HP applied by default")
                 except Exception:
                     pass
-                # apply default
+                # Update base stats first
+                if hasattr(self, '_base_stats') and self._base_stats:
+                    self._base_stats['max_hp'] = self._base_stats.get('max_hp', 10) + 5
+                # Then apply default
                 self.max_hp += 5
                 self.hp = min(self.max_hp, getattr(self, 'hp', self.max_hp))
-                # Update base stats to prevent HP reset when equipping armor
-                if hasattr(self, '_base_stats') and self._base_stats:
-                    self._base_stats['max_hp'] = self.max_hp
             else:
                 try:
                     if sel == 0:
+                        # Update base stats first
+                        if hasattr(self, '_base_stats') and self._base_stats:
+                            self._base_stats['max_hp'] = self._base_stats.get('max_hp', 10) + 5
+                        # Then update current (with equipment)
                         self.max_hp += 5
                         self.hp = min(self.max_hp, getattr(self, 'hp', self.max_hp))
-                        if hasattr(self, '_base_stats') and self._base_stats:
-                            self._base_stats['max_hp'] = self.max_hp
                         ui.messages.add("Max HP increased by 5.")
                     elif sel == 1:
-                        self.attack += 1
+                        # Update base stats first
                         if hasattr(self, '_base_stats') and self._base_stats:
-                            self._base_stats['attack'] = self.attack
+                            self._base_stats['attack'] = self._base_stats.get('attack', 1) + 1
+                        # Then update current (with equipment)
+                        self.attack += 1
                         ui.messages.add("Attack increased by 1.")
                     elif sel == 2:
-                        self.evasion += 1
+                        # Update base stats first
                         if hasattr(self, '_base_stats') and self._base_stats:
-                            self._base_stats['evasion'] = self.evasion
+                            self._base_stats['evasion'] = self._base_stats.get('evasion', 0) + 1
+                        # Then update current (with equipment)
+                        self.evasion += 1
                         ui.messages.add("Evasion increased by 1.")
                     elif sel == 3:
+                        # +2 Force Points
+                        self.force_points += 2
+                        ui.messages.add(f"Force Points increased by 2! (Total: {self.force_points})")
+                    elif sel == 4:
+                        # Melee Mastery
+                        self.melee_mastery += 2
+                        ui.messages.add(f"Melee Mastery +2! Now +{self.melee_mastery} bonus damage with melee weapons.")
+                    elif sel == 5:
+                        # Ranged Mastery
+                        self.ranged_mastery += 2
+                        ui.messages.add(f"Ranged Mastery +2! Now +{self.ranged_mastery} bonus damage with ranged weapons.")
+                    elif sel == 6:
+                        # Shield Mastery
+                        self.shield_mastery += 2
+                        ui.messages.add(f"Shield Mastery +2! Now +{self.shield_mastery} bonus defense with shields.")
+                    elif sel == 7:
+                        # Dual Wield Mastery
+                        self.dual_wield_mastery += 1
+                        ui.messages.add(f"Dual Wield Mastery +1! Now +{self.dual_wield_mastery} bonus damage per weapon when dual-wielding.")
+                    elif sel == 8:
                         # choose new force ability if available
                         # Filter: 1) exclude already learned, 2) exclude Meditation (mapped to 'm' key), 3) filter by alignment
                         corruption = getattr(self, 'dark_corruption', 0)
@@ -374,6 +428,24 @@ class Player:
         lines.append(f"Force: {getattr(self,'force_points',0)}")
         lines.append(f"Gold: {getattr(self,'gold_collected',0)}")
         
+        # Show masteries if any > 0
+        melee_m = getattr(self, 'melee_mastery', 0)
+        ranged_m = getattr(self, 'ranged_mastery', 0)
+        shield_m = getattr(self, 'shield_mastery', 0)
+        dual_m = getattr(self, 'dual_wield_mastery', 0)
+        
+        if any([melee_m, ranged_m, shield_m, dual_m]):
+            lines.append("")  # Blank line
+            lines.append("Masteries:")
+            if melee_m > 0:
+                lines.append(f"  Melee: +{melee_m} dmg")
+            if ranged_m > 0:
+                lines.append(f"  Ranged: +{ranged_m} dmg")
+            if shield_m > 0:
+                lines.append(f"  Shield: +{shield_m} def")
+            if dual_m > 0:
+                lines.append(f"  Dual Wield: +{dual_m} dmg/weapon")
+        
         # Show Force abilities
         force_abilities = getattr(self, 'force_abilities', {})
         if force_abilities:
@@ -461,7 +533,22 @@ class Player:
                     arm_def = 0
         except Exception:
             arm_def = 0
-        return base + int(arm_def)
+        
+        total_def = base + int(arm_def)
+        
+        # Apply shield mastery if shield equipped
+        offhand = getattr(self, "offhand", None)
+        if offhand:
+            try:
+                from jedi_fugitive.items.weapons import WeaponType
+                offhand_type = getattr(offhand, 'weapon_type', None)
+                if offhand_type == WeaponType.ENERGY_SHIELD:
+                    shield_bonus = getattr(self, 'shield_mastery', 0)
+                    total_def += shield_bonus
+            except Exception:
+                pass
+        
+        return total_def
 
     def add_stress(self, amount: int, source: str = None):
         """Increase stress with clamping and basic resilience modifiers."""
@@ -634,7 +721,7 @@ class Player:
             return None
         # Return unequipped item to inventory; if inventory full, eject oldest inventory item to ground
         try:
-            max_inv = int(getattr(self, 'max_inventory', 9) or 9)
+            max_inv = int(getattr(self, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
             cur_inv = len(getattr(self, 'inventory', []) or [])
             game = getattr(self, 'game', None)
             if cur_inv < max_inv:
@@ -712,7 +799,7 @@ class Player:
         if not a:
             return None
         try:
-            max_inv = int(getattr(self, 'max_inventory', 9) or 9)
+            max_inv = int(getattr(self, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
             cur_inv = len(getattr(self, 'inventory', []) or [])
             game = getattr(self, 'game', None)
             if cur_inv < max_inv:

@@ -651,6 +651,476 @@ class ForceFear(ForceAbility):
                 except: pass
             return False
 
+class ForceSpeed(ForceAbility):
+    """Grant temporary extra movement and dodge chance."""
+    name = "Force Speed"
+    base_cost = 30
+    target_type = "self"
+    description = "Channel the Force to move with preternatural speed, increasing evasion."
+    alignment = "neutral"
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        # Grant evasion bonus for 5 turns
+        try:
+            if not hasattr(user, 'temp_evasion_bonus'):
+                user.temp_evasion_bonus = 0
+                user.temp_evasion_turns = 0
+            
+            user.temp_evasion_bonus = 20  # +20 evasion
+            user.temp_evasion_turns = 5
+            user.evasion = getattr(user, 'evasion', 0) + 20
+            
+            if messages:
+                try: messages.add("Time slows as you move with Force-enhanced speed! (+20 evasion for 5 turns)")
+                except: pass
+            
+            return True
+        except Exception:
+            if messages:
+                try: messages.add("Force Speed failed.")
+                except: pass
+            return False
+
+
+class ForceSight(ForceAbility):
+    """Reveal all enemies on the map briefly."""
+    name = "Force Sight"
+    base_cost = 40
+    target_type = "self"
+    description = "See through the Force, revealing all living beings on the current floor."
+    alignment = "light"
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        try:
+            # Count enemies
+            enemy_count = 0
+            if hasattr(user, 'game') and hasattr(user.game, 'enemies'):
+                enemy_count = len([e for e in user.game.enemies if getattr(e, 'hp', 0) > 0])
+            
+            # Grant massive LOS bonus for 3 turns
+            user.los_bonus_turns = getattr(user, "los_bonus_turns", 0) + 3
+            user.los_bonus_radius = max(int(getattr(user, 'los_bonus_radius', 0) or 0), 20)
+            
+            if messages:
+                try: messages.add(f"The Force reveals all! {enemy_count} life forms detected.")
+                except: pass
+            
+            # Light side reduces stress
+            if hasattr(user, 'reduce_stress'):
+                user.reduce_stress(5)
+            
+            return True
+        except Exception:
+            if messages:
+                try: messages.add("Force Sight failed.")
+                except: pass
+            return False
+
+
+class ForceRage(ForceAbility):
+    """Unleash dark side fury for massive damage boost but take stress."""
+    name = "Force Rage"
+    base_cost = 50
+    target_type = "self"
+    description = "Channel raw dark side power, greatly increasing attack but at the cost of your sanity."
+    alignment = "dark"
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        try:
+            # Grant massive attack bonus for 4 turns
+            if not hasattr(user, 'temp_attack_bonus'):
+                user.temp_attack_bonus = 0
+                user.temp_attack_turns = 0
+            
+            bonus = 15
+            user.temp_attack_bonus = bonus
+            user.temp_attack_turns = 4
+            user.attack = getattr(user, 'attack', 0) + bonus
+            
+            if messages:
+                try: messages.add(f"RAGE CONSUMES YOU! +{bonus} attack for 4 turns!")
+                except: pass
+            
+            # Dark side MASSIVELY increases stress
+            if hasattr(user, 'add_stress'):
+                user.add_stress(25, source='dark_rage')
+            
+            return True
+        except Exception:
+            if messages:
+                try: messages.add("Force Rage failed.")
+                except: pass
+            return False
+
+
+class ForcePhantom(ForceAbility):
+    """Create an illusory decoy that draws enemy attention."""
+    name = "Force Phantom"
+    base_cost = 35
+    target_type = "location"
+    description = "Project a Force illusion that enemies will target, buying you precious time."
+    alignment = "neutral"
+    mode = "decoy"  # Special mode for placement
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, **kwargs) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        try:
+            # Get game context
+            game = kwargs.get('game', None)
+            if not game:
+                if messages:
+                    try: messages.add("Cannot create phantom without game context.")
+                    except: pass
+                return False
+            
+            # Get target coordinates
+            if isinstance(target, (tuple, list)):
+                tx, ty = int(target[0]), int(target[1])
+            else:
+                if messages:
+                    try: messages.add("Invalid target location for phantom.")
+                    except: pass
+                return False
+            
+            # Create decoy marker (lasts 6 turns)
+            if not hasattr(game, 'force_phantoms'):
+                game.force_phantoms = []
+            
+            # Remove old phantoms
+            game.force_phantoms = [p for p in game.force_phantoms if p['turns_left'] > 0]
+            
+            # Add new phantom
+            phantom = {
+                'x': tx,
+                'y': ty,
+                'turns_left': 6,
+                'display_char': '@',  # Looks like player
+                'taunt_range': 8  # Enemies within 8 tiles are distracted
+            }
+            game.force_phantoms.append(phantom)
+            
+            if messages:
+                try: messages.add(f"Force phantom appears at ({tx},{ty})! Enemies will be drawn to it.")
+                except: pass
+            
+            # Reduce stress slightly (clever tactic)
+            if hasattr(user, 'reduce_stress'):
+                user.reduce_stress(3)
+            
+            return True
+        except Exception as e:
+            if messages:
+                try: messages.add(f"Force Phantom failed: {e}")
+                except: pass
+            return False
+
+
+class ForceBurst(ForceAbility):
+    """Release an explosive wave of Force energy, damaging all nearby enemies."""
+    name = "Force Burst"
+    base_cost = 45
+    target_type = "self"
+    description = "Unleash a devastating shockwave that damages all enemies around you."
+    alignment = "neutral"
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, **kwargs) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        power_scale = self.get_power_scale(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        try:
+            # Get game context
+            game = kwargs.get('game', None)
+            if not game:
+                return False
+            
+            # Damage all enemies within 3 tiles
+            px = getattr(user, 'x', 0)
+            py = getattr(user, 'y', 0)
+            radius = 3
+            base_damage = int(12 * power_scale)
+            
+            hit_count = 0
+            for e in list(getattr(game, 'enemies', []) or []):
+                try:
+                    ex = int(getattr(e, 'x', 0))
+                    ey = int(getattr(e, 'y', 0))
+                    dx = ex - px
+                    dy = ey - py
+                    
+                    # Circular radius check
+                    if (dx*dx + dy*dy) <= (radius * radius):
+                        if hasattr(e, 'take_damage'):
+                            e.take_damage(base_damage)
+                        else:
+                            e.hp = getattr(e, 'hp', 0) - base_damage
+                        hit_count += 1
+                except Exception:
+                    continue
+            
+            if messages:
+                if hit_count > 0:
+                    try: messages.add(f"Force Burst! {base_damage} damage to {hit_count} nearby enemies!")
+                    except: pass
+                else:
+                    try: messages.add("Force Burst hits nothing nearby.")
+                    except: pass
+            
+            return True
+        except Exception:
+            if messages:
+                try: messages.add("Force Burst failed.")
+                except: pass
+            return False
+
+
+class ForceBlink(ForceAbility):
+    """Teleport a short distance to escape danger."""
+    name = "Force Blink"
+    base_cost = 40
+    target_type = "location"
+    description = "Vanish and reappear at a nearby location, escaping immediate danger."
+    alignment = "neutral"
+    mode = "teleport"
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, **kwargs) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        try:
+            # Get game context
+            game = kwargs.get('game', None)
+            if not game:
+                return False
+            
+            # Get target coordinates
+            if isinstance(target, (tuple, list)):
+                tx, ty = int(target[0]), int(target[1])
+            else:
+                return False
+            
+            # Check range (max 5 tiles)
+            px = getattr(user, 'x', 0)
+            py = getattr(user, 'y', 0)
+            dist = abs(tx - px) + abs(ty - py)
+            if dist > 5:
+                if messages:
+                    try: messages.add("Teleport range limited to 5 tiles!")
+                    except: pass
+                return False
+            
+            # Check if target is walkable
+            from jedi_fugitive.game.level import Display
+            map_h = len(game.game_map)
+            map_w = len(game.game_map[0]) if map_h else 0
+            
+            if not (0 <= ty < map_h and 0 <= tx < map_w):
+                if messages:
+                    try: messages.add("Cannot teleport outside the map!")
+                    except: pass
+                return False
+            
+            cell = game.game_map[ty][tx]
+            wall = getattr(Display, 'WALL', '#')
+            tree = getattr(Display, 'TREE', 'T')
+            
+            if cell in (wall, tree):
+                if messages:
+                    try: messages.add("Cannot teleport into solid objects!")
+                    except: pass
+                return False
+            
+            # Check for enemies at target
+            for e in getattr(game, 'enemies', []):
+                if getattr(e, 'x', -1) == tx and getattr(e, 'y', -1) == ty:
+                    if messages:
+                        try: messages.add("Cannot teleport into an enemy!")
+                        except: pass
+                    return False
+            
+            # Teleport!
+            user.x = tx
+            user.y = ty
+            
+            if messages:
+                try: messages.add(f"You blink through the Force to ({tx},{ty})!")
+                except: pass
+            
+            # Reduce stress (escape from danger)
+            if hasattr(user, 'reduce_stress'):
+                user.reduce_stress(5)
+            
+            return True
+        except Exception as e:
+            if messages:
+                try: messages.add(f"Force Blink failed: {e}")
+                except: pass
+            return False
+
+
+class ForceStun(ForceAbility):
+    """Paralyze an enemy temporarily, preventing them from acting."""
+    name = "Force Stun"
+    base_cost = 30
+    target_type = "enemy"
+    description = "Overwhelm an enemy's nervous system, stunning them for several turns."
+    alignment = "light"
+    
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, **kwargs) -> bool:
+        actual_cost = self.get_actual_cost(user)
+        
+        # Check Force energy
+        force_available = getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+        if force_available < actual_cost:
+            if messages:
+                try: messages.add("Not enough Force energy.")
+                except: pass
+            return False
+        
+        # Get game and target
+        game = kwargs.get('game', None)
+        if not game:
+            return False
+        
+        # Find enemy at target location
+        if isinstance(target, (tuple, list)):
+            tx, ty = int(target[0]), int(target[1])
+            found_enemy = None
+            for e in getattr(game, 'enemies', []):
+                if getattr(e, 'x', -1) == tx and getattr(e, 'y', -1) == ty:
+                    if getattr(e, 'hp', 0) > 0:
+                        found_enemy = e
+                        break
+            
+            if not found_enemy:
+                if messages:
+                    try: messages.add("No valid enemy to stun at that location.")
+                    except: pass
+                return False
+            
+            target_enemy = found_enemy
+        else:
+            target_enemy = target
+        
+        # Deduct cost
+        if hasattr(user, 'force_energy'):
+            user.force_energy -= actual_cost
+        else:
+            user.force_points = max(0, getattr(user, 'force_points', 0) - (actual_cost // 50))
+        
+        try:
+            # Apply stun effect (3 turns)
+            if not hasattr(target_enemy, 'stunned_turns'):
+                target_enemy.stunned_turns = 0
+            
+            target_enemy.stunned_turns = 3
+            
+            enemy_name = getattr(target_enemy, 'name', 'enemy')
+            if messages:
+                try: messages.add(f"{enemy_name} is paralyzed by the Force! (3 turns)")
+                except: pass
+            
+            # Light side reduces stress
+            if hasattr(user, 'reduce_stress'):
+                user.reduce_stress(5)
+            
+            return True
+        except Exception:
+            if messages:
+                try: messages.add("Force Stun failed.")
+                except: pass
+            return False
+
+
 # ensure FORCE_ABILITIES exists and append these abilities non-destructively
 try:
     FORCE_ABILITIES
@@ -678,3 +1148,17 @@ if "ForceDrain" not in _has:
     FORCE_ABILITIES.append(ForceDrain())
 if "ForceFear" not in _has:
     FORCE_ABILITIES.append(ForceFear())
+if "ForceSpeed" not in _has:
+    FORCE_ABILITIES.append(ForceSpeed())
+if "ForceSight" not in _has:
+    FORCE_ABILITIES.append(ForceSight())
+if "ForceRage" not in _has:
+    FORCE_ABILITIES.append(ForceRage())
+if "ForcePhantom" not in _has:
+    FORCE_ABILITIES.append(ForcePhantom())
+if "ForceBurst" not in _has:
+    FORCE_ABILITIES.append(ForceBurst())
+if "ForceBlink" not in _has:
+    FORCE_ABILITIES.append(ForceBlink())
+if "ForceStun" not in _has:
+    FORCE_ABILITIES.append(ForceStun())

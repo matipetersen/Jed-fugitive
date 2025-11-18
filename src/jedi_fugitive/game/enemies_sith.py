@@ -281,6 +281,100 @@ def create_dread_inquisitor(level: int = 6, x: int = 0, y: int = 0) -> Enemy:
     return e
 
 
+def create_sith_inquisitor(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
+    """The ultimate challenge: a Sith Lord who guards the legendary weapon in the Sith Keep."""
+    # Canon Sith Lord names from various eras
+    sith_lord_names = [
+        "Darth Malak",
+        "Darth Revan", 
+        "Darth Bane",
+        "Darth Nihilus",
+        "Darth Sion",
+        "Darth Traya",
+        "Darth Malgus",
+        "Darth Marr",
+        "Darth Nox",
+        "Darth Thanaton",
+        "Darth Baras",
+        "Darth Zash",
+        "Darth Jadus",
+        "Darth Vindican"
+    ]
+    
+    sith_name = random.choice(sith_lord_names)
+    base_hp = 100 + level * 20
+    e = Enemy(sith_name, int(base_hp * 2.5), 22 + level * 2, 12 + level, 8, EnemyPersonality(), 2000, x, y, level=level)
+    e.symbol = 'L'  # Changed from 'I' to 'L' for Lord
+    e.is_boss = True
+    try:
+        e.force_abilities = {
+            'lightning': force_abilities.ForceLightning(damage=20 + level * 3),
+            'heal': force_abilities.ForceHeal(amount=15 + level * 2),
+            'pushpull': force_abilities.ForcePushPull()
+        }
+        e.force_points = 12 + level
+    except Exception:
+        e.force_abilities = {}
+
+    def inquisitor_ai(game, self):
+        try:
+            player = getattr(game, 'player', None)
+            if not player:
+                return False
+            dist = abs(getattr(player,'x',0)-getattr(self,'x',0)) + abs(getattr(player,'y',0)-getattr(self,'y',0))
+            fa = getattr(self, 'force_abilities', {}) or {}
+            
+            # Aggressive lightning attacks
+            lightning = fa.get('lightning')
+            if lightning and dist <= 10:
+                last = getattr(self, '_ability_last_used', {}).get(getattr(lightning,'name',str(lightning)), -9999)
+                cooldown = getattr(lightning, 'cooldown', 3)
+                if getattr(game, 'turn_count', 0) - last >= cooldown:
+                    try:
+                        used = lightning.use(self, player, game.game_map, getattr(game.ui,'messages', None), getattr(self,'level',1))
+                        if used:
+                            try: self._ability_last_used[getattr(lightning,'name',str(lightning))] = getattr(game,'turn_count',0)
+                            except Exception: pass
+                            return True
+                    except Exception:
+                        pass
+
+            # Heal when wounded
+            if self.hp < self.max_hp * 0.4:
+                heal = fa.get('heal')
+                if heal:
+                    last = getattr(self, '_ability_last_used', {}).get(getattr(heal,'name',str(heal)), -9999)
+                    cooldown = getattr(heal, 'cooldown', 5)
+                    if getattr(game, 'turn_count', 0) - last >= cooldown:
+                        try:
+                            used = heal.use(self, self, game.game_map, getattr(game.ui,'messages', None), getattr(self,'level',1))
+                            if used:
+                                try: self._ability_last_used[getattr(heal,'name',str(heal))] = getattr(game,'turn_count',0)
+                                except Exception: pass
+                                return True
+                        except Exception:
+                            pass
+
+            # Force drain every 4 turns (only if player can see the enemy)
+            if getattr(game, 'turn_count', 0) % 4 == 0 and dist <= 12:
+                try:
+                    if hasattr(player, 'force_points') and player.force_points > 0:
+                        player.force_points = max(0, player.force_points - 2)
+                        self.force_points = getattr(self, 'force_points', 0) + 2
+                        if getattr(game.ui, 'messages', None):
+                            game.ui.messages.add(f"{self.name} siphons your Force essence! You lose 2 Force points.")
+                        return True
+                except Exception:
+                    pass
+
+            return False
+        except Exception:
+            return False
+
+    _attach_take_turn(e, inquisitor_ai)
+    return e
+
+
 def create_obsidian_regent(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
     """An ancient regent who manipulates the battlefield and summons brief guardians."""
     e = Enemy("Obsidian Regent", 120 + level * 22, 14 + level * 2, 12 + level, 6, EnemyPersonality(), 1600, x, y, level=level)
@@ -334,4 +428,110 @@ def create_obsidian_regent(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
             return False
 
     _attach_take_turn(e, regent_ai)
+    return e
+
+
+def create_jedi_master(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """
+    Jedi Master boss - spawns when player corruption >= 60%.
+    Defensive, uses Force abilities, wields blue lightsaber.
+    """
+    e = Enemy(
+        "Jedi Master", 
+        40 + level * 8,  # High HP for endgame boss
+        15 + int(level * 1.8),  # Strong attack
+        10 + level,  # High defense
+        8 + level//2,  # Good evasion
+        EnemyPersonality(is_jedi=True), 
+        200,  # High XP reward
+        x, y, 
+        level=level
+    )
+    e.symbol = 'J'
+    e.is_boss = True
+    e.lightsaber_color = "blue"
+    e.combat_stance = "defensive"
+    
+    try:
+        e.force_abilities = {
+            'push': force_abilities.ForcePushPull(),
+            'heal': force_abilities.ForceHeal(amount=15 + level * 2),
+            'reveal': force_abilities.ForceReveal(duration=8, bonus=5)
+        }
+        e.force_points = 8 + level
+    except Exception:
+        e.force_abilities = {}
+
+    def jedi_master_ai(game, self):
+        """Jedi Master AI: prioritizes healing when low HP, uses Force push in combat"""
+        try:
+            player = getattr(game, 'player', None)
+            if not player:
+                return False
+            
+            current_hp_ratio = getattr(self, 'hp', 1) / getattr(self, 'max_hp', 1)
+            dist = abs(getattr(player,'x',0)-getattr(self,'x',0)) + abs(getattr(player,'y',0)-getattr(self,'y',0))
+            
+            fa = getattr(self, 'force_abilities', {}) or {}
+            
+            # Heal if HP < 40%
+            if current_hp_ratio < 0.4:
+                heal = fa.get('heal')
+                if heal:
+                    last = getattr(self, '_ability_last_used', {}).get(getattr(heal,'name',str(heal)), -9999)
+                    cooldown = getattr(heal, 'cooldown', 5)
+                    if getattr(game,'turn_count',0) - last >= cooldown:
+                        try:
+                            used = heal.use(self, self, game.game_map, getattr(game.ui,'messages',None), getattr(self,'level',1))
+                            if used:
+                                try: 
+                                    if not hasattr(self, '_ability_last_used'):
+                                        self._ability_last_used = {}
+                                    self._ability_last_used[getattr(heal,'name',str(heal))] = getattr(game,'turn_count',0)
+                                except Exception: pass
+                                return True
+                        except Exception:
+                            pass
+            
+            # Use Force push if player is close
+            push = fa.get('push')
+            if push and dist <= 5:
+                last = getattr(self, '_ability_last_used', {}).get(getattr(push,'name',str(push)), -9999)
+                cooldown = getattr(push, 'cooldown', 3)
+                if getattr(game,'turn_count',0) - last >= cooldown:
+                    try:
+                        used = push.use(self, player, game.game_map, getattr(game.ui,'messages',None), getattr(self,'level',1))
+                        if used:
+                            try: 
+                                if not hasattr(self, '_ability_last_used'):
+                                    self._ability_last_used = {}
+                                self._ability_last_used[getattr(push,'name',str(push))] = getattr(game,'turn_count',0)
+                            except Exception: pass
+                            return True
+                    except Exception:
+                        pass
+            
+            # Occasionally use reveal to track player
+            reveal = fa.get('reveal')
+            if reveal and random.random() < 0.15:
+                last = getattr(self, '_ability_last_used', {}).get(getattr(reveal,'name',str(reveal)), -9999)
+                cooldown = getattr(reveal, 'cooldown', 4)
+                if getattr(game,'turn_count',0) - last >= cooldown:
+                    try:
+                        used = reveal.use(self, None, game.game_map, getattr(game.ui,'messages',None), getattr(self,'level',1))
+                        if used:
+                            try: 
+                                if not hasattr(self, '_ability_last_used'):
+                                    self._ability_last_used = {}
+                                self._ability_last_used[getattr(reveal,'name',str(reveal))] = getattr(game,'turn_count',0)
+                            except Exception: pass
+                            return True
+                    except Exception:
+                        pass
+            
+            return False
+        except Exception:
+            return False
+
+    _attach_take_turn(e, jedi_master_ai)
     return e

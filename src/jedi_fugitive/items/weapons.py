@@ -15,6 +15,9 @@ class WeaponType(Enum):
     LIGHTSABER_PIKE = "Lightsaber Pike"
     MELEE = "Melee"
     RANGED = "Ranged"
+    ENERGY_SHIELD = "Energy Shield"
+    COMBAT_KNIFE = "Combat Knife"
+    ELECTROSTAFF = "Electrostaff"
 
 class HandRequirement(Enum):
     ONE_HAND = "1H"       # Can be used with one hand (pistol, blade, shield)
@@ -175,6 +178,92 @@ WEAPONS = [
            base_damage=7, accuracy_mod=3, crit_mod=12, rarity="Rare",
            description="Banned disintegration weapon. +7 Attack",
            hands=HandRequirement.ONE_HAND, ammo=5, range=6),
+    
+    # === SHIELDS (NEW - Offhand Defense) ===
+    
+    # Common Shields
+    Weapon("Basic Energy Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 2, 5, ["Block", "+3 Defense"],
+           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Common",
+           description="Basic energy shield. +3 Defense when equipped in offhand.",
+           hands=HandRequirement.ONE_HAND),
+    Weapon("Riot Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 3, 6, ["Block", "+4 Defense", "Heavy"],
+           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Common",
+           description="Heavy riot shield. +4 Defense but slower.",
+           hands=HandRequirement.ONE_HAND),
+    
+    # Uncommon Shields
+    Weapon("Combat Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 2, 7, ["Block", "+5 Defense", "Durable"],
+           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Uncommon",
+           description="Military-grade shield. +5 Defense.",
+           hands=HandRequirement.ONE_HAND),
+    Weapon("Guardian Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 3, 7, ["Block", "+6 Defense", "Reflect"],
+           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Uncommon",
+           description="Advanced shield with energy reflection. +6 Defense.",
+           hands=HandRequirement.ONE_HAND),
+    
+    # Rare Shields
+    Weapon("Cortosis Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 2, 8, ["Block", "+7 Defense", "Lightsaber Resistant"],
+           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Rare",
+           description="Cortosis-weave shield resists lightsabers. +7 Defense.",
+           hands=HandRequirement.ONE_HAND),
+    Weapon("Sith War Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 3, 8, ["Block", "+8 Defense", "Dark Energy"],
+           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Rare",
+           description="Ancient Sith shield radiating dark power. +8 Defense.",
+           hands=HandRequirement.ONE_HAND),
+    
+    # === ADDITIONAL MELEE WEAPONS ===
+    
+    # More common melee options
+    Weapon("Stun Baton", WeaponType.MELEE, (6, 10), 80, 2, 7, ["Stun", "Non-Lethal"],
+           base_damage=3, accuracy_mod=6, crit_mod=3, rarity="Common",
+           description="Electric stun weapon. +3 Attack.",
+           hands=HandRequirement.ONE_HAND),
+    Weapon("Scrap Blade", WeaponType.MELEE, (7, 11), 75, 2, 6, ["Crude", "Improvised"],
+           base_damage=4, accuracy_mod=3, crit_mod=5, rarity="Common",
+           description="Makeshift weapon from scavenged parts. +4 Attack.",
+           hands=HandRequirement.ONE_HAND),
+    
+    # Uncommon additions
+    Weapon("Beskad (Mandalorian Blade)", WeaponType.MELEE, (10, 15), 83, 3, 7, ["Armor Pierce", "Cultural"],
+           base_damage=7, accuracy_mod=7, crit_mod=8, rarity="Uncommon",
+           description="Traditional Mandalorian iron sword. +7 Attack.",
+           hands=HandRequirement.ONE_HAND),
+    Weapon("Vibro-Scythe", WeaponType.MELEE, (11, 16), 76, 4, 6, ["Sweep", "Reach"],
+           base_damage=7, accuracy_mod=4, crit_mod=9, rarity="Uncommon",
+           description="Curved vibro-weapon with wide arc. +7 Attack.",
+           hands=HandRequirement.TWO_HAND),
+    
+    # Rare additions
+    Weapon("Sith Assassin Blade", WeaponType.MELEE, (9, 15), 88, 2, 8, ["Poison", "Stealth Kill"],
+           base_damage=7, accuracy_mod=10, crit_mod=10, rarity="Rare",
+           description="Coated with deadly toxins. +7 Attack, +10 Accuracy.",
+           hands=HandRequirement.ONE_HAND),
+    Weapon("Ancient Jedi Sword", WeaponType.MELEE, (11, 16), 85, 3, 8, ["Force Channel", "Light Side"],
+           base_damage=8, accuracy_mod=8, crit_mod=8, rarity="Rare",
+           description="Pre-lightsaber Jedi weapon. Channels Force energy. +8 Attack.",
+           hands=HandRequirement.ONE_HAND),
+    
+    # === ADDITIONAL RANGED WEAPONS ===
+    
+    # More common ranged
+    Weapon("Sporting Blaster", WeaponType.RANGED, (3, 7), 82, 1, 7, ["Light", "Target Practice"],
+           base_damage=2, accuracy_mod=8, crit_mod=2, rarity="Common",
+           description="Civilian blaster. Weak but accurate. +2 Attack.",
+           hands=HandRequirement.ONE_HAND, ammo=15, range=5),
+    Weapon("Scattergun", WeaponType.RANGED, (8, 14), 65, 4, 5, ["Spread", "Close Range"],
+           base_damage=6, accuracy_mod=0, crit_mod=6, rarity="Common",
+           description="Wide spread, devastating up close. +6 Attack.",
+           hands=HandRequirement.TWO_HAND, ammo=6, range=3),
+    
+    # Uncommon ranged
+    Weapon("Sniper Blaster", WeaponType.BLASTER_RIFLE, (10, 16), 85, 4, 7, ["Long Range", "Scope"],
+           base_damage=7, accuracy_mod=10, crit_mod=9, rarity="Uncommon",
+           description="Precision long-range rifle. +7 Attack, +10 Accuracy.",
+           hands=HandRequirement.TWO_HAND, ammo=12, range=10),
+    Weapon("Heavy Repeater", WeaponType.HEAVY_BLASTER, (8, 13), 70, 6, 6, ["Rapid Fire", "Suppression"],
+           base_damage=6, accuracy_mod=2, crit_mod=5, rarity="Uncommon",
+           description="Rapid-fire heavy blaster. +6 Attack.",
+           hands=HandRequirement.TWO_HAND, ammo=50, range=6),
 ]
 
 # ensure WEAPONS exists, then normalize and provide safe defaults (non-destructive)

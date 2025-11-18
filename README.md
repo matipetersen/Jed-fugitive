@@ -54,8 +54,17 @@ JediFugitive/
 │
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # Project documentation
+├── SAVE_SYSTEM.md              # Save/Load system documentation
 └── .gitignore                  # Git ignore file
 ```
+
+## Features
+
+### Save System 🎮
+- **Autosave**: Game automatically saves every 20 turns
+- **Manual Save**: Press Shift+S to save anytime
+- **Load on Startup**: Continue your adventure from where you left off
+- See [SAVE_SYSTEM.md](SAVE_SYSTEM.md) for complete documentation
 
 ### Explanation of Structure
 

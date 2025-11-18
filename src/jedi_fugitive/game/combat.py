@@ -27,6 +27,29 @@ def player_attack(player, enemy, messages=None, game=None):
                     dmg = getattr(player, "attack", 1)
             else:
                 dmg = getattr(player, "attack", 1)
+            
+            # Apply mastery bonuses
+            weapon = getattr(player, "equipped_weapon", None)
+            offhand = getattr(player, "offhand", None)
+            
+            if weapon:
+                try:
+                    weapon_type = getattr(weapon, 'weapon_type', None)
+                    
+                    # Apply melee/ranged mastery
+                    if weapon_type in [WeaponType.VIBROBLADE, WeaponType.COMBAT_KNIFE, WeaponType.ELECTROSTAFF]:
+                        melee_bonus = getattr(player, 'melee_mastery', 0)
+                        dmg += melee_bonus
+                    elif weapon_type in [WeaponType.BLASTER_PISTOL, WeaponType.BLASTER_RIFLE, WeaponType.HEAVY_BLASTER]:
+                        ranged_bonus = getattr(player, 'ranged_mastery', 0)
+                        dmg += ranged_bonus
+                    
+                    # Apply dual wield mastery if both hands have weapons
+                    if offhand and hasattr(offhand, 'weapon_type'):
+                        dual_bonus = getattr(player, 'dual_wield_mastery', 0)
+                        dmg += dual_bonus
+                except Exception:
+                    pass  # Silently ignore mastery errors
             try:
                 enemy.hp = getattr(enemy, "hp", 0) - int(dmg)
             except Exception:

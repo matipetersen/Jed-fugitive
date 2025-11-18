@@ -30,9 +30,10 @@ class Display:
     SARCOPHAGUS = 'Q'  # Exposed sarcophagus
     GATEWAY = 'G'  # Inactive gateway
     NEXUS = 'N'  # Force nexus
-    CACHE = 'L'  # Hidden cache
-    BEACON = 'B'  # Old beacon
+    CACHE = 'B'  # Hidden cache (changed from L to B)
+    BEACON = 'J'  # Old beacon  
     RUINS = 'R'  # Scattered ruins
+    MERCHANT = 'X'  # Merchant camp (9 X's in 3x3 square)
 
 def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], depth: int):
     # Reduced food spawning - dungeons are more dangerous now

@@ -15,6 +15,7 @@ from jedi_fugitive.game import projectiles, force_abilities, map_features, input
 from jedi_fugitive.game.enemy import Enemy, EnemyType, process_enemies as enemy_process_enemies
 from jedi_fugitive.game.personality import EnemyPersonality, ENEMY_TAUNTS
 from jedi_fugitive.game.level import generate_crash_site, generate_dungeon_level, Display
+from jedi_fugitive.game import atmosphere
 from jedi_fugitive.ui.dialog import DialogueSystem, UIMessageBuffer
 from jedi_fugitive.config import MAP_RATIO_W, MAP_RATIO_H, STATS_RATIO_W, DIFFICULTY_MULTIPLIER, MAP_SCALE, DEPTH_DIFFICULTY_RATE
 from jedi_fugitive.game.combat import player_attack, calculate_hit
@@ -49,6 +50,11 @@ class GameManager:
         self.last_commands = ""
         self.running = True
         self.show_popups = False
+        
+        # Atmospheric immersion tracking
+        self.last_atmosphere_turn = 0
+        self.last_memory_turn = 0
+        self.last_vision_turn = 0
 
         # Post-game stats
         self.turns = 0
@@ -490,6 +496,40 @@ class GameManager:
                     sys.stdout.flush()
                     self.running = False
                     break
+            except Exception:
+                pass
+
+            # Atmospheric immersion - random ambient descriptions and visions
+            try:
+                corruption = getattr(self.player, 'dark_corruption', 50)
+                current_biome = getattr(self, 'current_biome', 'crash_site')
+                
+                # Atmospheric descriptions
+                if atmosphere.should_trigger_atmosphere(self.turn_count, self.last_atmosphere_turn):
+                    self.last_atmosphere_turn = self.turn_count
+                    try:
+                        desc = atmosphere.get_biome_atmosphere(current_biome)
+                        self.ui.messages.add(f"[Atmosphere] {desc}")
+                    except Exception:
+                        pass
+                
+                # Jedi Master memories
+                if atmosphere.should_trigger_memory(self.turn_count, self.last_memory_turn):
+                    self.last_memory_turn = self.turn_count
+                    try:
+                        memory = atmosphere.get_master_memory(corruption)
+                        self.ui.messages.add(f"[Memory] {memory}")
+                    except Exception:
+                        pass
+                
+                # Transformation visions
+                if atmosphere.should_trigger_vision(self.turn_count, self.last_vision_turn):
+                    self.last_vision_turn = self.turn_count
+                    try:
+                        vision = atmosphere.get_transformation_vision(corruption)
+                        self.ui.messages.add(vision)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -2863,6 +2903,84 @@ class GameManager:
                 try: self.ui.messages.add("You can't meditate here; it's too dangerous.")
                 except Exception: pass
                 return False
+            
+            # Display meditation mantra based on alignment
+            try:
+                corruption = getattr(self.player, 'dark_corruption', 50)
+                
+                # Pure Light Side mantras (0-20 corruption)
+                light_mantras = [
+                    "There is no emotion, there is peace.",
+                    "There is no ignorance, there is knowledge.",
+                    "There is no passion, there is serenity.",
+                    "There is no chaos, there is harmony.",
+                    "There is no death, there is the Force.",
+                    "The Force flows through all living things.",
+                    "I am one with the Force, and the Force is with me.",
+                    "May the Force guide me to the light.",
+                ]
+                
+                # Light-leaning mantras (21-40 corruption)
+                light_leaning_mantras = [
+                    "Through the Force, I find balance.",
+                    "The light guides my path through darkness.",
+                    "I seek wisdom, not power.",
+                    "Peace guides my blade, not anger.",
+                    "The Force is my ally, and a powerful ally it is.",
+                    "I am a guardian of peace and justice.",
+                    "Through knowledge and defense, I find strength.",
+                ]
+                
+                # Balanced mantras (41-59 corruption)
+                balanced_mantras = [
+                    "The Force flows through light and shadow alike.",
+                    "I walk the path between extremes.",
+                    "Power without wisdom is chaos; wisdom without power is futile.",
+                    "Both light and dark serve the Force.",
+                    "I embrace the full spectrum of the Force.",
+                    "Balance is the true path to understanding.",
+                    "Neither Jedi nor Sith, but something more.",
+                ]
+                
+                # Dark-leaning mantras (60-79 corruption)
+                dark_leaning_mantras = [
+                    "Through passion, I find strength.",
+                    "The dark side offers power beyond restraint.",
+                    "I will not be bound by the old codes.",
+                    "Emotion fuels my connection to the Force.",
+                    "Power is the only truth that matters.",
+                    "I am free to explore the depths of the Force.",
+                    "The galaxy respects only strength.",
+                ]
+                
+                # Pure Dark Side mantras (80-100 corruption)
+                dark_mantras = [
+                    "Peace is a lie, there is only passion.",
+                    "Through passion, I gain strength.",
+                    "Through strength, I gain power.",
+                    "Through power, I gain victory.",
+                    "Through victory, my chains are broken.",
+                    "The Force shall free me.",
+                    "The dark side is my ally, and I am its master.",
+                    "I embrace the shadows that others fear.",
+                ]
+                
+                # Select appropriate mantra based on corruption level
+                if corruption <= 20:
+                    mantra = random.choice(light_mantras)
+                elif corruption <= 40:
+                    mantra = random.choice(light_leaning_mantras)
+                elif corruption <= 59:
+                    mantra = random.choice(balanced_mantras)
+                elif corruption <= 79:
+                    mantra = random.choice(dark_leaning_mantras)
+                else:
+                    mantra = random.choice(dark_mantras)
+                
+                # Display the mantra
+                self.ui.messages.add(f'"{mantra}"')
+            except Exception:
+                pass
             
             # Reduce stress
             try:

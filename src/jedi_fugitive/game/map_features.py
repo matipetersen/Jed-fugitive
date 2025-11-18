@@ -789,9 +789,9 @@ def generate_world(game):
                     if biome:
                         available_biomes.add(biome)
 
-        # Place multiple tombs per biome (excluding mountain_pass - too restrictive)
-        # Changed to place 1-2 tombs per biome for total of 6-10 tombs
-        biome_types = ['forest', 'desert', 'rocky', 'plains', 'river']
+        # Place multiple tombs per biome (including mountain_pass for high-altitude Sith tombs)
+        # Changed to place 1-2 tombs per biome for total of 7-12 tombs
+        biome_types = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass']
         placed_tombs = []
         target_tomb_count = random.randint(7, 10)  # Aim for 7-10 tombs total
         

@@ -1,5 +1,5 @@
 """
-Atmospheric descriptions and immersive elements for Jedi Fugitive.
+Atmospheric descriptions and immersive elements for Dark Meridian.
 Provides biome-specific ambient descriptions, Force visions, and environmental storytelling.
 """
 import random
@@ -23,6 +23,13 @@ BIOME_ATMOSPHERES = {
         "Bleached bones half-buried in sand mark where others failed to survive.",
         "The endless expanse makes you feel both infinitely small and deeply connected.",
         "Sandstorms on the horizon promise change - for better or worse.",
+        "The sand here is red with the iron of ancient battlefields.",
+        "Dunes shift to reveal glimpses of buried Sith war machines.",
+        "The desert preserves the mummified remains of Sith acolytes who failed their trials.",
+        "Glass formations mark where Force lightning once struck with incredible power.",
+        "The heat creates visions of your deepest desires and darkest fears.",
+        "Ancient Sith waystations emerge from the sand like the ribs of dead beasts.",
+        "The desert remembers every drop of blood spilled in pursuit of power.",
     ],
     'rocky': [
         "The rocky terrain echoes with distant sounds - battle cries from another era.",
@@ -32,6 +39,13 @@ BIOME_ATMOSPHERES = {
         "Wind-carved formations create haunting shapes in the twilight.",
         "Every crevice could hide danger, or perhaps salvation.",
         "The harsh landscape has forged many warriors - will it forge you?",
+        "Dark crystals jut from the rocks, pulsing with Sith energy.",
+        "The terrain bears scars from ancient Force battles, still raw after millennia.",
+        "Obsidian formations reflect your face with unsettling distortion.",
+        "The ground beneath trembles with the echoes of long-dead Sith lords.",
+        "Red mineral veins run through the stone like dried blood.",
+        "The rocks seem to whisper promises of power in languages of pain.",
+        "Strange symbols appear naturally in the stone - or were they carved by the Force itself?",
     ],
     'plains': [
         "Tall grass waves in an endless sea, concealing what lies beneath.",
@@ -59,6 +73,13 @@ BIOME_ATMOSPHERES = {
         "The thin air makes breathing difficult - or is it the dark side's presence?",
         "Stone walls bear carved inscriptions in languages you barely recognize.",
         "These mountains have seen empires rise and fall like the tides.",
+        "The peaks above seem to pierce the very fabric of reality.",
+        "Ancient Sith temples once crowned these summits, now only ruins remain.",
+        "The mountain winds whisper secrets of power to those who dare listen.",
+        "Avalanche scars mark where dark side experiments went catastrophically wrong.",
+        "The stone itself feels cold with the memory of Sith holocrons once hidden here.",
+        "Lightning strikes these peaks with unnatural frequency, as if called.",
+        "The passes echo with the clash of ancient lightsaber duels.",
     ],
     'crash_site': [
         "The wreckage of your ship stands as a monument to your survival.",
@@ -77,6 +98,15 @@ BIOME_ATMOSPHERES = {
         "Every step deeper feels like a descent into your own soul.",
         "Dark side energy pulses through the corridors like a heartbeat.",
         "The tombs of the Sith remember all who enter - and most who never leave.",
+        "Carved Sith hieroglyphs seem to writhe in the flickering shadows.",
+        "The darkness here is alive, hungry, waiting to claim another soul.",
+        "Your lightsaber's glow reveals disturbing murals of ancient rituals.",
+        "The Force here is twisted, corrupted by millennia of dark rituals.",
+        "Each step echoes with the screams of those who came before.",
+        "The very stones radiate malice, as if infused with Sith lightning.",
+        "Ancient sarcophagi line the walls, their occupants long since turned to dust and hate.",
+        "You feel the weight of countless dark lords' ambitions pressing down.",
+        "The tomb's architecture defies reason, built to channel suffering.",
     ],
 }
 
@@ -108,6 +138,12 @@ JEDI_MASTER_MEMORIES = {
         'A bitter memory: "Control your anger," they said. But anger gives you strength they could never understand.',
         'Your Master\'s final words haunt you: "Don\'t let me have trained a Sith." But what if that\'s exactly what was needed?',
         'You remember their weakness masquerading as wisdom. You\'ve surpassed them now.',
+        'Your Master always spoke of "balance," but they never understood that destruction brings balance.',
+        'The Council feared you. You can see it clearly now - their terror of true power.',
+        'Every lesson was a chain, every teaching a limitation. The Sith way offers freedom.',
+        'You remember the thrill of your first kill. Your Master called it a fall - you call it awakening.',
+        'Their compassion was weakness. Your hatred is strength beyond their comprehension.',
+        'The Jedi Code was written by the weak to control the strong. You are done being controlled.',
     ],
 }
 
@@ -121,12 +157,19 @@ TRANSFORMATION_VISIONS = {
         'Vision: You see yourself breaking chains - the Jedi code was always a cage.',
         'Vision: Dark side energy transforms you into something beyond Jedi, beyond human.',
         'Vision: You walk among shadows, and the shadows bow to you.',
+        'Vision: Sith lightning dances at your command, the very air bending to your will.',
+        'Vision: You sit upon a throne of obsidian, crowned with the fear of your enemies.',
+        'Vision: The galaxy kneels before your power, order imposed through absolute strength.',
+        'Vision: Your former Master begs for mercy as you demonstrate your true potential.',
+        'Vision: You reshape worlds with a gesture, the Force itself your willing servant.',
+        'Vision: Apprentices gather at your feet, eager to learn the secrets of true power.',
+        'Vision: The Sith Code burns in your veins: "Peace is a lie, there is only passion."',
     ],
     'becoming_light': [  # For players staying in the light
         'Vision: You see yourself bringing peace to war-torn systems, a beacon of hope.',
         'Vision: A glimpse of your future - teaching younglings, the Jedi Order reborn.',
         'Vision: You stand as the last guardian of the light in a darkening galaxy.',
-        'Vision: The Force shows you healing the wounds of the Clone Wars.',
+        'Vision: The Force shows you healing the wounds of the Great Galactic War.',
         'Vision: You see yourself at peace, having found balance between power and compassion.',
         'Vision: Light side energy fills you with warmth and purpose.',
         'Vision: You walk a path few can see, guided by the Force itself.',
@@ -166,19 +209,49 @@ def get_transformation_vision(corruption_level):
         return random.choice(TRANSFORMATION_VISIONS['becoming_dark'])
 
 def should_trigger_atmosphere(turn_count, last_atmosphere_turn):
-    """Check if we should show an atmospheric description this turn."""
-    # Show atmosphere every 15-25 turns
+    """Check if we should show an atmosphere message this turn."""
+    # Show atmosphere every 50-80 turns (reduced spam)
     turns_since_last = turn_count - last_atmosphere_turn
-    return turns_since_last >= random.randint(15, 25)
+    return turns_since_last >= random.randint(50, 80)
 
 def should_trigger_memory(turn_count, last_memory_turn):
     """Check if we should show a Jedi Master memory this turn."""
-    # Show memories every 40-60 turns
+    # Show memories every 150-250 turns (reduced spam)
     turns_since_last = turn_count - last_memory_turn
-    return turns_since_last >= random.randint(40, 60)
+    return turns_since_last >= random.randint(150, 250)
 
 def should_trigger_vision(turn_count, last_vision_turn):
     """Check if we should show a transformation vision this turn."""
-    # Show visions every 50-80 turns
+    # Show visions every 200-300 turns (reduced spam)
     turns_since_last = turn_count - last_vision_turn
-    return turns_since_last >= random.randint(50, 80)
+    return turns_since_last >= random.randint(200, 300)
+
+# Additional Sith-themed atmospheric elements
+SITH_WHISPERS = [
+    "The Force whispers secrets of power in languages lost to time...",
+    "Ancient Sith voices echo: 'Strike down your fear, embrace your strength.'",
+    "The darkness speaks: 'Through victory, my chains are broken.'",
+    "You hear the echo of Darth Revan's words: 'Savior, conqueror, hero, villain... you are all things.'",
+    "A Sith Lord's laughter echoes from beyond death: 'The strongest survive, the weak perish.'",
+    "The holocrons whisper: 'Power is everything. Without it, you are nothing.'",
+    "Ancient knowledge flows: 'The dark side is a pathway to many abilities some consider unnatural.'",
+    "The Force reveals: 'Your hate has made you powerful. Now fulfill your destiny.'",
+]
+
+FORCE_DISTURBANCES = [
+    "The Force ripples with disturbance - something powerful approaches.",
+    "Reality seems to bend around you as dark side energy builds.",
+    "The air crackles with potential violence and barely contained power.",
+    "You sense a tremor in the Force - someone's destiny hangs in the balance.",
+    "The Force screams a warning of danger and opportunity intertwined.",
+    "Ancient Sith battlefields bleed their memories into the present moment.",
+    "The Force itself seems corrupted here, twisted by centuries of dark rituals.",
+]
+
+def get_sith_whisper():
+    """Get a random Sith whisper for dark atmospheric moments."""
+    return random.choice(SITH_WHISPERS)
+
+def get_force_disturbance():
+    """Get a random Force disturbance message."""
+    return random.choice(FORCE_DISTURBANCES)

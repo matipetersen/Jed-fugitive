@@ -31,7 +31,11 @@ def test_tomb_generation():
         
         # Generate level
         try:
-            level_map, rooms = generate_dungeon_level(depth)
+            level_data = generate_dungeon_level(depth)
+            if len(level_data) == 3:
+                level_map, rooms, special_dungeons = level_data
+            else:
+                level_map, rooms = level_data
             print(f"  ✓ Map generated: {len(level_map)}x{len(level_map[0])} with {len(rooms)} rooms")
             tomb_levels.append(level_map)
             tomb_rooms.append(rooms)

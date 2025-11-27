@@ -20,9 +20,19 @@ class UIMessageBuffer:
         self.max_messages = max_messages
 
     def add(self, text: str, color: int = 0):
-        # Deduplicate: don't add if the last message is identical (fixes Windows display issue)
+        # Deduplicate FIRST for performance (early exit)
         if self.messages and self.messages[-1].get("text") == text:
             return
+            
+        # Parse color tags like #3#[EVENT]#0# message text (OPTIMIZED)
+        if text.startswith('#') and '#0#' in text:
+            import re
+            color_match = re.match(r'^#(\d+)#(.+?)#0#(.*)$', text)
+            if color_match:
+                color = int(color_match.group(1))
+                highlighted_part = color_match.group(2)
+                rest_of_message = color_match.group(3)
+                text = highlighted_part + rest_of_message
         self.messages.append({"timestamp": strftime("%H:%M:%S"), "text": text, "color": color})
         if len(self.messages) > self.max_messages:
             self.messages = self.messages[-self.max_messages:]

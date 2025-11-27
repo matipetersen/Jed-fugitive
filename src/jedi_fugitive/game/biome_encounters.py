@@ -1,5 +1,5 @@
 """
-Biome-Specific Encounters for Jedi Fugitive.
+Biome-Specific Encounters for Dark Meridian.
 Unique events, POIs, and encounters tailored to each biome type.
 """
 import random
@@ -395,13 +395,35 @@ def format_encounter_display(biome_type, encounter, player_corruption):
     
     return lines
 
-def should_spawn_encounter(biome_type, player_corruption, visited_before=False):
-    """Determine if an encounter should spawn in this biome."""
+def should_spawn_encounter(biome_type, turns_since_last, player_corruption=50, visited_before=False):
+    """Determine if an encounter should spawn in this biome.
+    
+    Args:
+        biome_type: The type of biome
+        turns_since_last: Number of turns since last encounter
+        player_corruption: Player's corruption level (0-100)
+        visited_before: Whether player has visited this biome type before
+    
+    Returns:
+        bool: True if encounter should spawn
+    """
     if biome_type not in BIOME_ENCOUNTERS:
         return False
     
-    # Lower chance if player has visited this biome before
-    base_chance = 0.30 if not visited_before else 0.15
+    # Require minimum turns between encounters (200-300 turns for proper spacing)
+    min_turns = 200
+    max_turns = 300
+    
+    if turns_since_last < min_turns:
+        return False
+    
+    # Gradually increase spawn chance as more turns pass
+    if turns_since_last >= max_turns:
+        return True
+    
+    # Calculate chance based on turns elapsed
+    turn_progress = (turns_since_last - min_turns) / (max_turns - min_turns)
+    base_chance = turn_progress * 0.5  # Max 50% chance before forced spawn
     
     # Modify chance based on biome type
     modifiers = {

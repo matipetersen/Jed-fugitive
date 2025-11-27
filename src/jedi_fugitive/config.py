@@ -21,4 +21,4 @@ DEPTH_DIFFICULTY_RATE = 0.20  # 20% depth-ish influence per depth step (tweak as
 MAP_SCALE = 4
 
 # Player inventory size (number of item slots)
-MAX_INVENTORY_SIZE = 20
+MAX_INVENTORY_SIZE = 30  # Increased from 20, expandable with armor bonuses

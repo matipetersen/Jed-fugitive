@@ -1,0 +1,42 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-20 12:02:37
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-20 12:02:37] INFO: Game started
+
+================================================================================
+[2025-11-20 12:02:37] CURSES_ERROR: Curses initialization failed
+================================================================================
+
+Exception Type: error
+Exception Message: nocbreak() returned ERR
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/opt/anaconda3/lib/python3.11/curses/__init__.py", line 78, in wrapper
+    cbreak()
+_curses.error: cbreak() returned ERR
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/main.py", line 126, in main
+    gm = curses.wrapper(_curses_main, load_save)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/curses/__init__.py", line 100, in wrapper
+    nocbreak()
+_curses.error: nocbreak() returned ERR
+
+================================================================================
+[2025-11-20 12:02:37] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+SESSION ENDED
+================================================================================
+End time: 2025-11-20 12:02:37
+Session duration: 0:00:00.777056
+================================================================================

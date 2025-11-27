@@ -15,7 +15,6 @@ class WeaponType(Enum):
     LIGHTSABER_PIKE = "Lightsaber Pike"
     MELEE = "Melee"
     RANGED = "Ranged"
-    ENERGY_SHIELD = "Energy Shield"
     COMBAT_KNIFE = "Combat Knife"
     ELECTROSTAFF = "Electrostaff"
 
@@ -61,7 +60,7 @@ WEAPONS = [
            base_damage=2, accuracy_mod=10, crit_mod=2, rarity="Common",
            description="Low-power training lightsaber. Good for learning, weak in combat. +2 Attack",
            hands=HandRequirement.ONE_HAND),
-    Weapon("Electrostaff", WeaponType.MELEE, (9, 14), 75, 3, 5, ["Shock", "Defensive"],
+    Weapon("Electrostaff", WeaponType.ELECTROSTAFF, (9, 14), 75, 3, 5, ["Shock", "Defensive"],
            base_damage=3, accuracy_mod=4, crit_mod=7, rarity="Common",
            description="Electrified staff effective against lightsabers. +3 Attack",
            hands=HandRequirement.TWO_HAND),
@@ -77,7 +76,7 @@ WEAPONS = [
            base_damage=4, accuracy_mod=8, crit_mod=6, rarity="Common",
            description="Vibro-enhanced gauntlets. Fast melee attacks. +4 Attack",
            hands=HandRequirement.ONE_HAND),
-    Weapon("Combat Knife", WeaponType.MELEE, (5, 8), 85, 1, 9, ["Precise", "Stealth"],
+    Weapon("Combat Knife", WeaponType.COMBAT_KNIFE, (5, 8), 85, 1, 9, ["Precise", "Stealth"],
            base_damage=2, accuracy_mod=10, crit_mod=9, rarity="Common",
            description="Sharp and reliable. Good for surprise attacks. +2 Attack",
            hands=HandRequirement.ONE_HAND),
@@ -179,37 +178,9 @@ WEAPONS = [
            description="Banned disintegration weapon. +7 Attack",
            hands=HandRequirement.ONE_HAND, ammo=5, range=6),
     
-    # === SHIELDS (NEW - Offhand Defense) ===
-    
-    # Common Shields
-    Weapon("Basic Energy Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 2, 5, ["Block", "+3 Defense"],
-           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Common",
-           description="Basic energy shield. +3 Defense when equipped in offhand.",
-           hands=HandRequirement.ONE_HAND),
-    Weapon("Riot Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 3, 6, ["Block", "+4 Defense", "Heavy"],
-           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Common",
-           description="Heavy riot shield. +4 Defense but slower.",
-           hands=HandRequirement.ONE_HAND),
-    
-    # Uncommon Shields
-    Weapon("Combat Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 2, 7, ["Block", "+5 Defense", "Durable"],
-           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Uncommon",
-           description="Military-grade shield. +5 Defense.",
-           hands=HandRequirement.ONE_HAND),
-    Weapon("Guardian Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 3, 7, ["Block", "+6 Defense", "Reflect"],
-           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Uncommon",
-           description="Advanced shield with energy reflection. +6 Defense.",
-           hands=HandRequirement.ONE_HAND),
-    
-    # Rare Shields
-    Weapon("Cortosis Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 2, 8, ["Block", "+7 Defense", "Lightsaber Resistant"],
-           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Rare",
-           description="Cortosis-weave shield resists lightsabers. +7 Defense.",
-           hands=HandRequirement.ONE_HAND),
-    Weapon("Sith War Shield", WeaponType.ENERGY_SHIELD, (0, 0), 0, 3, 8, ["Block", "+8 Defense", "Dark Energy"],
-           base_damage=0, accuracy_mod=0, crit_mod=0, rarity="Rare",
-           description="Ancient Sith shield radiating dark power. +8 Defense.",
-           hands=HandRequirement.ONE_HAND),
+    # === SHIELDS REMOVED FROM WEAPONS ===
+    # Shields are now properly defined in items/shields.py
+    # Use Shield class instead of Weapon class for all shield items
     
     # === ADDITIONAL MELEE WEAPONS ===
     
@@ -320,11 +291,11 @@ def _normalize_weapons():
         defaults = [
             _W("Training Baton", 1, 0, 0),
             _W("Training Saber", 4, 5, 2),
-            _W("Vibroblade", 7, 4, 5),
+            _W("Basic Blade", 7, 4, 5),
             _W("Shock Baton", 5, 2, 1),
             _W("Blaster Pistol", 6, 5, 4),
             _W("Blaster Rifle", 9, 3, 5),
-            _W("Light Saber", 8, 10, 6),
+            _W("Lightsaber", 8, 10, 6),
             _W("Wrist Launcher", 5, 0, 2),
             _W("Sonic Knife", 3, 6, 3),
             _W("Ion Staff", 10, -1, 8),

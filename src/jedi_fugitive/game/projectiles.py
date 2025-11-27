@@ -90,7 +90,7 @@ def explode_at(game, cx: int, cy: int, damage: int = 0, radius: int = 1, collaps
             # apply damage with best-effort
             if hasattr(e, 'take_damage'):
                 try:
-                    e.take_damage(damage)
+                    e.take_damage(damage, game=game)
                 except Exception:
                     try:
                         e.hp = max(0, getattr(e, 'hp', 0) - damage)
@@ -184,7 +184,7 @@ def advance_projectiles(game):
         if hit is not None:
             try:
                 if hasattr(hit, 'take_damage'):
-                    hit.take_damage(p.damage)
+                    hit.take_damage(p.damage, game=game)
                 else:
                     hit.hp = max(0, getattr(hit, 'hp', 0) - p.damage)
                     if getattr(hit, 'hp', 0) <= 0:

@@ -43,32 +43,39 @@ def main():
     from jedi_fugitive.game.sith_codex import get_random_loading_message
     from jedi_fugitive.game.save_system import get_autosave_path, list_saves
     
-    print("\n╔═══════════════════════════════════════════════════════════╗")
-    print("║        JEDI FUGITIVE: ECHOES OF THE FALLEN               ║")
-    print("╚═══════════════════════════════════════════════════════════╝\n")
+    print("\n" + "=" * 63)
+    print("|" + " " * 61 + "|")
+    print("|            >>> DARK MERIDIAN <<<                     |")
+    print("|" + " " * 61 + "|")
+    print("|    The Order burns. Your Master lies dead. The          |")
+    print("|    meridian between light and dark calls to you.        |")
+    print("|                                                         |")
+    print("|    Will you fall to corruption, or rise above it?       |")
+    print("|" + " " * 61 + "|")
+    print("=" * 63 + "\n")
     
     # Check for existing save files
     load_save = False
     try:
         saves = list_saves()
         if saves:
-            print("\n═══ SAVED GAMES FOUND ═══")
+            print("\n>>> ECHOES FROM THE PAST <<<")
             for i, save in enumerate(saves, 1):
                 timestamp = save.get('timestamp', 'Unknown time')
                 level = save.get('level', 1)
                 turn = save.get('turn', 0)
-                print(f"{i}. {save['name']} - Level {level}, Turn {turn}")
-                print(f"   Saved: {timestamp}")
+                print(f"> {i}. {save['name']} - Depth {level}, Turn {turn}")
+                print(f"   Recorded: {timestamp}")
             
-            print("\n[C] Continue from autosave")
-            print("[N] Start new game")
-            print("[Q] Quit")
+            print("\n[C] Continue your dark journey")
+            print("⭐ [N] Begin anew - face your destiny")
+            print("💀 [Q] Abandon hope, return to the void")
             
-            choice = input("\nYour choice: ").strip().upper()
+            choice = input("\n🌟 Choose your path, fallen Jedi: ").strip().upper()
             if choice == 'C':
                 load_save = True
             elif choice == 'Q':
-                print("Farewell, wanderer.")
+                print("⚡ The darkness claims another soul. May the Force be with you... ⚡")
                 sys.exit(0)
     except Exception as e:
         print(f"⚠ Error checking for saves: {e}")
@@ -87,11 +94,15 @@ def main():
         from jedi_fugitive.utils.game_stats import get_game_stats
         game_stats = get_game_stats()
         run_number = game_stats.increment_runs()
-        print(f"\n🎮 Game Run #{run_number}")
+        print(f"\n💫 Force Echo #{run_number}")
         if run_number > 1:
-            print(f"   Total Victories: {game_stats.get_total_victories()}")
-            print(f"   Total Deaths: {game_stats.get_total_deaths()}")
-            print(f"   Win Rate: {game_stats.get_win_rate():.1f}%")
+            print(f"   ⭐ Souls Redeemed: {game_stats.get_total_victories()}")
+            print(f"   💀 Fallen to Darkness: {game_stats.get_total_deaths()}")
+            print(f"   ⚖️ Balance Ratio: {game_stats.get_win_rate():.1f}%")
+            print(f"   ⚔️ Total Kills: {game_stats.get_total_kills()}")
+            print(f"   📊 K/D Ratio: {game_stats.get_kill_death_ratio():.2f}")
+            if game_stats.get_best_win_streak() > 0:
+                print(f"   🔥 Best Streak: {game_stats.get_best_win_streak()}")
     except Exception as e:
         print(f"⚠ Could not initialize stats tracker: {e}")
         game_stats = None

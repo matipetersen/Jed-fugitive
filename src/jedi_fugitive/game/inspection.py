@@ -28,7 +28,7 @@ ENEMY_LORE = {
         'lore': [
             "Sith Warriors have proven themselves through countless battles.",
             "They embody the dark side philosophy: power through passion and victory.",
-            "Veterans of the Clone Wars, they hunt surviving Jedi with brutal efficiency.",
+            "Veterans of the Great Galactic War, they hunt Jedi with brutal efficiency.",
             "Their lightsaber forms emphasize aggression over defense.",
         ],
         'tactics': 'Experienced combatant. Match their aggression or outmaneuver them.',
@@ -89,7 +89,7 @@ ITEM_LORE = {
     },
     'medkit': {
         'description': 'Emergency medical supplies from your crashed ship.',
-        'lore': "Standard Republic issue. These supplies have saved countless lives during the Clone Wars.",
+        'lore': "Standard Republic issue. These supplies saved countless lives during the Great Galactic War.",
     },
     'ration': {
         'description': 'Preserved food, tasteless but nourishing.',
@@ -104,9 +104,61 @@ ITEM_LORE = {
         'lore': "These artifacts predate the Republic. Each one holds the essence of its creator - for good or ill.",
         'corruption_choice': "Absorb its power (dark) or Destroy it (light) - your choice shapes your destiny.",
     },
+    # Weapons
+    'training_saber': {
+        'description': 'A practice lightsaber with reduced power output.',
+        'lore': "Younglings train with these before constructing their true lightsaber. The Force guided you to salvage this from the wreckage.",
+    },
+    'vibroblade': {
+        'description': 'A vibrating blade that can cut through armor.',
+        'lore': "Mandalorian design, perfected over centuries of warfare. It hums with deadly efficiency in your hand.",
+    },
+    'blaster': {
+        'description': 'Standard issue energy weapon.',
+        'lore': "An uncivilized weapon, but effective. Sometimes a Jedi must adapt to survive.",
+    },
+    'grenade': {
+        'description': 'Thermal detonator with adjustable yield.',
+        'lore': "Banned by the Jedi Council for their indiscriminate destruction. Desperate times call for desperate measures.",
+    },
+    # Armor
+    'jedi_robes': {
+        'description': 'Traditional Jedi garments worn for centuries.',
+        'lore': "These robes mark you as a guardian of peace. Now they make you a target for those who hunt Jedi.",
+    },
+    'combat_armor': {
+        'description': 'Reinforced plating designed for battlefield survival.',
+        'lore': "Clone trooper armor, modified for mobility. It has protected countless Republic soldiers.",
+    },
+    'energy_shield': {
+        'description': 'Personal deflector shield generator.',
+        'lore': "Ancient Sith technology repurposed by the Republic. It draws power from your Force connection.",
+    },
+    # Consumables
+    'bacta_tank': {
+        'description': 'Concentrated healing agent.',
+        'lore': "Bacta saved thousands during the Great Galactic War. This small supply is precious.",
+    },
+    'force_crystal_shard': {
+        'description': 'A fragment of a broken kyber crystal.',
+        'lore': "Even shattered, the Force resonates within. Perhaps it can be reforged with skill and meditation.",
+    },
+    'nutrient_paste': {
+        'description': 'Compressed food designed for deep space missions.',
+        'lore': "It tastes like despair and survival. Every fugitive's constant companion.",
+    },
+    # Materials
+    'durasteel': {
+        'description': 'High-strength alloy used in starship hulls.',
+        'lore': "Salvaged from your crashed vessel. With proper crafting, it could reinforce equipment.",
+    },
+    'cortosis_ore': {
+        'description': 'Rare mineral that disrupts lightsaber blades.',
+        'lore': "Sith assassins weave this into their armor. Its presence here suggests ancient battles were fought on this world.",
+    },
 }
 
-# Environmental inspection text
+# Environmental inspection text - ENHANCED with eerie descriptions for all tile types
 ENVIRONMENT_LORE = {
     'tomb_entrance': {
         'description': 'An ancient entrance carved with Sith runes.',
@@ -138,6 +190,87 @@ ENVIRONMENT_LORE = {
             "Ancient Force users built these shrines at points of Force convergence.",
             "The Force flows strongly here, offering clarity to those who seek it.",
             "Both Jedi and Sith have meditated here over the millennia.",
+        ]
+    },
+    # NEW: Tile-specific eerie descriptions
+    'floor': {
+        'description': 'Barren ground, worn smooth by forgotten footsteps.',
+        'lore': [
+            "How many have walked this path before you? Their bones now dust, their names erased.",
+            "The ground remembers violence. Blood soaked into soil millennia ago still whispers of betrayal.",
+            "Empty space is never truly empty. The Force echoes with the screams of the fallen.",
+        ]
+    },
+    'wall': {
+        'description': 'Ancient stone walls, cold and unyielding.',
+        'lore': [
+            "These walls have witnessed unspeakable horrors. They remember. They always remember.",
+            "Stone holds memory better than flesh. What terrors did these walls observe?",
+            "The walls seem to press inward when you're not looking. The tomb does not want you here.",
+        ]
+    },
+    'stairs_down': {
+        'description': 'Stairs descending into suffocating darkness.',
+        'lore': [
+            "Each step down takes you further from the light. Closer to something ancient. Something hungry.",
+            "The stairs groan under your weight, as if the tomb itself warns you away.",
+            "Darkness waits below. It has been patient for thousands of years.",
+        ]
+    },
+    'stairs_up': {
+        'description': 'Stairs ascending toward distant light.',
+        'lore': [
+            "Escape beckons above, but you know you'll return. The darkness calls to something within you.",
+            "The way up is never as easy as the way down. The tomb holds you with invisible chains.",
+            "Light promises safety, but you've tasted power. Which will you choose?",
+        ]
+    },
+    'forest': {
+        'description': 'Dense, twisted trees claw at the perpetual twilight.',
+        'lore': [
+            "The trees grew gnarled and wrong, warped by dark side energy seeping from the tombs.",
+            "Birds don't sing here. Nothing living makes sound in these cursed woods.",
+            "The forest watches you with a thousand unseen eyes. You are the intruder.",
+        ]
+    },
+    'desert': {
+        'description': 'Endless dunes of bone-white sand stretch toward oblivion.',
+        'lore': [
+            "The sand whispers names of the dead. Sometimes, it whispers yours.",
+            "Nothing should survive here, yet you do. The Force has plans for you.",
+            "Heat shimmers reveal shapes that vanish when you look directly. Ghosts, or madness?",
+        ]
+    },
+    'rocky': {
+        'description': 'Jagged rocks jut from the earth like broken teeth.',
+        'lore': [
+            "The stones are sharp enough to draw blood. The planet wants your sacrifice.",
+            "Ancient battles shattered the bedrock. You can still feel the violence in the air.",
+            "The rocks form patterns. Runes? Or do you see meaning where there is none?",
+        ]
+    },
+    'plains': {
+        'description': 'Desolate grassland stretches beneath a blood-red sky.',
+        'lore': [
+            "The grass grows pale and lifeless, drained by the dark side's presence.",
+            "Wind carries sounds that might be voices. Or might be your imagination.",
+            "You stand exposed under the uncaring sky. Nowhere to hide. Nowhere to run.",
+        ]
+    },
+    'darkness': {
+        'description': 'Oppressive darkness that devours light.',
+        'lore': [
+            "The shadows here are alive. They hunger for warmth, for life, for you.",
+            "Your eyes adjust, but understanding never comes. The darkness hides truths you cannot comprehend.",
+            "In darkness, all fears take form. What shape will yours assume?",
+        ]
+    },
+    'wreckage': {
+        'description': 'Twisted metal and shattered dreams.',
+        'lore': [
+            "Your ship died screaming. You can still hear it in the howling wind.",
+            "Every piece of debris is a reminder: you should be dead. Why aren't you?",
+            "The wreckage attracts scavengers. Some walk on two legs. Some don't.",
         ]
     },
 }
@@ -230,6 +363,30 @@ def get_item_inspection(item_token, item_name, player_corruption):
         result['choice'] = item_data['corruption_choice']
     
     return result
+
+def get_tile_description(tile_char, biome=None, in_tomb=False):
+    """Get eerie description for a specific tile based on character and context."""
+    # Map tile characters to environment types
+    tile_map = {
+        '.': 'floor',
+        '#': 'wall',
+        '>': 'stairs_down',
+        '<': 'stairs_up',
+        'D': 'tomb_entrance',
+        'W': 'wreckage',
+    }
+    
+    # Use biome for floor tiles if available
+    if tile_char == '.' and biome:
+        location_type = biome
+    else:
+        location_type = tile_map.get(tile_char, 'floor')
+    
+    # If in tomb, use more oppressive description
+    if in_tomb and location_type == 'floor':
+        location_type = 'darkness'
+    
+    return get_environment_inspection(location_type)
 
 def get_environment_inspection(location_type):
     """Get detailed inspection text for environmental features."""

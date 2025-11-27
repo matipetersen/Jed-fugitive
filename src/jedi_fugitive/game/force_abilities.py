@@ -1,5 +1,39 @@
 from typing import Any
 
+# Initialize FORCE_ABILITIES list at module level to avoid NameError
+FORCE_ABILITIES = []
+
+# Force Energy System Helpers (Phase 4: Standardization)
+def get_force_energy(user):
+    """Get current Force energy, with fallback to legacy force_points"""
+    return getattr(user, 'force_energy', getattr(user, 'force_points', 0) * 50)
+
+def get_max_force_energy(user):
+    """Get max Force energy"""
+    return getattr(user, 'max_force_energy', 100)
+
+def consume_force_energy(user, amount):
+    """Consume Force energy, updating both new and legacy systems"""
+    current = get_force_energy(user)
+    if current < amount:
+        return False
+    
+    # Update force_energy system
+    user.force_energy = current - amount
+    
+    # Update legacy force_points for compatibility (50 energy = 1 point)
+    user.force_points = max(0, user.force_energy // 50)
+    
+    return True
+
+def restore_force_energy(user, amount):
+    """Restore Force energy, capped at maximum"""
+    current = get_force_energy(user)
+    max_energy = get_max_force_energy(user)
+    
+    user.force_energy = min(max_energy, current + amount)
+    user.force_points = user.force_energy // 50  # Keep legacy in sync
+
 class ForceAbility:
     """Base class for simple force abilities (non-destructive, minimal API)."""
     name = "ForceAbility"
@@ -7,6 +41,14 @@ class ForceAbility:
     target_type = "self"  # "self" or "enemy"
     description = ""
     alignment = "neutral"  # "light", "dark", or "neutral"
+    
+    def __init__(self):
+        # Abilities start locked by default and must be explicitly unlocked
+        self.unlocked = False
+    
+    def is_unlocked(self):
+        """Check if this ability is unlocked and available for use."""
+        return getattr(self, 'unlocked', False)
     
     def get_actual_cost(self, user):
         """Calculate actual Force cost based on player alignment and mastery.
@@ -66,21 +108,21 @@ class ForcePushPull(ForceAbility):
         If an actual actor object is provided as `target` this method will still only
         consume the resource and return True (movement left to caller).
         """
-        # factor player's stress into force cost
+        # Calculate Force cost with player's stress multiplier
         try:
             import math
-            cost = int(math.ceil(self.base_cost * getattr(user, 'get_force_cost_multiplier', lambda: 1.0)()))
+            cost = int(math.ceil(self.base_cost * 50 * getattr(user, 'get_force_cost_multiplier', lambda: 1.0)()))
         except Exception:
-            cost = self.base_cost
-        if getattr(user, "force_points", 0) < cost:
-            if messages is not None:
-                try: messages.add("Not enough force points.")
+            cost = self.base_cost * 50  # Standard Force energy cost
+        
+        # Check and consume Force energy using standardized system
+        if not consume_force_energy(user, cost):
+            # Only show message for player, not enemies to avoid spam
+            if messages is not None and hasattr(user, 'name') and user.name == 'Player':
+                try: messages.add("Not enough Force energy.")
                 except Exception: pass
             return False
-        try:
-            user.force_points = getattr(user, "force_points", 0) - cost
-        except Exception:
-            pass
+
 
         # support both actor targets and coordinate targets (tuple/list)
         # when coordinates are given, the caller should have passed 'game' in kwargs
@@ -90,7 +132,7 @@ class ForcePushPull(ForceAbility):
                 except Exception: pass
             return False
 
-        # if coords were provided, try to resolve actor at location
+        # if coords were provided, try to resolve actor or object at location
         if isinstance(target, (tuple, list)):
             gx = kwargs.get('game', None)
             if gx is None:
@@ -98,25 +140,35 @@ class ForcePushPull(ForceAbility):
                     try: messages.add("No game context to resolve target location for Push/Pull.")
                     except Exception: pass
                 return False
-            try:
                 tx, ty = int(target[0]), int(target[1])
                 found = None
+                # Check for enemy at location
                 for e in getattr(gx, 'enemies', []) or []:
                     try:
                         if getattr(e, 'is_alive', lambda: False)() and getattr(e, 'x', -999) == tx and getattr(e, 'y', -999) == ty:
                             found = e; break
                     except Exception:
                         continue
-                if found is None:
-                    if messages is not None:
-                        try: messages.add("No valid target at that location to move.")
-                        except Exception: pass
-                    return False
-                # valid target found; consume cost already done, let caller handle actual movement
-                return True
-            except Exception:
+                if found is not None:
+                    # valid target found; consume cost already done, let caller handle actual movement
+                    return True
+                # Check for movable object at location (environmental interaction)
+                game_map_obj = None
+                try:
+                    game_map_obj = gx.game_map[ty][tx]
+                except Exception:
+                    pass
+                if game_map_obj and hasattr(gx, 'move_environment_object'):
+                    # Try to move the object using a game method (to be implemented)
+                    moved = gx.move_environment_object(tx, ty, direction=getattr(user, 'facing', (0, 0)))
+                    if moved:
+                        if messages is not None:
+                            try: messages.add("You use the Force to move an object!")
+                            except Exception: pass
+                        # Optionally trigger environmental effects here
+                        return True
                 if messages is not None:
-                    try: messages.add("Invalid target coordinates for Push/Pull.")
+                    try: messages.add("No valid target at that location to move.")
                     except Exception: pass
                 return False
 
@@ -140,6 +192,7 @@ class ForceReveal(ForceAbility):
     description = "Expand your field of view for a short time."
 
     def __init__(self, duration: int = 8, bonus: int = 4):
+        super().__init__()
         self.duration = duration
         self.bonus = bonus
 
@@ -189,6 +242,7 @@ class ForceHeal(ForceAbility):
     description = "Restore a small amount of HP to the user."
 
     def __init__(self, amount: int = 8):
+        super().__init__()
         self.amount = amount
 
     def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
@@ -231,9 +285,10 @@ class ForceLightning(ForceAbility):
     description = "Strike a visible enemy in a straight line for damage."
 
     def __init__(self, damage: int = 10):
+        super().__init__()
         self.damage = damage
 
-    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, game=None, **kwargs) -> bool:
         try:
             import math
             cost = int(math.ceil(self.base_cost * getattr(user, 'get_force_cost_multiplier', lambda: 1.0)()))
@@ -257,33 +312,62 @@ class ForceLightning(ForceAbility):
                     except Exception: pass
                 return False
             # apply damage
-            if hasattr(target, 'take_damage'):
+            try:
+                player_rank = getattr(user, 'level', 0)
+                base_dmg = int(self.damage + (player_rank if player_rank else 0))
+                # dark-side empowered when stressed >50
                 try:
-                    player_rank = getattr(user, 'level', 0)
-                    base_dmg = int(self.damage + (player_rank if player_rank else 0))
-                    # dark-side empowered when stressed >50
-                    try:
-                        if getattr(self, 'is_dark', False) and getattr(user, 'stress', 0) > 50:
-                            base_dmg = int(base_dmg * 1.15)
-                    except Exception:
-                        pass
-                    dmg = int(base_dmg)
-                    target.take_damage(dmg)
-                    if messages is not None:
-                        try: messages.add(f"Force: Lightning deals {dmg} damage to {getattr(target,'name', 'the target')}.")
-                        except Exception: pass
-                    # dark-side costs stress; light-side reduces stress
-                    try:
-                        if getattr(self, 'is_dark', False) and hasattr(user, 'add_stress'):
-                            user.add_stress(10, source='dark_ability')
-                        else:
-                            if hasattr(user, 'reduce_stress'):
-                                user.reduce_stress(5)
-                    except Exception:
-                        pass
-                    return True
+                    if getattr(self, 'is_dark', False) and getattr(user, 'stress', 0) > 50:
+                        base_dmg = int(base_dmg * 1.15)
                 except Exception:
                     pass
+                dmg = int(base_dmg)
+                
+                # Apply damage - handle both enemy and player targets
+                if hasattr(target, 'take_damage'):
+                    target.take_damage(dmg, game=game)
+                elif hasattr(target, 'hp'):
+                    # Player or other entity with direct HP manipulation
+                    target.hp = max(0, target.hp - dmg)
+                else:
+                    # Fallback - can't apply damage
+                    if messages is not None:
+                        try: messages.add("Lightning cannot damage this target.")
+                        except Exception: pass
+                    return False
+                
+                # Track Force Lightning attack info for death logging
+                try:
+                    if hasattr(target, 'last_attacking_enemy'):
+                        target.last_attacking_enemy = getattr(user, "name", "Sith Enemy")
+                        target.last_damage_taken = dmg
+                        target.last_attack_type = "Force Lightning"
+                except Exception:
+                    pass
+                
+                if messages is not None:
+                    try: 
+                        enemy_name = getattr(user, "name", "Enemy")
+                        target_name = getattr(target, "name", "target")
+                        if hasattr(target, 'hp') and target.hp <= 0:
+                            messages.add(f"{enemy_name} strikes {target_name} down with Force Lightning! [{dmg} damage]")
+                        else:
+                            messages.add(f"{enemy_name} blasts {target_name} with Force Lightning! [{dmg} damage]")
+                    except Exception: 
+                        messages.add(f"Force: Lightning deals {dmg} damage to {getattr(target,'name', 'the target')}.")
+                
+                # dark-side costs stress; light-side reduces stress
+                try:
+                    if getattr(self, 'is_dark', False) and hasattr(user, 'add_stress'):
+                        user.add_stress(10, source='dark_ability')
+                    else:
+                        if hasattr(user, 'reduce_stress'):
+                            user.reduce_stress(5)
+                except Exception:
+                    pass
+                return True
+            except Exception:
+                pass
         except Exception:
             pass
         if messages is not None:
@@ -377,10 +461,18 @@ class ForceMeditation(ForceAbility):
             actual_restored = restore_amount
             user.force_points = min(10, getattr(user, 'force_points', 0) + (restore_amount // 50))
         
-        # Reduce stress (15 base + mastery scaling)
-        stress_reduction = int(15 * power_scale)
+        # Reduce stress (25 base + mastery scaling) - Increased for better stress management
+        base_stress_reduction = 25  # Increased from 15
+        
+        # Bonus stress reduction based on player level (confidence/mastery)
+        player_level = getattr(user, 'level', 1)
+        level_bonus = min(15, player_level * 1.5)  # Up to +15 at level 10
+        
+        # Total stress reduction
+        stress_reduction = int((base_stress_reduction + level_bonus) * power_scale)
+        
         if hasattr(user, 'reduce_stress'):
-            user.reduce_stress(stress_reduction)
+            user.reduce_stress(stress_reduction, source='meditation')
         
         # NEW: Heal HP (scaled by alignment - Light Side heals more)
         # Light Side (low corruption): 15-25% max HP
@@ -482,7 +574,7 @@ class ForceChoke(ForceAbility):
     description = "Crush an enemy's throat with the Force, dealing damage and stunning them."
     alignment = "dark"
     
-    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, game=None) -> bool:
         """Damage and stun target."""
         actual_cost = self.get_actual_cost(user)
         power_scale = self.get_power_scale(user)
@@ -511,7 +603,7 @@ class ForceChoke(ForceAbility):
         damage = int(12 * power_scale)
         
         try:
-            target.take_damage(damage)
+            target.take_damage(damage, game=game)
             
             # Apply stun for 1 turn
             if hasattr(target, 'add_debuff'):
@@ -540,7 +632,7 @@ class ForceDrain(ForceAbility):
     description = "Drain life force from an enemy, healing yourself."
     alignment = "dark"
     
-    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
+    def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, game=None, **kwargs) -> bool:
         """Damage target and heal user."""
         actual_cost = self.get_actual_cost(user)
         power_scale = self.get_power_scale(user)
@@ -569,7 +661,7 @@ class ForceDrain(ForceAbility):
         drain_amount = int(10 * power_scale)
         
         try:
-            target.take_damage(drain_amount)
+            target.take_damage(drain_amount, game=game)
             
             # Heal user
             if hasattr(user, 'heal'):
@@ -927,7 +1019,7 @@ class ForceBurst(ForceAbility):
                     # Circular radius check
                     if (dx*dx + dy*dy) <= (radius * radius):
                         if hasattr(e, 'take_damage'):
-                            e.take_damage(base_damage)
+                            e.take_damage(base_damage, game=game)
                         else:
                             e.hp = getattr(e, 'hp', 0) - base_damage
                         hit_count += 1

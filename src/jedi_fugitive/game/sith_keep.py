@@ -94,6 +94,7 @@ def setup_sith_keep_puzzles(game, keep_center_x, keep_center_y, chambers):
         game.sith_keep_puzzles = {}
     
     puzzle_chambers = [c for c in chambers if 'puzzle' in c[0]]
+
     
     for chamber_name, (cx, cy, width, height) in puzzle_chambers:
         # Calculate world coordinates
@@ -142,9 +143,9 @@ def setup_sith_keep_guards(game, keep_center_x, keep_center_y, chambers):
     player_level = getattr(game.player, 'level', 1)
     
     for chamber_name, (cx, cy, width, height) in guard_chambers:
-        # Calculate world coordinates
-        world_cx = keep_center_x + cx - 15
-        world_cy = keep_center_y + cy - 15
+        # Use keep's internal coordinates directly (no offset needed)
+        world_cx = cx
+        world_cy = cy
         
         # Spawn 2-3 elite guards per chamber
         num_guards = random.randint(2, 3)
@@ -184,8 +185,9 @@ def setup_sith_keep_boss(game, keep_center_x, keep_center_y, boss_chamber):
     from jedi_fugitive.items.weapons import WEAPONS
     
     cx, cy, width, height = boss_chamber
-    world_cx = keep_center_x + cx - 15
-    world_cy = keep_center_y + cy - 15
+    # Use keep's internal coordinates directly
+    world_cx = cx
+    world_cy = cy
     
     # Place legendary weapon on pedestal (end of chamber)
     weapon_x = world_cx
@@ -246,125 +248,75 @@ def place_sith_keep_on_map(game):
     player_x = getattr(game.player, 'x', 0)
     player_y = getattr(game.player, 'y', 0)
     
-    # Get merchant and cache positions to avoid
-    merchant_positions = []
-    if hasattr(game, 'merchant_positions'):
-        merchant_positions = game.merchant_positions
+    # Find the absolute farthest reachable position from player spawn
+    from jedi_fugitive.game.map_features import get_reachable_tiles
+    reachable_tiles = get_reachable_tiles(game.game_map, player_x, player_y)
     
-    cache_positions = []
-    if hasattr(game, 'loot_cache_positions'):
-        cache_positions = game.loot_cache_positions
+    # Find ALL reachable floor tiles
+    valid_reachable = [(x, y) for (x, y) in reachable_tiles 
+                       if game.game_map[y][x] == floor]
     
-    best_distance = 0
-    best_position = None
-    min_distance = max(150, min(mw, mh) // 3)  # Minimum 150 tiles or 1/3 map size
-    
-    # Try to find position far from everything
-    for attempt in range(1000):
-        # Randomize quadrant first to ensure distribution
-        quadrant = attempt % 4
-        if quadrant == 0:  # Top-left
-            x = random.randint(20, mw // 2 - 20)
-            y = random.randint(20, mh // 2 - 20)
-        elif quadrant == 1:  # Top-right
-            x = random.randint(mw // 2 + 20, mw - 20)
-            y = random.randint(20, mh // 2 - 20)
-        elif quadrant == 2:  # Bottom-left
-            x = random.randint(20, mw // 2 - 20)
-            y = random.randint(mh // 2 + 20, mh - 20)
-        else:  # Bottom-right
-            x = random.randint(mw // 2 + 20, mw - 20)
-            y = random.randint(mh // 2 + 20, mh - 20)
-        
-        distance = abs(x - player_x) + abs(y - player_y)
-        
-        # Must be far from spawn
-        if distance < min_distance:
-            continue
-        
-        # Check if floor
-        if game.game_map[y][x] != floor:
-            continue
-        
-        # Check distance from merchants and caches (avoid overlap)
-        too_close = False
-        for mx, my in merchant_positions:
-            if abs(x - mx) + abs(y - my) < 80:
-                too_close = True
-                break
-        if too_close:
-            continue
-        
-        for cx, cy in cache_positions:
-            if abs(x - cx) + abs(y - cy) < 80:
-                too_close = True
-                break
-        if too_close:
-            continue
-        
-        # Check if we can place the keep structure (32x32 area)
-        can_place = True
-        for dy in range(-16, 17):
-            for dx in range(-16, 17):
-                ny, nx = y + dy, x + dx
-                if (ny < 0 or nx < 0 or ny >= mh or nx >= mw or
-                    game.game_map[ny][nx] != floor):
-                    can_place = False
-                    break
-            if not can_place:
-                break
-        
-        if can_place and distance > best_distance:
-            best_position = (x, y)
-            best_distance = distance
-            
-            # If we found a really good spot (very far), take it
-            if best_distance > min_distance * 1.5:
-                break
+    if valid_reachable:
+        # Pick the ABSOLUTE farthest one (maximum Manhattan distance)
+        best_position = max(valid_reachable, key=lambda p: abs(p[0] - player_x) + abs(p[1] - player_y))
+        best_distance = abs(best_position[0] - player_x) + abs(best_position[1] - player_y)
+
     
     if not best_position:
-        # Fallback: place in corner farthest from player
-        corners = [
-            (50, 50),
-            (mw - 50, 50),
-            (50, mh - 50),
-            (mw - 50, mh - 50)
-        ]
-        best_position = max(corners, key=lambda p: abs(p[0] - player_x) + abs(p[1] - player_y))
+        # Fallback: find ANY reachable position far from player  
+        min_fallback_distance = 30  # Minimum fallback distance
+        reachable_candidates = [(x, y) for (x, y) in reachable_tiles 
+                               if abs(x - player_x) + abs(y - player_y) > min_fallback_distance]
+        if reachable_candidates:
+            # Choose the farthest reachable position
+            best_position = max(reachable_candidates, 
+                               key=lambda p: abs(p[0] - player_x) + abs(p[1] - player_y))
+            best_distance = abs(best_position[0] - player_x) + abs(best_position[1] - player_y)
+        else:
+            # Last resort: any reachable position
+            if reachable_tiles:
+                best_position = max(reachable_tiles, 
+                                  key=lambda p: abs(p[0] - player_x) + abs(p[1] - player_y))
+                best_distance = abs(best_position[0] - player_x) + abs(best_position[1] - player_y)
+            else:
+                # Emergency fallback (should never happen)
+                best_position = (mw // 2, mh // 2)
+                best_distance = abs(mw // 2 - player_x) + abs(mh // 2 - player_y)
     
     keep_x, keep_y = best_position
     
-    # Generate the keep structure directly on the map
+    # Simply place the keep entrance marker on the existing floor
+    # The keep structure will be generated when entering, not drawn on the main map
+    entrance_world_x = keep_x
+    entrance_world_y = keep_y
+    
+    # Ensure the area around the entrance is clear and accessible
+    floor = getattr(Display, 'FLOOR', '.')
+    for dy in range(-1, 2):
+        for dx in range(-1, 2):
+            ny, nx = entrance_world_y + dy, entrance_world_x + dx
+            if 0 <= ny < mh and 0 <= nx < mw:
+                # Keep area clear for access
+                game.game_map[ny][nx] = floor
+    
+    # Place the keep entrance marker
+    game.game_map[entrance_world_y][entrance_world_x] = 'K'  # Keep entrance (K for easier identification)
+    
+    # Generate layout for internal use (guards, puzzles, etc.) but don't draw on main map
     layout, entrance, chambers, boss_chamber = generate_sith_keep_layout(keep_size=15)
     
-    # Place keep walls on map
-    keep_height = len(layout)
-    keep_width = len(layout[0]) if keep_height > 0 else 0
+    # For setup functions, use the entrance position as the "offset"
+    # Since we're not drawing the full structure, just place entities near the entrance
+    offset_x = entrance_world_x
+    offset_y = entrance_world_y
+    keep_width = 30  # Nominal size for bounds
+    keep_height = 30
     
-    offset_x = keep_x - keep_width // 2
-    offset_y = keep_y - keep_height // 2
-    
-    # Draw the keep structure
-    for y in range(keep_height):
-        for x in range(keep_width):
-            map_y = offset_y + y
-            map_x = offset_x + x
-            
-            if 0 <= map_y < mh and 0 <= map_x < mw:
-                if layout[y][x] == Display.WALL:
-                    game.game_map[map_y][map_x] = '█'  # Keep wall (solid block)
-                elif layout[y][x] == Display.FLOOR:
-                    game.game_map[map_y][map_x] = Display.FLOOR
-    
-    # Mark entrance with special symbol
-    entrance_world_x = offset_x + entrance[0]
-    entrance_world_y = offset_y + entrance[1]
-    game.game_map[entrance_world_y][entrance_world_x] = '▓'  # Keep entrance
-    
-    # Setup puzzles, guards, and boss
-    setup_sith_keep_puzzles(game, offset_x, offset_y, chambers)
-    setup_sith_keep_guards(game, offset_x, offset_y, chambers)
-    setup_sith_keep_boss(game, offset_x, offset_y, boss_chamber)
+    # Store keep layout for later use when entering
+    # Don't setup puzzles/guards on main map - they'll be created when entering the keep
+    game.sith_keep_layout = layout
+    game.sith_keep_chambers = chambers  
+    game.sith_keep_boss_chamber = boss_chamber
     
     # Store keep data
     game.sith_keep_entrance = (entrance_world_x, entrance_world_y)
@@ -387,7 +339,7 @@ def place_sith_keep_on_map(game):
     except:
         pass
     
-    print(f"[DEBUG] Sith Keep placed at ({entrance_world_x}, {entrance_world_y}), distance from spawn: {best_distance} tiles")
+
     
     return (entrance_world_x, entrance_world_y)
 

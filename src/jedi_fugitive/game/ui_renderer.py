@@ -41,6 +41,20 @@ def draw(game):
         pass
 
 def draw_map_panel(game):
+    # Check if map display is toggled off
+    if not getattr(game, 'map_visible', True):
+        panel = game.ui.panels.get('map') if getattr(game.ui, "panels", None) else None
+        if panel:
+            try:
+                panel.clear()
+                panel.border()
+                panel.addstr(1, 2, "Map Display: OFF", curses.A_BOLD | curses.color_pair(6))
+                panel.addstr(2, 2, "Press 'M' to toggle", curses.color_pair(4))
+                panel.refresh()
+            except Exception:
+                pass
+        return
+        
     panel = game.ui.panels.get('map') if getattr(game.ui, "panels", None) else None
     if not panel:
         panel = game.stdscr
@@ -189,10 +203,26 @@ def draw_map_panel(game):
                                 color = curses.color_pair(4)
                         except Exception:
                             color = curses.color_pair(4)
-                    elif ch == getattr(Display, "SITH_TOMB", "X") or ch == getattr(Display, "SITH_ENTRANCE", "E"):
-                        color = curses.color_pair(6)
+                    elif ch == 'D' or ch == getattr(Display, "SITH_TOMB", "X") or ch == getattr(Display, "SITH_ENTRANCE", "D"):
+                        # TOMB ENTRANCE: Render 'D' tiles with ominous dark red color and make them stand out
+                        glyph = 'D'
+                        color = curses.color_pair(2) | curses.A_BOLD  # Bright red, bold
                     else:
-                        color = curses.color_pair(4)
+                        # Check if this character is a token and use its color
+                        try:
+                            from jedi_fugitive.items.tokens import TOKEN_MAP
+                            if ch in TOKEN_MAP:
+                                token_color = TOKEN_MAP[ch].get('color', 'white')
+                                color_map = {
+                                    'red': curses.color_pair(2), 'green': curses.color_pair(10), 'blue': curses.color_pair(1),
+                                    'cyan': curses.color_pair(11), 'yellow': curses.color_pair(3), 'magenta': curses.color_pair(6),
+                                    'white': curses.color_pair(4)
+                                }
+                                color = color_map.get(token_color, curses.color_pair(4)) | curses.A_BOLD
+                            else:
+                                color = curses.color_pair(4)
+                        except Exception:
+                            color = curses.color_pair(4)
                 except Exception:
                     color = curses.color_pair(4)
                 # If tile is not currently visible but has been explored, render it dimmer
@@ -229,6 +259,64 @@ def draw_map_panel(game):
                         player_color = curses.color_pair(1) | curses.A_BOLD
                     line_chars[player_vx] = ('@', player_color)
 
+            # Render fauna encounters on the map
+            try:
+                if hasattr(game, 'fauna_manager') and hasattr(game.fauna_manager, 'active_encounters'):
+                    for encounter_key, encounter in game.fauna_manager.active_encounters.items():
+                        try:
+                            # Use stored encounter location if available, otherwise near player
+                            if hasattr(encounter, 'location_x') and hasattr(encounter, 'location_y'):
+                                fauna_x = encounter.location_x
+                                fauna_y = encounter.location_y
+                            else:
+                                # Fallback to player position with offset
+                                fauna_x = px + (hash(encounter_key) % 3) - 1  # -1 to +1 offset
+                                fauna_y = py + (hash(encounter_key + "y") % 3) - 1
+                            
+                            # Ensure fauna is within map bounds
+                            if hasattr(game, 'game_map') and game.game_map:
+                                fauna_x = max(0, min(fauna_x, len(game.game_map[0]) - 1))
+                                fauna_y = max(0, min(fauna_y, len(game.game_map) - 1))
+                            
+                            if start_x <= fauna_x < start_x + view_w and start_y <= fauna_y < start_y + view_h:
+                                if (fauna_x, fauna_y) in local_visible:
+                                    fvx = fauna_x - start_x
+                                    fvy = fauna_y - start_y
+                                    if fvy == vy and 0 <= fvx < len(line_chars):
+                                        # Choose fauna symbol and color based on creature type
+                                        fauna_type = encounter.fauna_data.get('type', 'neutral')
+                                        fauna_size = encounter.fauna_data.get('size', 'medium')
+                                        
+                                        # Size-based symbols
+                                        if fauna_size == 'tiny':
+                                            symbol = '·'  # Small dot
+                                        elif fauna_size == 'small':
+                                            symbol = 'o'  # Small circle
+                                        elif fauna_size == 'medium':
+                                            symbol = 'Ω'  # Medium symbol
+                                        elif fauna_size == 'large':
+                                            symbol = '♦'  # Large diamond
+                                        else:  # massive
+                                            symbol = '█'  # Massive block
+                                        
+                                        # Type-based colors with visual distinction
+                                        if fauna_type == 'force_sensitive':
+                                            color = curses.color_pair(1) | curses.A_BOLD  # Bright cyan
+                                        elif fauna_type == 'corrupted':
+                                            color = curses.color_pair(6) | curses.A_BOLD  # Dark purple
+                                        elif fauna_type == 'aggressive':
+                                            color = curses.color_pair(2) | curses.A_BOLD  # Bright red
+                                        elif fauna_type == 'passive':
+                                            color = curses.color_pair(8) | curses.A_NORMAL # Green
+                                        else:  # neutral
+                                            color = curses.color_pair(3) | curses.A_NORMAL # Yellow
+                                        
+                                        line_chars[fvx] = (symbol, color)
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
             for e in getattr(game, "enemies", []):
                 try:
                     if not getattr(e, "is_alive", lambda: False)(): continue
@@ -240,6 +328,25 @@ def draw_map_panel(game):
                                 line_chars[evx] = (getattr(e, "symbol", "E"), curses.color_pair(2) | curses.A_BOLD)
                 except Exception:
                     continue
+
+            # Render NPCs on the map
+            try:
+                npcs_on_map = getattr(game, 'npcs_on_map', {})
+                for (npc_x, npc_y), npc in npcs_on_map.items():
+                    try:
+                        if start_x <= npc_x < start_x + view_w and start_y <= npc_y < start_y + view_h:
+                            if (npc_x, npc_y) in local_visible:
+                                nvx = npc_x - start_x
+                                nvy = npc_y - start_y
+                                if nvy == vy and 0 <= nvx < len(line_chars):
+                                    # Get NPC symbol and color
+                                    symbol = getattr(npc, 'symbol', '@')  
+                                    color = curses.color_pair(3) | curses.A_BOLD  # Yellow for NPCs
+                                    line_chars[nvx] = (symbol, color)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
             try:
                 for p in list(getattr(game, "projectiles", []) or []):
@@ -367,15 +474,26 @@ def draw_map_panel(game):
 def draw_stats_panel(game):
     panel = getattr(game.ui, "panels", {}).get("stats")
     if not panel: return
+    
+    # Performance optimization: check if stats changed before redrawing
+    # TEMPORARILY DISABLED: Force redraw to ensure corruption property fix displays
+    # current_stats_hash = hash(str(getattr(game.player, 'get_stats_display', lambda: [])()))
+    # last_hash = getattr(game, '_last_stats_hash', None)
+    # 
+    # if last_hash == current_stats_hash:
+    #     return  # Skip redraw if nothing changed
+    # 
+    # game._last_stats_hash = current_stats_hash
+    
     try:
         panel.clear(); panel.border()
-        # ASCII art header with Jedi symbol
+        # SITH AESTHETIC: Dark side header with ominous symbols
         try:
-            panel.addstr(0, 2, "╣", curses.A_BOLD)
-            panel.addstr(0, 3, " ⚔ STATS ⚔ ", curses.A_BOLD | curses.color_pair(6))
-            panel.addstr(0, 15, "╠", curses.A_BOLD)
+            panel.addstr(0, 2, "╬", curses.A_BOLD | curses.color_pair(7))
+            panel.addstr(0, 3, " ◈ POWER STATUS ◈ ", curses.A_BOLD | curses.color_pair(1))
+            panel.addstr(0, 21, "╬", curses.A_BOLD | curses.color_pair(7))
         except:
-            panel.addstr(0, 2, " STATS ", curses.A_BOLD)
+            panel.addstr(0, 2, " POWER STATUS ", curses.A_BOLD | curses.color_pair(1))
         # show current objective if a Sith Device exists (either placed or recorded)
         try:
             sd = getattr(game, 'sith_device', None)
@@ -402,10 +520,28 @@ def draw_stats_panel(game):
         ph = panel.getmaxyx()[0]; left = 2; cur_row = 1 + len(stats_lines)
         if not has_lvl:
             try:
-                xp_next = getattr(game.player, "xp_to_next_level", lambda lvl=None: 100)(getattr(game.player,'level',1))
+                # Display dual path system clearly
+                light_level = getattr(game.player, 'light_level', 1)
+                dark_level = getattr(game.player, 'dark_level', 1)
+                light_xp = getattr(game.player, 'light_xp', 0)
+                dark_xp = getattr(game.player, 'dark_xp', 0)
+                light_xp_next = getattr(game.player, 'xp_to_next_light', light_level * 100)
+                dark_xp_next = getattr(game.player, 'xp_to_next_dark', dark_level * 100)
+                
+                # Show Light Side progress
+                panel.addstr(cur_row, left, f"#2#Light Level: {light_level}#0# ({light_xp}/{light_xp_next} XP)"[: panel.getmaxyx()[1] - 4])
+                cur_row += 1
+                
+                # Show Dark Side progress
+                panel.addstr(cur_row, left, f"#1#Dark Level: {dark_level}#0# ({dark_xp}/{dark_xp_next} XP)"[: panel.getmaxyx()[1] - 4])
+                cur_row += 1
+                
             except Exception:
-                xp_next = 100
-            panel.addstr(cur_row, left, f"Level: {getattr(game.player,'level',1)}  XP: {getattr(game.player,'xp',0)}/{xp_next}"[: panel.getmaxyx()[1] - 4])
+                # Fallback to basic display
+                light_level = getattr(game.player, 'light_level', 1)
+                dark_level = getattr(game.player, 'dark_level', 1)
+                panel.addstr(cur_row, left, f"Light: {light_level}  Dark: {dark_level}"[: panel.getmaxyx()[1] - 4])
+                cur_row += 1
             # Stress as a compact bar with description
             # Only show if stress system is active (after first tomb entry) AND currently in a tomb
             try:
@@ -505,9 +641,25 @@ def draw_stats_panel(game):
                     panel.addstr(cur_row + 2, left, f"Force: {getattr(game.player,'force_points',0)}"[: panel.getmaxyx()[1] - 4])
                 except Exception:
                     pass
-            inv_start = cur_row + 4
+            
+            # Display crafting level
+            try:
+                craft_level = getattr(game.player, 'craft_level', 1)
+                craft_xp = getattr(game.player, 'craft_xp', 0)
+                craft_xp_to_next = getattr(game.player, 'craft_xp_to_next', 100)
+                panel.addstr(cur_row + 3, left, f"Crafting: Lv.{craft_level} ({craft_xp}/{craft_xp_to_next} XP)"[: panel.getmaxyx()[1] - 4])
+            except Exception:
+                pass
+            
+            inv_start = cur_row + 5
         else:
-            inv_start = cur_row
+            # Display crafting level even when not showing detailed stats
+            try:
+                craft_level = getattr(game.player, 'craft_level', 1)
+                panel.addstr(cur_row, left, f"Crafting: Lv.{craft_level}"[: panel.getmaxyx()[1] - 4])
+                inv_start = cur_row + 1
+            except Exception:
+                inv_start = cur_row
         panel.addstr(inv_start, 2, "-" * (panel.getmaxyx()[1] - 4))
         panel.addstr(inv_start + 1, 2, "Inventory:", curses.A_UNDERLINE)
         token_names = {"v": "Vibroblade", "s": "Energy Shield", "b": "Blaster Pistol"}
@@ -641,7 +793,8 @@ def draw_stats_panel(game):
             except Exception:
                 try:
                     panel.addstr(inv_start + 3 + inv_lines_limit, 2, f"W: {getattr(game.player, 'equipped_weapon', 'None')}"[: panel.getmaxyx()[1] - 4])
-                    panel.addstr(inv_start + 4 + inv_lines_limit, 2, f"A: {getattr(game.player, 'equipped_armor', 'None')}"[: panel.getmaxyx()[1] - 4])
+                    panel.addstr(inv_start + 4 + inv_lines_limit, 2, f"Off: {getattr(game.player, 'equipped_offhand', 'None')}"[: panel.getmaxyx()[1] - 4])
+                    panel.addstr(inv_start + 5 + inv_lines_limit, 2, f"A: {getattr(game.player, 'equipped_armor', 'None')}"[: panel.getmaxyx()[1] - 4])
                 except Exception:
                     pass
         except Exception: pass
@@ -739,6 +892,12 @@ def draw_stats_panel(game):
                             ahead_desc = 'Crashed ship.'
                         elif ch == getattr(Display, 'COMMS', 'C'):
                             ahead_desc = 'Comms terminal.'
+                        elif ch == getattr(Display, 'SITH_ENTRANCE', 'D'):
+                            ahead_desc = '⚠️ TOMB ENTRANCE - Walk forward to enter'
+                        elif ch == getattr(Display, 'STAIRS_DOWN', '>'):
+                            ahead_desc = 'Stairs down.'
+                        elif ch == getattr(Display, 'STAIRS_UP', '<'):
+                            ahead_desc = 'Stairs up.'
                         else:
                             ahead_desc = f"Tile '{str(ch)}'"
                 except Exception:
@@ -784,10 +943,41 @@ def draw_abilities_panel(game):
                 expanded.append(_W(a, "push")); expanded.append(_W(a, "pull"))
             else:
                 expanded.append(a)
-        for i, a in enumerate(expanded[: panel.getmaxyx()[0] - 3]):
+        # Calculate available space for abilities
+        panel_height = panel.getmaxyx()[0]
+        available_space = panel_height - 5  # Leave space for atmospheric events
+        
+        for i, a in enumerate(expanded[: available_space]):
             a_name = getattr(a, "name", str(a))
             cost = getattr(a, "base_cost", getattr(a, "cost", ""))
             panel.addstr(1 + i, 2, f"{a_name} (Cost:{cost})"[: panel.getmaxyx()[1] - 4])
+        
+        # Display active atmospheric events at the bottom
+        try:
+            if hasattr(game, 'atmospheric_manager'):
+                events = game.atmospheric_manager.get_active_event_info()
+                if events:
+                    # Separator line
+                    separator_y = min(panel_height - 4, 1 + len(expanded[:available_space]) + 1)
+                    panel.addstr(separator_y, 2, "─" * (panel.getmaxyx()[1] - 4))
+                    
+                    # Events header
+                    try:
+                        panel.addstr(separator_y + 1, 2, "[ATMOSPHERIC]", curses.A_BOLD | curses.color_pair(3))
+                    except:
+                        panel.addstr(separator_y + 1, 2, "ATMOSPHERIC:", curses.A_BOLD)
+                    
+                    # Show first active event
+                    if events:
+                        event = events[0]  # Show most recent event
+                        event_line = f"{event['name']} ({event['remaining']}t)"
+                        try:
+                            panel.addstr(separator_y + 2, 2, event_line[: panel.getmaxyx()[1] - 4], curses.color_pair(3))
+                        except:
+                            panel.addstr(separator_y + 2, 2, event_line[: panel.getmaxyx()[1] - 4])
+        except Exception:
+            pass
+            
         panel.refresh()
     except curses.error: pass
 
@@ -817,7 +1007,7 @@ def draw_commands_panel(game):
         # ASCII art header with action symbol
         try:
             panel.addstr(0, 2, "╣", curses.A_BOLD)
-            panel.addstr(0, 3, " ⚡ COMMANDS ⚡ ", curses.A_BOLD | curses.color_pair(3))
+            panel.addstr(0, 3, " [COMMANDS] ", curses.A_BOLD | curses.color_pair(3))
             panel.addstr(0, 18, "╠", curses.A_BOLD)
         except:
             panel.addstr(0, 2, " COMMANDS ", curses.A_BOLD)
@@ -826,7 +1016,7 @@ def draw_commands_panel(game):
         cmds = [
             "Move: ↑↓←→ hjkl  Diag: yubn │ g:Get  e:Equip  u:Use  d:Drop  i:Inventory",
             "Combat: Walk=melee  F:Shoot(2-7 tiles)  t:Grenade │ f:Force  m:Meditate  C:Craft",
-            "Info: x:Inspect  j:Journal  K:Codex  S:Stats │ ?:Help  Q:Quit"
+            "Info: x:Inspect  j:Journal  K:Codex  S:Stats │ H:Help  Q:Quit"
         ]
         
         ph, pw = panel.getmaxyx()

@@ -1,0 +1,13 @@
+================================================================================
+JEDI FUGITIVE - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-20 09:03:15
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-20 09:03:15] INFO: Game started
+[2025-11-20 09:03:21] INFO: Game initialization started
+[2025-11-20 09:03:21] INFO: World generation started
+[2025-11-20 09:03:22] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-20 09:03:22] INFO: Game loop started

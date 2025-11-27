@@ -15,7 +15,7 @@ def create_sith_sniper(level=1):
         xp_value=30,
         level=level
     )
-    enemy.symbol = 'M'
+    enemy.symbol = '>'  # Use unique symbol that doesn't conflict
     enemy.enemy_behavior = 'sniper'
     enemy.preferred_range = 6
     enemy.alert_range = 10

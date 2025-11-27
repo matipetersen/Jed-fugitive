@@ -1,5 +1,5 @@
 """
-Comprehensive crash and error logging system for Jedi Fugitive.
+Comprehensive crash and error logging system for Dark Meridian.
 Logs all errors, warnings, and game state to help debug issues.
 """
 import os
@@ -37,7 +37,7 @@ class CrashLogger:
             # Write header
             with open(self._log_file, 'w') as f:
                 f.write("="*80 + "\n")
-                f.write("JEDI FUGITIVE - CRASH & ERROR LOG\n")
+                f.write("DARK MERIDIAN - CRASH & ERROR LOG\n")
                 f.write("="*80 + "\n")
                 f.write(f"Session started: {self._session_start.strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"Python version: {sys.version}\n")

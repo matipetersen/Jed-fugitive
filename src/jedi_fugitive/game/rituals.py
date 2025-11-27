@@ -1,5 +1,5 @@
 """
-Rituals and Ceremonies system for Jedi Fugitive.
+Rituals and Ceremonies system for Dark Meridian.
 Handles lightsaber attunement, Force rituals, burial ceremonies, and meditation rites.
 """
 import random
@@ -370,6 +370,13 @@ def get_available_rituals(corruption_level, location=None, level=1, tombs_comple
     Returns:
         List of (ritual_category, ritual_id, ritual_data) tuples
     """
+    # Validate corruption level
+    if corruption_level is None:
+        corruption_level = 50  # Default to neutral
+    
+    # Ensure corruption level is within valid range
+    corruption_level = max(0, min(100, corruption_level))
+    
     available = []
     
     # Check crystal attunement rituals

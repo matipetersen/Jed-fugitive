@@ -1,0 +1,48 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-21 21:46:10
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-21 21:46:11] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+[2025-11-21 21:46:11] WORLD_GEN_CRASH: World generation failed
+================================================================================
+
+Exception Type: AttributeError
+Exception Message: 'QuestManager' object has no attribute 'create_random_npc'
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 376, in generate_world
+    self.generate_surface_npcs()
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 4874, in generate_surface_npcs
+    npc = self.quest_manager.create_random_npc(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'QuestManager' object has no attribute 'create_random_npc'
+
+
+Game State at Time of Error:
+----------------------------------------
+  player_x: 79
+  player_y: 71
+  player_hp: 15
+  player_max_hp: 15
+  player_level: 1
+  player_stress: 0
+  player_corruption: 0
+  player_force_points: 2
+  in_tomb: False
+  tomb_floor: None
+  turn_count: 0
+  running: True
+  death: False
+  victory: False
+  enemy_count: 31
+  map_height: 145
+  map_width: 175
+
+================================================================================

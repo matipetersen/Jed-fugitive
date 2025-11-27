@@ -60,17 +60,31 @@ MATERIALS = [
              "Mandalorian iron, virtually indestructible."),
     Material("Kyber Crystal", MaterialType.KYBER, "Legendary",
              "Force-attuned crystal, heart of a lightsaber."),
+    
+    # Additional Rare Materials
+    Material("Quantum Processor", MaterialType.ELECTRONIC, "Rare",
+             "Advanced quantum computing core for complex systems."),
+    Material("Stabilized Plasma", MaterialType.ENERGY_CELL, "Rare",
+             "Contained plasma for high-energy applications."),
+    Material("Vibro-Motor", MaterialType.ELECTRONIC, "Uncommon",
+             "Ultrasonic vibration generator for weapons."),
+    Material("Sensor Array", MaterialType.ELECTRONIC, "Uncommon",
+             "Multi-spectrum sensor suite for targeting systems."),
+    Material("Reflective Coating", MaterialType.RARE_ALLOY, "Uncommon",
+             "Energy-reflective surface treatment."),
+    Material("Neural Interface", MaterialType.ELECTRONIC, "Rare",
+             "Direct neural connection hardware."),
 ]
 
 class CraftingRecipe:
     def __init__(self, name: str, recipe_type: str, materials: Dict[str, int], 
-                 result: Any, description: str = "", skill_required: int = 0):
+                 result: Any, description: str = "", required_level: int = 1):
         self.name = name
         self.recipe_type = recipe_type  # "weapon_upgrade", "item_craft", "repair"
         self.materials = materials  # {"Material Name": quantity}
         self.result = result
         self.description = description
-        self.skill_required = skill_required
+        self.required_level = required_level
 
 # Crafting recipes
 CRAFTING_RECIPES = [
@@ -80,7 +94,8 @@ CRAFTING_RECIPES = [
         "weapon_upgrade",
         {"Scrap Metal": 2, "Durasteel Plate": 1},
         {"stat": "attack", "bonus": 2, "name": "Sharpened"},
-        "Sharpen blade edges for +2 Attack"
+        "Sharpen blade edges for +2 Attack",
+        required_level=1
     ),
     
     CraftingRecipe(
@@ -88,7 +103,8 @@ CRAFTING_RECIPES = [
         "weapon_upgrade",
         {"Scrap Metal": 1, "Fused Wire": 2},
         {"stat": "accuracy", "bonus": 5, "name": "Balanced"},
-        "Improve weapon balance for +5 Accuracy"
+        "Improve weapon balance for +5 Accuracy",
+        required_level=2
     ),
     
     CraftingRecipe(
@@ -96,7 +112,8 @@ CRAFTING_RECIPES = [
         "weapon_upgrade",
         {"Durasteel Plate": 2, "Plasteel Composite": 1},
         {"stat": "durability", "bonus": 20, "name": "Reinforced"},
-        "Strengthen weapon structure, +20 Durability"
+        "Strengthen weapon structure, +20 Durability",
+        required_level=2
     ),
     
     CraftingRecipe(
@@ -104,7 +121,8 @@ CRAFTING_RECIPES = [
         "weapon_upgrade",
         {"Power Cell": 2, "Advanced Circuitry": 1},
         {"stat": "damage", "bonus": 3, "name": "Ion-Charged", "special": "Droid Damage"},
-        "Add ion damage, +3 vs Droids"
+        "Add ion damage, +3 vs Droids",
+        required_level=3
     ),
     
     CraftingRecipe(
@@ -112,7 +130,8 @@ CRAFTING_RECIPES = [
         "weapon_upgrade",
         {"Cortosis Ore": 1, "Fused Wire": 2},
         {"stat": "defense", "bonus": 3, "name": "Cortosis-Woven", "special": "Lightsaber Resist"},
-        "Weave cortosis into weapon/armor, resist lightsabers"
+        "Weave cortosis into weapon/armor, resist lightsabers",
+        required_level=4
     ),
     
     CraftingRecipe(
@@ -120,7 +139,8 @@ CRAFTING_RECIPES = [
         "weapon_upgrade",
         {"Power Cell": 3, "Compact Power Core": 1},
         {"stat": "damage", "bonus": 5, "name": "Overcharged"},
-        "Boost weapon power output for +5 Damage"
+        "Boost weapon power output for +5 Damage",
+        required_level=3
     ),
     
     CraftingRecipe(
@@ -170,6 +190,55 @@ CRAFTING_RECIPES = [
         {"Power Cell": 2, "Advanced Circuitry": 1, "Ionization Chamber": 1},
         {"item_id": "thermal_grenade", "name": "Thermal Detonator", "type": "consumable", "effect": {"area_damage": 24, "radius": 3}},
         "Craft explosive thermal detonator"
+    ),
+    
+    # Advanced Crafting Recipes
+    CraftingRecipe(
+        "Force Amplifier",
+        "item_craft",
+        {"Kyber Crystal": 1, "Advanced Circuitry": 3, "Focusing Lens": 2},
+        {"item_id": "force_amplifier", "name": "Force Amplifier", "type": "accessory", "force_power": 5},
+        "Amplify Force abilities, +5 Force Power"
+    ),
+    
+    CraftingRecipe(
+        "Stealth Field Generator",
+        "item_craft", 
+        {"Compact Power Core": 2, "Advanced Circuitry": 3, "Plasteel Composite": 2},
+        {"item_id": "stealth_field", "name": "Stealth Field Generator", "type": "consumable", "effect": {"stealth": 10, "duration": 5}},
+        "Temporary invisibility for 5 turns"
+    ),
+    
+    CraftingRecipe(
+        "Enhanced Stimpacks",
+        "item_craft",
+        {"Power Cell": 1, "Advanced Circuitry": 1, "Scrap Metal": 2},
+        {"item_id": "enhanced_medkit", "name": "Enhanced Medkit", "type": "consumable", "effect": {"heal": 50, "cure": True}},
+        "Superior healing that also cures status effects"
+    ),
+    
+    CraftingRecipe(
+        "Targeting Computer",
+        "weapon_upgrade",
+        {"Advanced Circuitry": 2, "Focusing Lens": 1, "Power Cell": 1},
+        {"stat": "accuracy", "bonus": 12, "name": "Computer-Assisted", "special": "Auto-Target"},
+        "Advanced targeting system, +12 Accuracy"
+    ),
+    
+    CraftingRecipe(
+        "Vibro-Edge",
+        "weapon_upgrade",
+        {"Phrik Alloy": 1, "Power Cell": 2, "Advanced Circuitry": 1},
+        {"stat": "attack", "bonus": 8, "name": "Vibro-Enhanced", "special": "Armor Pierce"},
+        "Ultrasonic vibration edge, +8 Attack, ignores armor"
+    ),
+    
+    CraftingRecipe(
+        "Adaptive Armor Plating",
+        "armor_upgrade",
+        {"Beskar Ingot": 1, "Phrik Alloy": 1, "Advanced Circuitry": 2},
+        {"stat": "defense", "bonus": 10, "stat2": "resistance", "bonus2": 3, "name": "Adaptive"},
+        "Smart armor that adapts to damage types"
     ),
 ]
 

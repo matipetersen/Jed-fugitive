@@ -1,5 +1,5 @@
 """
-Dynamic Narrative Events system for Jedi Fugitive.
+Dynamic Narrative Events system for Dark Meridian.
 Random discoveries, holocron messages, distress signals, and environmental storytelling.
 """
 import random
@@ -106,7 +106,7 @@ HOLOCRON_MESSAGES = {
             'force_wisdom': True
         },
         {
-            'speaker': 'Master Yoda',
+            'speaker': 'Jedi Master Satele Shan',
             'message': [
                 "Difficult to see, the future is. Always in motion.",
                 "Fear leads to anger. Anger leads to hate. Hate leads to suffering.",
@@ -192,19 +192,19 @@ DISTRESS_SIGNALS = [
                 "The scavengers notice you. They draw weapons.",
             ],
             'choice_light': {
-                'text': "Defend the survivor and drive off the scavengers (Light)",
+                'text': "Defend the survivor and drive off the scavengers",
                 'outcome': "You protect the wounded survivor. The scavengers flee. You tend to their injuries with what supplies you have.",
                 'corruption': -8,
                 'reward': 'survivor_gratitude'
             },
             'choice_dark': {
-                'text': "Kill the scavengers and take everything (Dark)",
+                'text': "Kill the scavengers and take everything",
                 'outcome': "You strike without mercy. The scavengers and the survivor all die. Their supplies are yours.",
                 'corruption': 20,
                 'reward': 'scavenger_loot'
             },
             'choice_ignore': {
-                'text': "Leave - this isn't your problem (Neutral)",
+                'text': "Leave - this isn't your problem",
                 'outcome': "You turn away. The screams fade behind you. Survival requires hard choices.",
                 'corruption': 5,
                 'reward': None
@@ -223,19 +223,19 @@ DISTRESS_SIGNALS = [
                 "The facility's power is failing. The seals won't hold much longer.",
             ],
             'choice_light': {
-                'text': "Risk infection to save the survivors (Light)",
+                'text': "Risk infection to save the survivors",
                 'outcome': "You fight through the infected, rescue the survivors. One becomes infected during the escape. A calculated risk.",
                 'corruption': -10,
                 'reward': 'medical_supplies'
             },
             'choice_dark': {
-                'text': "Seal the facility permanently, ending the threat (Dark)",
+                'text': "Seal the facility permanently, ending the threat",
                 'outcome': "You override the doors, sealing everyone inside. Infected and survivors alike. The threat is contained. Screams echo, then silence.",
                 'corruption': 25,
                 'reward': 'security_codes'
             },
             'choice_ignore': {
-                'text': "Walk away - they're already dead (Neutral)",
+                'text': "Walk away - they're already dead",
                 'outcome': "You leave them to their fate. Sometimes there are no good choices.",
                 'corruption': 8,
                 'reward': None
@@ -254,19 +254,19 @@ DISTRESS_SIGNALS = [
                 "You sense their distrust. They're on the edge of the dark side.",
             ],
             'choice_light': {
-                'text': "Offer help and guidance back to the light (Light)",
+                'text': "Offer help and guidance back to the light",
                 'outcome': "You spend hours in meditation with them, sharing your burden. Together you find peace. They join you as a temporary companion.",
                 'corruption': -12,
                 'reward': 'jedi_ally'
             },
             'choice_dark': {
-                'text': "Finish what the assassins started (Dark)",
+                'text': "Finish what the assassins started",
                 'outcome': "They're weak, broken. You end their suffering - and take their lightsaber crystal. The strong survive.",
                 'corruption': 22,
                 'reward': 'lightsaber_crystal'
             },
             'choice_ignore': {
-                'text': "Leave them to their fate (Neutral)",
+                'text': "Leave them to their fate",
                 'outcome': "You depart without a word. Everyone must choose their own path.",
                 'corruption': 3,
                 'reward': None
@@ -285,19 +285,19 @@ DISTRESS_SIGNALS = [
                 "This is a test. Pass, and power is yours. Fail, and you join the dead.",
             ],
             'choice_light': {
-                'text': "Refuse the trap and seal the cave (Light)",
+                'text': "Refuse the trap and seal the cave",
                 'outcome': "You use the Force to collapse the cave entrance. The Sith spirit shrieks in rage, then fades. The artifacts are buried forever.",
                 'corruption': -15,
                 'reward': 'force_wisdom'
             },
             'choice_dark': {
-                'text': "Accept the challenge and claim the power (Dark)",
+                'text': "Accept the challenge and claim the power",
                 'outcome': "You enter and face the spirit in combat. Victorious, you claim the Sith artifacts. Power flows through you.",
                 'corruption': 30,
                 'reward': 'sith_artifacts'
             },
             'choice_ignore': {
-                'text': "Ignore the trap entirely (Neutral)",
+                'text': "Ignore the trap entirely",
                 'outcome': "You mark the location and move on. Perhaps you'll return when stronger.",
                 'corruption': 0,
                 'reward': 'cave_location'
@@ -318,12 +318,12 @@ ENVIRONMENTAL_EVENTS = [
         ],
         'choices': {
             'meditate': {
-                'text': "Meditate and honor the fallen (Light)",
+                'text': "Meditate and honor the fallen",
                 'corruption': -6,
                 'reward': 'force_insight'
             },
             'absorb': {
-                'text': "Absorb the residual Force energy (Dark)",
+                'text': "Absorb the residual Force energy",
                 'corruption': 12,
                 'reward': 'force_power'
             }
@@ -434,7 +434,11 @@ def format_holocron_display(holocron):
     return lines
 
 def format_distress_signal(signal):
-    """Format a distress signal scenario for display."""
+    """
+    Format a distress signal scenario for display.
+    Returns tuple: (formatted_lines, choice_mapping)
+    choice_mapping maps displayed numbers (1,2,3) to actual choice keys.
+    """
     lines = []
     lines.append("═" * 60)
     lines.append(f"  {signal['signal_type'].upper().replace('_', ' ')}  ".center(60))
@@ -449,13 +453,130 @@ def format_distress_signal(signal):
         lines.append(line)
         lines.append("")
     
+    # Randomize choice order
+    choices = [
+        ('choice_light', signal['scenario']['choice_light']),
+        ('choice_dark', signal['scenario']['choice_dark']),
+        ('choice_ignore', signal['scenario']['choice_ignore'])
+    ]
+    random.shuffle(choices)
+    
     lines.append("What will you do?")
     lines.append("")
-    lines.append(f"1. {signal['scenario']['choice_light']['text']}")
-    lines.append(f"2. {signal['scenario']['choice_dark']['text']}")
-    lines.append(f"3. {signal['scenario']['choice_ignore']['text']}")
     
-    return lines
+    # Create mapping: display_number -> choice_key
+    choice_mapping = {}
+    for i, (choice_key, choice_data) in enumerate(choices, 1):
+        lines.append(f"{i}. {choice_data['text']}")
+        choice_mapping[i] = choice_key
+    
+    return lines, choice_mapping
+
+def format_environmental_event(event):
+    """
+    Format an environmental event for display.
+    Returns tuple: (formatted_lines, choice_mapping)
+    """
+    lines = []
+    lines.append("═══ DISCOVERY ═══")
+    lines.append(f"{event['name']}")
+    for line in event['description']:
+        lines.append(line)
+    
+    if 'choices' in event:
+        # Randomize choice order
+        choices = list(event['choices'].items())
+        random.shuffle(choices)
+        
+        lines.append("")
+        lines.append("What will you do?")
+        lines.append("")
+        
+        # Create mapping: display_number -> choice_key
+        choice_mapping = {}
+        for i, (choice_key, choice_data) in enumerate(choices, 1):
+            lines.append(f"{i}. {choice_data['text']}")
+            choice_mapping[i] = choice_key
+        
+        return lines, choice_mapping
+    else:
+        return lines, None
+
+def process_narrative_choice(event_data, choice_key, player, game=None):
+    """
+    Process the player's choice for a narrative event with real consequences.
+    
+    Args:
+        event_data: The event data dict (distress signal or environmental event)
+        choice_key: The choice key selected (e.g., 'choice_light', 'meditate')
+        player: The player object
+        game: The game object (for applying rewards)
+    
+    Returns:
+        tuple: (outcome_message, corruption_change, reward_type)
+    """
+    # For distress signals
+    if 'scenario' in event_data:
+        choice_data = event_data['scenario'].get(choice_key, {})
+    # For environmental events
+    elif 'choices' in event_data:
+        choice_data = event_data['choices'].get(choice_key, {})
+    else:
+        return None, 0, None
+    
+    outcome = choice_data.get('outcome', choice_data.get('text', 'You make your choice.'))
+    corruption = choice_data.get('corruption', 0)
+    reward = choice_data.get('reward', None)
+    
+    # Apply corruption changes to Light/Dark paths
+    if corruption > 0:
+        # Dark side action - give dark XP
+        player.dark_xp = getattr(player, 'dark_xp', 0) + abs(corruption) * 3
+        while player.dark_xp >= getattr(player, 'xp_to_next_dark', 100):
+            player.dark_level = getattr(player, 'dark_level', 1) + 1
+            player.dark_xp -= getattr(player, 'xp_to_next_dark', 100)
+            player.xp_to_next_dark = int(player.xp_to_next_dark * 1.5)
+            player.level = max(getattr(player, 'light_level', 1), player.dark_level)
+    elif corruption < 0:
+        # Light side action - give light XP
+        player.light_xp = getattr(player, 'light_xp', 0) + abs(corruption) * 3
+        while player.light_xp >= getattr(player, 'xp_to_next_light', 100):
+            player.light_level = getattr(player, 'light_level', 1) + 1
+            player.light_xp -= getattr(player, 'xp_to_next_light', 100)
+            player.xp_to_next_light = int(player.xp_to_next_light * 1.5)
+            player.level = max(player.light_level, getattr(player, 'dark_level', 1))
+    
+    # Apply rewards with real effects
+    if reward and game:
+        from jedi_fugitive.items import consumables, weapons, armor
+        
+        if reward == 'force_wisdom':
+            # Light side reward: restore HP and reduce stress
+            player.hp = min(getattr(player, 'max_hp', 100), player.hp + 30)
+            player.stress = max(0, getattr(player, 'stress', 0) - 20)
+            if hasattr(game, 'ui'):
+                game.ui.messages.add("#2#Force wisdom flows through you! +30 HP, -20 Stress#0#")
+        
+        elif reward == 'sith_artifacts':
+            # Dark side reward: powerful consumable (Sith Essence)
+            sith_essence = consumables.SithEssence()
+            game.items_on_map.append({'x': player.x, 'y': player.y, 'item': sith_essence})
+            if hasattr(game, 'ui'):
+                game.ui.messages.add("#1#Sith Essence manifests from the darkness! Press 'g' to pick it up.#0#")
+        
+        elif reward == 'force_insight':
+            # Light side reward: XP bonus
+            player.light_xp = getattr(player, 'light_xp', 0) + 50
+            if hasattr(game, 'ui'):
+                game.ui.messages.add("#2#+50 Light XP from meditation!#0#")
+        
+        elif reward == 'force_power':
+            # Dark side reward: XP bonus
+            player.dark_xp = getattr(player, 'dark_xp', 0) + 50
+            if hasattr(game, 'ui'):
+                game.ui.messages.add("#1#+50 Dark XP from absorbed energy!#0#")
+    
+    return outcome, corruption, reward
 
 def should_trigger_narrative_event(turns_since_last, event_type='journal'):
     """
@@ -469,10 +590,10 @@ def should_trigger_narrative_event(turns_since_last, event_type='journal'):
         Boolean indicating if event should trigger
     """
     thresholds = {
-        'journal': (80, 120),  # Every 80-120 turns
-        'holocron': (100, 150),  # Every 100-150 turns
-        'distress': (150, 200),  # Every 150-200 turns
-        'environmental': (60, 100),  # Every 60-100 turns
+        'journal': (400, 600),  # Every 400-600 turns (much less spam)
+        'holocron': (500, 700),  # Every 500-700 turns (much less spam)
+        'distress': (600, 800),  # Every 600-800 turns (much less spam)
+        'environmental': (300, 500),  # Every 300-500 turns (much less spam)
     }
     
     min_turns, max_turns = thresholds.get(event_type, (100, 150))

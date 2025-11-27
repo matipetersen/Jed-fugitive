@@ -1,5 +1,5 @@
 """
-Progression Milestones for Jedi Fugitive.
+Progression Milestones for Dark Meridian.
 Achievement ceremonies triggered by player progress: combat victories, discoveries, corruption thresholds, level-ups.
 """
 import random

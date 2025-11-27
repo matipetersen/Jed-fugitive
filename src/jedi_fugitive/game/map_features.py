@@ -1,10 +1,58 @@
+# Map object tags for environmental interaction
+OBJECT_TAGS = {
+    '#': {"movable": True, "breakable": True},  # Boulder/rock
+    'T': {"movable": False, "breakable": True},  # Tree
+    'x': {"movable": False, "breakable": True},  # Wreckage
+    '=': {"movable": True, "breakable": False},  # Bridge
+    'C': {"movable": False, "triggerable": True},  # Comms device
+    'D': {"movable": False, "triggerable": True},  # Sith entrance
+    # Add more as needed
+}
+
+def get_object_tags(tile):
+    """Return tag dict for a map tile (movable, breakable, triggerable, etc)."""
+    return OBJECT_TAGS.get(tile, {})
 from jedi_fugitive.game.level import Display, generate_crash_site, generate_dungeon_level, place_items
 import random
 import traceback
 import sys
+from collections import deque
 from jedi_fugitive.game.enemy import Enemy, EnemyPersonality, EnemyType
 from jedi_fugitive.game.sith_codex import SITH_LORE
 from jedi_fugitive.game import enemies_sith as sith
+
+def get_reachable_tiles(game_map, start_x, start_y):
+    """Return a set of (x, y) tuples reachable from start position."""
+    mh = len(game_map)
+    mw = len(game_map[0]) if mh else 0
+    floor_ch = getattr(Display, 'FLOOR', '.')
+    
+    reachable = set()
+    queue = deque([(start_x, start_y)])
+    reachable.add((start_x, start_y))
+    
+    while queue:
+        cx, cy = queue.popleft()
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nx, ny = cx + dx, cy + dy
+            if 0 <= nx < mw and 0 <= ny < mh:
+                if (nx, ny) not in reachable:
+                    # Check if walkable (floor or other walkable tiles)
+                    tile = game_map[ny][nx]
+                    walkable_tiles = [
+                        floor_ch,
+                        getattr(Display, 'WRECKAGE', 'x'),
+                        getattr(Display, 'DUNE', '~'),
+                        getattr(Display, 'SITH_ENTRANCE', 'D'),
+                        getattr(Display, 'SHIP', 'S'),
+                        getattr(Display, 'COMMS', 'C'),
+                        'K',  # Sith Keep entrance
+                        '='  # Bridge tile
+                    ]
+                    if tile in walkable_tiles:
+                        reachable.add((nx, ny))
+                        queue.append((nx, ny))
+    return reachable
 
 def generate_world(game):
     """Generate crash site map, scale it, place fewer trees, spawn enemies and place items/tomb entrances."""
@@ -12,7 +60,7 @@ def generate_world(game):
         from jedi_fugitive.game.sith_codex import get_random_loading_message
         print(get_random_loading_message())
         # allow a configurable inflation of the base crash-site size (adds N to width/height)
-        # Increased from 60 to 80 for larger map with multiple diverse biomes
+        # Reasonable size for exploration without being unwieldy
         crash_inflate = int(getattr(game, 'crash_inflate', 80) or 80)
         base_w = 60
         base_h = 30
@@ -27,19 +75,19 @@ def generate_world(game):
 
     # create a larger surface map but keep the crash_site clearing unchanged
     try:
-        # Increased from 25 to 28 for larger world with more diverse biomes
-        outer_scale = int(getattr(game, 'outer_map_scale', 28) or 28)
+        # Moderately larger world for exploration and scattered POIs
+        outer_scale = int(getattr(game, 'outer_map_scale', 150) or 150)  # More moderate increase from 120 to 150
         try:
             if getattr(game, 'randomize_map_size', True):
-                min_scale = max(2, outer_scale // 2)
-                max_scale = max(2, outer_scale * 2)
+                min_scale = max(2, outer_scale // 1.5)  # Allow some reduction for variety
+                max_scale = max(2, outer_scale * 1.2)  # More moderate multiplier
                 outer_scale = random.randint(min_scale, max_scale)
         except Exception:
             pass
         h = len(cm)
         w = len(cm[0]) if h else 0
-        new_h = max(h, h * outer_scale)
-        new_w = max(w, w * outer_scale)
+        new_h = max(h, h + outer_scale)
+        new_w = max(w, w + outer_scale)
 
         # initialize a big canvas filled with walls
         big = [[getattr(Display, 'WALL', '#') for _ in range(new_w)] for _ in range(new_h)]
@@ -162,11 +210,25 @@ def generate_world(game):
         mw = len(game.game_map[0]) if mh else 0
         biome_types = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass']
         centers = []
-        for _b in range(min(12, max(6, mw * mh // 4000) + 6)):
+        
+        # Ensure we have at least one of each major biome type to guarantee diversity
+        guaranteed_biomes = ['forest', 'desert', 'rocky', 'plains']
+        random.shuffle(guaranteed_biomes)
+        
+        # Calculate number of centers - increased for more variation
+        num_centers = min(20, max(10, mw * mh // 3000) + 8)
+        
+        for i in range(num_centers):
             cx = random.randint(0, max(0, mw - 1))
             cy = random.randint(0, max(0, mh - 1))
-            b = random.choice(biome_types)
+            
+            # First few centers get guaranteed unique biomes
+            if i < len(guaranteed_biomes):
+                b = guaranteed_biomes[i]
+            else:
+                b = random.choice(biome_types)
             centers.append((cx, cy, b))
+            
         biome_map = [[None for _ in range(mw)] for _ in range(mh)]
         for y in range(mh):
             for x in range(mw):
@@ -457,7 +519,7 @@ def generate_world(game):
                     continue
                 too_close = False
                 for (ex, ey), _v in game.map_landmarks.items():
-                    if abs(ex - lx) + abs(ey - ly) < 6:
+                    if abs(ex - lx) + abs(ey - ly) < 25:  # Increased from 6 to 25 for bigger map
                         too_close = True
                         break
                 if too_close:
@@ -505,8 +567,8 @@ def generate_world(game):
                         for ddy in range(-3, 4):
                             nx, ny = lx + ddx, ly + ddy
                             if 0 <= ny < mh and 0 <= nx < mw and game.game_map[ny][nx] == getattr(Display, 'FLOOR', '.') and (nx, ny) not in game.map_landmarks:
-                                game.game_map[ny][nx] = 'L'
-                                loot = {'x': nx, 'y': ny, 'token': 'L', 'name': 'Guarded Supply Cache', 'description': 'A sealed cache; sensors show movement nearby.', 'guarded': True}
+                                game.game_map[ny][nx] = 'G'  # Changed from 'L' to 'G' (Guarded cache)
+                                loot = {'x': nx, 'y': ny, 'token': 'G', 'name': 'Guarded Supply Cache', 'description': 'A sealed cache; sensors show movement nearby.', 'guarded': True}
                                 game.items_on_map.append(loot)
                                 break
                         else:
@@ -555,12 +617,20 @@ def generate_world(game):
         floor = getattr(Display, 'FLOOR', '.')
         poi_count = 10  # Increased
         for _p in range(poi_count):
-            for _attempt in range(200):
+            for _attempt in range(50):  # OPTIMIZED: Reduced from 200 to 50 attempts
                 rx = random.randint(2, max(2, mw - 3))
                 ry = random.randint(2, max(2, mh - 3))
                 if game.game_map[ry][rx] != floor:
                     continue
-                if abs(rx - game.player.x) + abs(ry - game.player.y) < 6:
+                if abs(rx - game.player.x) + abs(ry - game.player.y) < 20:  # Increased minimum distance from player
+                    continue
+                # Check distance from other POIs
+                too_close_to_poi = False
+                for (ex, ey), _v in game.map_landmarks.items():
+                    if abs(ex - rx) + abs(ey - ry) < 15:  # Minimum distance between decorative POIs
+                        too_close_to_poi = True
+                        break
+                if too_close_to_poi:
                     continue
                 coords = [(rx, ry), (rx - 1, ry), (rx + 1, ry), (rx, ry - 1), (rx, ry + 1)]
                 for cx, cy in coords:
@@ -571,6 +641,15 @@ def generate_world(game):
                         continue
                 break
     except Exception:
+        pass
+
+    # Place the Sith Keep early (before enemies) to ensure proper connectivity
+    try:
+        from jedi_fugitive.game.sith_keep import place_sith_keep_on_map
+        place_sith_keep_on_map(game)
+    except Exception as e:
+        print(f"Warning: Failed to place Sith Keep: {e}")
+        # Non-critical - continue without keep
         pass
 
     # Spawn enemies
@@ -584,13 +663,13 @@ def generate_world(game):
         except Exception:
             DIFFICULTY_MULTIPLIER = 0.75
         player_level = getattr(getattr(game, 'player', None), 'level', 1) or 1
-        base_spawn = max(2, min(20, int(area // 1000)))
-        spawn_factor = 1.0 + max(0, (player_level - 1)) * 0.12 * float(DIFFICULTY_MULTIPLIER)
-        spawn_count = max(2, min(8, int(base_spawn * spawn_factor * 0.5)))  # Reduced from 10 to 8 max, and 0.75 to 0.5 multiplier
+        base_spawn = max(5, min(40, int(area // 800)))  # Increased base spawn
+        spawn_factor = 1.0 + max(0, (player_level - 1)) * 0.15 * float(DIFFICULTY_MULTIPLIER)
+        spawn_count = max(5, min(25, int(base_spawn * spawn_factor * 0.8)))  # Increased max from 8 to 25
 
         # Crash guards - spread them out across the map
         try:
-            crash_guard_count = random.randint(1, 2)  # Reduced from 1-3 to 1-2
+            crash_guard_count = random.randint(3, 6)  # Increased from 1-2 to 3-6
             floor = getattr(Display, 'FLOOR', '.')
             player_clear_radius = int(getattr(game, 'player_clear_radius', 80))  # Increased from 45 to 80
             
@@ -641,53 +720,86 @@ def generate_world(game):
         except Exception:
             pass
 
+        # Import planetary enemies for biome-specific spawning
+        try:
+            from jedi_fugitive.game.planetary_enemies import create_biome_enemy
+            planetary_enemies_available = True
+        except Exception:
+            planetary_enemies_available = False
+        
         for _ in range(spawn_count):
             personality = EnemyPersonality()
-            choice_roll = random.random()
-            if choice_roll < 0.4:
-                lvl = max(1, min(player_level + random.randint(-1, 1), max(1, player_level + 2)))
-                e = sith.create_sith_trooper(level=lvl)
-            elif choice_roll < 0.65:
-                lvl = max(1, min(player_level + random.randint(0, 2), player_level + 3))
-                e = sith.create_sith_acolyte(level=lvl)
-            elif choice_roll < 0.85:
-                lvl = max(1, player_level + random.randint(0, 3))
-                e = sith.create_sith_warrior(level=lvl)
-            elif choice_roll < 0.95:
-                lvl = max(1, player_level + random.randint(0, 2))
-                e = sith.create_sith_sorcerer(level=lvl)
-            else:
-                lvl = max(2, player_level + random.randint(1, 4))
-                e = sith.create_sith_officer(level=lvl)
-            try:
-                # Spawn across entire map, not just crash site, but keep minimum distance from player
-                player_clear_radius = int(getattr(game, 'player_clear_radius', 80))  # Increased from 50 to 80
-                attempts = 0
-                while attempts < 200:
-                    rx = random.randint(1, mw - 2)
-                    ry = random.randint(1, mh - 2)
-                    if (abs(rx - game.player.x) + abs(ry - game.player.y) > player_clear_radius and
-                        game.game_map[ry][rx] == floor):
+            
+            # Determine spawn position first to know which biome
+            player_clear_radius = int(getattr(game, 'player_clear_radius', 80))
+            attempts = 0
+            rx, ry = None, None
+            spawn_biome = 'crash_site'
+            
+            while attempts < 200:
+                rx = random.randint(1, mw - 2)
+                ry = random.randint(1, mh - 2)
+                if (abs(rx - game.player.x) + abs(ry - game.player.y) > player_clear_radius and
+                    game.game_map[ry][rx] == floor):
+                    # Get biome at this position
+                    try:
+                        if hasattr(game, 'map_biomes') and game.map_biomes:
+                            spawn_biome = game.map_biomes[ry][rx] or 'plains'
+                    except Exception:
+                        spawn_biome = 'plains'
+                    break
+                attempts += 1
+            
+            if rx is None or ry is None:
+                # Fallback if we couldn't find a good spot
+                rx = max(1, min(mw - 2, game.player.x + random.randint(-20, 20)))
+                ry = max(1, min(mh - 2, game.player.y + random.randint(-20, 20)))
+                if game.game_map[ry][rx] != floor:
+                    for dy in range(-3, 4):
+                        for dx in range(-3, 4):
+                            nx, ny = rx + dx, ry + dy
+                            if 0 <= ny < mh and 0 <= nx < mw and game.game_map[ny][nx] == floor:
+                                rx, ry = nx, ny
+                                break
+                        else:
+                            continue
                         break
-                    attempts += 1
+            
+            # 60% chance for Sith enemies (main threat), 40% chance for planetary locals
+            choice_roll = random.random()
+            lvl = max(1, player_level + random.randint(-1, 2))
+            
+            if choice_roll < 0.6:
+                # Sith enemies (Imperial forces hunting the player)
+                sith_roll = random.random()
+                if sith_roll < 0.4:
+                    e = sith.create_sith_trooper(level=lvl)
+                elif sith_roll < 0.65:
+                    e = sith.create_sith_acolyte(level=lvl)
+                elif sith_roll < 0.85:
+                    e = sith.create_sith_warrior(level=lvl)
+                elif sith_roll < 0.95:
+                    e = sith.create_sith_sorcerer(level=lvl)
                 else:
-                    # Fallback further from player if we can't find a spot
-                    rx = max(1, min(mw - 2, game.player.x + random.randint(-20, 20)))
-                    ry = max(1, min(mh - 2, game.player.y + random.randint(-20, 20)))
-                    if game.game_map[ry][rx] != floor:
-                        for dy in range(-3, 4):
-                            for dx in range(-3, 4):
-                                nx, ny = rx + dx, ry + dy
-                                if 0 <= ny < mh and 0 <= nx < mw and game.game_map[ny][nx] == floor:
-                                    rx, ry = nx, ny
-                                    break
-                            else:
-                                continue
-                            break
+                    e = sith.create_sith_officer(level=lvl)
+            else:
+                # Planetary locals (fauna and local threats)
+                if planetary_enemies_available:
+                    try:
+                        e = create_biome_enemy(spawn_biome, level=lvl)
+                    except Exception:
+                        # Fallback to Sith trooper if planetary enemy fails
+                        e = sith.create_sith_trooper(level=lvl)
+                else:
+                    # Fallback if planetary enemies not available
+                    e = sith.create_sith_trooper(level=lvl)
+            
+            try:
                 e.x, e.y = rx, ry
             except Exception:
                 e.x = game.player.x + random.choice([-2, -1, 1, 2])
                 e.y = game.player.y + random.choice([-2, -1, 1, 2])
+            
             game.enemies.append(e)
             # Patrol for spawned enemies
             try:
@@ -709,6 +821,12 @@ def generate_world(game):
     except Exception:
         pass
 
+    # Spawn NPCs across different biomes
+    try:
+        spawn_npcs_on_map(game)
+    except Exception as e:
+        print(f"Error spawning NPCs: {e}")
+
     # Spawn merchants first (they take priority for placement)
     try:
         spawn_merchants(game, count_per_biome=2)  # 1-2 per biome
@@ -721,17 +839,6 @@ def generate_world(game):
     except Exception as e:
         print(f"Warning: Failed to spawn loot caches: {e}")
     
-    # Place the Sith Keep labyrinth on the map
-    try:
-        from jedi_fugitive.game.sith_keep import place_sith_keep_on_map
-        place_sith_keep_on_map(game)
-    except Exception as e:
-        print(f"Warning: Failed to place Sith Keep: {e}")
-        import traceback
-        traceback.print_exc()
-        # Non-critical - continue without keep
-        pass
-
     # Place items
     try:
         mh = len(game.game_map)
@@ -776,6 +883,11 @@ def generate_world(game):
     # Place one tomb per biome type
     try:
         game.tomb_entrances = set()
+        try:
+            with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                fh.write(f"\n=== WORLD GENERATION: TOMB PLACEMENT ===\n")
+                fh.write(f"Initializing tomb_entrances set\n")
+        except: pass
         mh = len(game.game_map)
         mw = len(game.game_map[0]) if mh else 0
         floor = getattr(Display, 'FLOOR', '.')
@@ -789,9 +901,16 @@ def generate_world(game):
                     if biome:
                         available_biomes.add(biome)
 
-        # Place multiple tombs per biome (including mountain_pass for high-altitude Sith tombs)
+        # Calculate reachable tiles from player position to ensure tombs are accessible (CACHED)
+        print("  Calculating reachable tiles for tomb placement...")
+        reachable_tiles = get_reachable_tiles(game.game_map, game.player.x, game.player.y)
+        print(f"  Found {len(reachable_tiles)} reachable tiles.")
+        # Cache reachable tiles for reuse in other placement functions
+        game._cached_reachable_tiles = reachable_tiles
+
+        # Place multiple tombs per biome (excluding mountain_pass - too inaccessible)
         # Changed to place 1-2 tombs per biome for total of 7-12 tombs
-        biome_types = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass']
+        biome_types = ['forest', 'desert', 'rocky', 'plains', 'river']
         placed_tombs = []
         target_tomb_count = random.randint(7, 10)  # Aim for 7-10 tombs total
         
@@ -807,7 +926,7 @@ def generate_world(game):
             if biome not in available_biomes:
                 continue
 
-            # Find all floor tiles in this biome with bounds checking
+            # Find all floor tiles in this biome with bounds checking AND reachability check
             biome_floor_tiles = []
             for y in range(mh):
                 for x in range(mw):
@@ -817,9 +936,12 @@ def generate_world(game):
                         hasattr(game, 'map_biomes') and game.map_biomes and
                         0 <= y < len(game.map_biomes) and 0 <= x < len(game.map_biomes[0]) and
                         game.map_biomes[y][x] == biome):
-                        biome_floor_tiles.append((x, y))
+                        # Only include if reachable
+                        if (x, y) in reachable_tiles:
+                            biome_floor_tiles.append((x, y))
 
             if not biome_floor_tiles:
+                print(f"  Warning: No reachable floor tiles found for biome {biome}")
                 continue
 
             # Remove tiles too close to player start
@@ -866,8 +988,19 @@ def generate_world(game):
                     # Remove this tile from future consideration
                     biome_floor_tiles = [(x, y) for x, y in biome_floor_tiles 
                                         if (x, y) != best_tile]
+        
+        print(f"  Placed {len(placed_tombs)} tombs.")
+        try:
+            with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                fh.write(f"Placed {len(placed_tombs)} tombs successfully\n")
+                fh.write(f"tomb_entrances set now contains {len(game.tomb_entrances)} positions:\n")
+                for pos in list(game.tomb_entrances)[:10]:
+                    fh.write(f"  - {pos}\n")
+                fh.write("=== END TOMB PLACEMENT ===\n\n")
+        except: pass
 
-    except Exception:
+    except Exception as e:
+        print(f"Error placing tombs: {e}")
         # Fallback: place tombs near crash site if randomization fails
         try:
             for y in range(mh):
@@ -897,9 +1030,9 @@ def generate_world(game):
         floor = getattr(Display, 'FLOOR', '.')
         area = max(1, mw * mh)
 
-        # Randomize number of lore POIs - SIGNIFICANTLY increased for better engagement during travel
-        # With much more lore content available, spawn 20-40 POIs across the map
-        lore_poi_count = random.randint(20, min(40, max(20, area // 5000)))
+        # Optimized POI count - balanced for performance and engagement
+        # Reduced from 30-60 to 20-40 POIs for better performance while maintaining content
+        lore_poi_count = random.randint(20, min(40, max(20, area // 4000)))
 
         # Collect all available lore entries
         all_lore_entries = []
@@ -919,8 +1052,15 @@ def generate_world(game):
         existing_positions = set(game.map_landmarks.keys()) if game.map_landmarks else set()
         existing_positions.update(game.tomb_entrances)
 
+        # Use cached reachable tiles for POI placement (PERFORMANCE OPTIMIZATION)
+        if hasattr(game, '_cached_reachable_tiles') and game._cached_reachable_tiles:
+            reachable_tiles = game._cached_reachable_tiles
+        else:
+            reachable_tiles = get_reachable_tiles(game.game_map, game.player.x, game.player.y)
+            game._cached_reachable_tiles = reachable_tiles
+
         floor_tiles = [(x, y) for y in range(mh) for x in range(mw)
-                      if game.game_map[y][x] == floor and (x, y) not in existing_positions]
+                      if game.game_map[y][x] == floor and (x, y) not in existing_positions and (x, y) in reachable_tiles]
 
         # Remove tiles too close to player start
         player_clear_radius = int(getattr(game, 'player_clear_radius', 40))
@@ -994,17 +1134,20 @@ def generate_world(game):
             except Exception:
                 continue
         placed_comms = False
-        for _ in range(200):
-            try:
-                cx = max(1, min(mw - 2, game.player.x + random.randint(-6, 6)))
-                cy = max(1, min(mh - 2, game.player.y + random.randint(-6, 6)))
-                if game.game_map[cy][cx] == floor and (cx, cy) != (game.player.x, game.player.y):
-                    game.game_map[cy][cx] = comms_ch
-                    game.comms_pos = (cx, cy)
-                    placed_comms = True
-                    break
-            except Exception:
-                continue
+        # Place comms terminal near the ship wreck, not near player
+        if placed_ship:
+            ship_x, ship_y = game.ship_pos
+            for _ in range(200):
+                try:
+                    cx = max(1, min(mw - 2, ship_x + random.randint(-6, 6)))
+                    cy = max(1, min(mh - 2, ship_y + random.randint(-6, 6)))
+                    if game.game_map[cy][cx] == floor and (cx, cy) != (game.player.x, game.player.y) and (cx, cy) != (ship_x, ship_y):
+                        game.game_map[cy][cx] = comms_ch
+                        game.comms_pos = (cx, cy)
+                        placed_comms = True
+                        break
+                except Exception:
+                    continue
         if placed_ship:
             if not hasattr(game, 'map_landmarks'):
                 game.map_landmarks = {}
@@ -1073,6 +1216,84 @@ def generate_world(game):
     except Exception:
         pass
 
+    # Place special dungeons on surface (rare standalone encounters)
+    try:
+        from jedi_fugitive.game.special_dungeons import get_random_dungeon_type, DUNGEON_TEMPLATES
+        
+        if not hasattr(game, 'surface_special_dungeons'):
+            game.surface_special_dungeons = {}
+        
+        # Place 1-3 special dungeons on the surface for exploration
+        special_dungeon_count = random.randint(1, 3)
+        floor = getattr(Display, 'FLOOR', '.')
+        
+        # Get existing positions to avoid conflicts
+        existing_positions = set(getattr(game, 'tomb_entrances', set()))
+        if hasattr(game, 'map_landmarks'):
+            existing_positions.update(game.map_landmarks.keys())
+        
+        # Use cached reachable tiles for special dungeon placement (PERFORMANCE OPTIMIZATION)
+        if hasattr(game, '_cached_reachable_tiles') and game._cached_reachable_tiles:
+            reachable_tiles = game._cached_reachable_tiles
+        else:
+            reachable_tiles = get_reachable_tiles(game.game_map, game.player.x, game.player.y)
+            game._cached_reachable_tiles = reachable_tiles
+        
+        # Find suitable floor tiles for special dungeons (far from player and other features)
+        mh = len(game.game_map)
+        mw = len(game.game_map[0]) if mh else 0
+        px, py = game.player.x, game.player.y
+        
+        candidate_tiles = []
+        for y in range(mh):
+            for x in range(mw):
+                if (game.game_map[y][x] == floor and 
+                    (x, y) not in existing_positions and
+                    (x, y) in reachable_tiles and
+                    abs(x - px) + abs(y - py) > 50):  # Far from player start
+                    candidate_tiles.append((x, y))
+        
+        random.shuffle(candidate_tiles)
+        
+        placed_special = 0
+        for x, y in candidate_tiles:
+            if placed_special >= special_dungeon_count:
+                break
+                
+            # Ensure minimum distance from other special dungeons
+            too_close = False
+            for sx, sy in game.surface_special_dungeons.keys():
+                if abs(x - sx) + abs(y - sy) < 40:  # Minimum 40 tiles apart
+                    too_close = True
+                    break
+            
+            if too_close:
+                continue
+            
+            # Generate special dungeon
+            dungeon_type = get_random_dungeon_type()
+            template = DUNGEON_TEMPLATES[dungeon_type]
+            
+            # Place entrance symbol on map
+            game.game_map[y][x] = template['symbol']
+            
+            # Store special dungeon data
+            game.surface_special_dungeons[(x, y)] = {
+                'type': dungeon_type,
+                'template': template,
+                'discovered': False,
+                'name': template['name']
+            }
+            
+            placed_special += 1
+            print(f"  Placed special dungeon: {template['name']} at ({x}, {y})")
+        
+        print(f"✓ Placed {placed_special} special dungeons on surface")
+        
+    except Exception as e:
+        print(f"✗ Special dungeon placement failed: {e}")
+        pass
+
     # Recompute visibility
     try:
         game.compute_visibility()
@@ -1100,8 +1321,52 @@ def enter_tomb(game):
         game.surface_items_on_map = list(getattr(game, 'items_on_map', []))
         game.surface_player_pos = (px, py)
         game.surface_los_radius = getattr(game.player, 'los_radius', 6)
+        # CRITICAL: Save tomb entrances set for re-entry after exiting
+        game.surface_tomb_entrances = set(tomb_entrances)
 
-        print("⟳ Generating dungeon levels...")
+        # Check if this tomb has been entered before (persistence)
+        if hasattr(game, 'completed_tombs') and (px, py) in game.completed_tombs:
+            print("⟳ Restoring previously explored tomb...")
+            tomb_state = game.completed_tombs[(px, py)]
+            
+            # Restore saved tomb state
+            game.tomb_levels = tomb_state.get('levels', [])
+            game.tomb_rooms = tomb_state.get('rooms', [])
+            game.tomb_enemies = tomb_state.get('enemies', [])
+            game.tomb_items = tomb_state.get('items', [])
+            game.tomb_stairs = tomb_state.get('stairs', [])
+            game.tomb_special_dungeons = tomb_state.get('special_dungeons', [])
+            
+            # Set initial tomb state
+            game.tomb_floor = 0
+            game.current_depth = 1
+            
+            # Place player at entrance
+            first_stairs = game.tomb_stairs[0].get('up') if game.tomb_stairs else None
+            if first_stairs:
+                game.player.x, game.player.y = first_stairs
+            else:
+                first_room = game.tomb_rooms[0][0] if game.tomb_rooms and game.tomb_rooms[0] else (1, 1, 10, 6)
+                game.player.x = first_room[0] + first_room[2] // 2
+                game.player.y = first_room[1] + first_room[3] // 2
+            
+            # Load first level
+            game.game_map = game.tomb_levels[0]
+            game.enemies = game.tomb_enemies[0]
+            game.items_on_map = game.tomb_items[0]
+            game.player.los_radius = max(3, getattr(game.player, 'los_radius', 6) - 2)
+            
+            try:
+                if getattr(game, 'ui', None) and getattr(game.ui, 'messages', None):
+                    game.ui.messages.add("#3#You return to the familiar tomb...#0#")
+                    game.ui.messages.add("(Your previous progress has been preserved)")
+            except Exception:
+                pass
+            
+            print("✓ Tomb state restored successfully")
+            return True
+        
+        print("⟳ Generating new dungeon levels...")
         # Generate dungeon levels (3-5 levels)
         num_levels = random.randint(3, 5)
         print(f"  Generating {num_levels} levels...")
@@ -1115,7 +1380,18 @@ def enter_tomb(game):
             print(f"  ⟳ Generating level {depth}/{num_levels}...")
             # Generate level
             try:
-                level_map, rooms = generate_dungeon_level(depth)
+                level_data = generate_dungeon_level(depth)
+                if len(level_data) == 3:
+                    level_map, rooms, special_dungeons = level_data
+                    # Store special dungeons for this level
+                    if not hasattr(game, 'tomb_special_dungeons'):
+                        game.tomb_special_dungeons = []
+                    while len(game.tomb_special_dungeons) < depth:
+                        game.tomb_special_dungeons.append({})
+                    game.tomb_special_dungeons[depth - 1] = special_dungeons
+                else:
+                    # Fallback for compatibility
+                    level_map, rooms = level_data
                 print(f"    ✓ Level {depth} generated ({len(rooms)} rooms)")
             except Exception as e:
                 print(f"    ✗ Level {depth} generation failed: {e}")
@@ -1138,17 +1414,50 @@ def enter_tomb(game):
             for room in rooms:
                 num_enemies = random.randint(1, 3)
                 for _ in range(num_enemies):
-                    # Spawn enemies in room
-                    ex = random.randint(room[0] + 1, room[0] + room[2] - 2)
-                    ey = random.randint(room[1] + 1, room[1] + room[3] - 2)
-                    if level_map[ey][ex] == Display.FLOOR:
+                    # Find valid spawn position (at least 3 tiles from stairs)
+                    spawn_attempts = 0
+                    max_attempts = 50
+                    valid_position = False
+                    
+                    while spawn_attempts < max_attempts and not valid_position:
+                        ex = random.randint(room[0] + 1, room[0] + room[2] - 2)
+                        ey = random.randint(room[1] + 1, room[1] + room[3] - 2)
+                        
+                        # Check if position is valid floor tile
+                        if level_map[ey][ex] != Display.FLOOR:
+                            spawn_attempts += 1
+                            continue
+                        
+                        # Check distance from all stairs (at least 3 tiles away)
+                        valid_position = True
+                        min_stair_distance = 3
+                        
+                        # Check distance from stairs up
+                        if 'up' in stairs:
+                            stair_x, stair_y = stairs['up']
+                            distance = abs(ex - stair_x) + abs(ey - stair_y)
+                            if distance < min_stair_distance:
+                                valid_position = False
+                        
+                        # Check distance from stairs down  
+                        if 'down' in stairs:
+                            stair_x, stair_y = stairs['down']
+                            distance = abs(ex - stair_x) + abs(ey - stair_y)
+                            if distance < min_stair_distance:
+                                valid_position = False
+                        
+                        spawn_attempts += 1
+                    
+                    # Only spawn enemy if valid position found
+                    if valid_position:
                         # Create appropriate enemy for depth
                         if depth == 1:
                             enemy = sith.create_sith_trooper(level=max(1, getattr(game.player, 'level', 1)))
                         elif depth == 2:
                             enemy = sith.create_sith_acolyte(level=max(1, getattr(game.player, 'level', 1) + 1))
                         else:
-                            enemy = sith.create_sith_warrior(level=max(1, getattr(game.player, 'level', 1) + depth - 1))
+                            # Reduced scaling: depth 3 = player+1, depth 4 = player+2, etc.
+                            enemy = sith.create_sith_warrior(level=max(1, getattr(game.player, 'level', 1) + max(0, depth - 2)))
                         enemy.x, enemy.y = ex, ey
                         level_enemies.append(enemy)
             game.tomb_enemies.append(level_enemies)
@@ -1164,8 +1473,22 @@ def enter_tomb(game):
                 last_room = rooms[-1]
                 artifact_x = last_room[0] + last_room[2] // 2
                 artifact_y = last_room[1] + last_room[3] // 2
-                # Clear the spot and place the artifact
-                level_map[artifact_y][artifact_x] = 'Q'
+                
+                # Ensure floor tile is clear before placing artifact
+                if level_map[artifact_y][artifact_x] == Display.FLOOR:
+                    level_map[artifact_y][artifact_x] = 'Q'
+                    print(f"  ✓ Quest artifact 'Q' placed at ({artifact_x}, {artifact_y}) on final level")
+                else:
+                    # Find alternative position in last room
+                    for attempt in range(20):
+                        alt_x = random.randint(last_room[0] + 1, last_room[0] + last_room[2] - 2)
+                        alt_y = random.randint(last_room[1] + 1, last_room[1] + last_room[3] - 2)
+                        if level_map[alt_y][alt_x] == Display.FLOOR:
+                            level_map[alt_y][alt_x] = 'Q'
+                            artifact_x, artifact_y = alt_x, alt_y
+                            print(f"  ✓ Quest artifact 'Q' placed at alternate position ({artifact_x}, {artifact_y})")
+                            break
+                
                 token_info = TOKEN_MAP.get('Q', {'name': 'Jedi Artifact', 'type': 'quest_item'})
                 artifact_entry = {
                     'x': artifact_x, 'y': artifact_y, 'token': 'Q',
@@ -1270,7 +1593,6 @@ def spawn_merchants(game, count_per_biome=2):
         player_x = getattr(game.player, 'x', 0)
         player_y = getattr(game.player, 'y', 0)
         
-        # Available factions
         factions = [
             MerchantFaction.MANDALORIAN_SCOUTS,
             MerchantFaction.REPUBLIC_SURVIVORS,
@@ -1592,7 +1914,7 @@ def spawn_loot_caches(game, count=8):
         if placed_count > 0:
             try:
                 if hasattr(game, 'ui') and hasattr(game.ui, 'messages'):
-                    game.ui.messages.add(f"⚡ {placed_count} loot caches scattered across the world...")
+                    game.ui.messages.add(f"#3#[CACHE]#0# {placed_count} loot caches scattered across the world...")
             except Exception:
                 pass
         
@@ -1600,6 +1922,111 @@ def spawn_loot_caches(game, count=8):
         
     except Exception as e:
         print(f"Error spawning loot caches: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
+
+def spawn_npcs_on_map(game):
+    """Spawn NPCs across different biomes with appropriate types"""
+    try:
+        from jedi_fugitive.game.npc_encounters import NPC_TYPES, NPC
+        
+        if not hasattr(game, 'npcs_on_map'):
+            game.npcs_on_map = {}
+            
+        mh = len(game.game_map)
+        mw = len(game.game_map[0]) if mh else 0
+        floor = getattr(Display, 'FLOOR', '.')
+        
+        # Get player position for minimum distance
+        player_x = getattr(game.player, 'x', 0)
+        player_y = getattr(game.player, 'y', 0)
+        
+        # Get biome positions if available
+        biome_positions = {'forest': [], 'plains': [], 'rocky': [], 'desert': [], 'river': [], 'mountain_pass': []}
+        if hasattr(game, 'map_biomes'):
+            for y in range(mh):
+                for x in range(mw):
+                    try:
+                        if game.game_map[y][x] == floor:
+                            biome = game.map_biomes[y][x]
+                            if biome in biome_positions:
+                                biome_positions[biome].append((x, y))
+                    except:
+                        continue
+        
+        # If no biomes available, use all floor tiles as plains
+        if not any(biome_positions.values()):
+            for y in range(mh):
+                for x in range(mw):
+                    if game.game_map[y][x] == floor:
+                        biome_positions['plains'].append((x, y))
+        
+        npcs_spawned = 0
+        
+        # Try to spawn each NPC type
+        for npc_type, npc_data in NPC_TYPES.items():
+            spawn_chance = npc_data['spawn_chance']
+            suitable_biomes = npc_data['biomes']
+            
+            # Check if we should spawn this NPC type
+            if random.random() > spawn_chance:
+                continue
+                
+            # Find suitable biomes that have positions
+            available_positions = []
+            for biome in suitable_biomes:
+                if biome in biome_positions:
+                    available_positions.extend(biome_positions[biome])
+            
+            if not available_positions:
+                continue
+                
+            # Try to find a good spawn position
+            attempts = 0
+            max_attempts = 50
+            
+            while attempts < max_attempts:
+                attempts += 1
+                
+                # Pick random position from suitable biomes
+                pos_x, pos_y = random.choice(available_positions)
+                
+                # Check minimum distance from player (80 tiles)
+                if abs(pos_x - player_x) + abs(pos_y - player_y) < 80:
+                    continue
+                
+                # Check minimum distance from other NPCs (40 tiles)
+                too_close_to_npc = False
+                for (npc_x, npc_y) in game.npcs_on_map.keys():
+                    if abs(pos_x - npc_x) + abs(pos_y - npc_y) < 40:
+                        too_close_to_npc = True
+                        break
+                
+                if too_close_to_npc:
+                    continue
+                
+                # Check if position is still valid
+                if 0 <= pos_y < mh and 0 <= pos_x < mw and game.game_map[pos_y][pos_x] == floor:
+                    # Create NPC instance
+                    npc = NPC(npc_type, pos_x, pos_y)
+                    game.npcs_on_map[(pos_x, pos_y)] = npc
+                    npcs_spawned += 1
+                    print(f"  Spawned {npc_data['name']} at ({pos_x}, {pos_y})")
+                    break
+        
+        if npcs_spawned > 0:
+            try:
+                if hasattr(game, 'ui') and hasattr(game.ui, 'messages'):
+                    game.ui.messages.add(f"📡 {npcs_spawned} survivors and travelers found across the world...")
+            except Exception:
+                pass
+                
+        return npcs_spawned
+        
+    except Exception as e:
+        print(f"Error spawning NPCs: {e}")
         import traceback
         traceback.print_exc()
         return 0

@@ -19,6 +19,23 @@ def _unlock_dark_ability(game):
         
         if dark_level in dark_abilities:
             ability_name, desc = dark_abilities[dark_level]
+            
+            # Actually grant the ability to the player
+            try:
+                from jedi_fugitive.game.force_abilities import FORCE_ABILITIES
+                import copy
+                
+                # Find the ability by name
+                for ability in FORCE_ABILITIES:
+                    if getattr(ability, 'name', '').lower().replace(' ', '').replace('/', '') == ability_name.lower().replace(' ', '').replace('/', ''):
+                        # Create unlocked copy for player
+                        player_ability = copy.deepcopy(ability)
+                        player_ability.unlocked = True
+                        game.player.force_abilities[ability_name] = player_ability
+                        break
+            except Exception:
+                pass
+            
             game.ui.messages.add(f"Dark Side Power Unlocked: {ability_name} - {desc}")
             if hasattr(game.player, 'add_log_entry'):
                 # Dark ability unlock - narrative reflects embrace of power
@@ -48,6 +65,23 @@ def _unlock_light_ability(game):
         
         if light_level in light_abilities:
             ability_name, desc = light_abilities[light_level]
+            
+            # Actually grant the ability to the player
+            try:
+                from jedi_fugitive.game.force_abilities import FORCE_ABILITIES
+                import copy
+                
+                # Find the ability by name
+                for ability in FORCE_ABILITIES:
+                    if getattr(ability, 'name', '').lower().replace(' ', '').replace('/', '') == ability_name.lower().replace(' ', '').replace('/', ''):
+                        # Create unlocked copy for player
+                        player_ability = copy.deepcopy(ability)
+                        player_ability.unlocked = True
+                        game.player.force_abilities[ability_name] = player_ability
+                        break
+            except Exception:
+                pass
+            
             game.ui.messages.add(f"Light Side Power Unlocked: {ability_name} - {desc}")
             if hasattr(game.player, 'add_log_entry'):
                 # Light ability unlock - narrative reflects wisdom and restraint
@@ -61,38 +95,202 @@ def _unlock_light_ability(game):
         pass
 
 
-def inventory_chooser(game):
-    """Simple chooser: list inventory to messages and wait for a number key (1..9)."""
+def _inspect_inventory_item(game, item):
+    """Display detailed inspection of an inventory item with lore."""
     try:
-        inv = getattr(game.player, "inventory", []) or []
+        from jedi_fugitive.game import inspection
+        
+        # Get item name and token
+        item_name = None
+        item_token = None
+        
+        if isinstance(item, str):
+            item_token = item
+            token_names = {'v': 'Vibroblade', 'b': 'Blaster Pistol', 's': 'Armor', 'L': 'Lightsaber'}
+            item_name = token_names.get(item, item)
+        elif isinstance(item, dict):
+            item_name = item.get('name', 'Unknown')
+            item_token = item.get('token', item.get('id'))
+        else:
+            item_name = getattr(item, 'name', str(item))
+            item_token = getattr(item, 'id', None)
+        
+        # Get lore data
+        player_corruption = getattr(game.player, 'dark_corruption', 50)
+        lore_data = inspection.get_item_inspection(item_token, item_name, player_corruption)
+        
+        # Build display lines
+        lines = []
+        lines.append("╔═════════════════════════════════════════════════╗")
+        lines.append(f"║     ITEM INSPECTION: {lore_data['name'][:28]}")
+        lines.append("╚═════════════════════════════════════════════════╝")
+        lines.append("")
+        lines.append(lore_data['description'])
+        lines.append("")
+        
+        # Show stats if available
+        if isinstance(item, dict):
+            if 'damage' in item or 'base_damage' in item:
+                dmg = item.get('damage', item.get('base_damage', 0))
+                lines.append(f"Damage: {dmg}")
+            if 'defense' in item:
+                lines.append(f"Defense: +{item.get('defense', 0)}")
+            if 'accuracy' in item:
+                lines.append(f"Accuracy: {item.get('accuracy', 0)}%")
+            if 'range' in item:
+                lines.append(f"Range: {item.get('range', 0)} tiles")
+            if 'ammo' in item and 'max_ammo' in item:
+                lines.append(f"Ammo: {item.get('ammo', 0)}/{item.get('max_ammo', 0)}")
+            if 'effect' in item:
+                effect = item['effect']
+                if isinstance(effect, dict):
+                    if 'heal' in effect:
+                        lines.append(f"Heals: +{effect['heal']} HP")
+                    if 'force_restore' in effect:
+                        lines.append(f"Force: +{effect['force_restore']}")
+            lines.append("")
+        
+        # Add lore text
+        if lore_data.get('lore'):
+            lines.append("═══ LORE ═══")
+            lines.append(lore_data['lore'])
+            lines.append("")
+        
+        # Add condition text (for lightsabers)
+        if lore_data.get('condition'):
+            lines.append(lore_data['condition'])
+            lines.append("")
+        
+        # Add choice prompt (for artifacts)
+        if lore_data.get('choice'):
+            lines.append("⚠ WARNING ⚠")
+            lines.append(lore_data['choice'])
+            lines.append("")
+        
+        lines.append("Press any key to return to inventory...")
+        
+        # Display
+        if hasattr(game.ui, 'centered_dialog'):
+            game.ui.centered_dialog(lines, title="Item Inspection")
+        else:
+            for line in lines:
+                try:
+                    game.ui.messages.add(line)
+                except:
+                    pass
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Item inspection failed: {e}")
+        except:
+            pass
+
+def _is_equippable_item(item):
+    """Check if an item can be equipped (weapon, armor, shield)."""
+    if isinstance(item, str):
+        # Token-based items (legacy system)
+        return item in ['v', 'b', 's', 'L']  # vibroblade, blaster, shield, lightsaber
+    elif isinstance(item, dict):
+        item_type = item.get('type', '')
+        return item_type in ['weapon', 'armor', 'shield', 'equipment']
+    elif hasattr(item, 'weapon_type') or hasattr(item, 'armor_type'):
+        # Object-based weapons/armor
+        return True
+    elif hasattr(item, 'shield_type') or hasattr(item, 'is_shield'):
+        # Object-based shields
+        return True
+    return False
+
+def _is_usable_item(item):
+    """Check if an item can be used/consumed."""
+    if isinstance(item, str):
+        return False  # Token items are equippable, not consumable
+    elif isinstance(item, dict):
+        item_type = item.get('type', '')
+        # Usable items: consumables, artifacts, special items
+        return item_type in ['consumable', 'stimpack', 'medkit', 'grenade'] or item.get('artifact_id')
+    elif hasattr(item, 'consumable') or hasattr(item, 'uses'):
+        return True
+    return False
+
+def inventory_chooser(game, filter_type=None):
+    """Enhanced chooser with filtering. filter_type: 'equippable', 'usable', or None (all items)."""
+    try:
+        all_inv = getattr(game.player, "inventory", []) or []
+        
+        # Filter inventory based on type
+        if filter_type == 'equippable':
+            inv = [item for item in all_inv if _is_equippable_item(item)]
+            title = "=== EQUIPPABLE ITEMS (press 1-9, ESC to cancel) ==="
+        elif filter_type == 'usable':
+            inv = [item for item in all_inv if _is_usable_item(item)]
+            title = "=== USABLE ITEMS (press 1-9, ESC to cancel) ==="
+        else:
+            inv = all_inv
+            title = "=== SELECT ITEM (press 1-9, ESC to cancel) ==="
+        
         if not inv:
-            try: game.ui.messages.add("Inventory empty.") 
-            except Exception: pass
+            filter_msg = {
+                'equippable': "No equippable items in inventory.",
+                'usable': "No usable items in inventory.", 
+                None: "Inventory empty."
+            }
+            try: 
+                game.ui.messages.add(filter_msg.get(filter_type, "Inventory empty."))
+            except Exception: 
+                pass
             return None
+            
         # Clear messages and show selection prompt
         try:
-            game.ui.messages.add("=== SELECT ITEM (press 1-9, ESC to cancel) ===")
+            game.ui.messages.add(title)
         except Exception:
             pass
-        # show up to 9 options
+            
+        # Show up to 9 options with enhanced descriptions
         for i, it in enumerate(inv[:9]):
             name = it if isinstance(it, str) else (it.get("name") if isinstance(it, dict) else getattr(it, "name", str(it)))
             try:
                 # Show item type/description if available
                 desc = ""
-                if isinstance(it, dict):
+                if isinstance(it, str):
+                    # Token items
+                    token_names = {'v': 'Vibroblade', 'b': 'Blaster', 's': 'Armor'}
+                    name = token_names.get(it, it)
+                    desc = " [Equipment]"
+                elif isinstance(it, dict):
                     item_type = it.get("type", "")
                     if item_type:
-                        desc = f" [{item_type}]"
+                        desc = f" [{item_type.title()}]"
                     elif it.get("artifact_id"):
-                        desc = " [artifact]"
+                        desc = " [Artifact]"
                 elif hasattr(it, 'hands'):
-                    desc = f" [{it.get_hand_requirement()}]"
+                    # Weapon with hand requirement
+                    hands = getattr(it, 'hands', None)
+                    if hands:
+                        desc = f" [{hands.value} Weapon]"
+                    else:
+                        desc = " [Weapon]"
+                elif hasattr(it, 'is_shield') and getattr(it, 'is_shield', False):
+                    # Shield with defense bonus
+                    def_bonus = getattr(it, 'defense_bonus', 0)
+                    ev_bonus = getattr(it, 'evasion_bonus', 0)
+                    if ev_bonus > 0:
+                        desc = f" [Shield: +{def_bonus} DEF, +{ev_bonus} EVA]"
+                    elif ev_bonus < 0:
+                        desc = f" [Shield: +{def_bonus} DEF, {ev_bonus} EVA]"
+                    else:
+                        desc = f" [Shield: +{def_bonus} DEF]"
+                elif hasattr(it, 'defense_bonus'):
+                    desc = f" [Armor: +{getattr(it, 'defense_bonus', 0)} DEF]"
+                elif hasattr(it, 'defense'):
+                    desc = " [Armor]"
+                
                 game.ui.messages.add(f"  {i+1}) {name}{desc}")
             except Exception:
                 pass
         try:
             game.ui.messages.add("===========================================")
+            game.ui.messages.add("Press 'x' to inspect selected item")  # NEW
         except Exception:
             pass
         # force a draw so messages appear
@@ -110,12 +308,32 @@ def inventory_chooser(game):
             except Exception:
                 pass
             return None
+        # NEW: Handle 'x' for inspect
+        if key == ord('x'):
+            try:
+                game.ui.messages.add("Select item number (1-9) to inspect, or ESC to cancel:")
+                from jedi_fugitive.game.ui_renderer import draw
+                draw(game)
+                inspect_key = game.stdscr.getch()
+                if inspect_key >= ord('1') and inspect_key <= ord('9'):
+                    idx = inspect_key - ord('1')
+                    if idx < len(inv):
+                        item_to_inspect = inv[idx]
+                        _inspect_inventory_item(game, item_to_inspect)
+                        # Return to inventory menu after inspect
+                        return inventory_chooser(game, filter_type)
+            except Exception as e:
+                try:
+                    game.ui.messages.add(f"Inspect failed: {e}")
+                except:
+                    pass
+            return None
         if key >= ord('1') and key <= ord('9'):
             idx = key - ord('1')
             if idx < len(inv):
                 return inv[idx]
         try:
-            game.ui.messages.add("Invalid selection. Press 1-9 to choose.")
+            game.ui.messages.add("Invalid selection. Press 1-9 to choose, 'x' to inspect.")
         except Exception:
             pass
     except Exception:
@@ -181,6 +399,8 @@ def _apply_equipment_effects(game, item, slot, apply_only=False):
                 game.player.equipped_weapon = item
             elif slot == "armor":
                 game.player.equipped_armor = item
+            # Mark stats cache as dirty to force UI refresh
+            game.player._stats_cache_dirty = True
     except Exception:
         pass
 
@@ -210,6 +430,8 @@ def _remove_equipment_effects(game, slot):
             game.player.equipped_weapon = None
         elif slot == "armor":
             game.player.equipped_armor = None
+        # Mark stats cache as dirty to force UI refresh
+        game.player._stats_cache_dirty = True
         # reapply remaining equipment if any
         try:
             if getattr(game.player, "equipped_armor", None) is not None:
@@ -246,6 +468,8 @@ def pick_up(game):
             import random
             gold_amount = random.randint(5, 20)
             game.player.gold_collected = getattr(game.player, 'gold_collected', 0) + gold_amount
+            # Invalidate stats cache so gold counter updates in GUI
+            game.player._stats_cache_dirty = True
             game.game_map[py][px] = floor
             try: 
                 game.ui.messages.add(f"Found {gold_amount} gold! (Total: {game.player.gold_collected})")
@@ -279,7 +503,7 @@ def pick_up(game):
                 equipment_drop = game.equipment_drops.get((px, py))
                 if equipment_drop:
                     # capacity check
-                    max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
+                    max_inv = game.player.get_max_inventory() if hasattr(game.player, 'get_max_inventory') else MAX_INVENTORY_SIZE
                     cur_inv = len(getattr(game.player, 'inventory', []) or [])
                     if cur_inv >= max_inv:
                         try: game.ui.messages.add("Inventory full. Can't pick up item.")
@@ -317,33 +541,35 @@ def pick_up(game):
                             elif isinstance(dropped_item, dict):
                                 item_desc = dropped_item.get('description', '')
                             
-                            # Create narrative entry
-                            if item_type == 'weapon':
-                                base_dmg = getattr(dropped_item, 'base_damage', 0) if hasattr(dropped_item, 'base_damage') else 0
-                                entry = game.player.narrative_text(
-                                    light_version=f"Found {item_name} ({item_rarity}). {item_desc}",
-                                    dark_version=f"Claimed {item_name} ({item_rarity}) - a fitting tool for my power! {item_desc}",
-                                    balanced_version=f"Found {item_name} ({item_rarity}, +{base_dmg} attack). {item_desc}"
-                                )
-                            elif item_type == 'armor':
-                                entry = game.player.narrative_text(
-                                    light_version=f"Found {item_name} ({item_rarity}) for protection. {item_desc}",
-                                    dark_version=f"Seized {item_name} ({item_rarity}) to strengthen myself. {item_desc}",
-                                    balanced_version=f"Found {item_name} ({item_rarity}). {item_desc}"
-                                )
-                            elif item_type == 'material':
-                                entry = game.player.narrative_text(
-                                    light_version=f"Collected {item_name} ({item_rarity}) - may be useful for crafting. {item_desc}",
-                                    dark_version=f"Scavenged {item_name} ({item_rarity}) - a resource for my arsenal. {item_desc}",
-                                    balanced_version=f"Found crafting material: {item_name} ({item_rarity}). {item_desc}"
-                                )
-                            else:
-                                entry = game.player.narrative_text(
-                                    light_version=f"Found {item_name}. {item_desc}",
-                                    dark_version=f"Acquired {item_name} to fuel my journey. {item_desc}",
-                                    balanced_version=f"Found {item_name}. {item_desc}"
-                                )
-                            game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
+                            # Create immersive, lore-rich journal entry
+                            try:
+                                from jedi_fugitive.game.journal_entries import get_discovery_entry
+                                player_alignment = game.player.get_alignment() if hasattr(game.player, 'get_alignment') else 'balanced'
+                                biome = getattr(game, 'current_biome', 'wasteland')
+                                entry = get_discovery_entry(item_name, item_type, player_alignment, biome)
+                                game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
+                            except Exception:
+                                # Fallback to old style if journal_entries not available
+                                if item_type == 'weapon':
+                                    base_dmg = getattr(dropped_item, 'base_damage', 0) if hasattr(dropped_item, 'base_damage') else 0
+                                    entry = game.player.narrative_text(
+                                        light_version=f"Found {item_name} ({item_rarity}). {item_desc}",
+                                        dark_version=f"Claimed {item_name} ({item_rarity}) - a fitting tool for my power! {item_desc}",
+                                        balanced_version=f"Found {item_name} ({item_rarity}, +{base_dmg} attack). {item_desc}"
+                                    )
+                                elif item_type == 'armor':
+                                    entry = game.player.narrative_text(
+                                        light_version=f"Found {item_name} ({item_rarity}) for protection. {item_desc}",
+                                        dark_version=f"Seized {item_name} ({item_rarity}) to strengthen myself. {item_desc}",
+                                        balanced_version=f"Found {item_name} ({item_rarity}). {item_desc}"
+                                    )
+                                else:
+                                    entry = game.player.narrative_text(
+                                        light_version=f"Found {item_name}. {item_desc}",
+                                        dark_version=f"Acquired {item_name} to fuel my journey. {item_desc}",
+                                        balanced_version=f"Found {item_name}. {item_desc}"
+                                    )
+                                game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
                     except Exception:
                         pass
                     
@@ -362,8 +588,8 @@ def pick_up(game):
             items_here = [it for it in getattr(game, 'items_on_map', []) or [] if it.get('x') == px and it.get('y') == py]
         except Exception:
             items_here = []
-        # inventory capacity (default 20)
-        max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
+        # inventory capacity (base 30, plus armor bonuses)
+        max_inv = game.player.get_max_inventory() if hasattr(game.player, 'get_max_inventory') else MAX_INVENTORY_SIZE
         cur_inv = len(getattr(game.player, 'inventory', []) or [])
         if items_here:
             it = items_here[0]
@@ -415,8 +641,8 @@ def pick_up(game):
             # add rich item dict so equip/use logic has full info
             if not hasattr(game.player, "inventory") or game.player.inventory is None:
                 game.player.inventory = []
-            # capacity check
-            max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
+            # capacity check (base + armor bonus)
+            max_inv = game.player.get_max_inventory() if hasattr(game.player, 'get_max_inventory') else MAX_INVENTORY_SIZE
             cur_inv = len(getattr(game.player, 'inventory', []) or [])
             if cur_inv >= max_inv:
                 try: game.ui.messages.add("Inventory full. Can't pick up item.")
@@ -479,6 +705,14 @@ def pick_up(game):
                                 pass
                         except Exception:
                             pass
+                        
+                        # Track artifact for milestone system
+                        try:
+                            if not hasattr(game.player, 'artifacts_collected'):
+                                game.player.artifacts_collected = []
+                            game.player.artifacts_collected.append(aid)
+                        except Exception:
+                            pass
                         try:
                             game.ui.messages.add(f"Picked up {art_item.get('name')}.")
                         except Exception:
@@ -524,8 +758,8 @@ def pick_up(game):
             # Generic pickups (wreckage, potion, fallback artifact)
             # Note: Gold is now handled earlier in the function before pickup_map check
             
-            # capacity check for regular items
-            max_inv = int(getattr(game, 'max_inventory', MAX_INVENTORY_SIZE) or MAX_INVENTORY_SIZE)
+            # capacity check for regular items (base + armor bonus)
+            max_inv = game.player.get_max_inventory() if hasattr(game.player, 'get_max_inventory') else MAX_INVENTORY_SIZE
             cur_inv = len(getattr(game.player, 'inventory', []) or [])
             if cur_inv >= max_inv:
                 try: game.ui.messages.add("Inventory full. Can't pick up item.")
@@ -566,25 +800,32 @@ def pick_up(game):
         except Exception: pass
 
 def equip_item(game):
-    """Equip item: uses inventory_chooser when multiple, applies stat effects and removes from inventory."""
+    """Equip item: uses filtered inventory chooser for equippable items only."""
     try:
-        inv = getattr(game.player, "inventory", []) or []
-        if not inv:
-            try: game.ui.messages.add("No items to equip.") 
-            except Exception: pass
+        # Get only equippable items
+        all_inv = getattr(game.player, "inventory", []) or []
+        equippable_inv = [item for item in all_inv if _is_equippable_item(item)]
+        
+        if not equippable_inv:
+            try: 
+                game.ui.messages.add("No equippable items found.")
+                game.ui.messages.add("Equippable: weapons, armor, shields")
+            except Exception: 
+                pass
             return
+            
         chosen = None
-        if len(inv) > 1:
-            chosen = inventory_chooser(game)
+        if len(equippable_inv) > 1:
+            chosen = inventory_chooser(game, filter_type='equippable')
         else:
-            chosen = inv[0]
+            chosen = equippable_inv[0]
         if chosen is None:
             try: game.ui.messages.add("Equip cancelled.") 
             except Exception: pass
             return
 
         # explicit token -> name map (same tokens used when placing/picking up)
-        token_map = {"v": "Vibroblade", "s": "Energy Shield", "b": "Blaster Pistol"}
+        token_map = {"v": "Vibroblade", "s": "Energy Shield", "b": "Blaster Pistol", "L": "Lightsaber"}
 
         # helper to get display name for heuristics
         def _name(it):
@@ -627,6 +868,14 @@ def equip_item(game):
             is_shield = True
         elif item_class_name == "Shield":
             is_shield = True
+        # Check if it's an ENERGY_SHIELD weapon type (these should always be shields)
+        elif hasattr(chosen, 'weapon_type'):
+            try:
+                from jedi_fugitive.items.weapons import WeaponType
+                if chosen.weapon_type == WeaponType.ENERGY_SHIELD:
+                    is_shield = True
+            except Exception:
+                pass
             
         is_armor = ("armor" in name.lower()) or (isinstance(chosen, dict) and chosen.get("slot") == "body")
         is_offhand_weapon = False
@@ -696,17 +945,31 @@ def equip_item(game):
             if success:
                 # Remove from inventory
                 try:
-                    inv.remove(chosen)
+                    game.player.inventory.remove(chosen)
                 except Exception:
-                    for i in list(inv):
+                    for i in list(game.player.inventory):
                         if i == chosen:
-                            try: inv.remove(i)
+                            try: game.player.inventory.remove(i)
                             except Exception: pass
                             break
             return
 
-        # perform equip with proper slot handling and stat application
+        # CRITICAL FIX: Return previously equipped items to inventory before equipping new ones
         if is_armor:
+            # Return old armor to inventory if it exists
+            if prev_armor is not None:
+                try:
+                    if not hasattr(game.player, 'inventory') or game.player.inventory is None:
+                        game.player.inventory = []
+                    game.player.inventory.append(prev_armor)
+                    try:
+                        old_armor_name = getattr(prev_armor, 'name', str(prev_armor))
+                        game.ui.messages.add(f"Returned {old_armor_name} to inventory.")
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            
             try:
                 _remove_equipment_effects(game, "armor")
                 _apply_equipment_effects(game, chosen, "armor")
@@ -717,6 +980,20 @@ def equip_item(game):
                 except Exception: pass
                 return
         else:
+            # Return old weapon to inventory if it exists
+            if prev_weapon is not None:
+                try:
+                    if not hasattr(game.player, 'inventory') or game.player.inventory is None:
+                        game.player.inventory = []
+                    game.player.inventory.append(prev_weapon)
+                    try:
+                        old_weapon_name = getattr(prev_weapon, 'name', str(prev_weapon))
+                        game.ui.messages.add(f"Returned {old_weapon_name} to inventory.")
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            
             try:
                 old_attack = getattr(game.player, 'attack', 0)
                 _remove_equipment_effects(game, "weapon")
@@ -735,11 +1012,11 @@ def equip_item(game):
 
         # remove one instance from inventory (best-effort)
         try:
-            inv.remove(chosen)
+            game.player.inventory.remove(chosen)
         except Exception:
-            for i in list(inv):
+            for i in list(game.player.inventory):
                 if i == chosen:
-                    try: inv.remove(i) 
+                    try: game.player.inventory.remove(i) 
                     except Exception: pass
                     break
 
@@ -767,7 +1044,7 @@ def drop_item(game):
         
         chosen = None
         if len(inv) > 1:
-            chosen = inventory_chooser(game)
+            chosen = inventory_chooser(game, filter_type=None)  # Show all items for dropping
         else:
             chosen = inv[0]
         
@@ -843,18 +1120,25 @@ def drop_item(game):
 
 
 def use_item(game):
-    """Use a consumable from inventory (or a selected item)."""
+    """Use a consumable from inventory - only shows usable items."""
     try:
-        inv = getattr(game.player, "inventory", []) or []
-        if not inv:
-            try: game.ui.messages.add("No items to use.")
-            except Exception: pass
+        # Get only usable items
+        all_inv = getattr(game.player, "inventory", []) or []
+        usable_inv = [item for item in all_inv if _is_usable_item(item)]
+        
+        if not usable_inv:
+            try: 
+                game.ui.messages.add("No usable items found.")
+                game.ui.messages.add("Usable: consumables, artifacts, stimpacks")
+            except Exception: 
+                pass
             return False
+            
         chosen = None
-        if len(inv) > 1:
-            chosen = inventory_chooser(game)
+        if len(usable_inv) > 1:
+            chosen = inventory_chooser(game, filter_type='usable')
         else:
-            chosen = inv[0]
+            chosen = usable_inv[0]
         if chosen is None:
             try: game.ui.messages.add("Use cancelled.")
             except Exception: pass
@@ -908,22 +1192,29 @@ def use_item(game):
                         game.ui.messages.add(f"You ABSORB {artifact_name}'s dark power! +{xp_gain} Dark XP")
                         
                         # Check for dark side level up
-                        if game.player.dark_xp >= getattr(game.player, 'xp_to_next_dark', 100):
+                        while game.player.dark_xp >= getattr(game.player, 'xp_to_next_dark', 100):
                             game.player.dark_level = getattr(game.player, 'dark_level', 1) + 1
                             game.player.dark_xp -= getattr(game.player, 'xp_to_next_dark', 100)
                             game.player.xp_to_next_dark = game.player.dark_level * 100
+                            game.player.level = max(getattr(game.player, 'light_level', 1), game.player.dark_level)
                             
-                            # Apply stat bonuses: all stats +1, extra +1 attack for dark path
-                            game.player.max_hp = getattr(game.player, 'max_hp', 10) + 5
-                            game.player.attack = getattr(game.player, 'attack', 10) + 2  # +2 for dark path
-                            game.player.defense = getattr(game.player, 'defense', 5) + 1
-                            game.player.evasion = getattr(game.player, 'evasion', 10) + 1
-                            game.player.accuracy = getattr(game.player, 'accuracy', 80) + 1
-                            
-                            game.ui.messages.add(f"Level up! You are now Level {game.player.dark_level}")
-                            game.ui.messages.add(f"Dark path: +5 HP, +2 ATK, +1 DEF, +1 EVA, +1 ACC")
-                            # Unlock dark side ability
-                            _unlock_dark_ability(game)
+                            # Use unified level up system with interactive popup
+                            try:
+                                # Set up UI context for player
+                                game.player.ui = game.ui
+                                game.player.game = game
+                                game.player.level_up()
+                                game.ui.messages.add(f"Dark Side Level Up! Now Dark Level {game.player.dark_level}")
+                            except Exception as e:
+                                # Fallback if popup fails - apply dark side bonuses using CURRENT stats
+                                game.player.max_hp = game.player.max_hp + 5
+                                game.player.attack = game.player.attack + 2  # +2 for dark path
+                                game.player.defense = game.player.defense + 1
+                                game.player.evasion = game.player.evasion + 1
+                                game.player.accuracy = game.player.accuracy + 1
+                                game.ui.messages.add(f"Level up! You are now Level {game.player.dark_level}")
+                                game.ui.messages.add(f"Dark path: +5 HP, +2 ATK, +1 DEF, +1 EVA, +1 ACC")
+                                _unlock_dark_ability(game)
                         
                         if hasattr(game.player, 'add_log_entry'):
                             # Dark Side artifact absorption - narrative reflects growing corruption
@@ -941,22 +1232,29 @@ def use_item(game):
                         game.ui.messages.add(f"You DESTROY {artifact_name}, purifying its essence! +{xp_gain} Light XP")
                         
                         # Check for light side level up
-                        if game.player.light_xp >= getattr(game.player, 'xp_to_next_light', 100):
+                        while game.player.light_xp >= getattr(game.player, 'xp_to_next_light', 100):
                             game.player.light_level = getattr(game.player, 'light_level', 1) + 1
                             game.player.light_xp -= getattr(game.player, 'xp_to_next_light', 100)
                             game.player.xp_to_next_light = game.player.light_level * 100
+                            game.player.level = max(game.player.light_level, getattr(game.player, 'dark_level', 1))
                             
-                            # Apply stat bonuses: all stats +1, extra +1 evasion for light path
-                            game.player.max_hp = getattr(game.player, 'max_hp', 10) + 5
-                            game.player.attack = getattr(game.player, 'attack', 10) + 1
-                            game.player.defense = getattr(game.player, 'defense', 5) + 1
-                            game.player.evasion = getattr(game.player, 'evasion', 10) + 2  # +2 for light path
-                            game.player.accuracy = getattr(game.player, 'accuracy', 80) + 1
-                            
-                            game.ui.messages.add(f"Level up! You are now Level {game.player.light_level}")
-                            game.ui.messages.add(f"Light path: +5 HP, +1 ATK, +1 DEF, +2 EVA, +1 ACC")
-                            # Unlock light side ability
-                            _unlock_light_ability(game)
+                            # Use unified level up system with interactive popup
+                            try:
+                                # Set up UI context for player
+                                game.player.ui = game.ui
+                                game.player.game = game
+                                game.player.level_up()
+                                game.ui.messages.add(f"Light Side Level Up! Now Light Level {game.player.light_level}")
+                            except Exception as e:
+                                # Fallback if popup fails - apply light side bonuses using CURRENT stats
+                                game.player.max_hp = game.player.max_hp + 5
+                                game.player.attack = game.player.attack + 1
+                                game.player.defense = game.player.defense + 1
+                                game.player.evasion = game.player.evasion + 2  # +2 for light path
+                                game.player.accuracy = game.player.accuracy + 1
+                                game.ui.messages.add(f"Level up! You are now Level {game.player.light_level}")
+                                game.ui.messages.add(f"Light path: +5 HP, +1 ATK, +1 DEF, +2 EVA, +1 ACC")
+                                _unlock_light_ability(game)
                         
                         if hasattr(game.player, 'add_log_entry'):
                             # Light Side artifact destruction - narrative reflects purity/resistance
@@ -987,17 +1285,17 @@ def use_item(game):
                 # consume artifact (remove from inventory)
                 removed = False
                 try:
-                    if chosen in inv:
-                        inv.remove(chosen)
+                    if chosen in game.player.inventory:
+                        game.player.inventory.remove(chosen)
                         removed = True
                 except Exception:
                     pass
                 if not removed:
                     # Try removing by artifact_id match
-                    for i in list(inv):
+                    for i in list(game.player.inventory):
                         try:
                             if isinstance(i, dict) and i.get('artifact_id') == aid:
-                                inv.remove(i)
+                                game.player.inventory.remove(i)
                                 removed = True
                                 break
                         except Exception:
@@ -1105,15 +1403,15 @@ def use_item(game):
         if used:
             # consume one instance from inventory
             try:
-                inv.remove(chosen)
+                game.player.inventory.remove(chosen)
             except Exception:
                 # try to remove matching token or dict
-                for i in list(inv):
+                for i in list(game.player.inventory):
                     try:
                         if isinstance(chosen, str) and (i == chosen or (isinstance(i, dict) and i.get('token') == chosen)):
-                            inv.remove(i); break
+                            game.player.inventory.remove(i); break
                         if isinstance(chosen, dict) and i == chosen:
-                            inv.remove(i); break
+                            game.player.inventory.remove(i); break
                     except Exception:
                         continue
                 try:
@@ -1158,6 +1456,10 @@ def equip_offhand(game, item):
         if isinstance(item, dict):
             item_type = item.get('type', '')
             item_name = item.get('name', 'item')
+        elif hasattr(item, 'type'):
+            # Check type attribute directly (for Shield objects)
+            item_type = getattr(item, 'type', None)
+            item_name = getattr(item, 'name', 'item')
         elif hasattr(item, 'slot'):
             if item.slot == 'offhand':
                 item_type = 'shield'
@@ -1180,6 +1482,9 @@ def equip_offhand(game, item):
         
         # Equip new offhand
         game.player.equipped_offhand = item
+        
+        # Mark stats cache dirty to force UI refresh
+        game.player._stats_cache_dirty = True
         
         # Apply bonuses
         if item_type == 'shield':
@@ -1277,17 +1582,46 @@ def open_crafting_menu(game):
             # Check if player has materials
             has_materials = check_materials(game.player.inventory, recipe.materials)
             
+            # Check weapon compatibility for weapon upgrades
+            is_compatible = True
+            compatibility_reason = ""
+            if recipe.recipe_type == "weapon_upgrade":
+                weapon = getattr(game.player, 'equipped_weapon', None)
+                if weapon:
+                    try:
+                        from jedi_fugitive.items.upgrade_compatibility import is_upgrade_compatible
+                        is_compatible, compatibility_reason = is_upgrade_compatible(recipe.name, weapon)
+                    except Exception:
+                        is_compatible = True  # Fallback to allowing upgrade
+                else:
+                    is_compatible = False
+                    compatibility_reason = "No weapon equipped"
+            
             # Build display string
             materials_str = ", ".join([f"{count}x {name}" for name, count in recipe.materials.items()])
-            status = "✓" if has_materials else "✗"
+            
+            # Determine status icon
+            if not is_compatible:
+                status = "✗"  # Incompatible weapon
+            elif has_materials:
+                status = "✓"  # Can craft
+            else:
+                status = "○"  # Missing materials but compatible
             
             # Recipe type indicator
             type_icon = {"weapon_upgrade": "⚔", "item_craft": "🛠", "repair": "🔧"}.get(recipe.recipe_type, "•")
             
             display_text = f"{status} {type_icon} {recipe.name}"
-            description = f"   {recipe.description}\n   Needs: {materials_str}"
             
-            recipe_options.append((recipe, has_materials, description))
+            # Build description with compatibility info
+            description = f"   {recipe.description}\n   Needs: {materials_str}"
+            if not is_compatible:
+                description += f"\n   ⚠ {compatibility_reason}"
+            
+            # Store actual availability (materials AND compatibility)
+            actual_availability = has_materials and is_compatible
+            
+            recipe_options.append((recipe, actual_availability, description, is_compatible))
             menu_items.append(display_text)
         
         if not menu_items:
@@ -1306,12 +1640,26 @@ def open_crafting_menu(game):
                 except Exception: pass
                 return False
             
-            recipe, has_materials, description = recipe_options[selected]
+            # Handle both old and new tuple formats for backward compatibility
+            if len(recipe_options[selected]) == 4:
+                recipe, can_craft, description, is_compatible = recipe_options[selected]
+            else:
+                recipe, can_craft, description = recipe_options[selected]
+                is_compatible = True
             
-            if not has_materials:
-                materials_str = ", ".join([f"{count}x {name}" for name, count in recipe.materials.items()])
-                try: game.ui.messages.add(f"Cannot craft {recipe.name}! Missing: {materials_str}")
-                except Exception: pass
+            if not can_craft:
+                # Determine why it cannot be crafted
+                has_materials = check_materials(game.player.inventory, recipe.materials)
+                if not has_materials:
+                    materials_str = ", ".join([f"{count}x {name}" for name, count in recipe.materials.items()])
+                    try: game.ui.messages.add(f"Cannot craft {recipe.name}! Missing: {materials_str}")
+                    except Exception: pass
+                elif not is_compatible:
+                    try: game.ui.messages.add(f"Cannot craft {recipe.name}! Not compatible with equipped weapon.")
+                    except Exception: pass
+                else:
+                    try: game.ui.messages.add(f"Cannot craft {recipe.name}!")
+                    except Exception: pass
                 return False
             
             # Craft the item
@@ -1339,41 +1687,103 @@ def craft_item(game, recipe_name):
             except Exception: pass
             return False
         
-        # Check materials
+        # PRE-VALIDATION: Check all requirements BEFORE consuming materials
+        
+        # 1. Check materials availability
         if not check_materials(game.player.inventory, recipe.materials):
             materials_str = ", ".join([f"{count}x {name}" for name, count in recipe.materials.items()])
             try: game.ui.messages.add(f"Missing materials: {materials_str}")
             except Exception: pass
             return False
         
-        # Consume materials
-        game.player.inventory = consume_materials(game.player.inventory, recipe.materials)
+        # 2. Check crafting skill level requirement
+        if not game.player.can_craft_recipe(recipe.__dict__):
+            required_level = getattr(recipe, 'required_level', 1)
+            current_level = getattr(game.player, 'craft_level', 1)
+            try: 
+                game.ui.messages.add(f"Recipe requires crafting level {required_level} (you have {current_level})")
+            except Exception: pass
+            return False
         
-        # Apply result based on recipe type
+        # 2. For weapon upgrades, validate weapon compatibility BEFORE consuming materials
         if recipe.recipe_type == "weapon_upgrade":
-            # Upgrade equipped weapon
             weapon = getattr(game.player, 'equipped_weapon', None)
             if not weapon:
                 try: game.ui.messages.add("No weapon equipped to upgrade!")
                 except Exception: pass
                 return False
             
+            # Check weapon type compatibility
+            try:
+                from jedi_fugitive.items.upgrade_compatibility import is_upgrade_compatible
+                is_compatible, reason = is_upgrade_compatible(recipe.name, weapon)
+                if not is_compatible:
+                    try: 
+                        weapon_name = getattr(weapon, 'name', 'your weapon')
+                        game.ui.messages.add(f"Cannot apply {recipe.name} to {weapon_name}: {reason}")
+                    except Exception: 
+                        game.ui.messages.add(f"{recipe.name} is not compatible with this weapon type")
+                    return False
+            except Exception:
+                # If compatibility system fails, allow upgrade (backward compatibility)
+                pass
+        
+        # ALL VALIDATION PASSED - Now consume materials and apply upgrade
+        game.player.inventory = consume_materials(game.player.inventory, recipe.materials)
+        
+        # Apply result based on recipe type
+        if recipe.recipe_type == "weapon_upgrade":
+            # At this point we know weapon exists and is compatible
+            
             result = recipe.result
             stat = result.get('stat')
             bonus = result.get('bonus', 0)
             upgrade_name = result.get('name', 'Upgraded')
             
-            # Apply bonus to weapon
+            # Apply bonus to weapon (equipment system will handle player stat application)
             if stat == 'attack':
                 current_damage = getattr(weapon, 'base_damage', 0)
                 weapon.base_damage = current_damage + bonus
-                game.player.attack += bonus
+                # Note: Player attack will be updated when equipment effects are reapplied
             elif stat == 'accuracy':
                 current_acc = getattr(weapon, 'accuracy_mod', 0)
                 weapon.accuracy_mod = current_acc + bonus
-                game.player.accuracy += bonus
+                # Note: Player accuracy will be updated when equipment effects are reapplied
             elif stat == 'defense':
+                # Defense upgrades apply directly to player (not weapon-dependent)
                 game.player.defense += bonus
+            elif stat == 'damage':  # Handle 'damage' stat (used by some recipes)
+                current_damage = getattr(weapon, 'base_damage', 0)
+                weapon.base_damage = current_damage + bonus
+            
+            # Handle secondary stat bonuses (e.g., Crystal Focus gives accuracy + attack)
+            if 'stat2' in result and 'bonus2' in result:
+                stat2 = result.get('stat2')
+                bonus2 = result.get('bonus2', 0)
+                if stat2 == 'attack':
+                    current_damage = getattr(weapon, 'base_damage', 0)
+                    weapon.base_damage = current_damage + bonus2
+                elif stat2 == 'accuracy':
+                    current_acc = getattr(weapon, 'accuracy_mod', 0)
+                    weapon.accuracy_mod = current_acc + bonus2
+                elif stat2 == 'defense':
+                    game.player.defense += bonus2
+                elif stat2 == 'durability':
+                    # Handle durability bonuses (for future implementation)
+                    pass
+            
+            # Update player stats by reapplying equipment effects
+            # This ensures the new weapon bonuses are properly reflected
+            try:
+                # Temporarily remove weapon effects, then reapply with new bonuses
+                _remove_equipment_effects(game, "weapon")
+                _apply_equipment_effects(game, weapon, "weapon")
+            except Exception:
+                # Fallback: manually update attack based on weapon upgrade
+                if stat == 'attack' or stat == 'damage':
+                    game.player.attack = getattr(game.player.attack, 0, 10) + bonus
+                elif stat == 'accuracy':
+                    game.player.accuracy = getattr(game.player.accuracy, 0, 80) + bonus
             
             # Update weapon name
             weapon_name = getattr(weapon, 'name', 'Weapon')
@@ -1383,6 +1793,23 @@ def craft_item(game, recipe_name):
             try: 
                 game.ui.messages.add(f"Upgraded {weapon_name} with {recipe.name}!")
             except Exception: pass
+            
+            # Grant crafting XP based on recipe difficulty
+            xp_gain = getattr(recipe, 'required_level', 1) * 25
+            level_up_msg = game.player.gain_craft_xp(xp_gain)
+            if level_up_msg:
+                try:
+                    game.ui.messages.add(level_up_msg)
+                    game.ui.messages.add("💡 Keep crafting to unlock better recipes!")
+                except Exception: pass
+            else:
+                # Show crafting XP progress
+                try:
+                    current_xp = getattr(game.player, 'craft_xp', 0)
+                    xp_needed = getattr(game.player, 'craft_xp_to_next', 100)
+                    game.ui.messages.add(f"Gained {xp_gain} crafting XP! ({current_xp}/{xp_needed} to next level)")
+                except Exception:
+                    pass
             
             # Add to travel log
             try:
@@ -1406,6 +1833,14 @@ def craft_item(game, recipe_name):
             try: 
                 game.ui.messages.add(f"Crafted {item_name}!")
             except Exception: pass
+            
+            # Grant crafting XP based on recipe difficulty
+            xp_gain = getattr(recipe, 'required_level', 1) * 25
+            level_up_msg = game.player.gain_craft_xp(xp_gain)
+            if level_up_msg:
+                try:
+                    game.ui.messages.add(level_up_msg)
+                except Exception: pass
             
             # Add to travel log
             try:

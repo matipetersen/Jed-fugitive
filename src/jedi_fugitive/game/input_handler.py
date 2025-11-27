@@ -200,11 +200,11 @@ def _throw_grenade(game, tx, ty):
         except Exception:
             pass
         
-        # Award XP for kills with multi-kill bonus
+        # Award Dark XP for kills with multi-kill bonus
         try:
             if killed:
-                # Base XP per kill
-                base_xp = 10
+                # Base Dark XP per kill (reduced from 10 to 3)
+                base_xp = 3
                 total_xp = 0
                 
                 # Calculate XP with multi-kill bonuses
@@ -212,9 +212,9 @@ def _throw_grenade(game, tx, ty):
                 for i, e in enumerate(killed):
                     enemy_xp = base_xp
                     
-                    # Bonus for enemy level
+                    # Bonus for enemy level (reduced from 5 to 2)
                     enemy_level = getattr(e, 'level', 1)
-                    enemy_xp += (enemy_level - 1) * 5
+                    enemy_xp += (enemy_level - 1) * 2
                     
                     # Multi-kill multiplier: 1x, 1.5x, 2x, 2.5x, 3x, etc.
                     if kill_count >= 2:
@@ -226,23 +226,37 @@ def _throw_grenade(game, tx, ty):
                     # Update kill count
                     game.player.kills_count = getattr(game.player, 'kills_count', 0) + 1
                 
-                # Award XP
-                if hasattr(game.player, 'gain_xp'):
-                    leveled = game.player.gain_xp(total_xp)
+                # Award Dark XP for killing (combat is a dark path)
+                game.player.dark_xp = getattr(game.player, 'dark_xp', 0) + total_xp
+                
+                # Check for dark side level up
+                while game.player.dark_xp >= getattr(game.player, 'xp_to_next_dark', 100):
+                    game.player.dark_level = getattr(game.player, 'dark_level', 1) + 1
+                    game.player.dark_xp -= getattr(game.player, 'xp_to_next_dark', 100)
+                    game.player.xp_to_next_dark = int(game.player.xp_to_next_dark * 1.5)
+                    game.player.level = max(game.player.light_level, game.player.dark_level)
                     
-                    # Messages
-                    if kill_count == 1:
-                        try:
-                            game.ui.messages.add(f"Killed 1 enemy! +{total_xp} XP")
-                        except Exception:
-                            pass
-                    else:
-                        try:
-                            multi_bonus_pct = int((0.5 * (kill_count - 1)) * 100)
-                            game.ui.messages.add(f"MULTI-KILL! {kill_count} enemies eliminated! +{multi_bonus_pct}% bonus XP")
-                            game.ui.messages.add(f"Gained {total_xp} total XP!")
-                        except Exception:
-                            pass
+                    try:
+                        game.player.ui = game.ui
+                        game.player.game = game
+                        game.player.level_up()
+                        game.ui.messages.add(f"#1#DARK SIDE LEVEL UP!#0# Now Dark Level {game.player.dark_level}")
+                    except Exception:
+                        pass
+                
+                # Messages
+                if kill_count == 1:
+                    try:
+                        game.ui.messages.add(f"Killed 1 enemy! +{total_xp} Dark XP")
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        multi_bonus_pct = int((0.5 * (kill_count - 1)) * 100)
+                        game.ui.messages.add(f"MULTI-KILL! {kill_count} enemies eliminated! +{multi_bonus_pct}% bonus")
+                        game.ui.messages.add(f"Gained {total_xp} Dark XP!")
+                    except Exception:
+                        pass
         except Exception:
             pass
         
@@ -347,8 +361,9 @@ def handle_input(game, key):
             # Vi keys (hjkl)
             ord('k'): (0, -1), ord('j'): (0, 1),
             ord('h'): (-1, 0), ord('l'): (1, 0),
-            # Vi diagonal keys (ybn) - 'u' removed to avoid conflict with use item
+            # Vi diagonal keys (ybu) - using 'u' for up-right since use item moved to different key
             ord('y'): (-1, -1),  # up-left
+            ord('u'): (1, -1),   # up-right
             ord('b'): (-1, 1),   # down-left
             ord('n'): (1, 1),    # down-right
             # Numpad-style diagonal keys (7893)
@@ -426,12 +441,83 @@ def handle_input(game, key):
                     game.target_x, game.target_y = nx, ny
                 return
 
+        # Narrative choice handling
+        if hasattr(game, 'pending_narrative_choice') and game.pending_narrative_choice is not None:
+            if key in (ord('1'), ord('2'), ord('3')):
+                choice_num = int(chr(key))
+                event_data, choice_mapping, event_type = game.pending_narrative_choice
+                
+                if choice_num in choice_mapping:
+                    try:
+                        from jedi_fugitive.game import narrative_events
+                        
+                        choice_key = choice_mapping[choice_num]
+                        outcome, corruption, reward = narrative_events.process_narrative_choice(
+                            event_data, choice_key, game.player, game
+                        )
+                        
+                        # Display outcome
+                        game.ui.messages.add("─" * 60)
+                        game.ui.messages.add(outcome)
+                        
+                        # Apply corruption change
+                        if corruption != 0:
+                            old_corruption = game.player.corruption
+                            game.player.corruption = max(0, min(100, game.player.corruption + corruption))
+                            if corruption > 0:
+                                game.ui.messages.add(f"[Dark Side influence: +{corruption}]")
+                            else:
+                                game.ui.messages.add(f"[Light Side influence: {corruption}]")
+                        
+                        # Apply reward with actual effects
+                        if reward:
+                            try:
+                                from jedi_fugitive.game.reward_system import apply_narrative_reward
+                                reward_message = apply_narrative_reward(game, reward)
+                                game.ui.messages.add(f"[Reward: {reward_message}]")
+                            except Exception as e:
+                                game.ui.messages.add(f"[Reward Error: {e}]")
+                        
+                        game.ui.messages.add("─" * 60)
+                        
+                        # Clear pending choice
+                        game.pending_narrative_choice = None
+                        
+                    except Exception as e:
+                        game.ui.messages.add(f"Choice processing failed: {e}")
+                        game.pending_narrative_choice = None
+                else:
+                    game.ui.messages.add(f"Invalid choice. Press 1, 2, or 3.")
+                return
+            elif key == 27:  # ESC to cancel
+                game.ui.messages.add("You hesitate and the moment passes...")
+                game.pending_narrative_choice = None
+                if hasattr(game, '_choices_shown'):
+                    delattr(game, '_choices_shown')
+                return
+
+        # Fauna interaction handling
+        if (hasattr(game, 'fauna_manager') and hasattr(game.fauna_manager, 'active_encounters') 
+            and game.fauna_manager.active_encounters):
+            # Numbered key handling for fauna is now done in popup menus
+            pass
+            # ESC handling for fauna is now done in popup menus
+            pass
+
         # Global keys
         if key in (ord('q'), 27):
             try: game.ui.messages.add("Quitting...") 
             except Exception: pass
             game.running = False
             return
+        
+        # Quest response handling
+        if hasattr(game, 'active_conversations') and game.active_conversations:
+            # Check if any conversation is waiting for input
+            for pos, conversation in list(game.active_conversations.items()):
+                if conversation.get('type') == 'quest_offer':
+                    if game.handle_npc_response(key, pos[0], pos[1]):
+                        return  # Input was handled
         
         # Manual save
         if key == ord('S'):  # Capital S to avoid accidents
@@ -448,7 +534,7 @@ def handle_input(game, key):
                 except Exception: pass
             return
 
-        if key == ord('r'):
+        if key == ord('P'):
             try:
                 if hasattr(game, "reveal_map"):
                     game.reveal_map(100)
@@ -457,6 +543,16 @@ def handle_input(game, key):
             except Exception:
                 try: game.ui.messages.add("Reveal failed.") 
                 except Exception: pass
+            return
+
+        if key == ord('r') or key == ord('R'):
+            try:
+                _open_ritual_menu(game)
+            except Exception as e:
+                try: 
+                    game.ui.messages.add(f"Ritual menu error: {e}")
+                except Exception: 
+                    pass
             return
 
         if key == ord('p'):
@@ -474,7 +570,106 @@ def handle_input(game, key):
                     game.ui.messages.add("Sith Codex closed.")
             except Exception: pass
             return
+        
+        # Form/Stance switching (X key)
+        if key == ord('X'):
+            try:
+                from jedi_fugitive.game.lightsaber_forms import FORMS_BY_NAME
+                known_forms = getattr(game.player, 'known_forms', ["Shii-Cho"])
+                active_form = getattr(game.player, 'active_form', "Shii-Cho")
+                
+                if len(known_forms) <= 1:
+                    game.ui.messages.add("You only know one form. Learn more forms by leveling up!")
+                else:
+                    form_options = [f"{name} {'[ACTIVE]' if name == active_form else ''}" for name in known_forms]
+                    choice = game.ui.centered_menu(form_options, title="Switch Lightsaber Form")
+                    if choice is not None and 0 <= choice < len(known_forms):
+                        new_form = known_forms[choice]
+                        game.player.active_form = new_form
+                        form_obj = FORMS_BY_NAME.get(new_form)
+                        if form_obj:
+                            game.ui.messages.add(f"═══ FORM {form_obj.number}: {form_obj.name.upper()} ═══")
+                            game.ui.messages.add(f"Stance changed to {new_form} - {form_obj.focus}")
+                        else:
+                            game.ui.messages.add(f"Stance changed to {new_form}")
+            except Exception as e:
+                try:
+                    game.ui.messages.add(f"Form switching error: {e}")
+                except:
+                    pass
+            return
 
+        # Throw grenade (using 'G' key)
+        if key == ord('G'):
+            try:
+                # Check if player has grenades
+                inv = getattr(game.player, 'inventory', [])
+                has_grenade = any(isinstance(item, dict) and item.get('id') in ['grenade', 'thermal_grenade'] for item in inv)
+                
+                if not has_grenade:
+                    try: game.ui.messages.add("No grenades in inventory!")
+                    except Exception: pass
+                    return
+                    
+                # Enter grenade targeting mode
+                game.pending_grenade_throw = True
+                game.target_x = getattr(game.player, 'x', 0)
+                game.target_y = getattr(game.player, 'y', 0)
+                try: game.ui.messages.add("Select grenade target (Arrow keys/WASD to aim, Space to throw, ESC to cancel)")
+                except Exception: pass
+            except Exception as e:
+                try: game.ui.messages.add(f"Grenade throw failed: {e}")
+                except Exception: pass
+            return
+            
+        # Toggle map display using 'M' key
+        if key == ord('M'):
+            try:
+                # Toggle map visibility
+                current_visible = getattr(game, 'map_visible', True)
+                game.map_visible = not current_visible
+                status = "visible" if game.map_visible else "hidden"
+                try: game.ui.messages.add(f"Map display: {status}")
+                except Exception: pass
+            except Exception as e:
+                try: game.ui.messages.add(f"Map toggle failed: {e}")
+                except Exception: pass
+            return
+            
+        # Show controls menu using 'H' key (Help)
+        if key == ord('H'):
+            _show_controls_popup(game)
+            return
+            
+        # Show token legend using 'L' key (Legend)
+        if key == ord('L'):
+            _show_token_legend(game)
+            return
+        
+        # Character Sheet - '@' key (NEW)
+        if key == ord('@'):
+            try:
+                from jedi_fugitive.game.character_sheet import show_character_sheet
+                show_character_sheet(game)
+            except Exception as e:
+                try:
+                    game.ui.messages.add(f"Character sheet failed: {e}")
+                except:
+                    pass
+            return
+        
+        # Compass/Scan - 'c' key (NEW)
+        if key == ord('c'):
+            try:
+                from jedi_fugitive.game.compass import show_compass_scan
+                show_compass_scan(game)
+            except Exception as e:
+                try:
+                    game.ui.messages.add(f"Compass scan failed: {e}")
+                except:
+                    pass
+            return
+            
         # Help screen
         if key == ord('?'):
             try:
@@ -487,53 +682,76 @@ def handle_input(game, key):
                     "MOVEMENT:",
                     "  Arrow Keys = Standard directional (↑↓←→)",
                     "  hjkl       = Vi-style cardinal movement",
-                    "  ybn        = Vi-style diagonal (y=↖ b=↙ n=↘)",
+                    "  yubn       = Vi-style diagonal (y=↖ u=↗ b=↙ n=↘)",
                     "  Numpad 1379 = Numpad diagonal (7=↖ 9=↗ 1=↙ 3=↘)",
                     "",
-                    "ACTIONS:",
+                    "INVENTORY & ITEMS:",
                     "  g = Pick up item at your location",
                     "  e = Equip weapon or armor from inventory",
                     "  u = Use/consume item (stimpack, artifact, etc.)",
                     "  d = Drop item from inventory",
+                    "  z = Unequip weapon",
+                    "  o = Unequip armor/offhand",
                     "  x = Inspect tile (examine objects/enemies)",
                     "",
                     "COMBAT:",
                     "  Walk into enemy = Attack in melee",
-                    "  t = Throw grenade (targeting, 3-tile range)",
+                    "  G = Throw grenade (targeting, 3-tile range)",
                     "  F = Fire ranged weapon (targeting, weapon-dependent range)",
                     "",
                     "FORCE ABILITIES:",
-                    "  f = Open Force powers menu",
-                    "  c = Scan/Compass (locate nearby tombs)",
+                    "  f = Open Force powers menu (Force Push, Lightning, etc.)",
+                    "  r/R = Open Rituals menu (meditation, crystal attunement, ceremonies)",
                     "",
                     "INFORMATION:",
                     "  j = Journal/Travel Log (view your story)",
                     "  i = Inventory (view/manage items)",
-                    "  @ = Character sheet (stats & abilities)",
-                    "  v = Sith Codex (lore & discoveries)",
+                    "  v = Sith Codex (toggle lore & discoveries)",
                     "",
-                    "CRAFTING & EQUIPMENT:",
+                    "CRAFTING & TRADING:",
                     "  C = Crafting Bench (upgrade weapons, craft items)",
+                    "  H = Controls menu (this help)",
+                    "  T = Trade with merchant (must be near merchant camp)",
                     "  Shields and offhand weapons available!",
                     "  Dual-wield: Equip 1H weapon + 1H weapon",
                     "  Tank: Equip 1H weapon + Shield",
                     "",
-                    "ARTIFACT CHOICES (Critical!):",
-                    "  When using artifacts, you'll be prompted:",
+                    "LANDMARKS & POINTS OF INTEREST:",
+                    "  When you find ruins, relics, or power sources:",
+                    "    A = ABSORB → Dark Side (+corruption, gain power)",
+                    "    D = DESTROY → Light Side (-corruption, gain XP)",
+                    "",
+                    "ARTIFACTS (Critical Choice!):",
+                    "  When using artifacts from inventory (press 'u'):",
                     "    'a' = ABSORB → Dark Side path (+corruption, dark powers)",
                     "    'd' = DESTROY → Light Side path (-corruption, light powers)",
                     "",
                     "ALIGNMENT:",
                     "  Your choices shape who you become:",
-                    "    0-30% corruption   = Light Side Jedi",
-                    "    31-59% corruption  = Balanced Force User",
-                    "    60-100% corruption = Dark Side Sith",
+                    "    0-35% corruption   = Light Side Jedi",
+                    "    36-65% corruption  = Balanced Force User",
+                    "    66-100% corruption = Dark Side Sith",
+                    "",
+                    "ENCOUNTERS & EXPLORATION:",
+                    "  ? markers = Random encounters (walk to marker to trigger)",
+                    "  Encounters spawn every 200-300 turns with rewards",
+                    "  Animal encounters = Press numbers (1-5) to interact when prompted",
+                    "",
+                    "FAUNA SYMBOLS ON MAP:",
+                    "  · = Tiny creatures (insects, small birds)",
+                    "  o = Small creatures (rodents, reptiles)",  
+                    "  Ω = Medium creatures (human-sized)",
+                    "  ♦ = Large creatures (horse-sized)",
+                    "  █ = Massive creatures (rancor-sized)",
+                    "  Colors: Cyan=Force-sensitive, Green=Passive, Yellow=Neutral,", 
+                    "          Red=Aggressive, Purple=Corrupted by dark side",
                     "",
                     "OTHER:",
                     "  ? = Show this help screen",
                     "  m = Meditate (reduce stress if safe)",
+                    "  p = Toggle popup messages",
                     "  S = Save game (manual save)",
-                    "  r = Reveal map (debug/cheat)",
+                    "  P = Reveal map (debug/cheat)",
                     "  q / ESC = Quit game",
                     "",
                     "Press any key to close..."
@@ -551,19 +769,28 @@ def handle_input(game, key):
                 weapon = getattr(game.player, 'equipped_weapon', None)
                 is_ranged = False
                 weapon_range = 5
+                weapon_name = ''
                 
                 if weapon:
-                    # Check if it's a ranged weapon
-                    weapon_name = ''
+                    # Check if it's a ranged weapon by type or range
                     if isinstance(weapon, dict):
                         weapon_name = weapon.get('name', '').lower()
                         weapon_range = weapon.get('range', 5)
+                        # Dict weapons with range > 1 are ranged
+                        is_ranged = weapon_range > 1
                     elif hasattr(weapon, 'name'):
                         weapon_name = weapon.name.lower()
-                        weapon_range = getattr(weapon, 'range', 5)
-                    
-                    if 'blaster' in weapon_name or 'pistol' in weapon_name or 'rifle' in weapon_name:
-                        is_ranged = True
+                        weapon_range = getattr(weapon, 'range', 1)
+                        # Check by weapon_type or range attribute
+                        if hasattr(weapon, 'weapon_type'):
+                            from jedi_fugitive.items.weapons import WeaponType
+                            wtype = weapon.weapon_type
+                            is_ranged = wtype in [WeaponType.BLASTER_PISTOL, WeaponType.BLASTER_RIFLE, 
+                                                 WeaponType.HEAVY_BLASTER, WeaponType.WOOKIE_BOWCASTER, 
+                                                 WeaponType.RANGED]
+                        else:
+                            # Fallback: any weapon with range > 1 is ranged
+                            is_ranged = weapon_range > 1
                 
                 if not is_ranged:
                     try: game.ui.messages.add('No ranged weapon equipped!')
@@ -590,9 +817,138 @@ def handle_input(game, key):
                 except Exception: pass
             return
 
-        # Inspect / examine (what's in a tile or nearby)
+        # Inspect / examine (what's in a tile or nearby) - ENHANCED to scan ALL 9 tiles
         if key == ord('x'):
             try:
+                # NEW: Scan all 9 tiles around player (including player tile)
+                px = getattr(game.player, 'x', 0)
+                py = getattr(game.player, 'y', 0)
+                
+                inspect_lines = []
+                inspect_lines.append("═══ INSPECT: AREA SCAN ═══")
+                inspect_lines.append(f"Scanning 9 tiles around position ({px}, {py})")
+                inspect_lines.append("")
+                
+                found_something = False
+                
+                # Scan 3x3 grid centered on player
+                for dy in [-1, 0, 1]:
+                    for dx in [-1, 0, 1]:
+                        scan_x = px + dx
+                        scan_y = py + dy
+                        
+                        # Skip out of bounds
+                        if not (0 <= scan_y < len(game.game_map) and 0 <= scan_x < len(game.game_map[0])):
+                            continue
+                        
+                        # Check for enemy at this position
+                        for enemy in getattr(game, 'enemies', []):
+                            if not getattr(enemy, 'is_alive', lambda: True)():
+                                continue
+                            if getattr(enemy, 'x', -999) == scan_x and getattr(enemy, 'y', -999) == scan_y:
+                                found_something = True
+                                enemy_name = getattr(enemy, 'name', 'Enemy')
+                                enemy_hp = getattr(enemy, 'hp', '?')
+                                enemy_max_hp = getattr(enemy, 'max_hp', '?')
+                                enemy_level = getattr(enemy, 'level', '?')
+                                
+                                direction = ""
+                                if dx < 0:
+                                    direction += "W"
+                                elif dx > 0:
+                                    direction += "E"
+                                if dy < 0:
+                                    direction += "N"
+                                elif dy > 0:
+                                    direction += "S"
+                                if not direction:
+                                    direction = "CENTER"
+                                
+                                inspect_lines.append(f"⚔ [{direction}] {enemy_name} (Lv.{enemy_level})")
+                                inspect_lines.append(f"   HP: {enemy_hp}/{enemy_max_hp} | ATK: {getattr(enemy, 'attack', '?')} | DEF: {getattr(enemy, 'defense', '?')}")
+                        
+                        # Check for item at this position
+                        for item in getattr(game, 'items_on_map', []):
+                            if item.get('x') == scan_x and item.get('y') == scan_y:
+                                found_something = True
+                                item_name = item.get('name', item.get('token', 'Item'))
+                                
+                                direction = ""
+                                if dx < 0:
+                                    direction += "W"
+                                elif dx > 0:
+                                    direction += "E"
+                                if dy < 0:
+                                    direction += "N"
+                                elif dy > 0:
+                                    direction += "S"
+                                if not direction:
+                                    direction = "CENTER"
+                                
+                                # Get lore if available
+                                try:
+                                    tok = item.get('token')
+                                    player_corruption = getattr(game.player, 'dark_corruption', 50)
+                                    lore_data = inspection.get_item_inspection(tok, item_name, player_corruption)
+                                    inspect_lines.append(f"📦 [{direction}] {item_name}")
+                                    inspect_lines.append(f"   {lore_data.get('description', 'An item.')}")
+                                except:
+                                    inspect_lines.append(f"📦 [{direction}] {item_name}")
+                        
+                        # Check for NPC at this position
+                        npcs_on_map = getattr(game, 'npcs_on_map', {})
+                        if (scan_x, scan_y) in npcs_on_map:
+                            found_something = True
+                            npc = npcs_on_map[(scan_x, scan_y)]
+                            npc_name = getattr(npc, 'name', 'Survivor')
+                            
+                            direction = ""
+                            if dx < 0:
+                                direction += "W"
+                            elif dx > 0:
+                                direction += "E"
+                            if dy < 0:
+                                direction += "N"
+                            elif dy > 0:
+                                direction += "S"
+                            if not direction:
+                                direction = "CENTER"
+                            
+                            inspect_lines.append(f"👤 [{direction}] {npc_name}")
+                            inspect_lines.append(f"   Press 't' to talk")
+                
+                # Always provide atmospheric description of current location
+                if not found_something:
+                    inspect_lines.append("No enemies or items detected in vicinity.")
+                
+                inspect_lines.append("")
+                inspect_lines.append("═══ ATMOSPHERE ═══")
+                try:
+                    tile_char = game.game_map[py][px]
+                    biome = None
+                    if hasattr(game, 'map_biomes') and game.map_biomes:
+                        try:
+                            biome = game.map_biomes[py][px]
+                        except:
+                            pass
+                    
+                    in_tomb = hasattr(game, 'tomb_levels') and game.tomb_levels is not None
+                    
+                    tile_desc = inspection.get_tile_description(tile_char, biome, in_tomb)
+                    if tile_desc:
+                        inspect_lines.append(f"📍 {tile_desc['description']}")
+                        inspect_lines.append(f"   {tile_desc['lore']}")
+                    else:
+                        inspect_lines.append("The air feels heavy with ancient dread.")
+                        inspect_lines.append("Shadows cling to every surface, reluctant to release their grip.")
+                except Exception:
+                    inspect_lines.append("An oppressive atmosphere weighs upon you.")
+                    inspect_lines.append("The Force whispers warnings you cannot understand.")
+                
+                _show_centered(game, inspect_lines, title="Inspect")
+                return
+                
+                # OLD CODE PRESERVED BELOW (not reached)
                 # determine target coords: prefer pending reticle, then UI cursor, else nearby scan
                 tx = None; ty = None
                 if getattr(game, 'pending_force_ability', None) is not None and hasattr(game, 'target_x'):
@@ -1011,17 +1367,76 @@ def handle_input(game, key):
                 px = getattr(game.player, 'x', 0)
                 py = getattr(game.player, 'y', 0)
                 
+                # Check for narrative events (journal, holocron, distress signal)
+                if hasattr(game, 'map_landmarks') and (px, py) in game.map_landmarks:
+                    landmark = game.map_landmarks[(px, py)]
+                    landmark_type = landmark.get('type', '')
+                    
+                    # Handle journal discovery
+                    if landmark_type == 'journal' and not landmark.get('discovered', False):
+                        journal = landmark.get('data', {})
+                        formatted = __import__('jedi_fugitive.game.narrative_events', fromlist=['format_journal_display']).format_journal_display(journal)
+                        game.ui.centered_menu(formatted, f"Discovery: {journal.get('title', 'Journal')}")
+                        
+                        # Apply corruption effect
+                        if 'corruption_effect' in journal:
+                            game.player.dark_corruption = max(0, min(100, 
+                                getattr(game.player, 'dark_corruption', 50) + journal['corruption_effect']))
+                        
+                        # Mark as discovered and remove from map
+                        landmark['discovered'] = True
+                        game.game_map[py][px] = '.'
+                        del game.map_landmarks[(px, py)]
+                        game.ui.messages.add(f"#3#Journal discovered and logged.#0#")
+                        return
+                    
+                    # Handle holocron discovery
+                    elif landmark_type == 'holocron' and not landmark.get('discovered', False):
+                        holocron = landmark.get('data', {})
+                        formatted = __import__('jedi_fugitive.game.narrative_events', fromlist=['format_holocron_display']).format_holocron_display(holocron)
+                        game.ui.centered_menu(formatted, "Discovery: Ancient Holocron")
+                        
+                        # Apply corruption effect
+                        if 'corruption_effect' in holocron:
+                            game.player.dark_corruption = max(0, min(100,
+                                getattr(game.player, 'dark_corruption', 50) + holocron['corruption_effect']))
+                        
+                        # Mark as discovered and remove from map
+                        landmark['discovered'] = True
+                        game.game_map[py][px] = '.'
+                        del game.map_landmarks[(px, py)]
+                        game.ui.messages.add(f"#3#Holocron message received.#0#")
+                        return
+                    
+                    # Handle distress signal
+                    elif landmark_type == 'distress_signal' and not landmark.get('discovered', False):
+                        signal = landmark.get('data', {})
+                        formatted, choice_mapping = __import__('jedi_fugitive.game.narrative_events', fromlist=['format_distress_signal']).format_distress_signal(signal)
+                        game.ui.centered_menu(formatted, f"{signal['signal_type'].upper().replace('_', ' ')}")
+                        
+                        # Store pending choice
+                        game.pending_narrative_choice = (signal, choice_mapping, 'distress')
+                        
+                        # Mark as discovered and remove from map
+                        landmark['discovered'] = True
+                        game.game_map[py][px] = '.'
+                        del game.map_landmarks[(px, py)]
+                        game.ui.messages.add(f"#3#Signal received - press 1-3 to respond.#0#")
+                        return
+                
                 # Check if standing on a loot cache
                 if hasattr(game, 'map_landmarks') and (px, py) in game.map_landmarks:
                     landmark = game.map_landmarks[(px, py)]
                     if landmark.get('is_loot_cache', False) and not landmark.get('looted', False):
-                        # Check if guards are nearby
+                        # Check if cache guards are nearby (only enemies with "Cache Guard" in name)
                         guards_alive = []
                         for enemy in game.enemies:
                             ex = getattr(enemy, 'x', -999)
                             ey = getattr(enemy, 'y', -999)
                             dist = abs(ex - px) + abs(ey - py)
-                            if dist <= 10:  # Guards within 10 tiles
+                            enemy_name = getattr(enemy, 'name', '')
+                            # Only count enemies that are specifically cache guards
+                            if dist <= 10 and 'Cache Guard' in enemy_name:
                                 guards_alive.append(enemy)
                         
                         if guards_alive:
@@ -1086,7 +1501,21 @@ def handle_input(game, key):
                 except Exception: pass
             return
 
-        if key == ord('u'):
+        # Toggle map display using 'M' key
+        if key == ord('M'):
+            try:
+                # Toggle map visibility
+                current_visible = getattr(game, 'map_visible', True)
+                game.map_visible = not current_visible
+                status = "visible" if game.map_visible else "hidden"
+                try: game.ui.messages.add(f"Map display: {status}")
+                except Exception: pass
+            except Exception as e:
+                try: game.ui.messages.add(f"Map toggle failed: {e}")
+                except Exception: pass
+            return
+            
+        if key == ord('z'):  # Changed from 'u' to 'z' since 'u' now used for up-right diagonal movement
             try:
                 equipment.use_item(game)
             except Exception as e:
@@ -1277,30 +1706,42 @@ def handle_input(game, key):
                 except Exception: pass
             return
         
-        # Throw grenade (targeting mode - lowercase t)
+        # Talk to NPC (lowercase t)
         if key == ord('t'):
             try:
-                # Check if player has a grenade
-                inv = getattr(game.player, 'inventory', []) or []
-                has_grenade = False
-                for item in inv:
-                    if isinstance(item, dict) and item.get('id') in ['grenade', 'thermal_grenade']:
-                        has_grenade = True
-                        break
+                # Talk to NPC
+                npc = game.handle_npc_interactions()
+                if npc:
+                    _show_npc_interaction_popup(game, npc)
+                else:
+                    try: 
+                        game.ui.messages.add("No one to talk to here.")
+                    except Exception: pass
+            except Exception:
+                try: game.ui.messages.add("Talk interaction failed.")
+                except Exception: pass
+            return
+            
+        # Throw grenade (using 'G' key)
+        if key == ord('G'):
+            try:
+                # Check if player has grenades
+                inv = getattr(game.player, 'inventory', [])
+                has_grenade = any(isinstance(item, dict) and item.get('id') in ['grenade', 'thermal_grenade'] for item in inv)
                 
                 if not has_grenade:
-                    try: game.ui.messages.add("No grenades to throw!")
+                    try: game.ui.messages.add("No grenades in inventory!")
                     except Exception: pass
                     return
-                
-                # Enter targeting mode
+                    
+                # Enter grenade targeting mode
                 game.pending_grenade_throw = True
-                game.target_x = getattr(game.player, "x", 0)
-                game.target_y = getattr(game.player, "y", 0)
-                try: game.ui.messages.add("Throw Grenade (3-tile range) — move reticle and press Enter, Esc to cancel.")
+                game.target_x = getattr(game.player, 'x', 0)
+                game.target_y = getattr(game.player, 'y', 0)
+                try: game.ui.messages.add("Select grenade target (Arrow keys/WASD to aim, Space to throw, ESC to cancel)")
                 except Exception: pass
-            except Exception:
-                try: game.ui.messages.add("Grenade throw failed.")
+            except Exception as e:
+                try: game.ui.messages.add(f"Grenade throw failed: {e}")
                 except Exception: pass
             return
 
@@ -1380,25 +1821,15 @@ def handle_input(game, key):
             return
 
         # Meditate: spend a turn to reduce stress if safe
-        # View travel log (journal)
+        # View enhanced hero's journey journal
         if key == ord('j'):
             try:
-                log = getattr(game.player, 'travel_log', [])
-                if not log:
-                    try: game.ui.messages.add("Your journey has just begun...")
-                    except Exception: pass
-                else:
-                    lines = ["=== TRAVEL LOG ===", ""]
-                    for entry in log[-10:]:  # Show last 10 entries
-                        turn = entry.get('turn', 0)
-                        text = entry.get('text', '')
-                        lines.append(f"Turn {turn}: {text}")
-                    lines.append("")
-                    lines.append("Press any key to close.")
-                    _show_centered(game, lines, title="Journey")
-            except Exception:
-                try: game.ui.messages.add("Cannot view travel log.")
-                except Exception: pass
+                _show_hero_journey_journal(game)
+            except Exception as e:
+                try: 
+                    game.ui.messages.add(f"Cannot view journal: {e}")
+                except Exception: 
+                    pass
             return
 
         # Crafting menu (capital C)
@@ -1412,19 +1843,7 @@ def handle_input(game, key):
 
         if key == ord('m'):
             try:
-                acted = False
-                if hasattr(game, 'meditate') and callable(game.meditate):
-                    acted = game.meditate()
-                if acted:
-                    # consume a turn and tick effects
-                    try:
-                        game.turn_count = getattr(game, 'turn_count', 0) + 1
-                        if hasattr(game, '_tick_effects') and callable(game._tick_effects):
-                            game._tick_effects()
-                    except Exception:
-                        pass
-                    try: game.ui.messages.add("You take a moment to meditate.")
-                    except Exception: pass
+                _show_meditation_menu(game)
                 return
             except Exception:
                 try: game.ui.messages.add("Meditation failed.")
@@ -1504,11 +1923,29 @@ def handle_input(game, key):
 
             if moved:
                 # movement happened; UI will be updated by caller loop
-                pass
                 try:
                     game.player.facing = (int(dx), int(dy))
                 except Exception:
                     pass
+                
+                # Apply atmospheric movement costs (Force energy drain)
+                try:
+                    if hasattr(game, 'atmospheric_manager'):
+                        movement_cost = game.atmospheric_manager.get_movement_cost_modifier()
+                        if movement_cost > 1.0:
+                            # Extra movement cost drains Force energy
+                            extra_cost = int((movement_cost - 1.0) * 10)  # Scale to reasonable numbers
+                            if hasattr(game.player, 'force_energy'):
+                                old_energy = game.player.force_energy
+                                game.player.force_energy = max(0, game.player.force_energy - extra_cost)
+                                if old_energy > 0 and game.player.force_energy == 0:
+                                    try:
+                                        game.ui.messages.add("The harsh conditions exhaust your Force reserves!")
+                                    except Exception:
+                                        pass
+                except Exception:
+                    pass
+                
                 # increment turn and update visibility
                 game.turn_count = getattr(game, "turn_count", 0) + 1
                 try:
@@ -1516,6 +1953,10 @@ def handle_input(game, key):
                         game.compute_visibility()
                 except Exception:
                     pass
+            return
+
+        # Try registered commands as final fallback (like 'c' for Force Sense)
+        if _process_registered_commands(game, key):
             return
 
     except Exception:
@@ -1568,25 +2009,33 @@ def perform_player_attack(game, enemy):
                     game.ui.messages.add(f"{getattr(enemy,'name','Enemy')} was defeated!")
                 except Exception:
                     pass
+                # Track kill for milestone system
+                try:
+                    current_kills = getattr(game.player, 'total_kills', 0)
+                    game.player.total_kills = current_kills + 1
+                except Exception:
+                    pass
 
-                # Add to travel log with alignment-based narrative
+                # Add to travel log with immersive, lore-rich narrative
                 try:
                     if hasattr(game.player, 'add_log_entry'):
+                        from jedi_fugitive.game.journal_entries import get_combat_victory_entry
                         enemy_name = getattr(enemy, 'name', 'an enemy')
-                        if getattr(enemy, 'is_boss', False):
-                            # Boss kill - dramatic narrative
-                            entry = game.player.narrative_text(
-                                light_version=f"Defeated the fearsome {enemy_name}, bringing justice to the galaxy.",
-                                dark_version=f"Crushed {enemy_name} utterly, proving your superior power!",
-                                balanced_version=f"Defeated the fearsome {enemy_name} in mortal combat!"
-                            )
-                        else:
-                            # Regular enemy kill
-                            entry = game.player.narrative_text(
-                                light_version=f"Defended myself against {enemy_name}, seeking only to survive.",
-                                dark_version=f"Obliterated {enemy_name} without mercy or hesitation.",
-                                balanced_version=f"Slew {enemy_name} in battle."
-                            )
+                        
+                        # Get player alignment and current biome
+                        player_alignment = game.player.get_alignment() if hasattr(game.player, 'get_alignment') else 'balanced'
+                        biome = getattr(game, 'current_biome', 'wasteland')
+                        
+                        # Determine weapon type for contextual entries
+                        weapon = getattr(game.player, 'equipped_weapon', None)
+                        weapon_type = None
+                        if weapon:
+                            weapon_name = getattr(weapon, 'name', '')
+                            if isinstance(weapon, dict):
+                                weapon_name = weapon.get('name', '')
+                            weapon_type = weapon_name
+                        
+                        entry = get_combat_victory_entry(enemy_name, player_alignment, biome, weapon_type)
                         game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
                         game.player.kills_count = getattr(game.player, 'kills_count', 0) + 1
                 except Exception:
@@ -1616,11 +2065,11 @@ def perform_player_attack(game, enemy):
                         game.player.dark_xp -= getattr(game.player, 'xp_to_next_dark', 100)
                         
                         # Apply stat bonuses: all stats +1, extra +1 attack for dark path
-                        game.player.max_hp = getattr(game.player, 'max_hp', 10) + 5
-                        game.player.attack = getattr(game.player, 'attack', 10) + 2  # +2 for dark path
-                        game.player.defense = getattr(game.player, 'defense', 5) + 1
-                        game.player.evasion = getattr(game.player, 'evasion', 10) + 1
-                        game.player.accuracy = getattr(game.player, 'accuracy', 80) + 1
+                        game.player.max_hp = game.player.max_hp + 5
+                        game.player.attack = game.player.attack + 2  # +2 for dark path
+                        game.player.defense = game.player.defense + 1
+                        game.player.evasion = game.player.evasion + 1
+                        game.player.accuracy = game.player.accuracy + 1
                         
                         game.ui.messages.add(f"Level up! You are now Level {game.player.dark_level}")
                         game.ui.messages.add(f"Dark path: +5 HP, +2 ATK, +1 DEF, +1 EVA, +1 ACC")
@@ -1867,6 +2316,10 @@ def perform_player_attack(game, enemy):
                 except Exception:
                     pass
 
+                # Award Dark XP for killing enemy (already handled in enemy.take_damage())
+                except Exception:
+                    pass
+                
                 # remove dead enemy from list (best-effort)
                 try:
                     if enemy in getattr(game, "enemies", []):
@@ -1940,7 +2393,12 @@ def _merchant_buy_menu(game, mx, my):
             price = inv_item['price']
             quantity = inv_item.get('quantity', 1)
             
-            item_name = getattr(item, 'name', str(item))
+            # Handle both dict items (consumables) and object items (weapons/armor)
+            if isinstance(item, dict):
+                item_name = item.get('name', item.get('token', 'Unknown Item'))
+            else:
+                item_name = getattr(item, 'name', 'Unknown Item')
+            
             if quantity > 1:
                 menu_items.append(f"{item_name} x{quantity} - {price}g")
             else:
@@ -1967,6 +2425,8 @@ def _merchant_buy_menu(game, mx, my):
         
         # Deduct gold
         game.player.gold_collected -= price
+        # Invalidate stats cache so gold counter updates in GUI
+        game.player._stats_cache_dirty = True
         
         # Add item to player inventory
         if quantity > 1:
@@ -1982,7 +2442,13 @@ def _merchant_buy_menu(game, mx, my):
         # Success message
         buy_message = get_merchant_dialogue(faction, 'buy')
         game.ui.messages.add(f"{merchant_name}: \"{buy_message}\"")
-        item_name = getattr(item, 'name', str(item))
+        
+        # Handle both dict items (consumables) and object items (weapons/armor)
+        if isinstance(item, dict):
+            item_name = item.get('name', item.get('token', 'Unknown Item'))
+        else:
+            item_name = getattr(item, 'name', 'Unknown Item')
+        
         if quantity > 1:
             game.ui.messages.add(f"Purchased {item_name} x{quantity} for {price}g")
         else:
@@ -2013,7 +2479,11 @@ def _merchant_sell_menu(game, mx, my):
         # Create menu items
         menu_items = []
         for item in player_inventory:
-            item_name = getattr(item, 'name', str(item))
+            # Handle both dict items (tokens) and object items (weapons/armor)
+            if isinstance(item, dict):
+                item_name = item.get('name', item.get('token', str(item)))
+            else:
+                item_name = getattr(item, 'name', str(item))
             sell_price = calculate_sell_price(item, faction)
             menu_items.append(f"{item_name} - Sell for {sell_price}g")
         
@@ -2030,6 +2500,8 @@ def _merchant_sell_menu(game, mx, my):
         
         # Add gold to player
         game.player.gold_collected = getattr(game.player, 'gold_collected', 0) + sell_price
+        # Invalidate stats cache so gold counter updates in GUI
+        game.player._stats_cache_dirty = True
         
         # Remove from player inventory
         player_inventory.pop(choice)
@@ -2037,7 +2509,11 @@ def _merchant_sell_menu(game, mx, my):
         # Success message
         sell_message = get_merchant_dialogue(faction, 'sell')
         game.ui.messages.add(f"{merchant_name}: \"{sell_message}\"")
-        item_name = getattr(item, 'name', str(item))
+        # Handle both dict items (tokens) and object items (weapons/armor)
+        if isinstance(item, dict):
+            item_name = item.get('name', item.get('token', str(item)))
+        else:
+            item_name = getattr(item, 'name', str(item))
         game.ui.messages.add(f"Sold {item_name} for {sell_price}g")
         
     except Exception as e:
@@ -2045,3 +2521,892 @@ def _merchant_sell_menu(game, mx, my):
             game.ui.messages.add(f"Sale failed: {e}")
         except:
             pass
+
+def _open_ritual_menu(game):
+    """Open the ritual selection menu."""
+    try:
+        from .rituals import get_available_rituals, perform_ritual, format_ritual_display
+        
+        # Get player's current state
+        player = game.player
+        corruption_level = getattr(player, 'alignment_score', 0)
+        # Convert alignment to corruption (positive alignment = lower corruption)
+        if corruption_level > 0:
+            corruption = max(0, 50 - corruption_level * 2)  # Light side = low corruption
+        else:
+            corruption = min(100, 50 + abs(corruption_level) * 2)  # Dark side = high corruption
+            
+        level = getattr(player, 'level', 1)
+        tombs_completed = getattr(player, 'tombs_cleared', 0)
+        
+        # Determine location type for location-specific rituals
+        location = None
+        if hasattr(game, 'in_tomb') and game.in_tomb:
+            location = 'tomb'
+        # Check if we're near a meditation shrine (look for '?' symbols nearby)
+        px, py = getattr(player, 'x', 0), getattr(player, 'y', 0)
+        if hasattr(game, 'current_map') and game.current_map:
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    check_x, check_y = px + dx, py + dy
+                    if (0 <= check_y < len(game.current_map) and 
+                        0 <= check_x < len(game.current_map[0]) and
+                        game.current_map[check_y][check_x] == '?'):
+                        location = 'meditation_shrine'
+                        break
+                if location:
+                    break
+        
+        # Get available rituals
+        available_rituals = get_available_rituals(corruption, location, level, tombs_completed)
+        
+        if not available_rituals:
+            try:
+                game.ui.messages.add("No rituals are available to you at this time.")
+                game.ui.messages.add("Your current alignment, location, or progress may limit your options.")
+            except:
+                pass
+            return
+        
+        # Create menu options
+        menu_options = []
+        ritual_data = []
+        
+        for category, ritual_id, ritual_info in available_rituals:
+            name = ritual_info['name']
+            
+            # Add category prefix for clarity
+            if category == 'crystal':
+                prefix = "[Crystal] "
+            elif category == 'jedi':
+                prefix = "[Jedi] "
+            elif category == 'sith':
+                prefix = "[Sith] "
+            elif category == 'burial':
+                prefix = "[Burial] "
+            elif category == 'milestone':
+                prefix = "[Milestone] "
+            else:
+                prefix = ""
+                
+            menu_options.append(f"{prefix}{name}")
+            ritual_data.append((category, ritual_id, ritual_info))
+        
+        menu_options.append("[Cancel]")
+        
+        # Show ritual selection menu
+        choice = game.ui.centered_menu(menu_options, title="Available Rituals")
+        
+        if choice is None or choice == len(menu_options) - 1:  # Cancel
+            return
+            
+        # Get selected ritual
+        selected_category, selected_id, selected_ritual = ritual_data[choice]
+        
+        # Show ritual details and confirm
+        details = format_ritual_display(selected_category, selected_id, selected_ritual)
+        details.append("")
+        details.append("Do you wish to perform this ritual?")
+        
+        # Create confirmation menu
+        confirm_choice = game.ui.centered_menu(["Yes, perform ritual", "No, cancel"], 
+                                             title=selected_ritual['name'])
+        
+        if confirm_choice == 0:  # Yes, perform ritual
+            # Perform the ritual
+            description_lines, effects = perform_ritual(selected_category, selected_id, player, game)
+            
+            # Display ritual description
+            try:
+                game.ui.messages.add(f"=== {selected_ritual['name']} ===")
+                for line in description_lines:
+                    game.ui.messages.add(line)
+            except:
+                pass
+            
+            # Apply effects
+            _apply_ritual_effects(game, effects)
+            
+            try:
+                game.ui.messages.add(effects.get('message', 'The ritual is complete.'))
+            except:
+                pass
+                
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Ritual menu error: {e}")
+        except:
+            pass
+
+def _apply_ritual_effects(game, effects):
+    """Apply ritual effects to the player and game state."""
+    try:
+        player = game.player
+        
+        # Apply corruption changes
+        if 'corruption_change' in effects:
+            change = effects['corruption_change']
+            current_alignment = getattr(player, 'alignment_score', 0)
+            # Convert corruption change to alignment change (opposite direction)
+            alignment_change = -change
+            new_alignment = current_alignment + alignment_change
+            player.alignment_score = max(-100, min(100, new_alignment))
+        
+        # Apply HP restoration
+        if 'hp_restore' in effects:
+            restore_amount = effects['hp_restore']
+            current_hp = getattr(player, 'hp', 0)
+            max_hp = getattr(player, 'max_hp', 100)
+            player.hp = min(max_hp, current_hp + restore_amount)
+        
+        # Apply Force restoration
+        if 'force_restore' in effects:
+            restore_amount = effects['force_restore']
+            if hasattr(player, 'force') and hasattr(player.force, 'current_force_points'):
+                current_fp = player.force.current_force_points
+                max_fp = getattr(player.force, 'max_force_points', 100)
+                player.force.current_force_points = min(max_fp, current_fp + restore_amount)
+        
+        # Apply stat boosts (temporary or permanent)
+        if 'attack_boost' in effects:
+            boost = effects['attack_boost']
+            current_attack = getattr(player, 'attack', 0)
+            player.attack = current_attack + boost
+        
+        if 'defense_boost' in effects:
+            boost = effects['defense_boost']
+            current_defense = getattr(player, 'defense', 0)
+            player.defense = current_defense + boost
+            
+        # Apply max HP boost
+        if 'max_hp_boost' in effects:
+            boost = effects['max_hp_boost']
+            current_max = getattr(player, 'max_hp', 100)
+            player.max_hp = current_max + boost
+        
+        # Apply title gains
+        if 'title_gained' in effects:
+            title = effects['title_gained']
+            if not hasattr(player, 'titles'):
+                player.titles = []
+            if title not in player.titles:
+                player.titles.append(title)
+                try:
+                    game.ui.messages.add(f"Title gained: {title}")
+                except:
+                    pass
+        
+        # Apply XP bonus
+        if 'xp_bonus' in effects:
+            xp_gain = effects['xp_bonus']
+            if hasattr(player, 'add_xp'):
+                player.add_xp(xp_gain)
+            else:
+                current_xp = getattr(player, 'xp', 0)
+                player.xp = current_xp + xp_gain
+        
+        # Special effect flags
+        if 'dark_powers_unlocked' in effects and effects['dark_powers_unlocked']:
+            if not hasattr(player, 'dark_powers_unlocked'):
+                player.dark_powers_unlocked = True
+        
+        if 'hybrid_mastery' in effects and effects['hybrid_mastery']:
+            if not hasattr(player, 'hybrid_mastery'):
+                player.hybrid_mastery = True
+                
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Effect application error: {e}")
+        except:
+            pass
+
+def _show_hero_journey_journal(game):
+    """Display the enhanced hero's journey journal."""
+    try:
+        from jedi_fugitive.game.hero_journal import enhance_existing_journal_system
+        
+        # Initialize or get existing journal system
+        journal = enhance_existing_journal_system(game.player)
+        
+        # Get journey summary
+        summary = journal.generate_journey_summary()
+        
+        # Build display based on user choice
+        journal_options = [
+            "📖 Recent Entries (Last 15)",
+            "📚 Full Chronicle by Chapter", 
+            "⚡ Character Arc Summary",
+            "📊 Journey Statistics",
+            "🌟 Story Threads & Milestones"
+        ]
+        
+        choice = game.ui.centered_menu(journal_options, title="=== HERO'S JOURNEY JOURNAL ===")
+        
+        if choice == 0:  # Recent entries
+            _show_recent_entries(game, journal)
+        elif choice == 1:  # Full chronicle  
+            _show_full_chronicle(game, summary)
+        elif choice == 2:  # Character arc
+            _show_character_arc(game, summary)
+        elif choice == 3:  # Statistics
+            _show_journey_statistics(game, summary)
+        elif choice == 4:  # Story threads
+            _show_story_threads(game, journal)
+            
+    except Exception as e:
+        game.ui.messages.add(f"Journal system error: {e}")
+
+def _show_recent_entries(game, journal):
+    """Show recent journal entries with enhanced formatting."""
+    log = getattr(game.player, 'travel_log', [])
+    
+    if not log:
+        lines = [
+            "🌅 THE JOURNEY BEGINS 🌅",
+            "",
+            "Your ship lies in ruins behind you.",
+            "The dark side of this world calls.",
+            "Every choice will shape your destiny.",
+            "",
+            "Will you fall to darkness or rise above it?",
+            "",
+            "Press any key to close..."
+        ]
+    else:
+        corruption = getattr(game.player, 'corruption', 50)
+        alignment = journal.get_alignment_description(corruption)
+        
+        lines = [
+            f"🌟 {journal.get_story_title()} 🌟",
+            f"📊 Current Alignment: {alignment} ({corruption}% corruption)",
+            f"⚔️ Chapter {journal.get_chapter_number(journal.current_phase)}: {journal.current_phase.title()}",
+            "",
+            "═══ RECENT ENTRIES ═══",
+            ""
+        ]
+        
+        # Show last 15 entries with enhanced formatting
+        recent_entries = log[-15:]
+        for entry in recent_entries:
+            turn = entry.get('turn', 0)
+            text = entry.get('text', '')
+            entry_type = entry.get('type', 'reflection')
+            phase = entry.get('phase', 'initiation')
+            
+            # Add type icons
+            type_icons = {
+                'milestone': '[MILE]',
+                'combat': '[FIGHT]', 
+                'discovery': '[FIND]',
+                'reflection': '[THINK]',
+                'atmosphere': '[ATMO]',
+                'fauna': '[LIFE]',
+                'corruption': '[DARK]',
+                'victory': '[WIN]',
+                'death': '[END]'
+            }
+            
+            icon = type_icons.get(entry_type, '[NOTE]')
+            lines.append(f"{icon} Turn {turn}: {text}")
+            
+        lines.extend(["", "Press any key to close..."])
+    
+    _show_centered(game, lines, title="Recent Chronicle")
+
+def _show_full_chronicle(game, summary):
+    """Show the full chronicle organized by chapters."""
+    chapters = summary['chapters']
+    
+    if not chapters:
+        lines = ["No chronicle entries found.", "", "Press any key to close..."]
+    else:
+        lines = [
+            f"📚 {summary['title']} 📚",
+            "",
+            "═══ FULL CHRONICLE ═══",
+            ""
+        ]
+        
+        chapter_names = {
+            1: "Chapter I: The Crash",
+            2: "Chapter II: Trials of Survival", 
+            3: "Chapter III: The Transformation",
+            4: "Chapter IV: The Final Path"
+        }
+        
+        for chapter_num in sorted(chapters.keys()):
+            chapter_entries = chapters[chapter_num]
+            chapter_name = chapter_names.get(chapter_num, f"Chapter {chapter_num}")
+            
+            lines.append(f"📖 {chapter_name}")
+            lines.append("─" * 40)
+            
+            for entry in chapter_entries:
+                turn = entry.get('turn', 0)
+                text = entry.get('text', '')
+                lines.append(f"  Turn {turn}: {text}")
+            
+            lines.append("")
+        
+        lines.extend([summary['epilogue'], "", "Press any key to close..."])
+    
+    _show_centered(game, lines, title="Full Chronicle")
+
+def _show_character_arc(game, summary):
+    """Show character development arc."""
+    lines = [
+        f">>> {summary['title']} <<<",
+        "",
+        "═══ CHARACTER ARC ═══",
+        "",
+        summary['character_arc'],
+        "",
+        "═══ JOURNEY PROGRESSION ═══",
+        f"🏆 Trials Faced: {summary['statistics']['trials_faced']}",
+        f"⚔️ Enemies Defeated: {summary['statistics']['enemies_defeated']}",
+        f"🌟 Major Milestones: {summary['statistics']['major_milestones']}",
+        f"📚 Story Threads: {summary['statistics']['story_threads_completed']}/9",
+        "",
+        "═══ EPILOGUE ═══",
+        summary['epilogue'],
+        "",
+        "Press any key to close..."
+    ]
+    
+    _show_centered(game, lines, title="Character Arc")
+
+def _show_journey_statistics(game, summary):
+    """Show detailed journey statistics."""
+    corruption = getattr(game.player, 'corruption', 50)
+    level = getattr(game.player, 'level', 1)
+    turn = getattr(game, 'turn_count', 0)
+    
+    lines = [
+        "📊 JOURNEY STATISTICS 📊",
+        "",
+        "═══ PROGRESSION ═══",
+        f"🎯 Character Level: {level}",
+        f"⏰ Turns Survived: {turn}",
+        f"📈 Corruption Level: {corruption}%",
+        "",
+        "═══ EXPERIENCES ═══", 
+        f"[TRIALS] Trials Faced: {summary['statistics']['trials_faced']}",
+        f"[COMBAT] Battles Won: {summary['statistics']['enemies_defeated']}",
+        f"[CORRUPT] Corruption Events: {summary['statistics']['corruption_events']}",
+        f"[MILES] Major Milestones: {summary['statistics']['major_milestones']}",
+        "",
+        "═══ STORY COMPLETION ═══",
+        f"[STORY] Story Threads: {summary['statistics']['story_threads_completed']}/9",
+        "",
+        "Your legend grows with each choice...",
+        "",
+        "Press any key to close..."
+    ]
+    
+    _show_centered(game, lines, title="Statistics")
+
+def _show_story_threads(game, journal):
+    """Show major story threads and their completion status."""
+    lines = [
+        "🌟 STORY THREADS & MILESTONES 🌟",
+        "",
+        "═══ MAJOR STORY MOMENTS ═══",
+        ""
+    ]
+    
+    thread_descriptions = {
+        'master_memory': "[MEMORY] Remember fallen Master",
+        'first_kill': "[KILL] First enemy defeated", 
+        'dark_temptation': "[DARK] Embrace dark temptation",
+        'light_choice': "[LIGHT] Choose the light",
+        'tomb_entered': "[TOMB] Enter ancient Sith tomb",
+        'artifact_found': "[RELIC] Discover Sith artifact",
+        'breaking_point': "[BREAK] Face breaking point",
+        'redemption': "[REDEMP] Find redemption",
+        'final_trial': "[FINAL] Complete final trial"
+    }
+    
+    for thread_key, description in thread_descriptions.items():
+        status = "[DONE]" if journal.story_threads.get(thread_key, False) else "[PENDING]"
+        lines.append(f"{status} {description}")
+    
+    lines.extend([
+        "",
+        "═══ JOURNEY PHASES ═══",
+        f"📍 Current Phase: {journal.current_phase.title()}",
+        f"🎭 Trials Faced: {journal.trials_faced}",
+        f"💀 Enemies Defeated: {journal.enemies_defeated}",
+        "",
+        "Your destiny unfolds with each step...",
+        "",
+        "Press any key to close..."
+    ])
+    
+    _show_centered(game, lines, title="Story Progress")
+
+
+def _show_meditation_menu(game):
+    """Enhanced meditation menu with rituals"""
+    try:
+        menu_options = [
+            "1. Meditate (Restore Force Energy)",
+            "2. Perform Ritual",
+            "3. Review Past Ceremonies", 
+            "4. Cancel"
+        ]
+        
+        # Add message to the menu options instead
+        full_menu = [
+            "Focus your mind and connect with the Force...",
+            "",
+            "1. Meditate (Restore Force Energy)",
+            "2. Perform Ritual", 
+            "3. Review Past Ceremonies",
+            "4. Cancel"
+        ]
+        
+        choice = game.ui.centered_menu(
+            full_menu,
+            title="Meditation & Rituals"
+        )
+        
+        # Adjust choice index since we added header lines
+        if choice >= 2:
+            choice = choice - 2
+        
+        if choice == 0:  # Regular meditation
+            _handle_meditation(game)
+        elif choice == 1:  # Perform ritual
+            _show_ritual_menu(game)
+        elif choice == 2:  # Review ceremonies
+            _show_ceremony_history(game)
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Meditation menu error: {e}")
+        except Exception:
+            pass
+
+
+def _handle_meditation(game):
+    """Handle basic meditation"""
+    try:
+        acted = False
+        if hasattr(game, 'meditate') and callable(game.meditate):
+            acted = game.meditate()
+        else:
+            # Fallback meditation
+            game.player.force_energy = min(getattr(game.player, 'max_force_energy', 100), 
+                                         getattr(game.player, 'force_energy', 0) + 20)
+            acted = True
+            
+        if acted:
+            # consume a turn and tick effects
+            try:
+                game.turn_count = getattr(game, 'turn_count', 0) + 1
+                if hasattr(game, '_tick_effects') and callable(game._tick_effects):
+                    game._tick_effects()
+            except Exception:
+                pass
+            try: 
+                game.ui.messages.add("You take a moment to meditate and restore your Force energy.")
+            except Exception: pass
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Meditation failed: {e}")
+        except Exception:
+            pass
+
+
+def _show_ritual_menu(game):
+    """Show available rituals based on location and player state"""
+    try:
+        from jedi_fugitive.game.rituals import get_available_rituals
+        
+        # Get player corruption level
+        corruption = getattr(game.player, 'corruption', 50)
+        location = _get_current_location(game)
+        level = getattr(game.player, 'level', 1)
+        tombs_completed = getattr(game.player, 'tombs_cleared', 0)
+        
+        # Get available rituals
+        available_rituals = get_available_rituals(
+            corruption_level=corruption,
+            location=location,
+            level=level,
+            tombs_completed=tombs_completed
+        )
+        
+        if not available_rituals:
+            try:
+                game.ui.messages.add("No rituals are available at this location or time.")
+            except Exception:
+                pass
+            return
+        
+        # Create ritual options - available_rituals returns tuples of (category, ritual_id, ritual_data)
+        ritual_options = []
+        for i, (category, ritual_id, ritual_data) in enumerate(available_rituals):
+            ritual_name = ritual_data.get('name', f'Ritual {i+1}')
+            ritual_options.append(f"{i+1}. {ritual_name}")
+        ritual_options.append(f"{len(ritual_options)+1}. Cancel")
+        
+        choice = game.ui.centered_menu(
+            ritual_options,
+            title="Available Rituals"
+        )
+        
+        if choice is not None and choice < len(available_rituals):
+            category, ritual_id, ritual_data = available_rituals[choice]
+            _perform_ritual(game, category, ritual_id, ritual_data)
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Ritual menu error: {e}")
+        except Exception:
+            pass
+
+
+def _perform_ritual(game, category, ritual_id, ritual_data):
+    """Perform the selected ritual"""
+    try:
+        from jedi_fugitive.game.rituals import perform_ritual
+        
+        # Show ritual description first
+        description = ritual_data.get('description', [])
+        if description:
+            try:
+                game.ui.centered_menu(
+                    description + ["", "Press any key to perform this ritual..."],
+                    title=ritual_data.get('name', 'Ritual')
+                )
+            except Exception:
+                pass
+        
+        # Perform the ritual using the existing function
+        result = perform_ritual(category, ritual_id, game.player, game)
+        
+        if isinstance(result, str):
+            # Success - result is a message
+            try:
+                game.ui.messages.add(result)
+            except Exception:
+                pass
+            
+            # Record ceremony in player history
+            if not hasattr(game.player, 'ceremonies_performed'):
+                game.player.ceremonies_performed = []
+            
+            ceremony_record = {
+                'name': ritual_data.get('name', 'Unknown Ritual'),
+                'turn': getattr(game, 'turn_count', 0),
+                'location': _get_current_location(game),
+                'corruption_at_time': getattr(game.player, 'corruption', 50)
+            }
+            game.player.ceremonies_performed.append(ceremony_record)
+            
+            # Consume a turn
+            try:
+                game.turn_count = getattr(game, 'turn_count', 0) + 1
+                if hasattr(game, '_tick_effects') and callable(game._tick_effects):
+                    game._tick_effects()
+            except Exception:
+                pass
+            
+        else:
+            # Failed - result might be an error message or False
+            error_msg = "Ritual failed for unknown reasons."
+            if isinstance(result, dict) and 'error' in result:
+                error_msg = result['error']
+            elif isinstance(result, str):
+                error_msg = result
+                
+            try:
+                game.ui.messages.add(error_msg)
+            except Exception:
+                pass
+                
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Ritual performance failed: {e}")
+        except Exception:
+            pass
+
+
+def _show_ceremony_history(game):
+    """Show history of performed ceremonies"""
+    try:
+        ceremonies = getattr(game.player, 'ceremonies_performed', [])
+        
+        if not ceremonies:
+            try:
+                game.ui.messages.add("You have not performed any ceremonies yet.")
+            except Exception:
+                pass
+            return
+        
+        history_lines = ["═══ CEREMONY HISTORY ═══", ""]
+        for ceremony in ceremonies[-10:]:  # Show last 10 ceremonies
+            name = ceremony.get('name', 'Unknown')
+            turn = ceremony.get('turn', 0)
+            location = ceremony.get('location', 'Unknown')
+            corruption = ceremony.get('corruption_at_time', 50)
+            
+            history_lines.append(f"• {name}")
+            history_lines.append(f"  Location: {location}, Turn: {turn}")
+            history_lines.append(f"  Corruption at time: {corruption}%")
+            history_lines.append("")
+        
+        history_lines.append("Press any key to close...")
+        
+        try:
+            game.ui.centered_menu(
+                history_lines,
+                title="Ceremony History"
+            )
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+def _show_controls_popup(game):
+    """Show detailed controls popup menu."""
+    try:
+        controls = [
+            "JEDI FUGITIVE - COMPLETE CONTROLS",
+            "",
+            "MOVEMENT (8-Directional):",
+            "  h/← = West        l/→ = East",
+            "  j/↓ = South       k/↑ = North", 
+            "  y   = Northwest   u   = Northeast",
+            "  b   = Southwest   n   = Southeast",
+            "  7,9,1,3 = Numpad diagonal movement",
+            "",
+            "COMBAT & ACTIONS:",
+            "  Space = Attack/Confirm targeting",
+            "  F     = Force abilities menu",
+            "  G     = Throw grenade (if available)",
+            "  z     = Use item from inventory",
+            "  ESC/c = Cancel action/targeting",
+            "",
+            "INTERACTION:",
+            "  g = Pick up items",
+            "  t = Talk to NPCs", 
+            "  i = Open inventory",
+            "  m = Meditate & perform rituals",
+            "",
+            "EQUIPMENT:",
+            "  e = Equip/unequip items",
+            "  w = Wield weapon",
+            "  A = Unequip armor",
+            "  r/R = Drop item",
+            "",
+            "INTERFACE:",
+            "  ? = Help screen",
+            "  C = This controls menu",
+            "  L = Token legend & color guide",
+            "  M = Toggle map display",
+            "  v = Sith Codex (lore & discoveries)",
+            "  p = Toggle popup messages", 
+            "  x = Examine surroundings",
+            "",
+            "SPECIAL ABILITIES:",
+            "  1-5 = Interact with numbered creatures",
+            "  P   = Force Push/Pull (if learned)",
+            "  S   = Force Sense (if learned)",
+            "",
+            "TOKEN COLORS (Press L for detailed legend):",
+            "  #red#Red#0#     = Weapons & combat items",
+            "  #blue#Blue#0#    = Armor & defensive equipment", 
+            "  #green#Green#0#   = Consumables & healing items",
+            "  #yellow#Yellow#0#  = Tools & utility items",
+            "  #white#White#0#   = Common crafting materials",
+            "  #cyan#Cyan#0#    = Lightsabers & rare materials",
+            "  #magenta#Magenta#0# = Quest items & legendary materials",
+        ]
+        
+        game.ui.centered_menu(controls, title="Complete Controls")
+        
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Controls menu error: {e}")
+        except Exception:
+            pass
+        except Exception:
+            pass
+            
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Failed to show ceremony history: {e}")
+        except Exception:
+            pass
+
+
+def _get_current_location(game):
+    """Get current location type for ritual availability"""
+    try:
+        if getattr(game, 'tomb_floor', None) is not None:
+            return 'tomb'
+        
+        # Check for meditation shrine nearby
+        px = getattr(game.player, 'x', 0)
+        py = getattr(game.player, 'y', 0)
+        
+        if hasattr(game, 'game_map') and game.game_map:
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    check_x, check_y = px + dx, py + dy
+                    if (0 <= check_y < len(game.game_map) and 
+                        0 <= check_x < len(game.game_map[0]) and
+                        game.game_map[check_y][check_x] == '?'):
+                        return 'meditation_shrine'
+        
+        return 'wilderness'
+    except Exception:
+        return 'wilderness'
+
+
+def _show_npc_interaction_popup(game, npc):
+    """Show NPC interaction menu"""
+    try:
+        # Get available interactions for this NPC
+        if hasattr(npc, 'get_available_interactions'):
+            options = npc.get_available_interactions(game.player)
+        else:
+            # Fallback for NPCs without this method
+            options = ["Talk", "Trade"] if hasattr(npc, 'inventory') else ["Talk"]
+        
+        if not options:
+            try:
+                game.ui.messages.add(f"{npc.name} has nothing to discuss right now.")
+            except Exception:
+                pass
+            return
+        
+        # Create menu options
+        menu_options = [f"{i+1}. {option}" for i, option in enumerate(options)]
+        menu_options.append(f"{len(options)+1}. Leave")
+        
+        # Show interaction popup
+        try:
+            # Get greeting safely
+            if hasattr(npc, 'get_greeting'):
+                try:
+                    greeting = npc.get_greeting(game.player)
+                except TypeError:
+                    greeting = npc.get_greeting()
+            else:
+                greeting = f"Hello, traveler."
+            description = getattr(npc, 'description', f"You meet {getattr(npc, 'name', 'someone')}.")
+            
+            choice = game.ui.centered_menu(
+                menu_options,
+                title=f"Interact with {getattr(npc, 'name', 'NPC')}"
+            )
+            
+            if choice is not None and choice < len(options):
+                # Handle the interaction
+                if hasattr(npc, 'handle_interaction'):
+                    result = npc.handle_interaction(choice, game.player)
+                    if result:
+                        try:
+                            game.ui.messages.add(result)
+                        except Exception:
+                            pass
+                else:
+                    # Fallback interaction
+                    try:
+                        game.ui.messages.add(f"{getattr(npc, 'name', 'NPC')}: {greeting}")
+                    except Exception:
+                        pass
+        except Exception as e:
+            try:
+                game.ui.messages.add(f"Interaction error: {e}")
+            except Exception:
+                pass
+                
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"NPC interaction failed: {e}")
+        except Exception:
+            pass
+
+
+def _show_token_legend(game):
+    """Show organized token legend with categories and colors."""
+    try:
+        from jedi_fugitive.items.tokens import get_token_color_legend, TOKEN_CATEGORIES, TOKEN_MAP
+        
+        legend_lines = [
+            "JEDI FUGITIVE - TOKEN LEGEND",
+            "═" * 50,
+            "",
+            "Token Categories & Colors:",
+            ""
+        ]
+        
+        # Add category legend
+        for cat_name, cat_data in TOKEN_CATEGORIES.items():
+            color = cat_data['color']
+            symbols = cat_data['symbols'][:8] + ('...' if len(cat_data['symbols']) > 8 else '')
+            desc = cat_data['description']
+            formatted_name = cat_name.replace('_', ' ').title()
+            legend_lines.append(f"#{color}#{symbols}#0# - {formatted_name}: {desc}")
+        
+        legend_lines.extend([
+            "",
+            "Examples by Category:",
+            "─" * 30,
+        ])
+        
+        # Show examples of each category
+        categories_shown = set()
+        for token, data in sorted(TOKEN_MAP.items()):
+            category = data.get('category', data.get('type', 'misc'))
+            if category not in categories_shown and len(categories_shown) < 6:
+                color = data.get('color', 'white')
+                name = data.get('name', 'Unknown')
+                token_char = data.get('token', '?')
+                legend_lines.append(f"#{color}#{token_char}#0# = {name}")
+                categories_shown.add(category)
+        
+        legend_lines.extend([
+            "",
+            "Navigation:",
+            "─" * 15,
+            "Arrow keys or hjkl = Move",
+            "Diagonals: y,u,b,n or numpad", 
+            "Enter/Space = Pick up item",
+            "i = Inspect item details",
+            "L = This legend menu",
+            "",
+            "Press any key to close..."
+        ])
+        
+        game.ui.centered_menu(legend_lines, title="Token Color Guide")
+        
+    except Exception as e:
+        try:
+            game.ui.messages.add(f"Token legend error: {e}")
+        except Exception:
+            pass
+
+
+# Add registered command processing to handle_input at the very end
+def _process_registered_commands(game, key):
+    """Process commands registered via game.register_command()"""
+    try:
+        if hasattr(game, 'key_bindings') and game.key_bindings:
+            key_char = chr(key) if 32 <= key <= 126 else None
+            if key_char and key_char in game.key_bindings:
+                try:
+                    handler = game.key_bindings[key_char]
+                    if callable(handler):
+                        handler()
+                        return True
+                except Exception as e:
+                    try:
+                        game.ui.messages.add(f"Command '{key_char}' error: {e}")
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return False

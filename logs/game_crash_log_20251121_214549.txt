@@ -1,0 +1,128 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-21 21:45:49
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-21 21:45:49] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+[2025-11-21 21:45:49] WORLD_GEN_CRASH: World generation failed
+================================================================================
+
+Exception Type: AttributeError
+Exception Message: 'GameManager' object has no attribute 'random_gen'
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 376, in generate_world
+    self.generate_surface_npcs()
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 4864, in generate_surface_npcs
+    pos = self.random_gen.choice(available_positions)
+          ^^^^^^^^^^^^^^^
+AttributeError: 'GameManager' object has no attribute 'random_gen'
+
+
+Game State at Time of Error:
+----------------------------------------
+  player_x: 97
+  player_y: 88
+  player_hp: 15
+  player_max_hp: 15
+  player_level: 1
+  player_stress: 0
+  player_corruption: 0
+  player_force_points: 2
+  in_tomb: False
+  tomb_floor: None
+  turn_count: 0
+  running: True
+  death: False
+  victory: False
+  enemy_count: 32
+  map_height: 181
+  map_width: 211
+
+================================================================================
+[2025-11-21 21:45:49] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+[2025-11-21 21:45:49] WORLD_GEN_CRASH: World generation failed
+================================================================================
+
+Exception Type: AttributeError
+Exception Message: 'GameManager' object has no attribute 'random_gen'
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 376, in generate_world
+    self.generate_surface_npcs()
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 4864, in generate_surface_npcs
+    pos = self.random_gen.choice(available_positions)
+          ^^^^^^^^^^^^^^^
+AttributeError: 'GameManager' object has no attribute 'random_gen'
+
+
+Game State at Time of Error:
+----------------------------------------
+  player_x: 74
+  player_y: 65
+  player_hp: 15
+  player_max_hp: 15
+  player_level: 1
+  player_stress: 0
+  player_corruption: 0
+  player_force_points: 2
+  in_tomb: False
+  tomb_floor: None
+  turn_count: 0
+  running: True
+  death: False
+  victory: False
+  enemy_count: 31
+  map_height: 135
+  map_width: 165
+
+================================================================================
+[2025-11-21 21:45:49] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+[2025-11-21 21:45:49] WORLD_GEN_CRASH: World generation failed
+================================================================================
+
+Exception Type: AttributeError
+Exception Message: 'GameManager' object has no attribute 'random_gen'
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 376, in generate_world
+    self.generate_surface_npcs()
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 4864, in generate_surface_npcs
+    pos = self.random_gen.choice(available_positions)
+          ^^^^^^^^^^^^^^^
+AttributeError: 'GameManager' object has no attribute 'random_gen'
+
+
+Game State at Time of Error:
+----------------------------------------
+  player_x: 92
+  player_y: 83
+  player_hp: 15
+  player_max_hp: 15
+  player_level: 1
+  player_stress: 0
+  player_corruption: 0
+  player_force_points: 2
+  in_tomb: False
+  tomb_floor: None
+  turn_count: 0
+  running: True
+  death: False
+  victory: False
+  enemy_count: 31
+  map_height: 170
+  map_width: 200
+
+================================================================================

@@ -31,14 +31,14 @@ def create_sith_acolyte(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 
 def create_sith_warrior(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Warrior", 28 + level * 6, 12 + int(level * 1.5), 6 + level//2, 6, EnemyPersonality(), 60, x, y, level=level)
-    e.symbol = 'w'
+    e.symbol = 'W'
     return e
 
 
 def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     # highly evasive short-lived assassin; special: first strike bonus and occasional vanish
     e = Enemy("Sith Assassin", 12 + level * 2, 10 + level, 2 + level//4, 20 + level, EnemyPersonality(), 80, x, y, level=level)
-    e.symbol = 's'
+    e.symbol = 'x'
 
     def assassin_ai(game, self):
         try:
@@ -135,11 +135,19 @@ def create_sith_sorcerer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                 cooldown = getattr(reveal, 'cooldown', 4)
                 if getattr(game, 'turn_count', 0) - last >= cooldown:
                     try:
-                        used = reveal.use(self, None, game.game_map, getattr(game.ui,'messages', None), getattr(self,'level',1))
-                        if used:
-                            try: self._ability_last_used[getattr(reveal,'name',str(reveal))] = getattr(game,'turn_count',0)
-                            except Exception: pass
-                            return True
+                        # Check if enemy has enough force points before attempting
+                        cost = getattr(reveal, 'base_cost', 1)
+                        enemy_fp = getattr(self, 'force_points', 0)
+                        
+                        if enemy_fp >= cost:
+                            # Use null messages to prevent spam to player
+                            null_messages = type('NullMessages', (), {'add': lambda self, msg: None})()
+                            used = reveal.use(self, None, game.game_map, null_messages, getattr(self,'level',1))
+                            if used:
+                                try: self._ability_last_used[getattr(reveal,'name',str(reveal))] = getattr(game,'turn_count',0)
+                                except Exception: pass
+                                return True
+                        # If not enough force points, just skip silently
                     except Exception:
                         pass
 
@@ -167,19 +175,19 @@ def create_tukata(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 
 def create_terentatek(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Terentatek", 80 + level * 20, 20 + level * 2, 10 + level//1, 2, EnemyPersonality(), 400, x, y, level=level)
-    e.symbol = 'T'
+    e.symbol = 'R'
     return e
 
 
 def create_sith_trooper(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Trooper", 16 + level * 3, 9 + level, 3 + level//2, 6, EnemyPersonality(), 30, x, y, level=level)
-    e.symbol = 'm'
+    e.symbol = 'q'
     return e
 
 
 def create_sith_officer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Officer", 22 + level * 4, 10 + level, 5 + level//2, 8, EnemyPersonality(), 120, x, y, level=level)
-    e.symbol = 'o'
+    e.symbol = 'V'
 
     def officer_ai(game, self):
         try:
@@ -207,7 +215,7 @@ def create_sith_officer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 
 def create_sith_lord(level: int = 5, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Lord", 70 + level * 12, 18 + level * 2, 8 + level, 6, EnemyPersonality(), 800, x, y, level=level)
-    e.symbol = 'L'
+    e.symbol = 'H'
     e.is_boss = True
     # grant boss-level force abilities
     try:
@@ -226,7 +234,7 @@ def create_sith_lord(level: int = 5, x: int = 0, y: int = 0) -> Enemy:
 def create_dread_inquisitor(level: int = 6, x: int = 0, y: int = 0) -> Enemy:
     """A feared inquisitor who specializes in draining Force and unleashing brutal lightning."""
     e = Enemy("Dread Inquisitor", 90 + level * 18, 20 + level * 2, 10 + level, 10, EnemyPersonality(), 1200, x, y, level=level)
-    e.symbol = 'K'
+    e.symbol = 'X'
     e.is_boss = True
     try:
         e.force_abilities = {
@@ -260,9 +268,22 @@ def create_dread_inquisitor(level: int = 6, x: int = 0, y: int = 0) -> Enemy:
                         pass
 
             # otherwise attempt a force-drain: steal a force point and increase player's stress
-            if getattr(game, 'turn_count', 0) % 3 == 0:
+            # Only if player can see the enemy and within reasonable range
+            if getattr(game, 'turn_count', 0) % 3 == 0 and dist <= 8:
                 try:
-                    if hasattr(player, 'force_points') and player.force_points > 0:
+                    # Check if player can see this enemy (line of sight)
+                    player_can_see_enemy = False
+                    try:
+                        if hasattr(game, 'is_visible'):
+                            player_can_see_enemy = game.is_visible(getattr(self, 'x', 0), getattr(self, 'y', 0))
+                        elif hasattr(game, 'player') and hasattr(game.player, 'los_radius'):
+                            # Fallback: use simple distance check with LOS radius
+                            player_can_see_enemy = dist <= getattr(game.player, 'los_radius', 6)
+                    except Exception:
+                        # If visibility check fails, assume player can't see enemy
+                        player_can_see_enemy = False
+                    
+                    if player_can_see_enemy and hasattr(player, 'force_points') and player.force_points > 0:
                         player.force_points = max(0, player.force_points - 1)
                         # Inquisitor regains a small amount
                         self.force_points = getattr(self, 'force_points', 0) + 1
@@ -304,7 +325,7 @@ def create_sith_inquisitor(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
     sith_name = random.choice(sith_lord_names)
     base_hp = 100 + level * 20
     e = Enemy(sith_name, int(base_hp * 2.5), 22 + level * 2, 12 + level, 8, EnemyPersonality(), 2000, x, y, level=level)
-    e.symbol = 'L'  # Changed from 'I' to 'L' for Lord
+    e.symbol = 'U'  # Changed from 'L' to 'U' to avoid Lightsaber conflict
     e.is_boss = True
     try:
         e.force_abilities = {
@@ -356,9 +377,21 @@ def create_sith_inquisitor(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
                             pass
 
             # Force drain every 4 turns (only if player can see the enemy)
-            if getattr(game, 'turn_count', 0) % 4 == 0 and dist <= 12:
+            if getattr(game, 'turn_count', 0) % 4 == 0 and dist <= 10:
                 try:
-                    if hasattr(player, 'force_points') and player.force_points > 0:
+                    # Check if player can see this enemy (line of sight)
+                    player_can_see_enemy = False
+                    try:
+                        if hasattr(game, 'is_visible'):
+                            player_can_see_enemy = game.is_visible(getattr(self, 'x', 0), getattr(self, 'y', 0))
+                        elif hasattr(game, 'player') and hasattr(game.player, 'los_radius'):
+                            # Fallback: use simple distance check with LOS radius
+                            player_can_see_enemy = dist <= getattr(game.player, 'los_radius', 6)
+                    except Exception:
+                        # If visibility check fails, assume player can't see enemy
+                        player_can_see_enemy = False
+                    
+                    if player_can_see_enemy and hasattr(player, 'force_points') and player.force_points > 0:
                         player.force_points = max(0, player.force_points - 2)
                         self.force_points = getattr(self, 'force_points', 0) + 2
                         if getattr(game.ui, 'messages', None):
@@ -366,6 +399,45 @@ def create_sith_inquisitor(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
                         return True
                 except Exception:
                     pass
+
+            # If no force abilities were used, fall back to normal attack behavior
+            # This ensures the Sith will always try to attack if close enough
+            if dist <= 2:  # Adjacent or close
+                # Let the default enemy AI handle movement and attacks
+                return False  # Return False to allow default AI to take over
+            
+            # Try to move closer to player for combat
+            px, py = getattr(player, 'x', 0), getattr(player, 'y', 0)
+            sx, sy = getattr(self, 'x', 0), getattr(self, 'y', 0)
+            
+            # Simple pathfinding toward player
+            dx = 1 if px > sx else (-1 if px < sx else 0)
+            dy = 1 if py > sy else (-1 if py < sy else 0)
+            
+            new_x, new_y = sx + dx, sy + dy
+            
+            # Check if we can move there
+            try:
+                if (hasattr(game, 'game_map') and 
+                    0 <= new_y < len(game.game_map) and 
+                    0 <= new_x < len(game.game_map[0]) and
+                    game.game_map[new_y][new_x] in ['.', 'H', '?', '+']):
+                    
+                    # Check if position is not occupied by another enemy
+                    position_free = True
+                    if hasattr(game, 'enemies'):
+                        for other_enemy in game.enemies:
+                            if (other_enemy != self and 
+                                getattr(other_enemy, 'x', -1) == new_x and 
+                                getattr(other_enemy, 'y', -1) == new_y):
+                                position_free = False
+                                break
+                    
+                    if position_free:
+                        self.x, self.y = new_x, new_y
+                        return True
+            except Exception:
+                pass
 
             return False
         except Exception:
@@ -416,18 +488,145 @@ def create_obsidian_regent(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
                 cooldown = getattr(reveal, 'cooldown', 4)
                 if getattr(game,'turn_count',0) - last >= cooldown:
                     try:
-                        used = reveal.use(self, None, game.game_map, getattr(game.ui,'messages',None), getattr(self,'level',1))
-                        if used:
-                            try: self._ability_last_used[getattr(reveal,'name',str(reveal))] = getattr(game,'turn_count',0)
-                            except Exception: pass
-                            return True
+                        # Check if enemy has enough force points before attempting
+                        cost = getattr(reveal, 'base_cost', 1)
+                        enemy_fp = getattr(self, 'force_points', 0)
+                        
+                        if enemy_fp >= cost:
+                            # Use null messages to prevent spam to player
+                            null_messages = type('NullMessages', (), {'add': lambda self, msg: None})()
+                            used = reveal.use(self, None, game.game_map, null_messages, getattr(self,'level',1))
+                            if used:
+                                try: self._ability_last_used[getattr(reveal,'name',str(reveal))] = getattr(game,'turn_count',0)
+                                except Exception: pass
+                                return True
+                        # If not enough force points, just skip silently
                     except Exception:
                         pass
+            # If no special abilities were used, fall back to normal combat
+            px, py = getattr(game.player, 'x', 0), getattr(game.player, 'y', 0)
+            sx, sy = getattr(self, 'x', 0), getattr(self, 'y', 0)
+            dist = abs(px - sx) + abs(py - sy)  # Recalculate distance
+            
+            if dist <= 2:  # Close combat range
+                return False  # Let default AI handle movement and attacks
+            
+            # Try to move closer to player
+            
+            # Simple movement toward player
+            dx = 1 if px > sx else (-1 if px < sx else 0)
+            dy = 1 if py > sy else (-1 if py < sy else 0)
+            
+            new_x, new_y = sx + dx, sy + dy
+            
+            # Check if we can move there
+            try:
+                if (hasattr(game, 'game_map') and 
+                    0 <= new_y < len(game.game_map) and 
+                    0 <= new_x < len(game.game_map[0]) and
+                    game.game_map[new_y][new_x] in ['.', 'H', '?', '+']):
+                    
+                    # Check if position is not occupied
+                    position_free = True
+                    if hasattr(game, 'enemies'):
+                        for other_enemy in game.enemies:
+                            if (other_enemy != self and 
+                                getattr(other_enemy, 'x', -1) == new_x and 
+                                getattr(other_enemy, 'y', -1) == new_y):
+                                position_free = False
+                                break
+                    
+                    if position_free:
+                        self.x, self.y = new_x, new_y
+                        return True
+            except Exception:
+                pass
+                
             return False
         except Exception:
             return False
 
     _attach_take_turn(e, regent_ai)
+    return e
+
+
+def create_crimson_leviathan(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Apex predator of the desert wastes - massive creature with blood frenzy abilities."""
+    e = Enemy("Crimson Leviathan", 180 + level * 15, 35 + level * 3, 12 + level, 6, EnemyPersonality(), 800, x, y, level=level)
+    e.symbol = 'L'
+    e.is_massive = True
+    e.size = 3  # 3x3 creature
+    e.alert_range = 15
+    return e
+
+
+def create_bone_crusher(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Skeletal behemoth that manipulates bones - cavern dweller with crushing attacks."""
+    e = Enemy("Bone Crusher", 220 + level * 18, 42 + level * 4, 8 + level, 4, EnemyPersonality(), 1000, x, y, level=level)
+    e.symbol = 'B'
+    e.is_massive = True
+    e.size = 2  # 2x2 creature
+    e.alert_range = 12
+    return e
+
+
+def create_void_tendril(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Sith-corrupted entity that phases through reality - void-touched horror."""
+    e = Enemy("Void Tendril", 150 + level * 12, 28 + level * 2, 15 + level, 8, EnemyPersonality(), 600, x, y, level=level)
+    e.symbol = 'V'
+    e.is_massive = True
+    e.size = 2  # 2x2 creature
+    e.alert_range = 20  # Senses through the Force
+    return e
+
+
+def create_shadow_stalker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Dark side-enhanced predator with incredible speed and stealth abilities."""
+    e = Enemy("Shadow Stalker", 130 + level * 10, 38 + level * 3, 6 + level, 12, EnemyPersonality(), 700, x, y, level=level)
+    e.symbol = 'S'
+    e.is_massive = True
+    e.size = 2  # 2x2 creature
+    e.alert_range = 18
+    return e
+
+
+def create_stone_titan(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Colossal mountain guardian with earth manipulation and seismic attacks."""
+    e = Enemy("Stone Titan", 300 + level * 25, 45 + level * 4, 10 + level, 3, EnemyPersonality(), 1200, x, y, level=level)
+    e.symbol = 'T'
+    e.is_massive = True
+    e.size = 4  # 4x4 creature - largest
+    e.alert_range = 25
+    return e
+
+
+def create_tomb_serpent(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Ancient serpentine guardian of Sith tombs with constriction abilities."""
+    e = Enemy("Tomb Serpent", 250 + level * 20, 40 + level * 3, 18 + level, 7, EnemyPersonality(), 1500, x, y, level=level)
+    e.symbol = 'H'  # H for serpent/snake
+    e.is_massive = True
+    e.size = 3  # 3x3 creature
+    e.alert_range = 30
+    return e
+
+
+def create_dark_weaver(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Force-sensitive arachnid that weaves illusions and psychic attacks."""
+    e = Enemy("Dark Weaver", 160 + level * 14, 32 + level * 2, 8 + level, 10, EnemyPersonality(), 750, x, y, level=level)
+    e.symbol = 'W'
+    e.is_massive = True
+    e.size = 3  # 3x3 creature
+    e.alert_range = 22
+    return e
+
+
+def create_frost_behemoth(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Cold-adapted beast with freezing attacks and ice armor."""
+    e = Enemy("Frost Behemoth", 200 + level * 16, 48 + level * 4, 12 + level, 5, EnemyPersonality(), 1100, x, y, level=level)
+    e.symbol = 'F'
+    e.is_massive = True
+    e.size = 3  # 3x3 creature
+    e.alert_range = 16
     return e
 
 
@@ -518,7 +717,17 @@ def create_jedi_master(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                 cooldown = getattr(reveal, 'cooldown', 4)
                 if getattr(game,'turn_count',0) - last >= cooldown:
                     try:
-                        used = reveal.use(self, None, game.game_map, getattr(game.ui,'messages',None), getattr(self,'level',1))
+                        # Check if enemy has enough force points before attempting
+                        cost = getattr(reveal, 'base_cost', 1)
+                        enemy_fp = getattr(self, 'force_points', 0)
+                        
+                        if enemy_fp >= cost:
+                            # Use null messages to prevent spam to player
+                            null_messages = type('NullMessages', (), {'add': lambda self, msg: None})()
+                            used = reveal.use(self, None, game.game_map, null_messages, getattr(self,'level',1))
+                        else:
+                            used = False  # Skip silently if not enough force points
+                        
                         if used:
                             try: 
                                 if not hasattr(self, '_ability_last_used'):
@@ -534,4 +743,72 @@ def create_jedi_master(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
             return False
 
     _attach_take_turn(e, jedi_master_ai)
+    return e
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SPECIAL DUNGEON ENEMIES - Unique enemies for thematic dungeons
+# ═══════════════════════════════════════════════════════════════════════════
+
+def create_memory_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Memory Wraith - Steals your memories and confuses you."""
+    e = Enemy("Memory Wraith", 20 + level * 4, 8 + level, 4 + level//2, 12, EnemyPersonality(), 70, x, y, level=level)
+    e.symbol = 'Ṁ'
+    e.description = "A ghostly entity formed from stolen memories"
+    return e
+
+
+def create_crystal_guardian(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Crystal Guardian - Heavily armored crystal construct."""
+    e = Enemy("Crystal Guardian", 35 + level * 7, 10 + level, 8 + level, 4, EnemyPersonality(), 80, x, y, level=level)
+    e.symbol = '♦'
+    e.description = "A living crystal formation animated by dark energy"
+    return e
+
+
+def create_shadow_stalker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Shadow Stalker - Fast, evasive, strikes from darkness."""
+    e = Enemy("Shadow Stalker", 15 + level * 3, 12 + int(level * 1.5), 3 + level//3, 18 + level, EnemyPersonality(), 90, x, y, level=level)
+    e.symbol = '▪'
+    e.description = "A being of living shadow that hunts in darkness"
+    return e
+
+
+def create_bone_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Bone Wraith - Undead guardian of the bone cathedral."""
+    e = Enemy("Bone Wraith", 25 + level * 5, 9 + level, 5 + level//2, 8, EnemyPersonality(), 75, x, y, level=level)
+    e.symbol = '☠'
+    e.description = "A vengeful spirit bound to ancient bones"
+    return e
+
+
+def create_echo_banshee(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Echo Banshee - Sonic attacks, screams that damage."""
+    e = Enemy("Echo Banshee", 18 + level * 4, 10 + level, 3 + level//3, 10, EnemyPersonality(), 85, x, y, level=level)
+    e.symbol = '♪'
+    e.description = "A creature of pure sound that screams eternally"
+    return e
+
+
+def create_knowledge_seeker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Knowledge Seeker - Corrupted scholar seeking forbidden lore."""
+    e = Enemy("Knowledge Seeker", 22 + level * 4, 7 + level, 5 + level//2, 9, EnemyPersonality(), 95, x, y, level=level)
+    e.symbol = '§'
+    e.description = "A scholar driven mad by forbidden knowledge"
+    return e
+
+
+def create_pain_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Pain Wraith - Born from suffering, inflicts agony."""
+    e = Enemy("Pain Wraith", 23 + level * 5, 11 + level, 4 + level//2, 7, EnemyPersonality(), 80, x, y, level=level)
+    e.symbol = '†'
+    e.description = "An entity forged from accumulated suffering"
+    return e
+
+
+def create_nightmare_herald(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
+    """Nightmare Herald - Manifests your fears."""
+    e = Enemy("Nightmare Herald", 26 + level * 5, 10 + level, 5 + level//2, 11, EnemyPersonality(), 85, x, y, level=level)
+    e.symbol = '☾'
+    e.description = "A creature from the realm of nightmares"
     return e

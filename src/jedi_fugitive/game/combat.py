@@ -78,7 +78,7 @@ def player_attack(player, enemy, messages=None, game=None):
                     elif dmg >= 8:
                         # High damage critical hits with emphasis
                         crit_messages = [
-                            f"⚡ CRITICAL! ⚡ You brutally slash {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]",
+                            f"#2##CRITICAL!#0# You brutally slash {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]",
                             f"★ POWER STRIKE! ★ Your weapon tears through {enemy_name}'s {random.choice(body_parts)}! [{dmg} dmg]",
                             f"◆ BRUTAL HIT! ◆ Vicious strike to {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]",
                             f"⚔ HEAVY BLOW! ⚔ You cut deep into {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]"

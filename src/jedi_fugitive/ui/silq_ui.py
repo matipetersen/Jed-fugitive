@@ -15,25 +15,52 @@ class SILQUI:
         if self.colors_inited:
             return
         try:
+            import random
             curses.start_color()
             curses.use_default_colors()
-            curses.init_pair(1, curses.COLOR_CYAN, -1)    # player / header
-            curses.init_pair(2, curses.COLOR_RED, -1)     # enemy / danger / damage
-            curses.init_pair(3, curses.COLOR_YELLOW, -1)  # items / messages / taunts
-            curses.init_pair(4, curses.COLOR_WHITE, -1)   # floor / text
-            curses.init_pair(5, curses.COLOR_BLUE, -1)    # wall / frame
-            curses.init_pair(6, curses.COLOR_GREEN, -1)   # success / hp
-            curses.init_pair(7, curses.COLOR_MAGENTA, -1) # abilities / misc
-            curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_WHITE) # inverted
-            curses.init_pair(9, curses.COLOR_WHITE, curses.COLOR_RED)   # alert / pop damage
-            curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_GREEN) # good
-            curses.init_pair(14, curses.COLOR_WHITE, curses.COLOR_BLUE)  # highlight
+            
+            # DYNAMIC COLOR SCHEMES: Randomize world colors each game for fresh visual variety
+            # Store the seed for consistency during this game session
+            if not hasattr(self, '_color_seed'):
+                self._color_seed = random.randint(0, 999999)
+            random.seed(self._color_seed)
+            
+            # Define 5 different Sith-themed color palettes
+            sith_palettes = [
+                # Palette 1: Classic Blood & Shadow
+                {'primary': curses.COLOR_RED, 'secondary': curses.COLOR_MAGENTA, 'accent': curses.COLOR_YELLOW},
+                # Palette 2: Toxic Corruption
+                {'primary': curses.COLOR_GREEN, 'secondary': curses.COLOR_YELLOW, 'accent': curses.COLOR_RED},
+                # Palette 3: Ancient Tomb
+                {'primary': curses.COLOR_CYAN, 'secondary': curses.COLOR_BLUE, 'accent': curses.COLOR_WHITE},
+                # Palette 4: Dark Lightning
+                {'primary': curses.COLOR_MAGENTA, 'secondary': curses.COLOR_CYAN, 'accent': curses.COLOR_WHITE},
+                # Palette 5: Infernal Fire
+                {'primary': curses.COLOR_YELLOW, 'secondary': curses.COLOR_RED, 'accent': curses.COLOR_MAGENTA},
+            ]
+            
+            # Randomly select palette
+            palette = random.choice(sith_palettes)
+            random.seed()  # Reset seed for gameplay randomness
+            
+            # Apply dynamic palette to color pairs
+            curses.init_pair(1, palette['primary'], -1)      # headers / danger
+            curses.init_pair(2, palette['primary'], -1)      # enemy / danger / damage
+            curses.init_pair(3, palette['accent'], -1)       # items / loot
+            curses.init_pair(4, curses.COLOR_WHITE, -1)      # floor / text (always white for readability)
+            curses.init_pair(5, palette['secondary'], -1)    # wall / frame
+            curses.init_pair(6, palette['primary'], -1)      # hp / life force
+            curses.init_pair(7, palette['secondary'], -1)    # abilities / dark force
+            curses.init_pair(8, curses.COLOR_WHITE, curses.COLOR_BLACK) # inverted (dark mode)
+            curses.init_pair(9, curses.COLOR_WHITE, palette['primary'])   # alert / pop damage
+            curses.init_pair(10, curses.COLOR_BLACK, palette['primary'])  # corruption emphasis
+            curses.init_pair(14, curses.COLOR_WHITE, palette['secondary'])  # highlight
             # additional pairs for projectiles / taunts / minor accents
             try:
-                curses.init_pair(11, curses.COLOR_CYAN, -1)   # player bolts / highlights
-                curses.init_pair(12, curses.COLOR_RED, -1)    # enemy bolts / danger
-                curses.init_pair(13, curses.COLOR_YELLOW, -1) # neutral projectiles / grenades
-                curses.init_pair(15, curses.COLOR_MAGENTA, -1) # taunt / shout color
+                curses.init_pair(11, palette['primary'], -1)     # dark side bolts
+                curses.init_pair(12, palette['primary'], -1)     # enemy bolts
+                curses.init_pair(13, palette['accent'], -1)      # neutral projectiles
+                curses.init_pair(15, palette['secondary'], -1)   # taunt / dark whispers
             except Exception:
                 pass
             self.colors_inited = True
@@ -237,7 +264,8 @@ class SILQUI:
         panel.clear()
         try:
             panel.border()
-            panel.addstr(0,2," MESSAGES ", curses.color_pair(14) | curses.A_BOLD)
+            # SITH AESTHETIC: Dark side terminology
+            panel.addstr(0,2," ◈ DARK CHRONICLES ◈ ", curses.color_pair(1) | curses.A_BOLD)
         except curses.error:
             pass
         h,w = panel.getmaxyx()
@@ -262,9 +290,10 @@ class SILQUI:
             panel.clear()
             try: panel.border()
             except Exception: pass
-            title = " COMMANDS "
+            # SITH AESTHETIC: Dark side terminology
+            title = " ◈ DARK POWERS ◈ "
             try:
-                panel.addstr(0, 2, title, curses.A_BOLD)
+                panel.addstr(0, 2, title, curses.color_pair(7) | curses.A_BOLD)
             except Exception:
                 pass
             lines = (text or "").splitlines()
@@ -401,11 +430,11 @@ class SILQUI:
             win.clear()
             win.border()
             
-            # Title
-            title = " SITH CODEX "
+            # Title - SITH AESTHETIC
+            title = " ◈◈◈ SITH CODEX ◈◈◈ "
             try:
                 win.addstr(0, (panel_w - len(title)) // 2, title, 
-                          curses.color_pair(2) | curses.A_BOLD)
+                          curses.color_pair(1) | curses.A_BOLD)
             except curses.error:
                 pass
             

@@ -1,5 +1,5 @@
 """
-NPC Encounter system for Jedi Fugitive.
+NPC Encounter system for Dark Meridian.
 Handles survivor camps, hermit Jedi/Sith, moral choices, and dialogue.
 """
 import random
@@ -15,7 +15,7 @@ NPC_TYPES = {
         'biomes': ['forest', 'plains', 'river', 'crash_site'],
     },
     'hermit_jedi': {
-        'symbol': 'J',
+        'symbol': 'Y',  # Changed from J to avoid conflict with Jedi Hunter enemy
         'color': 'cyan',
         'name': 'Hermit Jedi',
         'description': 'A Jedi Master in hiding.',
@@ -23,7 +23,7 @@ NPC_TYPES = {
         'biomes': ['forest', 'mountain_pass', 'rocky'],
     },
     'fallen_jedi': {
-        'symbol': 'F',
+        'symbol': 'f',
         'color': 'magenta',
         'name': 'Fallen Jedi',
         'description': 'A Jedi who turned to the dark side.',
@@ -31,7 +31,7 @@ NPC_TYPES = {
         'biomes': ['desert', 'rocky', 'tomb'],
     },
     'dark_hermit': {
-        'symbol': 'D',
+        'symbol': 'N',  # Changed from D to avoid conflict with Dewback enemy
         'color': 'red',
         'name': 'Dark Side Hermit',
         'description': 'A Sith cultist studying forbidden knowledge.',
@@ -40,67 +40,90 @@ NPC_TYPES = {
     },
 }
 
-# Survivor camp dialogues and interactions
+# Expanded survivor camp dialogues and interactions
 SURVIVOR_DIALOGUES = {
     'greeting': [
         "You there! Please, we mean no harm. Are you... are you a Jedi?",
         "By the Force, another survivor! We thought we were alone.",
         "Stay back! Wait... you're not with the Empire, are you?",
         "Please help us. We've been running for weeks.",
+        "We lost so many... Are you here to help or to finish what the Empire started?",
+        "The galaxy is a cruel place now. Any friend is welcome.",
+        "We saw your lightsaber. Does that mean hope, or more danger?"
     ],
     'light_response': [
         "Your presence brings us hope. Thank you for not abandoning us.",
         "A true Jedi! We knew some would survive the purge.",
         "The Force is still with us. Will you help protect our camp?",
+        "You remind us of the old stories. Maybe the Jedi aren't all gone.",
+        "We can sleep easier knowing someone like you is out there."
     ],
     'dark_response': [
         "Your eyes... they're different. What have you become?",
         "You carry darkness with you. Perhaps we should keep our distance.",
         "We've heard rumors of Jedi turning dark. Is it true?",
+        "We fear you almost as much as the Empire. Please, just let us be.",
+        "The children are afraid. Please don't hurt us."
     ],
     'trade_offer': [
         "We salvaged supplies from crashed ships. Perhaps we can trade?",
         "We don't have much, but we'd be grateful to share what we have.",
         "Take what you need. We owe you our lives.",
+        "If you have medicine, we'll trade anything for it.",
+        "Some of us were mechanics. Maybe we can fix something for you."
     ],
     'moral_choice_setup': [
         "The Empire's scouts were here yesterday. They're looking for Force users.",
         "We have wounded. The Empire took our medical supplies.",
         "We're planning to flee deeper into the wilderness. It's dangerous.",
+        "A child is missing. We think she wandered toward the ruins.",
+        "Food is running low. Some want to steal from the next camp we find."
     ]
 }
 
-# Hermit Jedi dialogues (Light Side mentors)
+# Expanded Hermit Jedi dialogues (Light Side mentors)
 HERMIT_JEDI_DIALOGUES = {
     'greeting': [
         "Peace, young one. I sensed your presence through the Force.",
         "Another survivor of the Purge. The Force guided you here.",
         "I've been waiting. The Force told me you would come.",
+        "You carry the weight of many losses. Sit, rest, and let the Force ease your mind.",
+        "The galaxy is darker now, but the light endures in those who remember."
     ],
     'light_path': [
         "I see the light still burns within you. Good. Hold onto it.",
         "The dark times test us all, but you resist temptation. Admirable.",
         "Your crystal glows pure. You walk the path of the Jedi.",
+        "You have not let anger rule you. That is rare, and precious.",
+        "The Force is strong with you, and so is your compassion."
     ],
     'balanced_path': [
         "You walk a dangerous line between light and dark.",
         "Balance is wise, but be cautious. Many who sought balance fell to darkness.",
         "You seek to understand both sides. A perilous, but perhaps necessary, path.",
+        "The Living Force is not always light or dark. Sometimes, it is simply survival.",
+        "I once thought balance was impossible. Now, I am not so sure."
     ],
     'dark_warning': [
         "I sense the darkness growing in you. Turn back before it's too late!",
         "The dark side clouds your judgment. You can still choose redemption.",
         "You're on the path that leads to suffering. I've seen it before.",
+        "Anger is easy. Forgiveness is harder. But it is not too late.",
+        "I have seen what the dark side does to good people. Please, do not follow that path."
     ],
     'teaching_offer': [
         "I can teach you an old technique, if you're willing to learn.",
         "The ancient Jedi knew secrets lost to the modern Order. I can share them.",
         "Meditation and patience - let me show you what I've learned.",
+        "There is a cave nearby, strong in the Force. Meditate there, and you may find answers.",
+        "If you listen, the Force will teach you more than any master."
     ],
     'philosophy': [
         "The Jedi Order fell because it became rigid. We must adapt to survive.",
         "Attachment led to our downfall, but complete detachment made us blind.",
         "The Force flows through all living things. Never forget that.",
+        "Wisdom is not the same as knowledge. Sometimes, it is knowing when to let go.",
+        "The galaxy is full of pain, but also hope. We must be both strong and kind."
     ]
 }
 
@@ -471,3 +494,193 @@ def create_npc_entity(npc_type, x, y):
         'interacted': False,  # Track if player has talked to this NPC
         'quest_given': False,  # Track if this NPC gave a quest/choice
     }
+
+
+class NPC:
+    """Individual NPC instance"""
+    def __init__(self, npc_type, x, y):
+        self.npc_type = npc_type
+        self.x = x
+        self.y = y
+        self.data = NPC_TYPES[npc_type]
+        self.name = self.data['name']
+        self.description = self.data['description']
+        self.symbol = self.data['symbol']
+        self.interacted = False
+        self.quest_given = False
+    
+    def get_greeting(self):
+        """Get initial greeting based on NPC type"""
+        if self.npc_type == 'survivor_camp':
+            return random.choice(SURVIVOR_DIALOGUES['greeting'])
+        elif self.npc_type == 'hermit_jedi':
+            return random.choice(HERMIT_JEDI_DIALOGUES['greeting'])
+        elif self.npc_type == 'fallen_jedi':
+            return random.choice(FALLEN_JEDI_DIALOGUES['greeting'])
+        elif self.npc_type == 'dark_hermit':
+            return random.choice(DARK_HERMIT_DIALOGUES['greeting'])
+        else:
+            return "Hello, traveler."
+    
+    def get_available_interactions(self, player):
+        """Get list of available interaction options"""
+        options = []
+        
+        if self.npc_type == 'survivor_camp':
+            options = ["Ask for supplies", "Share news", "Offer protection"]
+            if not self.quest_given:
+                options.append("Listen to their story")
+        elif self.npc_type == 'hermit_jedi':
+            options = ["Ask about the Force", "Request training"]
+            if player.corruption < 50:  # Only available to light-side players
+                options.append("Seek guidance")
+        elif self.npc_type == 'fallen_jedi':
+            options = ["Challenge their choices", "Ask about the dark side"]
+            if player.corruption > 50:  # Only available to dark-side players
+                options.append("Join their cause")
+        elif self.npc_type == 'dark_hermit':
+            options = ["Ask about Sith knowledge", "Inquire about artifacts"]
+            if player.corruption > 30:
+                options.append("Request dark training")
+        
+        return options
+    
+    def handle_interaction(self, choice_index, player, action_type=None):
+        """Handle player's interaction choice, with suspicion/faction logic."""
+        options = self.get_available_interactions(player)
+        if choice_index >= len(options):
+            return "Invalid choice."
+        chosen_option = options[choice_index]
+
+        # Suspicion logic: suspicious actions near hostile factions or while disguised
+        suspicious_actions = ["force", "sneak", "steal"]
+        if action_type in suspicious_actions:
+            # If disguised or faction is hostile, increase suspicion
+            hostile_factions = getattr(player, 'faction_manager', None)
+            rep = None
+            if hostile_factions:
+                # Assume NPC has a faction (for now, map by type)
+                npc_faction = None
+                if self.npc_type == 'survivor_camp':
+                    npc_faction = 'Settlers'
+                elif self.npc_type == 'hermit_jedi':
+                    npc_faction = 'Rebel'
+                elif self.npc_type == 'fallen_jedi' or self.npc_type == 'dark_hermit':
+                    npc_faction = 'Imperial'
+                if npc_faction:
+                    rep = hostile_factions.get_reputation(npc_faction)
+            # If disguised or reputation is low, increase suspicion
+            if player.disguise or (rep is not None and rep < 0):
+                player.suspicion = min(100, player.suspicion + 25)
+                if player.suspicion >= 100:
+                    return "NPCs become alarmed! Your suspicious actions have triggered an alarm."
+        # Faction logic: friendly factions may help
+        if getattr(player, 'faction_manager', None):
+            npc_faction = None
+            if self.npc_type == 'survivor_camp':
+                npc_faction = 'Settlers'
+            elif self.npc_type == 'hermit_jedi':
+                npc_faction = 'Rebel'
+            elif self.npc_type == 'fallen_jedi' or self.npc_type == 'dark_hermit':
+                npc_faction = 'Imperial'
+            if npc_faction:
+                rep = player.faction_manager.get_reputation(npc_faction)
+                if rep is not None and rep > 50:
+                    return f"{self.name} recognizes your reputation and offers help!"
+
+        if self.npc_type == 'survivor_camp':
+            return self._handle_survivor_interaction(chosen_option, player)
+        elif self.npc_type == 'hermit_jedi':
+            return self._handle_hermit_jedi_interaction(chosen_option, player)
+        elif self.npc_type == 'fallen_jedi':
+            return self._handle_fallen_jedi_interaction(chosen_option, player)
+        elif self.npc_type == 'dark_hermit':
+            return self._handle_dark_hermit_interaction(chosen_option, player)
+    
+    def _handle_survivor_interaction(self, option, player):
+        """Handle survivor camp interactions"""
+        if "supplies" in option:
+            # Give random supply
+            supplies = ["medpack", "ration", "power_cell"]
+            item = random.choice(supplies)
+            player.inventory.append({'name': item, 'id': item})
+            return f"The survivors share a {item} with you."
+        elif "news" in option:
+            return "You share news of the outside world. The survivors look both hopeful and afraid."
+        elif "protection" in option:
+            return "You offer to protect them. They are grateful for your kindness."
+        elif "story" in option:
+            self.quest_given = True
+            return "They tell you of Imperial patrols nearby. You gain insight into the local situation."
+        return "The survivors nod respectfully."
+    
+    def _handle_hermit_jedi_interaction(self, option, player):
+        """Handle hermit Jedi interactions"""  
+        if "Force" in option:
+            player.force_energy = min(player.max_force_energy, player.force_energy + 20)
+            return "The hermit shares wisdom about the Force. You feel refreshed."
+        elif "training" in option:
+            player.gain_xp(50)
+            return "The hermit teaches you advanced techniques. You gain experience."
+        elif "guidance" in option:
+            if player.corruption > 0:
+                player.corruption = max(0, player.corruption - 5)
+                return "The hermit's wisdom helps center you in the light."
+            return "The hermit nods approvingly at your dedication to the light side."
+        return "The hermit Jedi watches you with wise eyes."
+    
+    def _handle_fallen_jedi_interaction(self, option, player):
+        """Handle fallen Jedi interactions"""
+        if "Challenge" in option:
+            return "The fallen Jedi sneers at your righteousness but respects your conviction."
+        elif "dark side" in option:
+            player.corruption = min(100, player.corruption + 3)
+            return "The fallen Jedi speaks of power through passion. You feel the dark side's allure."
+        elif "cause" in option:
+            player.corruption = min(100, player.corruption + 10)
+            return "The fallen Jedi welcomes you to the path of power. Darkness flows through you."
+        return "The fallen Jedi watches you with calculating eyes."
+    
+    def _handle_dark_hermit_interaction(self, option, player):
+        """Handle dark hermit interactions"""
+        if "knowledge" in option:
+            return "The dark hermit whispers forbidden secrets. Knowledge is power."
+        elif "artifacts" in option:
+            return "The hermit speaks of ancient Sith artifacts hidden in the tombs."
+        elif "training" in option:
+            player.corruption = min(100, player.corruption + 5)
+            return "The hermit teaches you to embrace your anger. Power flows through hatred."
+        return "The dark hermit's eyes gleam with malevolent knowledge."
+
+
+class NPCEncounters:
+    """Manager for NPC encounter system"""
+    def __init__(self):
+        self.active_npcs = {}  # (x, y) -> NPC instance
+        
+    def spawn_npc(self, npc_type, x, y):
+        """Spawn an NPC at the specified location"""
+        npc = NPC(npc_type, x, y)
+        self.active_npcs[(x, y)] = npc
+        return npc
+    
+    def get_npc_at_position(self, x, y):
+        """Get NPC at specified position"""
+        return self.active_npcs.get((x, y))
+    
+    def remove_npc(self, x, y):
+        """Remove NPC from specified position"""
+        if (x, y) in self.active_npcs:
+            del self.active_npcs[(x, y)]
+
+
+def select_npc_for_biome(biome_type):
+    """Select appropriate NPC type for the given biome"""
+    suitable_npcs = []
+    for npc_type, data in NPC_TYPES.items():
+        if biome_type in data['biomes']:
+            suitable_npcs.extend([npc_type] * int(data['spawn_chance'] * 100))
+    
+    if suitable_npcs:
+        return random.choice(suitable_npcs)
+    return None

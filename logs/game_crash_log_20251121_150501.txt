@@ -1,0 +1,11 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-21 15:05:01
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-21 15:05:02] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-21 15:05:02] EVENT [TOMB_ENTRY]: Player entering tomb at (113, 77)
+[2025-11-21 15:05:02] EVENT [TOMB_ENTRY]: Tomb entry successful: True

@@ -23,12 +23,19 @@ def ai_should_retreat(enemy, game):
     """Determine if enemy should retreat due to low HP."""
     try:
         hp_percent = getattr(enemy, 'hp', 1) / max(1, getattr(enemy, 'max_hp', 1))
-        # Retreat if HP below 30%
-        if hp_percent < 0.3:
-            return True
+        
+        # Massive creatures are more aggressive and retreat less often
+        if getattr(enemy, 'is_massive', False):
+            return hp_percent < 0.1  # Only retreat when almost dead
+            
         # Bosses never retreat
         if getattr(enemy, 'is_boss', False):
             return False
+            
+        # Regular enemies retreat at 30% HP
+        if hp_percent < 0.3:
+            return True
+            
         return False
     except Exception:
         return False
@@ -73,6 +80,14 @@ def ai_find_flanking_position(enemy, game):
         ex, ey = getattr(enemy, 'x', 0), getattr(enemy, 'y', 0)
         px, py = getattr(game.player, 'x', 0), getattr(game.player, 'y', 0)
         
+        # Cache flanking calculations to avoid repeated computation
+        if not hasattr(game, '_flanking_cache'):
+            game._flanking_cache = {}
+            
+        cache_key = f"flank_{ex}_{ey}_{px}_{py}"
+        if cache_key in game._flanking_cache:
+            return game._flanking_cache[cache_key]
+        
         # Direct approach vector
         direct_dx = 1 if px > ex else (-1 if px < ex else 0)
         direct_dy = 1 if py > ey else (-1 if py < ey else 0)
@@ -86,10 +101,16 @@ def ai_find_flanking_position(enemy, game):
         
         # If no perpendicular options, use direct approach
         if not perp_options:
-            return (direct_dx, direct_dy)
-        
-        # Pick random perpendicular direction for variation
-        return random.choice(perp_options)
+            result = (direct_dx, direct_dy)
+        else:
+            # Pick random perpendicular direction for variation
+            result = random.choice(perp_options)
+            
+        # Cache result with small cache limit to prevent memory growth
+        if len(game._flanking_cache) < 50:
+            game._flanking_cache[cache_key] = result
+            
+        return result
     except Exception:
         return (0, 0)
 
@@ -99,26 +120,43 @@ def ai_maintain_range(enemy, game, preferred_distance=4):
     try:
         ex, ey = getattr(enemy, 'x', 0), getattr(enemy, 'y', 0)
         px, py = getattr(game.player, 'x', 0), getattr(game.player, 'y', 0)
+        
+        # Cache range calculations for performance
+        if not hasattr(game, '_range_cache'):
+            game._range_cache = {}
+            
+        cache_key = f"range_{ex}_{ey}_{px}_{py}_{preferred_distance}"
+        if cache_key in game._range_cache:
+            return game._range_cache[cache_key]
+        
         dist = abs(px - ex) + abs(py - ey)
+        result = (0, 0)
         
         # Too close - move away
         if dist < preferred_distance - 1:
             dx = -1 if px > ex else (1 if px < ex else 0)
             dy = -1 if py > ey else (1 if py < ey else 0)
-            return (dx, dy)
+            result = (dx, dy)
         
         # Too far - move closer
         elif dist > preferred_distance + 2:
             dx = 1 if px > ex else (-1 if px < ex else 0)
             dy = 1 if py > ey else (-1 if py < ey else 0)
-            return (dx, dy)
+            result = (dx, dy)
         
         # Good distance - hold or sidestep
         else:
             # Sidestep perpendicular 50% of time
             if random.random() < 0.5:
-                return random.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
-            return (0, 0)
+                result = random.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+            else:
+                result = (0, 0)
+        
+        # Cache with limit to prevent memory growth
+        if len(game._range_cache) < 30:
+            game._range_cache[cache_key] = result
+            
+        return result
     except Exception:
         return (0, 0)
 
@@ -126,14 +164,30 @@ def ai_maintain_range(enemy, game, preferred_distance=4):
 def ai_can_move_to(game, x, y, exclude_enemy=None):
     """Check if position is valid floor tile and not occupied."""
     try:
-        if not (0 <= y < len(game.game_map) and 0 <= x < len(game.game_map[0])):
+        # Performance optimization: cache pathfinding results
+        if not hasattr(game, '_pathfinding_cache'):
+            game._pathfinding_cache = {}
+            
+        # Create cache key (exclude enemy ID from key for general validity)
+        cache_key = f"move_{x}_{y}"
+        
+        # Check cache for static terrain (walls, bounds)
+        if cache_key in game._pathfinding_cache:
+            is_walkable_terrain = game._pathfinding_cache[cache_key]
+        else:
+            # Check bounds and terrain
+            if not (0 <= y < len(game.game_map) and 0 <= x < len(game.game_map[0])):
+                game._pathfinding_cache[cache_key] = False
+                return False
+            
+            floor_char = getattr(Display, 'FLOOR', '.')
+            is_walkable_terrain = game.game_map[y][x] == floor_char
+            game._pathfinding_cache[cache_key] = is_walkable_terrain
+        
+        if not is_walkable_terrain:
             return False
         
-        floor_char = getattr(Display, 'FLOOR', '.')
-        if game.game_map[y][x] != floor_char:
-            return False
-        
-        # Check player position
+        # Check dynamic occupants (player and enemies) - can't cache these
         if x == getattr(game.player, 'x', -1) and y == getattr(game.player, 'y', -1):
             return False
         
@@ -208,6 +262,7 @@ class EnemyType(Enum):
     SITH_GHOST = 2
     INQUISITOR = 3
     JEDI_MASTER = 4
+    FAUNA = "fauna"
 
 
 class Enemy:
@@ -285,7 +340,7 @@ class Enemy:
             self.attack = 8
             self.defense = 2
             self.accuracy = 60
-            self.xp_value = 25
+            self.xp_value = 8  # Reduced from 25
             self.alert_range = 6
         elif et == EnemyType.SITH_GHOST:
             self.name = "Sith Ghost"
@@ -295,7 +350,7 @@ class Enemy:
             self.attack = 12
             self.defense = 4
             self.accuracy = 75
-            self.xp_value = 50
+            self.xp_value = 15  # Reduced from 50
             self.alert_range = 8
         elif et == EnemyType.INQUISITOR:
             self.name = "Inquisitor"
@@ -305,8 +360,19 @@ class Enemy:
             self.attack = 16
             self.defense = 6
             self.accuracy = 85
-            self.xp_value = 300
+            self.xp_value = 90  # Reduced from 300
             self.alert_range = 12
+        elif et == EnemyType.JEDI_MASTER:
+            self.name = "Jedi Master"
+            self.symbol = 'J'
+            self.base_hp = 40
+            self.max_hp = 40
+            self.attack = 15
+            self.defense = 10
+            self.accuracy = 85
+            self.xp_value = 60  # Reduced from 200
+            self.alert_range = 12
+            self.is_boss = True
         else:
             # fallback generic enemy
             self.name = "Enemy"
@@ -368,12 +434,38 @@ class Enemy:
     def is_alive(self) -> bool:
         return getattr(self, "hp", 0) > 0
 
-    def take_damage(self, amount: int) -> int:
+    def take_damage(self, amount: int, game=None) -> int:
+        """Apply damage to enemy. If game is provided and enemy dies, award XP to player."""
         actual = max(1, int(amount) - int(getattr(self, "defense", 0)))
+        was_alive = self.hp > 0
         try:
             self.hp -= actual
         except Exception:
             self.hp = getattr(self, "hp", 0) - actual
+        
+        # Award Dark XP if enemy died from this damage (killing is dark path)
+        if was_alive and self.hp <= 0 and game is not None:
+            try:
+                xp_reward = int(getattr(self, 'xp_value', 10) * 0.3)  # Reduced by 70%
+                if hasattr(game, 'player'):
+                    game.player.dark_xp = getattr(game.player, 'dark_xp', 0) + xp_reward
+                    
+                    # Check for dark level up
+                    while game.player.dark_xp >= getattr(game.player, 'xp_to_next_dark', 100):
+                        game.player.dark_level = getattr(game.player, 'dark_level', 1) + 1
+                        game.player.dark_xp -= getattr(game.player, 'xp_to_next_dark', 100)
+                        game.player.xp_to_next_dark = int(game.player.xp_to_next_dark * 1.5)
+                        game.player.level = max(getattr(game.player, 'light_level', 1), game.player.dark_level)
+                        
+                        if hasattr(game, 'ui') and hasattr(game.ui, 'messages'):
+                            game.ui.messages.add(f"#1#DARK SIDE LEVEL UP!#0# Now Dark Level {game.player.dark_level}")
+                    
+                    if hasattr(game, 'ui') and hasattr(game.ui, 'messages'):
+                        enemy_name = getattr(self, 'name', 'enemy')
+                        game.ui.messages.add(f"Gained {xp_reward} Dark XP from {enemy_name}!")
+            except Exception:
+                pass  # Don't let XP errors break combat
+        
         return actual
 
     def maybe_speak(self):
@@ -715,18 +807,52 @@ class EnemyPersonality:
 def process_enemies(game):
     """Process enemy turns: movement, taunts and attacks. Defensive and respects depth/difficulty."""
     from jedi_fugitive.config import DIFFICULTY_MULTIPLIER, DEPTH_DIFFICULTY_RATE
+    
+    # Performance optimization: batch processing and distance caching
     try:
-        for e in list(getattr(game, "enemies", [])):
+        enemies = list(getattr(game, "enemies", []) or [])
+        if not enemies:
+            return
+            
+        # Cache player position for distance calculations
+        px = getattr(game.player, "x", 0)
+        py = getattr(game.player, "y", 0)
+        
+        # Pre-calculate distances and sort by proximity for better AI
+        enemy_distances = []
+        for e in enemies:
+            if getattr(e, "is_alive", lambda: True)():
+                ex = getattr(e, "x", 0)
+                ey = getattr(e, "y", 0)
+                dist = abs(px - ex) + abs(py - ey)
+                enemy_distances.append((e, dist, ex, ey))
+        
+        # Process enemies in proximity order (closest first for tactical AI)
+        enemy_distances.sort(key=lambda x: x[1])
+        
+        for e, dist, ex, ey in enemy_distances:
             try:
                 # hallucinations are not real enemies: vanish when approached
                 try:
                     if getattr(e, '_is_hallucination', False):
-                        # distance to player
-                        dist = abs(getattr(e, 'x', 0) - getattr(game.player, 'x', 0)) + abs(getattr(e, 'y', 0) - getattr(game.player, 'y', 0))
+                        # use pre-calculated distance
                         if dist <= 1:
                             try:
                                 if getattr(game.ui, 'messages', None):
-                                    game.ui.messages.add(f"{getattr(e,'name','An apparition')} fades as you approach — it was only in your mind.")
+                                    apparition_name = getattr(e,'name','An apparition')
+                                    biome = getattr(game, 'current_biome', 'unknown')
+                                    
+                                    # Environmental hallucination descriptions
+                                    fade_messages = {
+                                        'desert': f"{apparition_name} dissolves like a mirage in the desert heat — it was never real.",
+                                        'forest': f"{apparition_name} melts back into the forest shadows — your mind conjured phantoms.",
+                                        'mountains': f"{apparition_name} vanishes like morning mist in the mountain air — only illusion.",
+                                        'tomb': f"{apparition_name} fades into the tomb's ancient darkness — the dead playing tricks on your mind.",
+                                        'crash_site': f"{apparition_name} flickers out like a broken hologram — trauma creates false visions."
+                                    }
+                                    
+                                    message = fade_messages.get(biome, f"{apparition_name} fades as you approach — it was only in your mind.")
+                                    game.ui.messages.add(message)
                             except Exception:
                                 pass
                             try:
@@ -773,8 +899,8 @@ def process_enemies(game):
                 except Exception:
                     pass
 
-                # Manhattan distance to player
-                dist = abs(getattr(e, "x", 0) - getattr(game.player, "x", 0)) + abs(getattr(e, "y", 0) - getattr(game.player, "y", 0))
+                # Use pre-calculated distance from batch processing
+                # dist, ex, ey already available from outer loop
 
                 # if enemy notices the player for the first time, increase stress
                 try:
@@ -789,7 +915,20 @@ def process_enemies(game):
                                 pass
                             try:
                                 if getattr(game.ui, 'messages', None):
-                                    game.ui.messages.add(f"{getattr(e,'name','An enemy')} spots you! (+{added} stress)")
+                                    enemy_name = getattr(e,'name','An enemy')
+                                    biome = getattr(game, 'current_biome', 'unknown')
+                                    
+                                    # Environmental awareness for spotting messages
+                                    spot_messages = {
+                                        'desert': f"{enemy_name} emerges from behind a dune and spots you! (+{added} stress)",
+                                        'forest': f"{enemy_name} steps out from the forest shadows and locks eyes with you! (+{added} stress)",
+                                        'mountains': f"{enemy_name} appears on a rocky outcrop above and spots you! (+{added} stress)",
+                                        'tomb': f"{enemy_name} emerges from the tomb's darkness and fixes you with a hostile gaze! (+{added} stress)",
+                                        'crash_site': f"{enemy_name} rises from the wreckage and turns aggressive attention to you! (+{added} stress)"
+                                    }
+                                    
+                                    message = spot_messages.get(biome, f"{enemy_name} spots you! (+{added} stress)")
+                                    game.ui.messages.add(message)
                             except Exception:
                                 pass
                         except Exception:
@@ -824,12 +963,33 @@ def process_enemies(game):
                                 situation = "attack"
 
                             taunt = None
+                            
+                            # Check if this is a massive creature first
                             try:
-                                taunt = e.personality.get_taunt(situation)
+                                if getattr(e, 'is_massive', False):
+                                    from jedi_fugitive.game.personality import get_massive_creature_taunt
+                                    creature_name = getattr(e, 'name', 'unknown').lower()
+                                    taunt = get_massive_creature_taunt(creature_name, situation)
                             except Exception:
-                                taunt = None
+                                pass
+                            
+                            # Regular enemy personality taunts
+                            if not taunt:
+                                try:
+                                    # Pass game context for environmental and situational awareness
+                                    taunt = e.personality.get_taunt(situation, game.player, game)
+                                except Exception:
+                                    taunt = None
 
-                            # fallback to ENEMY_TAUNTS if personality doesn't provide
+                            # fallback to contextual taunts with environment awareness
+                            if not taunt:
+                                try:
+                                    from jedi_fugitive.game.personality import get_contextual_taunt
+                                    taunt = get_contextual_taunt(game.player, situation, game)
+                                except Exception:
+                                    pass
+                            
+                            # Ultimate fallback to basic taunts
                             if not taunt:
                                 try:
                                     taunt = random.choice(ENEMY_TAUNTS.get(situation, ["..."]))
@@ -950,41 +1110,78 @@ def process_enemies(game):
                             game.player.last_attacking_enemy = getattr(e, "name", "Enemy")
                             game.player.last_damage_taken = dmg
                             game.player.last_attack_type = "melee attack"
+                            
+                            # Add combat log entry for non-fatal hits
+                            if game.player.hp > 0:
+                                try:
+                                    if hasattr(game, 'combat_log'):
+                                        log_entry = f"Turn {getattr(game, 'turn_count', 0)}: {getattr(e, 'name', 'Enemy')} hits for {dmg} damage (HP: {game.player.hp})"
+                                        game.combat_log.append(log_entry)
+                                except Exception:
+                                    pass
                         except Exception:
                             pass
                         try:
-                            # Generate descriptive enemy attack message
+                            # Generate immersive combat description with environmental context
                             player_hp = getattr(game.player, "hp", 1)
                             enemy_name = getattr(e, "name", "Enemy")
-                            body_parts = ['arm', 'leg', 'shoulder', 'side', 'chest', 'back']
                             
-                            if player_hp <= 0:
-                                # Fatal blow descriptions
-                                death_messages = [
-                                    f"{enemy_name} delivers a fatal strike to your {random.choice(body_parts)}! [{dmg} damage]",
-                                    f"{enemy_name}'s attack pierces your {random.choice(body_parts)} - you fall! [{dmg} damage]",
-                                    f"A mortal wound to your {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
-                                    f"{enemy_name} cuts through your {random.choice(body_parts)} - darkness takes you! [{dmg} damage]"
-                                ]
-                                game.ui.messages.add(random.choice(death_messages))
-                            elif dmg >= 8:
-                                # Heavy damage descriptions
-                                heavy_messages = [
-                                    f"{enemy_name} savagely strikes your {random.choice(body_parts)}! [{dmg} damage]",
-                                    f"{enemy_name}'s attack tears into your {random.choice(body_parts)}! [{dmg} damage]",
-                                    f"A brutal hit to your {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
-                                    f"{enemy_name} slashes your {random.choice(body_parts)} viciously! [{dmg} damage]"
-                                ]
-                                game.ui.messages.add(random.choice(heavy_messages))
-                            else:
-                                # Normal damage descriptions
-                                hit_messages = [
-                                    f"{enemy_name} strikes your {random.choice(body_parts)}. [{dmg} damage]",
-                                    f"{enemy_name} hits you in the {random.choice(body_parts)}! [{dmg} damage]",
-                                    f"{enemy_name}'s attack wounds your {random.choice(body_parts)}. [{dmg} damage]",
-                                    f"You take a hit to the {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]"
-                                ]
-                                game.ui.messages.add(random.choice(hit_messages))
+                            # Determine environment for contextual descriptions
+                            current_biome = getattr(game, 'current_biome', 'unknown')
+                            in_tomb = getattr(game, 'in_tomb', False)
+                            location_context = 'tomb' if in_tomb else current_biome
+                            
+                            # Use enhanced combat narrator for rich descriptions
+                            try:
+                                from jedi_fugitive.game.combat_narrator import combat_narrator
+                                
+                                if player_hp <= 0:
+                                    # Generate dramatic death description
+                                    death_desc = combat_narrator.get_death_description(
+                                        enemy_name, location_context, dmg, "combat"
+                                    )
+                                    game.ui.messages.add(death_desc)
+                                else:
+                                    # Generate contextual attack description
+                                    attack_desc = combat_narrator.get_attack_description(
+                                        enemy_name, dmg, "melee", "torso", location_context
+                                    )
+                                    game.ui.messages.add(attack_desc)
+                                    
+                            except Exception:
+                                # Fallback to enhanced manual descriptions
+                                body_parts = ['arm', 'leg', 'shoulder', 'side', 'chest', 'back']
+                                
+                                if player_hp <= 0:
+                                    # Enhanced fatal blow descriptions with environment
+                                    death_messages = [
+                                        f"{enemy_name} delivers a fatal strike to your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"{enemy_name}'s attack pierces your {random.choice(body_parts)} - you fall! [{dmg} damage]",
+                                        f"A mortal wound to your {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
+                                        f"{enemy_name} cuts through your {random.choice(body_parts)} - darkness takes you! [{dmg} damage]",
+                                        f"In this {location_context}, {enemy_name} delivers your final blow! [{dmg} damage]"
+                                    ]
+                                    game.ui.messages.add(random.choice(death_messages))
+                                elif dmg >= 8:
+                                    # Enhanced heavy damage descriptions
+                                    heavy_messages = [
+                                        f"{enemy_name} savagely strikes your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"{enemy_name}'s attack tears into your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"A brutal hit to your {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
+                                        f"{enemy_name} slashes your {random.choice(body_parts)} viciously! [{dmg} damage]",
+                                        f"The violence echoes through the {location_context} as {enemy_name} wounds you! [{dmg} damage]"
+                                    ]
+                                    game.ui.messages.add(random.choice(heavy_messages))
+                                else:
+                                    # Enhanced normal damage descriptions
+                                    hit_messages = [
+                                        f"{enemy_name} strikes your {random.choice(body_parts)}. [{dmg} damage]",
+                                        f"{enemy_name} hits you in the {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"{enemy_name}'s attack wounds your {random.choice(body_parts)}. [{dmg} damage]",
+                                        f"You take a hit to the {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
+                                        f"In the {location_context}, {enemy_name} finds its mark! [{dmg} damage]"
+                                    ]
+                                    game.ui.messages.add(random.choice(hit_messages))
                         except Exception:
                             game.ui.messages.add(f"{e.name} hits you for {dmg}!")
                         if getattr(game.player, "hp", 1) <= 0:
@@ -996,15 +1193,20 @@ def process_enemies(game):
                             # Generate comprehensive death log entry
                             try:
                                 # Get enemy info for death narrative
-                                enemy_name = getattr(game.player, 'last_attacking_enemy', 'an enemy')
-                                damage = getattr(game.player, 'last_damage_taken', 0)
-                                attack_type = getattr(game.player, 'last_attack_type', 'attack')
+                                enemy_name = getattr(game.player, 'last_attacking_enemy', getattr(e, 'name', 'an enemy'))
+                                damage = getattr(game.player, 'last_damage_taken', dmg)
+                                attack_type = getattr(game.player, 'last_attack_type', 'melee attack')
+                                
+                                # If no damage info was tracked, use current attack
+                                if damage == 0:
+                                    damage = dmg
+                                    enemy_name = getattr(e, 'name', 'an enemy')
                                 
                                 # Generate enemy taunt
                                 taunt = ""
                                 try:
                                     if hasattr(e, 'personality') and e.personality:
-                                        taunt = e.personality.get_taunt('attack')
+                                        taunt = e.personality.get_taunt('attack', game.player)
                                     else:
                                         taunt = random.choice(ENEMY_TAUNTS.get('attack', ['You have fallen!']))
                                 except Exception:
@@ -1057,7 +1259,35 @@ def process_enemies(game):
                             return
                     else:
                         try:
-                            game.ui.messages.add(f"{e.name} missed you.")
+                            enemy_name = getattr(e, 'name', 'Enemy')
+                            biome = getattr(game, 'current_biome', 'unknown')
+                            
+                            # Environmental miss descriptions
+                            miss_messages = {
+                                'desert': [
+                                    f"{enemy_name}'s attack goes wide, striking only sand!",
+                                    f"The desert wind deflects {enemy_name}'s blow!",
+                                    f"{enemy_name} stumbles in the shifting sand and misses!"
+                                ],
+                                'forest': [
+                                    f"{enemy_name}'s strike hits a tree trunk instead!",
+                                    f"Forest shadows confuse {enemy_name}'s aim!",
+                                    f"{enemy_name} gets tangled in undergrowth and misses!"
+                                ],
+                                'mountains': [
+                                    f"{enemy_name} loses footing on the rocky terrain!",
+                                    f"The mountain wind throws off {enemy_name}'s attack!",
+                                    f"{enemy_name} strikes stone instead of flesh!"
+                                ],
+                                'tomb': [
+                                    f"{enemy_name}'s attack is swallowed by the tomb's darkness!",
+                                    f"Ancient dust clouds {enemy_name}'s vision!",
+                                    f"{enemy_name} strikes a stone pillar in the gloom!"
+                                ]
+                            }
+                            
+                            messages = miss_messages.get(biome, [f"{enemy_name} missed you."])
+                            game.ui.messages.add(random.choice(messages))
                         except Exception:
                             pass
                 else:
@@ -1068,16 +1298,24 @@ def process_enemies(game):
                         # Get enemy's behavioral style
                         behavior = ai_get_enemy_behavior(e)
                         
+                        # Cache AI state for batch processing optimization  
+                        if not hasattr(game, '_ai_cache'):
+                            game._ai_cache = {}
+                        
                         # COORDINATED CHARGE: if 3+ enemies nearby, all charge together!
-                        if ai_should_charge(e, game):
-                            # Direct aggressive movement toward player
-                            if getattr(game.player, "x", 0) > getattr(e, "x", 0):
+                        cache_key = f"charge_{ex}_{ey}"
+                        if cache_key not in game._ai_cache:
+                            game._ai_cache[cache_key] = ai_should_charge(e, game)
+                        
+                        if game._ai_cache[cache_key]:
+                            # Direct aggressive movement toward player (use cached positions)
+                            if px > ex:
                                 dx = 1
-                            elif getattr(game.player, "x", 0) < getattr(e, "x", 0):
+                            elif px < ex:
                                 dx = -1
-                            if getattr(game.player, "y", 0) > getattr(e, "y", 0):
+                            if py > ey:
                                 dy = 1
-                            elif getattr(game.player, "y", 0) < getattr(e, "y", 0):
+                            elif py < ey:
                                 dy = -1
                             # Message on first charge
                             try:
@@ -1145,16 +1383,16 @@ def process_enemies(game):
                             if random.random() < 0.4:  # 40% chance to flank instead of direct approach
                                 dx, dy = ai_find_flanking_position(e, game)
                         
-                        # Default: direct pursuit toward player
+                        # Default: direct pursuit toward player (use cached positions)
                         else:
-                            if getattr(game.player, "x", 0) > getattr(e, "x", 0):
+                            if px > ex:
                                 dx = 1
-                            elif getattr(game.player, "x", 0) < getattr(e, "x", 0):
+                            elif px < ex:
                                 dx = -1
                             if dx == 0:
-                                if getattr(game.player, "y", 0) > getattr(e, "y", 0):
+                                if py > ey:
                                     dy = 1
-                                elif getattr(game.player, "y", 0) < getattr(e, "y", 0):
+                                elif py < ey:
                                     dy = -1
                     except Exception:
                         # Fallback to simple pursuit
@@ -1196,12 +1434,12 @@ def process_enemies(game):
             except Exception:
                 pass  # Close the try block for each enemy defensively
 
-        # After enemy loop: reduce stress on level up / gaining abilities
+        # After enemy loop: reduce stress on level up / gaining abilities and build confidence
         try:
             cur_level = getattr(game.player, "level", 1)
             if cur_level > getattr(game, "last_level", cur_level):
-                # reduce stress modestly on level up
-                game.player.stress = max(0, getattr(game.player, "stress", 0) - 10)
+                # Increased stress reduction - represents growing confidence and mastery
+                game.player.reduce_stress(20, source='victory')  # Increased from 10
                 game.last_level = cur_level
             cur_abil_count = 0
             try:
@@ -1209,10 +1447,40 @@ def process_enemies(game):
             except Exception:
                 cur_abil_count = getattr(game, "last_ability_count", 0)
             if cur_abil_count > getattr(game, "last_ability_count", cur_abil_count):
-                # reduce stress per gained ability
-                reduce_amt = 5 * (cur_abil_count - getattr(game, "last_ability_count", cur_abil_count))
-                game.player.stress = max(0, getattr(game.player, "stress", 0) - reduce_amt)
+                # Increased stress reduction per gained ability
+                reduce_amt = 10 * (cur_abil_count - getattr(game, "last_ability_count", cur_abil_count))  # Increased from 5
+                game.player.reduce_stress(reduce_amt, source='victory')
                 game.last_ability_count = cur_abil_count
+        except Exception:
+            pass
+        
+        # Track successful combat for confidence building
+        try:
+            enemies_defeated_this_turn = 0
+            for e in list(game.enemies):
+                if getattr(e, 'hp', 1) <= 0 and not getattr(e, '_counted_for_confidence', False):
+                    enemies_defeated_this_turn += 1
+                    e._counted_for_confidence = True
+            
+            if enemies_defeated_this_turn > 0:
+                # Build confidence with each victory
+                game.player._successful_combats = getattr(game.player, '_successful_combats', 0) + enemies_defeated_this_turn
+                # Small stress reduction per kill (scales with confidence)
+                stress_reduction = min(5, enemies_defeated_this_turn * 2)
+                game.player.reduce_stress(stress_reduction, source='victory')
+        except Exception:
+            pass
+            
+        # Clear AI caches after processing to prevent stale data
+        try:
+            # Clear coordination cache
+            if hasattr(game, '_ai_cache'):
+                game._ai_cache.clear()
+            # Clear pathfinding caches (but keep terrain cache for next turn)
+            if hasattr(game, '_flanking_cache'):
+                game._flanking_cache.clear()
+            if hasattr(game, '_range_cache'):
+                game._range_cache.clear()
         except Exception:
             pass
 

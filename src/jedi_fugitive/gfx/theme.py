@@ -36,7 +36,7 @@ FLOOR = {
     'forest': (50, 90, 62),
     'desert': (156, 128, 82),
     'rocky': (98, 92, 102),
-    'river': (52, 92, 118),
+    'river': (64, 98, 80),      # riverbank grass; the water itself is '~'
     'mountain_pass': (104, 92, 84),
     'tomb': (62, 52, 78),
 }

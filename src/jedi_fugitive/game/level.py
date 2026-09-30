@@ -64,7 +64,9 @@ def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], 
 def generate_dungeon_level(depth: int, width: int = 80, height: int = 24):
     game_map = [[Display.WALL for _ in range(width)] for _ in range(height)]
     rooms = []
-    for _ in range(random.randint(5,8)):
+    # larger levels get more room attempts so they are not mostly solid rock
+    attempts = random.randint(5, 8) + max(0, (width * height - 80 * 24) // 500)
+    for _ in range(attempts):
         rw = random.randint(6,12); rh = random.randint(4,8)
         rx = random.randint(1, width - rw - 1); ry = random.randint(1, height - rh - 1)
         overlap = False

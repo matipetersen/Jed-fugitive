@@ -120,7 +120,7 @@ def _fire_gun(game, tx, ty):
         
         # Consume turn
         try:
-            game.turn_count = getattr(game, 'turn_count', 0) + 1
+            pass  # turn_count advances once per world tick (GameManager._world_tick)
         except Exception:
             pass
         
@@ -214,7 +214,7 @@ def _throw_grenade(game, tx, ty):
         
         # Consume turn
         try:
-            game.turn_count = getattr(game, 'turn_count', 0) + 1
+            pass  # turn_count advances once per world tick (GameManager._world_tick)
         except Exception:
             pass
         
@@ -268,6 +268,17 @@ def handle_input(game, key):
     """
     try:
         if key is None or key < 0:
+            return
+
+        if getattr(game, '_confirm_quit', False):
+            game._confirm_quit = False
+            if key in (ord('q'), ord('y'), ord('Y')):
+                try: game.ui.messages.add("Quitting...")
+                except Exception: pass
+                game.running = False
+            else:
+                try: game.ui.messages.add("You press on.")
+                except Exception: pass
             return
 
         move_map = {
@@ -358,9 +369,10 @@ def handle_input(game, key):
 
         # Global keys
         if key in (ord('q'), 27):
-            try: game.ui.messages.add("Quitting...") 
+            # ask first: a stray ESC used to end the run instantly
+            game._confirm_quit = True
+            try: game.ui.messages.add("Abandon your journey? Press q again (or y) to quit, any other key to continue.")
             except Exception: pass
-            game.running = False
             return
 
         if key == ord('r'):
@@ -422,7 +434,7 @@ def handle_input(game, key):
                     "  c = Scan/Compass (locate nearby tombs)",
                     "",
                     "INFORMATION:",
-                    "  j = Journal/Travel Log (view your story)",
+                    "  J = Journal/Travel Log (view your story)",
                     "  i = Inventory (view/manage items)",
                     "  @ = Character sheet (stats & abilities)",
                     "  v = Sith Codex (lore & discoveries)",
@@ -448,7 +460,7 @@ def handle_input(game, key):
                     "  ? = Show this help screen",
                     "  m = Meditate (reduce stress if safe)",
                     "  r = Reveal map (debug/cheat)",
-                    "  q / ESC = Quit game",
+                    "  q / ESC = Quit game (asks for confirmation)",
                     "",
                     "Press any key to close..."
                 ]
@@ -954,7 +966,7 @@ def handle_input(game, key):
                     except Exception: pass
                     
                     try:
-                        game.turn_count = getattr(game, 'turn_count', 0) + 1
+                        pass  # turn_count advances once per world tick (GameManager._world_tick)
                     except Exception:
                         pass
                 else:
@@ -1024,7 +1036,7 @@ def handle_input(game, key):
                     except Exception: pass
                     
                     try:
-                        game.turn_count = getattr(game, 'turn_count', 0) + 1
+                        pass  # turn_count advances once per world tick (GameManager._world_tick)
                     except Exception:
                         pass
                 else:
@@ -1139,7 +1151,7 @@ def handle_input(game, key):
 
         # Meditate: spend a turn to reduce stress if safe
         # View travel log (journal)
-        if key == ord('j'):
+        if key == ord('J'):
             try:
                 log = getattr(game.player, 'travel_log', [])
                 if not log:
@@ -1176,7 +1188,7 @@ def handle_input(game, key):
                 if acted:
                     # consume a turn and tick effects
                     try:
-                        game.turn_count = getattr(game, 'turn_count', 0) + 1
+                        pass  # turn_count advances once per world tick (GameManager._world_tick)
                         if hasattr(game, '_tick_effects') and callable(game._tick_effects):
                             game._tick_effects()
                     except Exception:
@@ -1285,7 +1297,7 @@ def perform_player_attack(game, enemy):
     try:
         # count attack as a player turn
         try:
-            game.turn_count = getattr(game, 'turn_count', 0) + 1
+            pass  # turn_count advances once per world tick (GameManager._world_tick)
         except Exception:
             pass
         # Try calling combat function if available

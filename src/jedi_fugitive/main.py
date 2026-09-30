@@ -14,6 +14,8 @@ def _parse_args(argv=None):
                    help="real-time world tick length in milliseconds (default: 200)")
     p.add_argument("--fullscreen", action="store_true", help="start fullscreen (F11 toggles)")
     p.add_argument("--size", default=None, help="window size, e.g. 1600x960")
+    p.add_argument("--world-size", default="large", choices=["small", "normal", "large", "huge"],
+                   help="overworld size (default: large, 440x300 tiles)")
     # PyInstaller/macOS may pass extra arguments (e.g. -psn_*); ignore them
     args, _unknown = p.parse_known_args(argv)
     return args
@@ -50,6 +52,7 @@ def _main_gui(args):
         input("Press Enter to begin your journey...")
         print(get_random_loading_message())
         gm = GameManager(app.stdscr)
+        gm.world_size = args.world_size
         gm.tick_seconds = max(0.05, args.tick_ms / 1000.0)
         # world generation is slow on the huge surface map: keep the window responsive
         app.run_loading(lambda: (gm.initialize(), gm.generate_world()))
@@ -66,11 +69,15 @@ def _main_gui(args):
         app.shutdown()
 
 
+_WORLD_SIZE = "large"
+
+
 def _curses_main(stdscr):
     from jedi_fugitive.game.game_manager import GameManager
     # Existing initialization entrypoint expected by the project
     try:
         gm = GameManager(stdscr)
+        gm.world_size = _WORLD_SIZE
         gm.run()
         # Return the game manager so we can check death/victory state
         return gm
@@ -89,10 +96,12 @@ def main(argv=None):
         return _main_gui(args)
     if args.realtime:
         sys.stderr.write("Real-time mode needs the graphical UI (pygame); starting turn-based.\n")
-    return _main_terminal()
+    return _main_terminal(args.world_size)
 
 
-def _main_terminal():
+def _main_terminal(world_size="large"):
+    global _WORLD_SIZE
+    _WORLD_SIZE = world_size
     import curses
     from jedi_fugitive.game.game_manager import GameManager
     from jedi_fugitive.game.sith_codex import get_random_loading_message

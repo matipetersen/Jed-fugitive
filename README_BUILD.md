@@ -41,6 +41,8 @@ Front-ends and modes
   - `--realtime` starts in real-time mode; `F2` toggles turn-based/real-time in game; `--tick-ms 200` sets the world tick.
   - `F11` fullscreen, mouse wheel zoom, `F3` FPS counter, `F12` screenshot.
 - Terminal: `--terminal` forces the original curses UI (turn-based only).
+- World: `--world-size small|normal|large|huge` (default `large`, 440x300 tiles, ~100k walkable; `huge` is 640x440).
+  Generation takes ~1-4 s; every tomb, the ship and the comms terminal are guaranteed reachable on foot.
 
 Troubleshooting
 - If the game fails with curses initialization errors, run in a proper terminal and set `TERM` appropriately, e.g. `export TERM=xterm-256color`.

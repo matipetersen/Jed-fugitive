@@ -102,7 +102,7 @@ class GameManager:
             "Actions: g=pickup  e=equip  u=use  d=drop  x=inspect",
             "Combat: Walk into enemy  t=grenade  F=shoot",
             "Force: f=abilities  c=compass  m=meditate",
-            "Info: j=journal  i=inventory  v=codex  @=character",
+            "Info: J=journal  i=inventory  v=codex  @=character",
             "Meta: ?=help  C=craft  q=quit  ESC=cancel",
             "════════════════════════════════════════════════",
             "Artifacts: 'a'=ABSORB (Dark) or 'd'=DESTROY (Light)",
@@ -159,7 +159,7 @@ class GameManager:
                 "Your path is yours alone. Will you embrace the shadows,",
                 "or walk in the light?",
                 "",
-                "Press '?' for help | 'j' for journal | 'q' to quit"
+                "Press '?' for help | 'J' for journal | 'q' to quit"
             ]
             for line in intro_lines:
                 self.ui.messages.add(line)
@@ -382,9 +382,9 @@ class GameManager:
 
     def _world_tick(self) -> bool:
         """Advance the world by one tick. Returns False when the game ended."""
-        if self.realtime:
-            # the world clock drives turn-based systems (stress, cooldowns, respawns)
-            self.turn_count = getattr(self, 'turn_count', 0) + 1
+        # Single authoritative clock: stress cadence, enemy cooldowns, respawns and
+        # the journal all read turn_count, so it advances exactly once per world tick.
+        self.turn_count = getattr(self, 'turn_count', 0) + 1
         # process game tick
         try:
             self.turns += 1
@@ -472,10 +472,66 @@ class GameManager:
             pass
 
         try:
+            self._maybe_spawn_fanatic()
+        except Exception:
+            pass
+
+        try:
             self.compute_visibility()
         except Exception:
             pass
         return True
+
+    def _maybe_spawn_fanatic(self):
+        """Story beat: before the first tomb a Sith Fanatic picks up your trail.
+
+        The tomb-entry narrative already speaks of "the fanatic's relentless
+        pursuit"; this makes that chase actually happen on the surface.
+        """
+        if getattr(self, 'fanatic_spawned', False) or getattr(self, 'tomb_levels', None):
+            return
+        if getattr(self.player, '_stress_system_active', False):
+            return  # already been inside a tomb
+        px, py = int(self.player.x), int(self.player.y)
+        if not hasattr(self, '_fanatic_turn'):
+            self._fanatic_turn = random.randint(70, 140)
+        near_tomb = any(abs(tx - px) + abs(ty - py) <= 45 for (tx, ty) in (getattr(self, 'tomb_entrances', None) or ()))
+        if getattr(self, 'turn_count', 0) < self._fanatic_turn and not near_tomb:
+            return
+        mh = len(self.game_map); mw = len(self.game_map[0]) if mh else 0
+        floor = getattr(Display, 'FLOOR', '.')
+        import math
+        spot = None
+        for _ in range(400):
+            ang = random.random() * math.tau
+            r = random.randint(14, 20)
+            x = int(px + math.cos(ang) * r); y = int(py + math.sin(ang) * r)
+            if 0 <= x < mw and 0 <= y < mh and self.game_map[y][x] == floor and (x, y) not in getattr(self, 'visible', set()):
+                spot = (x, y)
+                break
+        if spot is None:
+            return
+        from jedi_fugitive.game import enemies_sith as sith
+        f = sith.create_sith_warrior(level=max(1, getattr(self.player, 'level', 1) + 1))
+        f.name = "Sith Fanatic"
+        f.symbol = 'F'
+        f.is_hunter = True
+        f._has_spotted = True
+        f.alert_range = 20
+        f.x, f.y = spot
+        self.enemies.append(f)
+        self.fanatic_spawned = True
+        self.fanatic = f
+        try:
+            self.add_message("A zealot's war-cry echoes across the wastes. A Sith Fanatic has found your trail!")
+            self.add_message("Run for the tombs, or stand and fight.")
+        except Exception:
+            pass
+        try:
+            self.player.add_to_travel_log("[HUNTED] A Sith fanatic caught my scent. I can hear the footsteps behind me, relentless.")
+        except Exception:
+            pass
+        self.notify_being_hunted(duration=40)
 
     def _check_resize(self):
         try:
@@ -1151,7 +1207,7 @@ class GameManager:
             instructions = [
                 "CONTROLS:",
                 "  Move: ↑↓←→ arrows or hjkl    Diagonal: ybn or numpad 7913",
-                "  g=pickup e=equip u=use d=drop  x=inspect j=journal f=force c=compass m=meditate  ?=help q=quit",
+                "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate  ?=help q=quit",
                 "",
                 "OBJECTIVE:",
                 "  1. Infiltrate Sith tombs (marked 'D') to recover 3 corrupted Jedi artifacts",
@@ -2013,10 +2069,41 @@ class GameManager:
                             except Exception:
                                 pass
                             
-                            # Place boss near ship
+                            # Give the boss its signature Force powers
                             try:
-                                boss.x = nx
-                                boss.y = ny
+                                from jedi_fugitive.game import force_abilities as _fa
+                                if boss_type == EnemyType.SITH_LORD:
+                                    boss.force_abilities = {
+                                        'lightning': _fa.ForceLightning(damage=10 + lvl * 2),
+                                        'heal': _fa.ForceHeal(amount=8 + lvl * 2),
+                                    }
+                                else:
+                                    boss.force_abilities = {
+                                        'heal': _fa.ForceHeal(amount=10 + lvl * 2),
+                                        'pushpull': _fa.ForcePushPull(),
+                                    }
+                            except Exception:
+                                pass
+
+                            # Place boss on a free tile next to the ship (never on the player)
+                            try:
+                                spot = None
+                                for r in (2, 3, 4, 5):
+                                    for ddy in range(-r, r + 1):
+                                        for ddx in range(-r, r + 1):
+                                            bx, by = nx + ddx, ny + ddy
+                                            if max(abs(ddx), abs(ddy)) != r:
+                                                continue
+                                            if (0 <= by < mh and 0 <= bx < mw and
+                                                    self.game_map[by][bx] == getattr(Display, 'FLOOR', '.') and
+                                                    not any(getattr(o, 'x', None) == bx and getattr(o, 'y', None) == by for o in self.enemies)):
+                                                spot = (bx, by)
+                                                break
+                                        if spot:
+                                            break
+                                    if spot:
+                                        break
+                                boss.x, boss.y = spot if spot else (nx, ny)
                             except Exception:
                                 try:
                                     boss.x = getattr(player, 'x', 0)
@@ -2777,8 +2864,12 @@ class GameManager:
             player_level = getattr(self.player, 'level', 1)
             
             # Minimum distance from player (enemies spawn far away)
-            min_distance = 60  # Manhattan distance
-            
+            min_distance = min(60, max(20, min(mw, mh) // 4))
+            # keep the population bounded so long sessions do not snowball
+            alive = sum(1 for e in getattr(self, 'enemies', []) or [] if getattr(e, 'hp', 0) > 0)
+            cap = max(12, (mw * mh) // 2500)
+            count = max(0, min(count, cap - alive))
+
             for _ in range(count):
                 # Try to find a valid spawn location
                 attempts = 0
@@ -3116,7 +3207,7 @@ class GameManager:
                             ch = self.game_map[ly][lx]
                             # if blocking tile is the target tile, show it; otherwise block further tiles
                             # All non-floor, non-wreckage, non-special tiles block line-of-sight
-                            if ch not in (floor_ch, wreckage_ch, 'O', 'L', '?', '!', '@', '$', '%', '&', '*', 'C', 'S', 'M', 'r'):
+                            if ch not in (floor_ch, wreckage_ch, 'O', 'L', '?', '!', '@', '$', '%', '&', '*', 'C', 'S', 'M', 'r', '=', '§', '¶', '†', '‡', '~'):
                                 if (lx, ly) == (tx, ty):
                                     # target is blocking but visible
                                     blocked = False

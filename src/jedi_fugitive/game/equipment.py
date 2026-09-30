@@ -246,7 +246,7 @@ def pick_up(game):
             # Gold pickup no longer added to travel log (too spammy)
             
             try:
-                game.turn_count = getattr(game, 'turn_count', 0) + 1
+                pass  # turn_count advances once per world tick (GameManager._world_tick)
             except Exception:
                 pass
             return
@@ -339,7 +339,7 @@ def pick_up(game):
                         pass
                     
                     try:
-                        game.turn_count = getattr(game, 'turn_count', 0) + 1
+                        pass  # turn_count advances once per world tick (GameManager._world_tick)
                     except Exception:
                         pass
                     
@@ -395,7 +395,7 @@ def pick_up(game):
                     pass
                 
                 try:
-                    game.turn_count = getattr(game, 'turn_count', 0) + 1
+                    pass  # turn_count advances once per world tick (GameManager._world_tick)
                 except Exception:
                     pass
                 return
@@ -427,7 +427,7 @@ def pick_up(game):
             try: game.ui.messages.add(f"Picked up {item_entry.get('name','item')}.") 
             except Exception: pass
             try:
-                game.turn_count = getattr(game, 'turn_count', 0) + 1
+                pass  # turn_count advances once per world tick (GameManager._world_tick)
             except Exception:
                 pass
             return
@@ -475,7 +475,7 @@ def pick_up(game):
                         except Exception:
                             pass
                         try:
-                            game.turn_count = getattr(game, 'turn_count', 0) + 1
+                            pass  # turn_count advances once per world tick (GameManager._world_tick)
                         except Exception:
                             pass
                         # register in codex if available and apply side-effects
@@ -539,7 +539,7 @@ def pick_up(game):
             try: game.ui.messages.add(f"Picked up {it.get('name','item')}.") 
             except Exception: pass
             try:
-                game.turn_count = getattr(game, 'turn_count', 0) + 1
+                pass  # turn_count advances once per world tick (GameManager._world_tick)
             except Exception:
                 pass
             return
@@ -739,7 +739,7 @@ def equip_item(game):
             try: game.ui.messages.add(f"Equipped {name}.") 
             except Exception: pass
         try:
-            game.turn_count = getattr(game, 'turn_count', 0) + 1
+            pass  # turn_count advances once per world tick (GameManager._world_tick)
         except Exception:
             pass
     except Exception:
@@ -820,7 +820,7 @@ def drop_item(game):
             pass
         
         try:
-            game.turn_count = getattr(game, 'turn_count', 0) + 1
+            pass  # turn_count advances once per world tick (GameManager._world_tick)
         except Exception:
             pass
         
@@ -999,7 +999,7 @@ def use_item(game):
                     except Exception:
                         pass
                 try:
-                    game.turn_count = getattr(game, 'turn_count', 0) + 1
+                    pass  # turn_count advances once per world tick (GameManager._world_tick)
                 except Exception:
                     pass
                 return True
@@ -1108,7 +1108,7 @@ def use_item(game):
                     except Exception:
                         continue
                 try:
-                    game.turn_count = getattr(game, 'turn_count', 0) + 1
+                    pass  # turn_count advances once per world tick (GameManager._world_tick)
                 except Exception:
                     pass
                 return True

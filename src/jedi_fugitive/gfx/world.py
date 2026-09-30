@@ -156,6 +156,8 @@ class WorldRenderer:
             'T': 'tree', 'r': 'rock', '~': 'dune', 'o': 'crater', 'x': 'wreck',
             '>': 'stairs', '<': 'stairs', 'D': 'portal', 'S': 'ship', 'C': 'comms',
             '$': 'item', '!': 'item', ':': 'item', '&': 'item',
+            '=': 'bridge', '*': 'crystal',
+            '?': 'lore', '§': 'lore', '¶': 'lore', '†': 'lore', '‡': 'lore', '%': 'lore',
         }.get(ch, 'token')
 
     def _base_tile(self, ch, kind, floor, variant, in_tomb):
@@ -177,9 +179,10 @@ class WorldRenderer:
             y0 = T // 3 + variant * T // 8
             pygame.draw.arc(s, theme.scale(base, 1.18), (-T // 4, y0, T * 3 // 2, T // 2), 0.3, 2.8, 1)
         elif floor == 'river':
-            for i in range(2):
-                yy = T * (0.3 + 0.35 * i) + variant * 2
-                pygame.draw.arc(s, theme.scale(base, 1.35), (T * 0.1 + i * T * 0.2, yy, T * 0.4, T * 0.2), 0.2, 2.9, 1)
+            # reeds on the riverbank
+            for _ in range(2 + variant):
+                gx, gy = rnd.randrange(3, T - 3), rnd.randrange(T // 2, T - 2)
+                pygame.draw.line(s, theme.scale(base, 1.5), (gx, gy), (gx + rnd.choice((-1, 0, 1)), gy - T // 4), 1)
         elif floor == 'mountain_pass':
             pygame.draw.line(s, theme.scale(base, 0.75), (T * 0.1, T * (0.3 + variant * 0.2)), (T * 0.6, T * (0.5 + variant * 0.1)), 1)
         elif floor == 'tomb':
@@ -214,6 +217,31 @@ class WorldRenderer:
             pygame.draw.polygon(s, theme.scale(theme.ROCK, 0.7), [(x, y + T * 0.05) for x, y in pts])
             pygame.draw.polygon(s, theme.ROCK, pts)
             pygame.draw.circle(s, theme.scale(theme.ROCK, 1.3), (c - T * 0.1, c - T * 0.06), T * 0.07)
+        elif kind == 'dune' and floor == 'river':
+            # river water
+            s.fill((34, 78, 128))
+            for i in range(3):
+                yy = T * (0.2 + 0.28 * i) + variant * 2
+                pygame.draw.arc(s, (90, 150, 210), (T * (0.05 + 0.2 * (i % 2)), yy, T * 0.5, T * 0.22), 0.3, 2.8, 1)
+        elif kind == 'bridge':
+            s.fill((34, 78, 128))
+            for i in range(4):
+                pygame.draw.rect(s, (120, 92, 60), (T * 0.08, T * (0.08 + i * 0.23), T * 0.84, T * 0.18), border_radius=2)
+                pygame.draw.line(s, (80, 60, 40), (T * 0.08, T * (0.26 + i * 0.23)), (T * 0.92, T * (0.26 + i * 0.23)))
+        elif kind == 'crystal':
+            for (ox, oy, h_) in ((-0.15, 0.1, 0.35), (0.1, 0.05, 0.45), (0.25, 0.15, 0.28)):
+                bx, by = c + ox * T, c + oy * T + T * 0.2
+                pts = [(bx - T * 0.07, by), (bx, by - h_ * T), (bx + T * 0.07, by)]
+                pygame.draw.polygon(s, (120, 200, 230), pts)
+                pygame.draw.polygon(s, (220, 250, 255), pts, 1)
+        elif kind == 'lore':
+            # holocron: glowing cube
+            d = T * 0.22
+            top = [(c, c - d * 1.2), (c + d, c - d * 0.6), (c, c), (c - d, c - d * 0.6)]
+            pygame.draw.polygon(s, (60, 30, 90), [(c - d, c - d * 0.6), (c, c), (c, c + d * 1.1), (c - d, c + d * 0.5)])
+            pygame.draw.polygon(s, (90, 40, 130), [(c + d, c - d * 0.6), (c, c), (c, c + d * 1.1), (c + d, c + d * 0.5)])
+            pygame.draw.polygon(s, (190, 110, 255), top)
+            pygame.draw.polygon(s, (250, 220, 255), top, 1)
         elif kind == 'dune':
             for i in range(2):
                 pygame.draw.arc(s, theme.scale(base, 1.3), (-T * 0.2, T * (0.25 + i * 0.3), T * 1.4, T * 0.5), 0.4, 2.7, 2)
@@ -481,7 +509,7 @@ class WorldRenderer:
                     d = math.hypot(tx - pcx, ty - pcy)
                     b = 1.0 - (d / (radius + 2.0)) ** 2 * 0.6 + flicker
                     light = max(0, min(10, int(round(b * 10))))
-                    if ch in ('D', '&', '>', '<'):
+                    if ch in ('D', '&', '>', '<', '?', '§', '¶', '†', '‡', '%'):
                         specials.append((tx, ty, ch))
                 elif pos in explored or not fog:
                     light = -1
@@ -521,6 +549,8 @@ class WorldRenderer:
             elif ch == '&':
                 k = 0.6 + 0.4 * math.sin(self.t * 4 + ty)
                 self.add_glow(screen, cx, cy, T * 0.9, (120, 60, 200), k)
+            elif ch in '?§¶†‡%' and not in_tomb:
+                self.add_glow(screen, cx, cy, T * 0.75, (110, 50, 170), 0.5 + 0.3 * math.sin(self.t * 3 + tx * 0.7))
             elif ch in '<>':
                 col = theme.TOKEN_COLORS[ch]
                 self.add_glow(screen, cx, cy, T * 0.8, theme.scale(col, 0.5), 0.6 + 0.2 * math.sin(self.t * 2))
@@ -918,6 +948,8 @@ class WorldRenderer:
                         col = (96, 108, 150, 230)
                     elif ch == 'T':
                         col = (50, 110, 70, 220)
+                    elif ch == '~' and not in_tomb:
+                        col = (50, 100, 170, 230)
                     elif ch == 'D' and not in_tomb:
                         col = (255, 70, 90, 255)
                     elif ch in '<>':

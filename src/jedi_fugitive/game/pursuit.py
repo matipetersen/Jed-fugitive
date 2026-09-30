@@ -33,7 +33,7 @@ class PursuitSystem:
             
             # Spawn Sith Predator
             try:
-                from jedi_fugitive.game.enemy import Enemy, EnemyType
+                from jedi_fugitive.game import enemies_sith
                 
                 # Find spawn position near player but not on top
                 px, py = game.player.x, game.player.y
@@ -51,9 +51,11 @@ class PursuitSystem:
                         break
                 
                 # Create the predator
-                predator = Enemy(spawn_x, spawn_y, EnemyType.SITH_ACOLYTE) # Placeholder type
+                level = max(1, int(getattr(game.player, 'level', 1) or 1))
+                predator = enemies_sith.create_sith_warrior(level=level, x=spawn_x, y=spawn_y)
                 predator.name = "Sith Predator"
-                predator.char = "S" # Sith symbol
+                predator.char = "S"
+                predator.symbol = "S"
                 predator.hp = 150
                 predator.max_hp = 150
                 predator.attack = 25

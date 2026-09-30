@@ -55,7 +55,7 @@ def test_unequip_returns_to_inventory_or_drops_when_full():
     gm = setup_game()
     p = gm.player
     # prepare inventory at capacity
-    p.inventory = ['x'] * int(getattr(gm, 'max_inventory', 9) or 9)
+    p.inventory = ['x'] * p.get_max_inventory()
     # equip an item
     p.equipped_weapon = {'name': 'Test Blade'}
     # unequip
@@ -63,12 +63,12 @@ def test_unequip_returns_to_inventory_or_drops_when_full():
     # returned should be the unequipped item
     assert returned is not None
     # inventory should still be at capacity (we eject oldest and add new)
-    assert len(p.inventory) == int(getattr(gm, 'max_inventory', 9) or 9)
+    assert len(p.inventory) == p.get_max_inventory()
 
 def test_cant_pickup_when_inventory_full():
     gm = setup_game()
     p = gm.player
-    p.inventory = ['i'] * int(getattr(gm, 'max_inventory', 9) or 9)
+    p.inventory = ['i'] * p.get_max_inventory()
     gm.turn_count = 0
     # place item at player
     token = 'b'
@@ -77,6 +77,6 @@ def test_cant_pickup_when_inventory_full():
     gm.items_on_map.append({'x': x, 'y': y, 'token': token, 'name': 'Blaster'})
     equipment.pick_up(gm)
     # inventory should not grow
-    assert len(p.inventory) == int(getattr(gm, 'max_inventory', 9) or 9)
+    assert len(p.inventory) == p.get_max_inventory()
     # turn count unchanged
     assert gm.turn_count == 0

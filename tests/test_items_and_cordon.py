@@ -79,9 +79,11 @@ def test_replaced_weapon_returns_to_inventory():
     gm = make_game(seed=4, cordon=False)
     p = gm.player
     p.inventory = [registry.materialize(TOKEN_MAP['v']), registry.materialize(TOKEN_MAP['/'])]
-    gm.stdscr.keys = [ord('1')]
+    p.equipped_weapon = None
+    # the chooser is a popup menu: pick entry 0 (Vibroblade), then the only equippable left
+    gm.ui.popup_dialogue = lambda items, **kw: 0
     equipment.equip_item(gm)
-    gm.stdscr.keys = [ord('m')]
+    gm.stdscr.keys = [ord('m')]  # replace the main-hand weapon
     equipment.equip_item(gm)
     assert p.equipped_weapon.name == 'Single Lightsaber'
     assert [registry.item_name(i) for i in p.inventory] == ['Vibroblade']

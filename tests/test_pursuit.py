@@ -4,6 +4,24 @@ from jedi_fugitive.game.pursuit import PursuitSystem
 class DummyPlayer:
     def __init__(self):
         self.turn_count = 0
+        self.x = self.y = 5
+
+
+class _Msgs:
+    def add(self, *a, **k):
+        pass
+
+
+class _UI:
+    messages = _Msgs()
+
+
+class DummyGame:
+    def __init__(self):
+        self.player = DummyPlayer()
+        self.game_map = [['.'] * 12 for _ in range(12)]
+        self.enemies = []
+        self.ui = _UI()
 
 
 def test_detection_increases_on_force_and_combat():
@@ -26,10 +44,11 @@ def test_detection_decreases_on_stealth_and_disguise():
 def test_predator_spawns_at_threshold():
     p = DummyPlayer()
     ps = PursuitSystem(p)
-    ps.detection_level = 70
-    assert ps.check_predator_spawn() is True
+    ps.detection_level = 100
+    game = DummyGame()
+    assert ps.check_predator_spawn(game) is True
     assert ps.sith_predator_active is True
-    assert ps.check_predator_spawn() is False
+    assert ps.check_predator_spawn(game) is False
 
 def test_detection_decay():
     p = DummyPlayer()

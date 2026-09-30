@@ -40,12 +40,12 @@ def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], 
     item_chances = {Display.GOLD:0.35, Display.FOOD:0.08, Display.POTION:0.12}
     
     # Crafting materials (common to rare based on depth)
-    material_tokens = ['m', 'M', 'w', 'P']  # Common materials
+    material_tokens = ['m', 'h', 'w', 'e']  # Common materials
     if depth >= 2:
-        material_tokens.extend(['p', 'l', 'C'])  # Uncommon materials
+        material_tokens.extend(['p', 'l', 'i'])  # Uncommon materials
     if depth >= 4:
         item_chances[Display.ARTIFACT] = 0.05
-        material_tokens.extend(['o'])  # Rare materials
+        material_tokens.extend(['k'])  # Rare materials
     if depth >= 6:
         material_tokens.extend(['K'])  # Legendary materials
     
@@ -64,7 +64,9 @@ def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], 
 def generate_dungeon_level(depth: int, width: int = 80, height: int = 24):
     game_map = [[Display.WALL for _ in range(width)] for _ in range(height)]
     rooms = []
-    for _ in range(random.randint(5,8)):
+    # larger levels get more room attempts so they are not mostly solid rock
+    attempts = random.randint(5, 8) + max(0, (width * height - 80 * 24) // 500)
+    for _ in range(attempts):
         rw = random.randint(6,12); rh = random.randint(4,8)
         rx = random.randint(1, width - rw - 1); ry = random.randint(1, height - rh - 1)
         overlap = False

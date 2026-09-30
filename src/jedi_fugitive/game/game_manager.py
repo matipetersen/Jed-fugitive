@@ -45,6 +45,18 @@ class GameManager:
         self.last_commands = ""
         self.running = True
         self.show_popups = False
+        # Graphical front-end (pygame) when stdscr comes from the curses shim
+        self.gfx = getattr(stdscr, 'app', None) if getattr(curses, 'IS_PYGAME_SHIM', False) else None
+        self.realtime = False
+        self.tick_seconds = 0.2
+        self._rt_last = None
+        if self.gfx is not None:
+            try:
+                self.gfx.attach_game(self)
+                self.gfx.on_resize = self._on_gfx_resize
+                self.gfx.on_hotkey = self._on_gfx_hotkey
+            except Exception:
+                pass
 
         # Post-game stats
         self.turns = 0
@@ -90,7 +102,7 @@ class GameManager:
             "Actions: g=pickup  e=equip  u=use  d=drop  x=inspect",
             "Combat: Walk into enemy  t=grenade  F=shoot",
             "Force: f=abilities  c=compass  m=meditate",
-            "Info: j=journal  i=inventory  v=codex  @=character",
+            "Info: J=journal  i=inventory  v=codex  @=character",
             "Meta: ?=help  C=craft  q=quit  ESC=cancel",
             "════════════════════════════════════════════════",
             "Artifacts: 'a'=ABSORB (Dark) or 'd'=DESTROY (Light)",
@@ -147,7 +159,7 @@ class GameManager:
                 "Your path is yours alone. Will you embrace the shadows,",
                 "or walk in the light?",
                 "",
-                "Press '?' for help | 'j' for journal | 'q' to quit"
+                "Press '?' for help | 'J' for journal | 'q' to quit"
             ]
             for line in intro_lines:
                 self.ui.messages.add(line)
@@ -289,6 +301,14 @@ class GameManager:
         except Exception:
             pass
 
+        # Opening escape: Sith squads land around the crash site
+        try:
+            if getattr(self, 'cordon_enabled', True):
+                from jedi_fugitive.game.cordon import start_cordon
+                start_cordon(self)
+        except Exception:
+            pass
+
         # load item definitions and place them on the map (best-effort)
         try:
             self.items_on_map = getattr(self, "items_on_map", [])
@@ -317,7 +337,12 @@ class GameManager:
                                 floor_ch = getattr(Display, "FLOOR", ".")
                                 try:
                                     if self.game_map[ry][rx] == floor_ch and (rx,ry) != (getattr(self.player,"x",None), getattr(self.player,"y",None)):
-                                        self.items_on_map.append({"x":rx,"y":ry,"item":it})
+                                        # same schema as every other map item, and visible on the map
+                                        entry = {k: v for k, v in dict(it).items()}
+                                        entry.update({"x": rx, "y": ry})
+                                        if entry.get("token"):
+                                            self.game_map[ry][rx] = entry["token"]
+                                        self.items_on_map.append(entry)
                                         placed = True
                                 except Exception:
                                     break
@@ -334,134 +359,338 @@ class GameManager:
         except Exception:
             pass
 
-    def run(self):
-        self.initialize()
-        self.generate_world()
-        # main loop
+    def run(self, skip_init: bool = False):
+        if not skip_init:
+            self.initialize()
+            self.generate_world()
+        # main loop: classic turn-based (one world tick per key press) or, with the
+        # graphical front-end, real-time (world ticks on a clock; F2 toggles).
         while self.running:
-            # redraw
+            if self.realtime and self.gfx is not None:
+                self._realtime_step()
+            else:
+                self._turn_step()
+
+    def _turn_step(self):
+        # redraw
+        try:
+            self.draw()
+        except Exception:
+            try: self.dump_debug_state()
+            except Exception: pass
+        # input
+        try:
+            key = self.stdscr.getch()
+            if key == -1 and self.gfx is not None:
+                # graphical getch interrupted (e.g. mode switch): no turn passes
+                return
+            input_handler.handle_input(self, key)
+        except Exception:
+            try: self.ui.messages.add("Input handler error.")
+            except Exception: pass
+        if not self.running:
+            return
+        self._world_tick()
+        self._check_resize()
+
+    def _world_tick(self) -> bool:
+        """Advance the world by one tick. Returns False when the game ended."""
+        # Single authoritative clock: stress cadence, enemy cooldowns, respawns and
+        # the journal all read turn_count, so it advances exactly once per world tick.
+        self.turn_count = getattr(self, 'turn_count', 0) + 1
+        # process game tick
+        try:
+            self.turns += 1
+
+            # Regenerate Force energy each turn
             try:
-                self.draw()
+                if hasattr(self.player, 'regenerate_force'):
+                    # Check if player is in combat (has nearby enemies)
+                    in_combat = False
+                    if hasattr(self, 'game_map') and hasattr(self.game_map, 'actors'):
+                        player_x = getattr(self.player, 'x', 0)
+                        player_y = getattr(self.player, 'y', 0)
+                        for actor in self.game_map.actors:
+                            if actor != self.player and hasattr(actor, 'x') and hasattr(actor, 'y'):
+                                dx = abs(actor.x - player_x)
+                                dy = abs(actor.y - player_y)
+                                if dx <= 8 and dy <= 8:  # Enemy within 8 tiles = combat
+                                    in_combat = True
+                                    break
+                    self.player.regenerate_force(in_combat=in_combat)
             except Exception:
-                try: self.dump_debug_state()
-                except Exception: pass
-            # input
+                pass
+
+            # Check victory condition
+            if getattr(self, 'victory', False):
+                # Loading...
+                sys.stdout.flush()
+                self.running = False
+                return False
+
+            # Check death condition
+            if getattr(self.player, "hp", 1) <= 0:
+                # Generate death log entry for stress overload deaths
+                try:
+                    if getattr(self, '_breaking_point_triggered', False):
+                        # Stress death - different narrative
+                        body_fate = ""
+                        in_tomb = getattr(self, 'in_tomb', False)
+                        if in_tomb:
+                            tomb_floor = getattr(self, 'tomb_floor', 1)
+                            body_fate = f"Your broken mind left your body a hollow shell in the depths of the Sith Tomb Level {tomb_floor}."
+                        else:
+                            biome = getattr(self, 'current_biome', 'unknown wasteland')
+                            body_fate = f"Your sanity shattered, you collapsed in the {biome}, never to rise again."
+
+                        death_entry = f"[DEATH] Succumbed to overwhelming stress and mental anguish. {body_fate} The darkness of this place proved too much to bear."
+                        self.player.add_to_travel_log(death_entry)
+                except Exception:
+                    try:
+                        self.player.add_to_travel_log("[DEATH] Fell to stress overload.")
+                    except Exception:
+                        pass
+
+                # Set death flag and metadata for post-game display
+                self.death = True
+                if getattr(self, '_breaking_point_triggered', False):
+                    self.death_cause = 'stress overload'
+                else:
+                    self.death_cause = 'enemy attack'
+                self.death_biome = getattr(self, 'current_biome', 'unknown')
+                self.death_pos = (getattr(self.player, 'x', None), getattr(self.player, 'y', None))
+                # Loading...
+                sys.stdout.flush()
+                self.running = False
+                return False
+        except Exception:
+            pass
+
+        try:
+            from jedi_fugitive.game.cordon import update_cordon
+            update_cordon(self)
+        except Exception:
+            pass
+
+        try:
+            # enemies and projectiles
+            # trace before enemy processing
             try:
-                key = self.stdscr.getch()
-                input_handler.handle_input(self, key)
+                self.process_enemies()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        try:
+            try:
+                self._tick_effects()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        try:
+            self._maybe_spawn_fanatic()
+        except Exception:
+            pass
+
+        try:
+            self.compute_visibility()
+        except Exception:
+            pass
+        return True
+
+    def _maybe_spawn_fanatic(self):
+        """Story beat: before the first tomb a Sith Fanatic picks up your trail.
+
+        The tomb-entry narrative already speaks of "the fanatic's relentless
+        pursuit"; this makes that chase actually happen on the surface.
+        """
+        if getattr(self, 'fanatic_spawned', False) or getattr(self, 'tomb_levels', None):
+            return
+        if getattr(getattr(self, 'cordon', None), 'active', False):
+            return  # one chase at a time: first escape the cordon
+        if getattr(self.player, '_stress_system_active', False):
+            return  # already been inside a tomb
+        px, py = int(self.player.x), int(self.player.y)
+        if not hasattr(self, '_fanatic_turn'):
+            self._fanatic_turn = random.randint(70, 140)
+        near_tomb = any(abs(tx - px) + abs(ty - py) <= 45 for (tx, ty) in (getattr(self, 'tomb_entrances', None) or ()))
+        if getattr(self, 'turn_count', 0) < self._fanatic_turn and not near_tomb:
+            return
+        mh = len(self.game_map); mw = len(self.game_map[0]) if mh else 0
+        floor = getattr(Display, 'FLOOR', '.')
+        import math
+        spot = None
+        for _ in range(400):
+            ang = random.random() * math.tau
+            r = random.randint(14, 20)
+            x = int(px + math.cos(ang) * r); y = int(py + math.sin(ang) * r)
+            if 0 <= x < mw and 0 <= y < mh and self.game_map[y][x] == floor and (x, y) not in getattr(self, 'visible', set()):
+                spot = (x, y)
+                break
+        if spot is None:
+            return
+        from jedi_fugitive.game import enemies_sith as sith
+        f = sith.create_sith_warrior(level=max(1, getattr(self.player, 'level', 1) + 1))
+        f.name = "Sith Fanatic"
+        f.symbol = 'F'
+        f.is_hunter = True
+        f._has_spotted = True
+        f.alert_range = 20
+        f.x, f.y = spot
+        self.enemies.append(f)
+        self.fanatic_spawned = True
+        self.fanatic = f
+        try:
+            self.add_message("A zealot's war-cry echoes across the wastes. A Sith Fanatic has found your trail!")
+            self.add_message("Run for the tombs, or stand and fight.")
+        except Exception:
+            pass
+        try:
+            self.player.add_to_travel_log("[HUNTED] A Sith fanatic caught my scent. I can hear the footsteps behind me, relentless.")
+        except Exception:
+            pass
+        self.notify_being_hunted(duration=40)
+
+    def _check_resize(self):
+        try:
+            current_size = self.stdscr.getmaxyx()
+            if current_size != getattr(self, "last_size", (0, 0)):
+                curses.resizeterm(current_size[0], current_size[1])
+                self.ui.term_h, self.ui.term_w = current_size
+                mw,mh,sw,aw,mhmsg,cmdh = self._compute_layout()
+                self.layout.update({"map_w":mw,"map_h":mh,"stats_w":sw,"abil_w":aw,"msg_h":mhmsg,"cmd_h":cmdh})
+                self.last_size = current_size
+                try:
+                    self.ui.create_layout(mw,mh,sw,aw,mhmsg,cmdh)
+                except Exception:
+                    pass
+                try:
+                    self.stdscr.clear(); self.stdscr.refresh()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+
+    # ------------------------------------------------------------ real-time mode
+    FREE_KEYS = (ord('p'), ord('v'), ord('?'))
+
+    def _is_free_key(self, key) -> bool:
+        """Keys that do not spend the player's action slot in real-time mode."""
+        if key in self.FREE_KEYS:
+            return True
+        targeting = (getattr(self, "pending_force_ability", None) is not None or
+                     getattr(self, "pending_gun_shot", False) or
+                     getattr(self, "pending_grenade_throw", False))
+        # moving the reticle is free; confirming/cancelling is an action
+        return targeting and key not in (10, 13, 27, ord(' '), ord('c'))
+
+    def _realtime_step(self):
+        import time
+        app = self.gfx
+        now = time.perf_counter()
+        if self._rt_last is None:
+            self._rt_last = now
+            self._rt_acc = 0.0
+            self._rt_ready = 0.0
+            self._rt_pending = None
+            self._rt_dirty = True
+        # clamp so time spent in blocking menus does not fast-forward the world
+        dt = min(now - self._rt_last, self.tick_seconds)
+        self._rt_last = now
+        app.pump()
+        while True:
+            k = app.poll_key()
+            if k == -1:
+                break
+            if self._is_free_key(k):
+                try:
+                    input_handler.handle_input(self, k)
+                except Exception:
+                    pass
+                self._rt_dirty = True
+            else:
+                # one buffered action; the latest key wins (held keys never pile up)
+                self._rt_pending = k
+        if self._rt_pending is not None and now >= self._rt_ready:
+            k, self._rt_pending = self._rt_pending, None
+            try:
+                input_handler.handle_input(self, k)
             except Exception:
                 try: self.ui.messages.add("Input handler error.")
                 except Exception: pass
-
-            # process game tick
-            try:
-                self.turns += 1
-                
-                # Regenerate Force energy each turn
-                try:
-                    if hasattr(self.player, 'regenerate_force'):
-                        # Check if player is in combat (has nearby enemies)
-                        in_combat = False
-                        if hasattr(self, 'game_map') and hasattr(self.game_map, 'actors'):
-                            player_x = getattr(self.player, 'x', 0)
-                            player_y = getattr(self.player, 'y', 0)
-                            for actor in self.game_map.actors:
-                                if actor != self.player and hasattr(actor, 'x') and hasattr(actor, 'y'):
-                                    dx = abs(actor.x - player_x)
-                                    dy = abs(actor.y - player_y)
-                                    if dx <= 8 and dy <= 8:  # Enemy within 8 tiles = combat
-                                        in_combat = True
-                                        break
-                        self.player.regenerate_force(in_combat=in_combat)
-                except Exception:
-                    pass
-                
-                # Check victory condition
-                if getattr(self, 'victory', False):
-                    # Loading...
-                    sys.stdout.flush()
-                    self.running = False
-                    break
-                
-                # Check death condition
-                if getattr(self.player, "hp", 1) <= 0:
-                    # Generate death log entry for stress overload deaths
-                    try:
-                        if getattr(self, '_breaking_point_triggered', False):
-                            # Stress death - different narrative
-                            body_fate = ""
-                            in_tomb = getattr(self, 'in_tomb', False)
-                            if in_tomb:
-                                tomb_floor = getattr(self, 'tomb_floor', 1)
-                                body_fate = f"Your broken mind left your body a hollow shell in the depths of the Sith Tomb Level {tomb_floor}."
-                            else:
-                                biome = getattr(self, 'current_biome', 'unknown wasteland')
-                                body_fate = f"Your sanity shattered, you collapsed in the {biome}, never to rise again."
-                            
-                            death_entry = f"[DEATH] Succumbed to overwhelming stress and mental anguish. {body_fate} The darkness of this place proved too much to bear."
-                            self.player.add_to_travel_log(death_entry)
-                    except Exception:
-                        try:
-                            self.player.add_to_travel_log("[DEATH] Fell to stress overload.")
-                        except Exception:
-                            pass
-                    
-                    # Set death flag and metadata for post-game display
-                    self.death = True
-                    if getattr(self, '_breaking_point_triggered', False):
-                        self.death_cause = 'stress overload'
-                    else:
-                        self.death_cause = 'enemy attack'
-                    self.death_biome = getattr(self, 'current_biome', 'unknown')
-                    self.death_pos = (getattr(self.player, 'x', None), getattr(self.player, 'y', None))
-                    # Loading...
-                    sys.stdout.flush()
-                    self.running = False
-                    break
-            except Exception:
-                pass
-
-            try:
-                # enemies and projectiles
-                # trace before enemy processing
-                try:
-                    self.process_enemies()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-            try:
-                try:
-                    self._tick_effects()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
+            # the player acts at most once per world tick: same action economy as turn mode
+            self._rt_ready = time.perf_counter() + self.tick_seconds
+            self._rt_last = time.perf_counter()
             try:
                 self.compute_visibility()
             except Exception:
                 pass
-
-            # handle resize
+            self._rt_dirty = True
+            if not self.running:
+                return
+        self._rt_acc += dt
+        if self._rt_acc >= self.tick_seconds:
+            self._rt_acc -= self.tick_seconds
+            if not self._world_tick():
+                return
+            self._rt_dirty = True
+        self._check_resize()
+        if self._rt_dirty:
+            self._rt_dirty = False
             try:
-                current_size = self.stdscr.getmaxyx()
-                if current_size != getattr(self, "last_size", (0, 0)):
-                    curses.resizeterm(current_size[0], current_size[1])
-                    mw,mh,sw,aw,mhmsg,cmdh = self._compute_layout()
-                    self.layout.update({"map_w":mw,"map_h":mh,"stats_w":sw,"abil_w":aw,"msg_h":mhmsg,"cmd_h":cmdh})
-                    self.last_size = current_size
-                    try:
-                        self.ui.create_layout(mw,mh,sw,aw,mhmsg,cmdh)
-                    except Exception:
-                        pass
-                    try:
-                        self.stdscr.clear(); self.stdscr.refresh()
-                    except Exception:
-                        pass
+                self.draw()
             except Exception:
                 pass
+        app.render_frame()
+        app.clock.tick(60)
+
+    def set_realtime(self, enabled: bool):
+        self.realtime = bool(enabled) and self.gfx is not None
+        self._rt_last = None
+        try:
+            if self.realtime:
+                self.add_message(f"REAL-TIME mode: the world moves every {int(self.tick_seconds * 1000)} ms. F2 to switch back.")
+            else:
+                self.add_message("TURN-BASED mode: the world waits for you. F2 for real-time.")
+        except Exception:
+            pass
+
+    def _on_gfx_hotkey(self, code) -> bool:
+        try:
+            if code == curses.KEY_F2:
+                self.set_realtime(not self.realtime)
+                if self.gfx is not None:
+                    self.gfx.interrupt_getch = True
+                return True
+            if code == curses.KEY_F3 and self.gfx is not None:
+                self.gfx.show_fps = not getattr(self.gfx, 'show_fps', False)
+                return True
+            if code == curses.KEY_F12 and self.gfx is not None:
+                path = os.path.join(os.getcwd(), datetime.datetime.now().strftime("jedi_fugitive_%Y%m%d_%H%M%S.png"))
+                self.gfx.save_screenshot(path)
+                self.add_message(f"Screenshot saved: {path}")
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _on_gfx_resize(self):
+        self._check_resize()
+        try:
+            self.draw()
+        except Exception:
+            pass
+
+    def animate_projectile(self, sx, sy, ex, ey, symbol='*', delay=0.03, color_pair=9):
+        """Shot animation hook used by enemy AI (blocking in curses, a tracer in the GUI)."""
+        try:
+            ui_renderer.animate_projectile(self, sx, sy, ex, ey, symbol=symbol, delay=delay, color_pair=color_pair)
+        except Exception:
+            pass
 
     def register_command(self, key, handler, desc):
         try:
@@ -999,13 +1228,14 @@ class GameManager:
             instructions = [
                 "CONTROLS:",
                 "  Move: ↑↓←→ arrows or hjkl    Diagonal: ybn or numpad 7913",
-                "  g=pickup e=equip u=use d=drop  x=inspect j=journal f=force c=compass m=meditate  ?=help q=quit",
+                "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate  ?=help q=quit",
                 "",
                 "OBJECTIVE:",
-                "  1. Infiltrate Sith tombs (marked 'D') to recover 3 corrupted Jedi artifacts",
-                "  2. Cleanse your spirit - resist the Dark Side's corruption",
-                "  3. Use artifacts to power the comms terminal (C) and call for extraction",
-                "  4. Defeat whoever comes for you and escape to your ship (S)",
+                "  1. Break out of the Sith cordon closing around your crash site",
+                "  2. Infiltrate Sith tombs (marked 'D') to recover 3 corrupted Jedi artifacts",
+                "  3. Cleanse your spirit - resist the Dark Side's corruption",
+                "  4. Use artifacts to power the comms terminal (C) and call for extraction",
+                "  5. Defeat whoever comes for you and escape to your ship (S)",
                 "",
                 "SURVIVAL TIPS:",
                 "  • Manage your stress - high stress increases Force costs and reduces accuracy",
@@ -1451,94 +1681,16 @@ class GameManager:
             except Exception:
                 pass
 
-            # After moving: check for items to pick up automatically
+            # After moving: pick up whatever lies here (drops, map items, item glyphs).
+            # The old path imported a function that did not exist, so only enemy drops
+            # were auto-collected, and without the inventory limit.
             try:
-                for it in list(getattr(self, 'items_on_map', []) or []):
-                    try:
-                        if it.get('x') == nx and it.get('y') == ny:
-                            # attempt to add to inventory
-                            try:
-                                from jedi_fugitive.game.inventory import add_item_to_inventory
-                                added = add_item_to_inventory(self.player, it)
-                                if added:
-                                    try:
-                                        self.ui.messages.add(f"You pick up {it.get('name', 'an item')}.")
-                                    except Exception:
-                                        pass
-                                    # remove from map
-                                    try:
-                                        self.items_on_map.remove(it)
-                                        self.game_map[ny][nx] = getattr(Display, 'FLOOR', '.')
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
-                            break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-            # After moving: check for equipment drops to pick up automatically
-            try:
-                if hasattr(self, 'equipment_drops') and (nx, ny) in self.equipment_drops:
-                    drop_data = self.equipment_drops[(nx, ny)]
-                    drop_type = drop_data.get('type', 'weapon')
-                    dropped_item = drop_data.get('item')
-                    item_name = drop_data.get('name', 'Unknown Item')
-                    item_rarity = drop_data.get('rarity', 'Common')
-                    
-                    # Add equipment to player inventory
-                    try:
-                        if not hasattr(self.player, 'inventory'):
-                            self.player.inventory = []
-                        
-                        # Create inventory item based on type
-                        if drop_type == 'weapon':
-                            inventory_item = {
-                                'name': item_name,
-                                'type': 'weapon',
-                                'weapon_data': dropped_item,
-                                'rarity': item_rarity
-                            }
-                        elif drop_type == 'armor':
-                            inventory_item = {
-                                'name': item_name,
-                                'type': 'armor',
-                                'armor_data': dropped_item,
-                                'rarity': item_rarity,
-                                'defense': getattr(dropped_item, 'defense', 0),
-                                'evasion_mod': getattr(dropped_item, 'evasion_mod', 0),
-                                'hp_bonus': getattr(dropped_item, 'hp_bonus', 0),
-                                'slot': getattr(dropped_item, 'slot', 'body')
-                            }
-                        else:  # consumable
-                            inventory_item = {
-                                'name': item_name,
-                                'type': 'consumable',
-                                'id': dropped_item.get('id', 'unknown'),
-                                'effect': dropped_item.get('effect', {}),
-                                'description': dropped_item.get('description', '')
-                            }
-                        
-                        self.player.inventory.append(inventory_item)
-                        
-                        # Message with rarity indicator
-                        if item_rarity in ['Legendary', 'Epic']:
-                            self.ui.messages.add(f"★★★ You pick up the {item_rarity.upper()} {item_name}! ★★★")
-                        elif item_rarity == 'Rare':
-                            self.ui.messages.add(f"★★ You pick up the RARE {item_name}! ★★")
-                        elif item_rarity == 'Uncommon':
-                            self.ui.messages.add(f"★ You pick up {item_name}")
-                        else:
-                            self.ui.messages.add(f"You pick up {item_name}")
-                        
-                        # Remove equipment from map
-                        del self.equipment_drops[(nx, ny)]
-                        if self.game_map[ny][nx] == 'E':
-                            self.game_map[ny][nx] = getattr(Display, 'FLOOR', '.')
-                    except Exception:
-                        pass
+                from jedi_fugitive.items.registry import ITEM_GLYPHS
+                has_item = ((nx, ny) in (getattr(self, 'equipment_drops', None) or {}) or
+                            any(it.get('x') == nx and it.get('y') == ny for it in getattr(self, 'items_on_map', []) or []) or
+                            (tstr in ITEM_GLYPHS and (nx, ny) not in (getattr(self, 'map_landmarks', None) or {})))
+                if has_item:
+                    equipment.pick_up(self)
             except Exception:
                 pass
 
@@ -1861,10 +2013,41 @@ class GameManager:
                             except Exception:
                                 pass
                             
-                            # Place boss near ship
+                            # Give the boss its signature Force powers
                             try:
-                                boss.x = nx
-                                boss.y = ny
+                                from jedi_fugitive.game import force_abilities as _fa
+                                if boss_type == EnemyType.SITH_LORD:
+                                    boss.force_abilities = {
+                                        'lightning': _fa.ForceLightning(damage=10 + lvl * 2),
+                                        'heal': _fa.ForceHeal(amount=8 + lvl * 2),
+                                    }
+                                else:
+                                    boss.force_abilities = {
+                                        'heal': _fa.ForceHeal(amount=10 + lvl * 2),
+                                        'pushpull': _fa.ForcePushPull(),
+                                    }
+                            except Exception:
+                                pass
+
+                            # Place boss on a free tile next to the ship (never on the player)
+                            try:
+                                spot = None
+                                for r in (2, 3, 4, 5):
+                                    for ddy in range(-r, r + 1):
+                                        for ddx in range(-r, r + 1):
+                                            bx, by = nx + ddx, ny + ddy
+                                            if max(abs(ddx), abs(ddy)) != r:
+                                                continue
+                                            if (0 <= by < mh and 0 <= bx < mw and
+                                                    self.game_map[by][bx] == getattr(Display, 'FLOOR', '.') and
+                                                    not any(getattr(o, 'x', None) == bx and getattr(o, 'y', None) == by for o in self.enemies)):
+                                                spot = (bx, by)
+                                                break
+                                        if spot:
+                                            break
+                                    if spot:
+                                        break
+                                boss.x, boss.y = spot if spot else (nx, ny)
                             except Exception:
                                 try:
                                     boss.x = getattr(player, 'x', 0)
@@ -2625,8 +2808,12 @@ class GameManager:
             player_level = getattr(self.player, 'level', 1)
             
             # Minimum distance from player (enemies spawn far away)
-            min_distance = 60  # Manhattan distance
-            
+            min_distance = min(60, max(20, min(mw, mh) // 4))
+            # keep the population bounded so long sessions do not snowball
+            alive = sum(1 for e in getattr(self, 'enemies', []) or [] if getattr(e, 'hp', 0) > 0)
+            cap = max(12, (mw * mh) // 2500)
+            count = max(0, min(count, cap - alive))
+
             for _ in range(count):
                 # Try to find a valid spawn location
                 attempts = 0
@@ -2964,7 +3151,7 @@ class GameManager:
                             ch = self.game_map[ly][lx]
                             # if blocking tile is the target tile, show it; otherwise block further tiles
                             # All non-floor, non-wreckage, non-special tiles block line-of-sight
-                            if ch not in (floor_ch, wreckage_ch, 'O', 'L', '?', '!', '@', '$', '%', '&', '*', 'C', 'S', 'M', 'r'):
+                            if ch not in (floor_ch, wreckage_ch, 'O', 'L', '?', '!', '@', '$', '%', '&', '*', 'C', 'S', 'M', 'r', '=', '§', '¶', '†', '‡', '~'):
                                 if (lx, ly) == (tx, ty):
                                     # target is blocking but visible
                                     blocked = False

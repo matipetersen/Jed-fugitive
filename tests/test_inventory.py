@@ -23,11 +23,11 @@ def setup_game():
     ui = DummyStdScr()
     gm = GameManager(ui)
     gm.initialize()
-    gm.crash_inflate = 4
+    gm.world_size = 'small'
     gm.generate_world()
     return gm
 
-def test_pickup_and_equip_increments_turn_count():
+def test_pickup_and_equip_advance_one_world_tick_each():
     gm = setup_game()
     p = gm.player
     # clear inventory and ensure turn_count starts at 0
@@ -41,10 +41,14 @@ def test_pickup_and_equip_increments_turn_count():
     # pick up
     equipment.pick_up(gm)
     assert len(p.inventory) == 1
+    # single clock: the action itself does not advance time, the world tick does (no double count)
+    assert gm.turn_count == 0
+    gm._world_tick()
     assert gm.turn_count == 1
     # equip
     equipment.equip_item(gm)
     assert getattr(p, 'equipped_weapon', None) is not None
+    gm._world_tick()
     assert gm.turn_count == 2
 
 def test_unequip_returns_to_inventory_or_drops_when_full():

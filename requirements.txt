@@ -41,3 +41,5 @@ JediFugitive/
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # Project documentation and instructions
 └── LICENSE                     # License information
+# Graphical front-end (window, tiles, real-time mode). Without it the game falls back to the terminal UI.
+pygame>=2.5

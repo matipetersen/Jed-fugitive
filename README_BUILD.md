@@ -1,7 +1,7 @@
 Building standalone executables
 ==============================
 
-This project is a terminal-based Python game. Below are instructions and CI automation to produce standalone executables for macOS and Windows.
+This project is a Python roguelike with two front-ends: a graphical window (pygame, default when available) and the classic terminal UI (curses, `--terminal`). Below are instructions and CI automation to produce standalone executables for macOS and Windows.
 
 Notes and constraints
 - Building Windows executables on macOS is not supported by PyInstaller directly. Use GitHub Actions (workflow included) or a Windows runner.
@@ -35,6 +35,12 @@ Running the produced artifact
 ```
 
 - Windows: run `dist\jedi-fugitive.exe` from PowerShell/Command Prompt.
+
+Front-ends and modes
+- Graphical (default when `pygame` is installed and a display is available): tile renderer with lighting, particles and HUD.
+  - `--realtime` starts in real-time mode; `F2` toggles turn-based/real-time in game; `--tick-ms 200` sets the world tick.
+  - `F11` fullscreen, mouse wheel zoom, `F3` FPS counter, `F12` screenshot.
+- Terminal: `--terminal` forces the original curses UI (turn-based only).
 
 Troubleshooting
 - If the game fails with curses initialization errors, run in a proper terminal and set `TERM` appropriately, e.g. `export TERM=xterm-256color`.

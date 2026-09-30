@@ -40,10 +40,37 @@ def draw(game):
     except Exception:
         pass
 
+def _draw_map_panel_gfx(game, panel):
+    """Graphical front-end: the panel is just a frame, the world renderer fills it."""
+    try:
+        panel.clear()
+        panel.border()
+        try:
+            panel.addstr(0, 2, " ◈ MAP ◈ ", curses.A_BOLD | curses.color_pair(2))
+            hint = " wheel: zoom · F11: fullscreen "
+            ph, pw = panel.getmaxyx()
+            if pw > len(hint) + 16:
+                panel.addstr(ph - 1, pw - len(hint) - 3, hint, curses.A_DIM)
+        except Exception:
+            pass
+        panel.viewport = True
+        # popups are consumed by the world renderer; keep ageing them so the list stays bounded
+        try:
+            game.ui.tick_popups()
+        except Exception:
+            pass
+        panel.refresh()
+    except Exception:
+        pass
+
+
 def draw_map_panel(game):
     panel = game.ui.panels.get('map') if getattr(game.ui, "panels", None) else None
     if not panel:
         panel = game.stdscr
+    if getattr(game, "gfx", None) is not None and panel is not game.stdscr:
+        _draw_map_panel_gfx(game, panel)
+        return
     try:
         panel.clear()
         try: 
@@ -851,6 +878,16 @@ def draw_commands_panel(game):
 
 def animate_projectile(game, sx, sy, ex, ey, symbol='*', delay=0.03, color_pair=9):
     """Animate a projectile from (sx,sy) to (ex,ey) on the map panel (non-blocking UI restore)."""
+    gfx = getattr(game, "gfx", None)
+    if gfx is not None and getattr(gfx, "world", None) is not None:
+        # graphical front-end: a non-blocking tracer rendered at 60 fps
+        try:
+            from_player = (sx, sy) == (getattr(game.player, "x", None), getattr(game.player, "y", None))
+            color = (90, 220, 255) if from_player else (255, 70, 80)
+            gfx.world.tracer(sx, sy, ex, ey, color)
+        except Exception:
+            pass
+        return
     try:
         import time, curses
         panel = game.ui.panels.get('map') if getattr(game.ui, "panels", None) else None

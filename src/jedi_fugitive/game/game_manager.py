@@ -45,6 +45,18 @@ class GameManager:
         self.last_commands = ""
         self.running = True
         self.show_popups = False
+        # Graphical front-end (pygame) when stdscr comes from the curses shim
+        self.gfx = getattr(stdscr, 'app', None) if getattr(curses, 'IS_PYGAME_SHIM', False) else None
+        self.realtime = False
+        self.tick_seconds = 0.2
+        self._rt_last = None
+        if self.gfx is not None:
+            try:
+                self.gfx.attach_game(self)
+                self.gfx.on_resize = self._on_gfx_resize
+                self.gfx.on_hotkey = self._on_gfx_hotkey
+            except Exception:
+                pass
 
         # Post-game stats
         self.turns = 0
@@ -334,134 +346,274 @@ class GameManager:
         except Exception:
             pass
 
-    def run(self):
-        self.initialize()
-        self.generate_world()
-        # main loop
+    def run(self, skip_init: bool = False):
+        if not skip_init:
+            self.initialize()
+            self.generate_world()
+        # main loop: classic turn-based (one world tick per key press) or, with the
+        # graphical front-end, real-time (world ticks on a clock; F2 toggles).
         while self.running:
-            # redraw
+            if self.realtime and self.gfx is not None:
+                self._realtime_step()
+            else:
+                self._turn_step()
+
+    def _turn_step(self):
+        # redraw
+        try:
+            self.draw()
+        except Exception:
+            try: self.dump_debug_state()
+            except Exception: pass
+        # input
+        try:
+            key = self.stdscr.getch()
+            if key == -1 and self.gfx is not None:
+                # graphical getch interrupted (e.g. mode switch): no turn passes
+                return
+            input_handler.handle_input(self, key)
+        except Exception:
+            try: self.ui.messages.add("Input handler error.")
+            except Exception: pass
+        if not self.running:
+            return
+        self._world_tick()
+        self._check_resize()
+
+    def _world_tick(self) -> bool:
+        """Advance the world by one tick. Returns False when the game ended."""
+        if self.realtime:
+            # the world clock drives turn-based systems (stress, cooldowns, respawns)
+            self.turn_count = getattr(self, 'turn_count', 0) + 1
+        # process game tick
+        try:
+            self.turns += 1
+
+            # Regenerate Force energy each turn
             try:
-                self.draw()
+                if hasattr(self.player, 'regenerate_force'):
+                    # Check if player is in combat (has nearby enemies)
+                    in_combat = False
+                    if hasattr(self, 'game_map') and hasattr(self.game_map, 'actors'):
+                        player_x = getattr(self.player, 'x', 0)
+                        player_y = getattr(self.player, 'y', 0)
+                        for actor in self.game_map.actors:
+                            if actor != self.player and hasattr(actor, 'x') and hasattr(actor, 'y'):
+                                dx = abs(actor.x - player_x)
+                                dy = abs(actor.y - player_y)
+                                if dx <= 8 and dy <= 8:  # Enemy within 8 tiles = combat
+                                    in_combat = True
+                                    break
+                    self.player.regenerate_force(in_combat=in_combat)
             except Exception:
-                try: self.dump_debug_state()
-                except Exception: pass
-            # input
+                pass
+
+            # Check victory condition
+            if getattr(self, 'victory', False):
+                # Loading...
+                sys.stdout.flush()
+                self.running = False
+                return False
+
+            # Check death condition
+            if getattr(self.player, "hp", 1) <= 0:
+                # Generate death log entry for stress overload deaths
+                try:
+                    if getattr(self, '_breaking_point_triggered', False):
+                        # Stress death - different narrative
+                        body_fate = ""
+                        in_tomb = getattr(self, 'in_tomb', False)
+                        if in_tomb:
+                            tomb_floor = getattr(self, 'tomb_floor', 1)
+                            body_fate = f"Your broken mind left your body a hollow shell in the depths of the Sith Tomb Level {tomb_floor}."
+                        else:
+                            biome = getattr(self, 'current_biome', 'unknown wasteland')
+                            body_fate = f"Your sanity shattered, you collapsed in the {biome}, never to rise again."
+
+                        death_entry = f"[DEATH] Succumbed to overwhelming stress and mental anguish. {body_fate} The darkness of this place proved too much to bear."
+                        self.player.add_to_travel_log(death_entry)
+                except Exception:
+                    try:
+                        self.player.add_to_travel_log("[DEATH] Fell to stress overload.")
+                    except Exception:
+                        pass
+
+                # Set death flag and metadata for post-game display
+                self.death = True
+                if getattr(self, '_breaking_point_triggered', False):
+                    self.death_cause = 'stress overload'
+                else:
+                    self.death_cause = 'enemy attack'
+                self.death_biome = getattr(self, 'current_biome', 'unknown')
+                self.death_pos = (getattr(self.player, 'x', None), getattr(self.player, 'y', None))
+                # Loading...
+                sys.stdout.flush()
+                self.running = False
+                return False
+        except Exception:
+            pass
+
+        try:
+            # enemies and projectiles
+            # trace before enemy processing
             try:
-                key = self.stdscr.getch()
-                input_handler.handle_input(self, key)
+                self.process_enemies()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        try:
+            try:
+                self._tick_effects()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        try:
+            self.compute_visibility()
+        except Exception:
+            pass
+        return True
+
+    def _check_resize(self):
+        try:
+            current_size = self.stdscr.getmaxyx()
+            if current_size != getattr(self, "last_size", (0, 0)):
+                curses.resizeterm(current_size[0], current_size[1])
+                self.ui.term_h, self.ui.term_w = current_size
+                mw,mh,sw,aw,mhmsg,cmdh = self._compute_layout()
+                self.layout.update({"map_w":mw,"map_h":mh,"stats_w":sw,"abil_w":aw,"msg_h":mhmsg,"cmd_h":cmdh})
+                self.last_size = current_size
+                try:
+                    self.ui.create_layout(mw,mh,sw,aw,mhmsg,cmdh)
+                except Exception:
+                    pass
+                try:
+                    self.stdscr.clear(); self.stdscr.refresh()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+
+    # ------------------------------------------------------------ real-time mode
+    FREE_KEYS = (ord('p'), ord('v'), ord('?'))
+
+    def _is_free_key(self, key) -> bool:
+        """Keys that do not spend the player's action slot in real-time mode."""
+        if key in self.FREE_KEYS:
+            return True
+        targeting = (getattr(self, "pending_force_ability", None) is not None or
+                     getattr(self, "pending_gun_shot", False) or
+                     getattr(self, "pending_grenade_throw", False))
+        # moving the reticle is free; confirming/cancelling is an action
+        return targeting and key not in (10, 13, 27, ord(' '), ord('c'))
+
+    def _realtime_step(self):
+        import time
+        app = self.gfx
+        now = time.perf_counter()
+        if self._rt_last is None:
+            self._rt_last = now
+            self._rt_acc = 0.0
+            self._rt_ready = 0.0
+            self._rt_pending = None
+            self._rt_dirty = True
+        # clamp so time spent in blocking menus does not fast-forward the world
+        dt = min(now - self._rt_last, self.tick_seconds)
+        self._rt_last = now
+        app.pump()
+        while True:
+            k = app.poll_key()
+            if k == -1:
+                break
+            if self._is_free_key(k):
+                try:
+                    input_handler.handle_input(self, k)
+                except Exception:
+                    pass
+                self._rt_dirty = True
+            else:
+                # one buffered action; the latest key wins (held keys never pile up)
+                self._rt_pending = k
+        if self._rt_pending is not None and now >= self._rt_ready:
+            k, self._rt_pending = self._rt_pending, None
+            try:
+                input_handler.handle_input(self, k)
             except Exception:
                 try: self.ui.messages.add("Input handler error.")
                 except Exception: pass
-
-            # process game tick
-            try:
-                self.turns += 1
-                
-                # Regenerate Force energy each turn
-                try:
-                    if hasattr(self.player, 'regenerate_force'):
-                        # Check if player is in combat (has nearby enemies)
-                        in_combat = False
-                        if hasattr(self, 'game_map') and hasattr(self.game_map, 'actors'):
-                            player_x = getattr(self.player, 'x', 0)
-                            player_y = getattr(self.player, 'y', 0)
-                            for actor in self.game_map.actors:
-                                if actor != self.player and hasattr(actor, 'x') and hasattr(actor, 'y'):
-                                    dx = abs(actor.x - player_x)
-                                    dy = abs(actor.y - player_y)
-                                    if dx <= 8 and dy <= 8:  # Enemy within 8 tiles = combat
-                                        in_combat = True
-                                        break
-                        self.player.regenerate_force(in_combat=in_combat)
-                except Exception:
-                    pass
-                
-                # Check victory condition
-                if getattr(self, 'victory', False):
-                    # Loading...
-                    sys.stdout.flush()
-                    self.running = False
-                    break
-                
-                # Check death condition
-                if getattr(self.player, "hp", 1) <= 0:
-                    # Generate death log entry for stress overload deaths
-                    try:
-                        if getattr(self, '_breaking_point_triggered', False):
-                            # Stress death - different narrative
-                            body_fate = ""
-                            in_tomb = getattr(self, 'in_tomb', False)
-                            if in_tomb:
-                                tomb_floor = getattr(self, 'tomb_floor', 1)
-                                body_fate = f"Your broken mind left your body a hollow shell in the depths of the Sith Tomb Level {tomb_floor}."
-                            else:
-                                biome = getattr(self, 'current_biome', 'unknown wasteland')
-                                body_fate = f"Your sanity shattered, you collapsed in the {biome}, never to rise again."
-                            
-                            death_entry = f"[DEATH] Succumbed to overwhelming stress and mental anguish. {body_fate} The darkness of this place proved too much to bear."
-                            self.player.add_to_travel_log(death_entry)
-                    except Exception:
-                        try:
-                            self.player.add_to_travel_log("[DEATH] Fell to stress overload.")
-                        except Exception:
-                            pass
-                    
-                    # Set death flag and metadata for post-game display
-                    self.death = True
-                    if getattr(self, '_breaking_point_triggered', False):
-                        self.death_cause = 'stress overload'
-                    else:
-                        self.death_cause = 'enemy attack'
-                    self.death_biome = getattr(self, 'current_biome', 'unknown')
-                    self.death_pos = (getattr(self.player, 'x', None), getattr(self.player, 'y', None))
-                    # Loading...
-                    sys.stdout.flush()
-                    self.running = False
-                    break
-            except Exception:
-                pass
-
-            try:
-                # enemies and projectiles
-                # trace before enemy processing
-                try:
-                    self.process_enemies()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-            try:
-                try:
-                    self._tick_effects()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
+            # the player acts at most once per world tick: same action economy as turn mode
+            self._rt_ready = time.perf_counter() + self.tick_seconds
+            self._rt_last = time.perf_counter()
             try:
                 self.compute_visibility()
             except Exception:
                 pass
-
-            # handle resize
+            self._rt_dirty = True
+            if not self.running:
+                return
+        self._rt_acc += dt
+        if self._rt_acc >= self.tick_seconds:
+            self._rt_acc -= self.tick_seconds
+            if not self._world_tick():
+                return
+            self._rt_dirty = True
+        self._check_resize()
+        if self._rt_dirty:
+            self._rt_dirty = False
             try:
-                current_size = self.stdscr.getmaxyx()
-                if current_size != getattr(self, "last_size", (0, 0)):
-                    curses.resizeterm(current_size[0], current_size[1])
-                    mw,mh,sw,aw,mhmsg,cmdh = self._compute_layout()
-                    self.layout.update({"map_w":mw,"map_h":mh,"stats_w":sw,"abil_w":aw,"msg_h":mhmsg,"cmd_h":cmdh})
-                    self.last_size = current_size
-                    try:
-                        self.ui.create_layout(mw,mh,sw,aw,mhmsg,cmdh)
-                    except Exception:
-                        pass
-                    try:
-                        self.stdscr.clear(); self.stdscr.refresh()
-                    except Exception:
-                        pass
+                self.draw()
             except Exception:
                 pass
+        app.render_frame()
+        app.clock.tick(60)
+
+    def set_realtime(self, enabled: bool):
+        self.realtime = bool(enabled) and self.gfx is not None
+        self._rt_last = None
+        try:
+            if self.realtime:
+                self.add_message(f"REAL-TIME mode: the world moves every {int(self.tick_seconds * 1000)} ms. F2 to switch back.")
+            else:
+                self.add_message("TURN-BASED mode: the world waits for you. F2 for real-time.")
+        except Exception:
+            pass
+
+    def _on_gfx_hotkey(self, code) -> bool:
+        try:
+            if code == curses.KEY_F2:
+                self.set_realtime(not self.realtime)
+                if self.gfx is not None:
+                    self.gfx.interrupt_getch = True
+                return True
+            if code == curses.KEY_F3 and self.gfx is not None:
+                self.gfx.show_fps = not getattr(self.gfx, 'show_fps', False)
+                return True
+            if code == curses.KEY_F12 and self.gfx is not None:
+                path = os.path.join(os.getcwd(), datetime.datetime.now().strftime("jedi_fugitive_%Y%m%d_%H%M%S.png"))
+                self.gfx.save_screenshot(path)
+                self.add_message(f"Screenshot saved: {path}")
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _on_gfx_resize(self):
+        self._check_resize()
+        try:
+            self.draw()
+        except Exception:
+            pass
+
+    def animate_projectile(self, sx, sy, ex, ey, symbol='*', delay=0.03, color_pair=9):
+        """Shot animation hook used by enemy AI (blocking in curses, a tracer in the GUI)."""
+        try:
+            ui_renderer.animate_projectile(self, sx, sy, ex, ey, symbol=symbol, delay=delay, color_pair=color_pair)
+        except Exception:
+            pass
 
     def register_command(self, key, handler, desc):
         try:

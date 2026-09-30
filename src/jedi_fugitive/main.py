@@ -1,11 +1,73 @@
-import curses
+import argparse
 import sys
 import traceback
 import os
 
-from jedi_fugitive.game.game_manager import GameManager
+
+def _parse_args(argv=None):
+    p = argparse.ArgumentParser(prog="jedi-fugitive", description="Jedi Fugitive: Echoes of the Fallen")
+    p.add_argument("--terminal", action="store_true",
+                   help="classic curses UI in the terminal instead of the graphical window")
+    p.add_argument("--realtime", action="store_true",
+                   help="start in real-time mode (graphical UI only; F2 toggles in game)")
+    p.add_argument("--tick-ms", type=int, default=200,
+                   help="real-time world tick length in milliseconds (default: 200)")
+    p.add_argument("--fullscreen", action="store_true", help="start fullscreen (F11 toggles)")
+    p.add_argument("--size", default=None, help="window size, e.g. 1600x960")
+    # PyInstaller/macOS may pass extra arguments (e.g. -psn_*); ignore them
+    args, _unknown = p.parse_known_args(argv)
+    return args
+
+
+def _gui_available():
+    try:
+        import pygame  # noqa: F401
+    except Exception:
+        return False
+    if sys.platform.startswith("linux") or "bsd" in sys.platform:
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY") or os.environ.get("SDL_VIDEODRIVER"))
+    return True
+
+
+def _main_gui(args):
+    """Graphical front-end: pygame window, curses calls served by the shim."""
+    from jedi_fugitive.gfx import pgcurses
+    sys.modules["curses"] = pgcurses
+    from jedi_fugitive.gfx.app import GfxApp
+    size = None
+    if args.size:
+        try:
+            w, h = args.size.lower().split("x")
+            size = (int(w), int(h))
+        except Exception:
+            size = None
+    app = GfxApp(size=size, fullscreen=args.fullscreen)
+    app.install_console_capture()
+    try:
+        from jedi_fugitive.game.game_manager import GameManager
+        from jedi_fugitive.game.sith_codex import get_random_loading_message
+        GameManager.show_splash_static(100)
+        input("Press Enter to begin your journey...")
+        print(get_random_loading_message())
+        gm = GameManager(app.stdscr)
+        gm.tick_seconds = max(0.05, args.tick_ms / 1000.0)
+        # world generation is slow on the huge surface map: keep the window responsive
+        app.run_loading(lambda: (gm.initialize(), gm.generate_world()))
+        if args.realtime:
+            gm.set_realtime(True)
+        gm.run(skip_init=True)
+        if getattr(gm, "death", False):
+            gm.show_death_stats()
+        elif getattr(gm, "victory", False):
+            gm.show_victory_stats()
+    except SystemExit:
+        pass
+    finally:
+        app.shutdown()
+
 
 def _curses_main(stdscr):
+    from jedi_fugitive.game.game_manager import GameManager
     # Existing initialization entrypoint expected by the project
     try:
         gm = GameManager(stdscr)
@@ -15,12 +77,24 @@ def _curses_main(stdscr):
     except Exception as e:
         # Try to ensure curses cleans up
         try:
+            import curses
             curses.endwin()
         except Exception:
             pass
         raise
 
-def main():
+def main(argv=None):
+    args = _parse_args(argv)
+    if not args.terminal and _gui_available():
+        return _main_gui(args)
+    if args.realtime:
+        sys.stderr.write("Real-time mode needs the graphical UI (pygame); starting turn-based.\n")
+    return _main_terminal()
+
+
+def _main_terminal():
+    import curses
+    from jedi_fugitive.game.game_manager import GameManager
     from jedi_fugitive.game.sith_codex import get_random_loading_message
     print("\n╔═══════════════════════════════════════════════════════════╗")
     print("║        JEDI FUGITIVE: ECHOES OF THE FALLEN               ║")

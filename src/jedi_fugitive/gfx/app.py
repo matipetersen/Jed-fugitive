@@ -279,8 +279,12 @@ class GfxApp:
         return scroll
 
     # ------------------------------------------------------------ loading
-    def run_loading(self, work, title="GENERATING WORLD"):
-        """Run ``work`` in a thread while an animated loading screen keeps the window alive."""
+    def run_loading(self, work, title="GENERATING WORLD", intro=None):
+        """Run ``work`` in a thread while an animated loading screen keeps the window alive.
+
+        With ``intro`` (an object with draw(dt)/skip()), the cinematic plays while the
+        world is generated; any key skips it, then the spinner covers any remaining time.
+        """
         import threading
         result = {}
 
@@ -293,11 +297,20 @@ class GfxApp:
         th = threading.Thread(target=_target, name="worldgen", daemon=True)
         th.start()
         start = time.perf_counter()
-        while th.is_alive():
-            self._events()
-            self._draw_loading(title, time.perf_counter() - start)
+        last = start
+        while th.is_alive() or (intro is not None and not intro.done):
+            for ev in self._events():
+                if ev.type == pygame.KEYDOWN and intro is not None:
+                    intro.skip()
+            now = time.perf_counter()
+            dt = min(0.1, now - last)
+            last = now
+            if intro is not None and not intro.done and intro.draw(dt):
+                pass
+            else:
+                self._draw_loading(title, now - start)
             pygame.display.flip()
-            self.clock.tick(30)
+            self.clock.tick(60)
         self._printed.clear()
         if 'error' in result:
             raise result['error']

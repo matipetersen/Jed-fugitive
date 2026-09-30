@@ -1280,7 +1280,7 @@ def handle_input(game, key):
                 except Exception:
                     pass
                 # increment turn and update visibility
-                game.turn_count = getattr(game, "turn_count", 0) + 1
+                pass  # turn_count advances once per world tick (GameManager._world_tick)
                 try:
                     if hasattr(game, "compute_visibility"):
                         game.compute_visibility()
@@ -1597,8 +1597,28 @@ def perform_player_attack(game, enemy):
                         if dropped_item:
                             try:
                                 ex, ey = getattr(enemy, 'x', 0), getattr(enemy, 'y', 0)
-                                # Use 'M' token for materials, 'E' token for other equipment drops
-                                map_token = 'M' if drop_type == 'material' else 'E'
+                                # Drops are found by position; the 'E' glyph is only a marker.
+                                # Never overwrite stairs, tomb entrances, bridges or other drops:
+                                # use the nearest free floor tile instead.
+                                map_token = 'E'
+                                floor_ch = getattr(Display, 'FLOOR', '.')
+                                drops_now = getattr(game, 'equipment_drops', {}) or {}
+                                spot = None
+                                for r in range(0, 3):
+                                    for ddy in range(-r, r + 1):
+                                        for ddx in range(-r, r + 1):
+                                            tx, ty = ex + ddx, ey + ddy
+                                            if (0 <= ty < len(game.game_map) and 0 <= tx < len(game.game_map[0])
+                                                    and game.game_map[ty][tx] == floor_ch and (tx, ty) not in drops_now):
+                                                spot = (tx, ty)
+                                                break
+                                        if spot:
+                                            break
+                                    if spot:
+                                        break
+                                if spot is None:
+                                    raise ValueError("no free tile for drop")
+                                ex, ey = spot
                                 if hasattr(game, 'game_map') and 0 <= ey < len(game.game_map) and 0 <= ex < len(game.game_map[0]):
                                     game.game_map[ey][ex] = map_token
                                     
@@ -1630,8 +1650,10 @@ def perform_player_attack(game, enemy):
                 try:
                     if getattr(enemy, 'is_boss', False):
                         try:
-                            game.ui.messages.add("The Inquisitor falls! You have triumphed!")
-                            game.victory = True
+                            # The story ends when you escape: defeating the hunter opens the way to the ship.
+                            game.ui.messages.add(f"{getattr(enemy, 'name', 'Your nemesis')} falls! Nothing stands between you and your ship now.")
+                            if enemy is getattr(game, 'final_boss', None):
+                                game.player.add_to_travel_log(f"[DUEL] I defeated {getattr(enemy, 'name', 'my pursuer')} beside the wreck. Time to leave this world.")
                         except Exception:
                             pass
                 except Exception:

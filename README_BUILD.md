@@ -40,6 +40,7 @@ Front-ends and modes
 - Graphical (default when `pygame` is installed and a display is available): tile renderer with lighting, particles and HUD.
   - `--realtime` starts in real-time mode; `F2` toggles turn-based/real-time in game; `--tick-ms 200` sets the world tick.
   - `F11` fullscreen, mouse wheel zoom, `F3` FPS counter, `F12` screenshot.
+  - A crash cinematic plays while the world is generated (any key skips it; `--no-intro` disables it).
 - Terminal: `--terminal` forces the original curses UI (turn-based only).
 - World: `--world-size small|normal|large|huge` (default `large`, 440x300 tiles, ~100k walkable; `huge` is 640x440).
   Generation takes ~1-4 s; every tomb, the ship and the comms terminal are guaranteed reachable on foot.

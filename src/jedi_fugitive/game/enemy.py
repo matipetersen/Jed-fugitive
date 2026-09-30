@@ -772,6 +772,8 @@ def process_enemies(game):
                 # (Keeps a large world populated without every enemy converging.)
                 try:
                     far = abs(getattr(e, "x", 0) - getattr(game.player, "x", 0)) + abs(getattr(e, "y", 0) - getattr(game.player, "y", 0))
+                    if getattr(e, 'cordon', False) and not getattr(e, '_has_spotted', False):
+                        continue  # holding the cordon ring (moved by game.cordon.update_cordon)
                     if not getattr(e, 'is_hunter', False):
                         if getattr(e, '_has_spotted', False):
                             if far > int(getattr(game, 'enemy_lose_track_radius', 45)):

@@ -141,22 +141,24 @@ class WorldRenderer:
             pass
         return 'plains'
 
+    # item glyphs (see items/registry.py): drawn as icons, never as terrain
+    ITEM_ICONS = set('$!:&+0ctfn;zvb/sE') | set('mhwepliKk')
+
     def _tile_kind(self, ch, in_tomb):
         if ch == FLOOR_CH:
             return 'floor'
         if ch == WALL_CH:
             return 'wall'
+        if ch in self.ITEM_ICONS or (in_tomb and ch == 'Q'):
+            return 'item'
         if in_tomb:
             if ch in ('>', '<'):
                 return 'stairs'
-            if ch in '$!:&':
-                return 'item'
             return 'token'
         return {
             'T': 'tree', 'r': 'rock', '~': 'dune', 'o': 'crater', 'x': 'wreck',
             '>': 'stairs', '<': 'stairs', 'D': 'portal', 'S': 'ship', 'C': 'comms',
-            '$': 'item', '!': 'item', ':': 'item', '&': 'item',
-            '=': 'bridge', '*': 'crystal',
+            '=': 'bridge', '*': 'crystal', 'L': 'cache',
             '?': 'lore', '§': 'lore', '¶': 'lore', '†': 'lore', '‡': 'lore', '%': 'lore',
         }.get(ch, 'token')
 
@@ -288,8 +290,51 @@ class WorldRenderer:
                 d = T * 0.3
                 pygame.draw.polygon(s, col, [(c, c - d), (c + d * 0.75, c), (c, c + d), (c - d * 0.75, c)])
                 pygame.draw.polygon(s, (255, 240, 255), [(c, c - d), (c + d * 0.75, c), (c, c + d), (c - d * 0.75, c)], 1)
+            elif ch == '+':   # medkit
+                pygame.draw.rect(s, (235, 238, 245), (c - T * 0.22, c - T * 0.17, T * 0.44, T * 0.34), border_radius=3)
+                pygame.draw.rect(s, (230, 60, 80), (c - T * 0.04, c - T * 0.12, T * 0.08, T * 0.24))
+                pygame.draw.rect(s, (230, 60, 80), (c - T * 0.12, c - T * 0.04, T * 0.24, T * 0.08))
+            elif ch == '0':   # thermal grenade
+                pygame.draw.circle(s, (70, 72, 84), (c, c), T * 0.18)
+                pygame.draw.circle(s, (255, 190, 70), (c, c), T * 0.06)
+                pygame.draw.circle(s, (150, 152, 170), (c, c), T * 0.18, 1)
+            elif ch == '/':   # lightsaber
+                pygame.draw.line(s, (170, 230, 255), (c - T * 0.05, c + T * 0.05), (c + T * 0.3, c - T * 0.3), max(2, T // 12))
+                pygame.draw.line(s, (120, 124, 140), (c - T * 0.28, c + T * 0.28), (c - T * 0.05, c + T * 0.05), max(3, T // 9))
+            elif ch == 'v':   # vibroblade
+                pygame.draw.polygon(s, (200, 206, 220), [(c - T * 0.2, c + T * 0.2), (c + T * 0.28, c - T * 0.28), (c - T * 0.12, c + T * 0.26)])
+                pygame.draw.line(s, (120, 90, 60), (c - T * 0.28, c + T * 0.28), (c - T * 0.16, c + T * 0.16), max(3, T // 9))
+            elif ch == 'b':   # blaster
+                pygame.draw.rect(s, (90, 94, 110), (c - T * 0.26, c - T * 0.1, T * 0.44, T * 0.14), border_radius=2)
+                pygame.draw.rect(s, (70, 60, 50), (c - T * 0.2, c, T * 0.12, T * 0.2), border_radius=2)
+            elif ch == 's':   # shield emitter
+                pygame.draw.circle(s, (110, 170, 255), (c, c), T * 0.22, 2)
+                pygame.draw.circle(s, (200, 230, 255), (c, c), T * 0.08)
+            elif ch == 'c':   # energy cell
+                pygame.draw.rect(s, (60, 200, 170), (c - T * 0.08, c - T * 0.18, T * 0.16, T * 0.36), border_radius=3)
+            elif ch in 'ftnz;':  # focus, tea, compass, paste, canteen
+                colmap = {'f': (170, 140, 255), 't': (190, 140, 90), 'n': (240, 210, 120), 'z': (160, 200, 120), ';': (110, 170, 230)}
+                pygame.draw.circle(s, colmap[ch], (c, c), T * 0.16)
+                pygame.draw.circle(s, (250, 250, 255), (c - T * 0.05, c - T * 0.05), max(1, T // 16))
+            elif ch == 'E':   # enemy drop: loot bundle
+                pygame.draw.ellipse(s, (130, 100, 70), (c - T * 0.2, c - T * 0.12, T * 0.4, T * 0.3))
+                pygame.draw.line(s, (255, 210, 120), (c - T * 0.12, c - T * 0.12), (c + T * 0.12, c - T * 0.12), 2)
+            elif ch == 'Q':   # corrupted Jedi artifact
+                d = T * 0.28
+                pts = [(c, c - d), (c + d * 0.6, c), (c, c + d), (c - d * 0.6, c)]
+                pygame.draw.polygon(s, (90, 200, 255), pts)
+                pygame.draw.polygon(s, (160, 40, 80), pts, 2)
+            elif ch in 'mhwepliKk':  # crafting material: ore chunk
+                mc = (140, 220, 255) if ch == 'K' else (170, 175, 190)
+                pts = [(c - T * 0.18, c + T * 0.14), (c - T * 0.1, c - T * 0.14), (c + T * 0.12, c - T * 0.16), (c + T * 0.2, c + T * 0.1)]
+                pygame.draw.polygon(s, theme.scale(mc, 0.7), pts)
+                pygame.draw.polygon(s, mc, pts, 1)
             else:
                 pygame.draw.ellipse(s, col, (c - T * 0.22, c - T * 0.12, T * 0.44, T * 0.26))
+        elif kind == 'cache':
+            pygame.draw.rect(s, (70, 60, 50), (T * 0.18, T * 0.3, T * 0.64, T * 0.44), border_radius=3)
+            pygame.draw.rect(s, (200, 60, 70), (T * 0.18, T * 0.3, T * 0.64, T * 0.44), 1, border_radius=3)
+            pygame.draw.line(s, (200, 60, 70), (T * 0.18, T * 0.45), (T * 0.82, T * 0.45), 1)
         elif kind == 'token':
             if ch.isupper():
                 col = theme.POI_COLOR
@@ -518,8 +563,12 @@ class WorldRenderer:
                 blit(self.tile_sprite(ch, tx, ty, in_tomb, light), (ox + tx * T, py))
 
         self._draw_specials(screen, specials, in_tomb)
+        if not in_tomb:
+            self._draw_cordon(screen, dt)
         self._draw_targeting(screen, vis)
         self._draw_enemies(screen, vis, dt)
+        if not in_tomb:
+            self._draw_landings(screen, dt)
         self._draw_player(screen, ppos, dt)
         self._draw_projectiles(screen, dt)
         self._draw_tracers(screen, dt)
@@ -554,6 +603,80 @@ class WorldRenderer:
             elif ch in '<>':
                 col = theme.TOKEN_COLORS[ch]
                 self.add_glow(screen, cx, cy, T * 0.8, theme.scale(col, 0.5), 0.6 + 0.2 * math.sin(self.t * 2))
+
+    # ------------------------------------------------------------ cordon
+    def _draw_cordon(self, screen, dt):
+        c = getattr(self.game, 'cordon', None)
+        if c is None:
+            return
+        T = self.tile
+        cx, cy = self.to_px(c.center[0], c.center[1])
+        # smoke and embers from the wreck for the first minutes
+        if self.t < 180 and self.rng.random() < 0.5:
+            self.particles.append(Particle(c.center[0] + 0.5 + self.rng.uniform(-0.6, 0.6), c.center[1] + 0.5,
+                                           self.rng.uniform(-0.2, 0.2), self.rng.uniform(-1.4, -0.7), 2.6,
+                                           (24, 23, 28), 6, drag=0.3))
+            if self.rng.random() < 0.3:
+                self.particles.append(Particle(c.center[0] + 0.5, c.center[1] + 0.5, self.rng.uniform(-1, 1),
+                                               self.rng.uniform(-2.5, -1), 0.6, (255, 150, 60), 2))
+        if not c.active:
+            return
+        # the closing ring (dashed, pulsing) and the line you must cross (faint)
+        pulse = 0.6 + 0.4 * math.sin(self.t * 5)
+        col = theme.scale((255, 60, 80), 0.5 + 0.5 * pulse)
+        r = c.radius * T
+        segs = max(24, int(r / 6))
+        rot = self.t * 0.25
+        for i in range(0, segs, 2):
+            a0 = rot + i * math.tau / segs
+            a1 = rot + (i + 1) * math.tau / segs
+            pygame.draw.line(screen, col, (cx + math.cos(a0) * r, cy + math.sin(a0) * r),
+                             (cx + math.cos(a1) * r, cy + math.sin(a1) * r), 2)
+        re = c.escape_radius * T
+        segs = max(32, int(re / 5))
+        for i in range(0, segs, 3):
+            a = i * math.tau / segs
+            pygame.draw.circle(screen, (120, 220, 160), (int(cx + math.cos(a) * re), int(cy + math.sin(a) * re)), 1)
+
+    def _draw_landings(self, screen, dt):
+        c = getattr(self.game, 'cordon', None)
+        if c is None or not c.landings:
+            return
+        T = self.tile
+        if not hasattr(self, '_landed'):
+            self._landed = set()
+            self._landing_t0 = self.t
+        el = self.t - self._landing_t0
+        for i, (lx, ly) in enumerate(c.landings):
+            start = 0.3 + i * 0.35
+            k = (el - start) / 2.2
+            if k < 0 or k > 1.6:
+                continue
+            gx, gy = self.to_px(lx, ly)
+            if k <= 1.0:
+                h = (1 - k) ** 2 * T * 9
+                shadow = pygame.Surface((int(T * 2.4), int(T * 1.0)), pygame.SRCALPHA)
+                pygame.draw.ellipse(shadow, (0, 0, 0, int(60 + 100 * k)), shadow.get_rect())
+                screen.blit(shadow, (gx - shadow.get_width() / 2, gy - shadow.get_height() / 2))
+                self._dropship(screen, gx, gy - h, T * (1.2 - 0.2 * k))
+            else:
+                if i not in self._landed:
+                    self._landed.add(i)
+                    self.burst(lx + 0.5, ly + 0.5, (120, 110, 100), n=26, speed=4.0, life=1.0, size=5)
+                    self.shake = min(10.0, self.shake + 3)
+                # lift off and leave
+                h = (k - 1.0) ** 2 * T * 30
+                self._dropship(screen, gx, gy - h, T)
+
+    def _dropship(self, screen, x, y, s):
+        body = [(x - s, y), (x - s * 0.4, y - s * 0.35), (x + s * 0.4, y - s * 0.35), (x + s, y),
+                (x + s * 0.3, y + s * 0.25), (x - s * 0.3, y + s * 0.25)]
+        pygame.draw.polygon(screen, (40, 40, 50), body)
+        pygame.draw.polygon(screen, (100, 100, 120), body, 1)
+        self.add_glow(screen, x, y + s * 0.3, s * 0.7, (255, 150, 80), 0.7)
+        if int(self.t * 4) % 2:
+            self.add_glow(screen, x - s * 0.9, y, s * 0.3, (255, 40, 50), 1.0)
+            self.add_glow(screen, x + s * 0.9, y, s * 0.3, (255, 40, 50), 1.0)
 
     def _targeting(self):
         g = self.game
@@ -915,6 +1038,25 @@ class WorldRenderer:
             lcol = (220, 200, 150)
         wl = f.size(loc)[0] + 16
         self._chip(screen, loc, rect.right - wl - 12, rect.y + 16 + h, lcol)
+        # objective banner for the opening escape
+        c = getattr(g, 'cordon', None)
+        if c is not None and not in_tomb:
+            import math as _m
+            d = _m.hypot(p.x - c.center[0], p.y - c.center[1])
+            if c.active:
+                text = f"⚠ ESCAPE THE CORDON · ring {c.radius:.0f}m · you {d:.0f}/{c.escape_radius:.0f}m"
+                col = (255, 120, 130) if int(self.t * 2) % 2 else (255, 190, 190)
+                fb = self.app.ui_font
+                w = fb.size(text)[0] + 16
+                self._chip(screen, text, rect.centerx - w / 2, rect.bottom - fb.get_linesize() - 22, col, font=fb)
+            else:
+                if not hasattr(self, '_cordon_end_t'):
+                    self._cordon_end_t = self.t
+                if self.t - self._cordon_end_t < 5:
+                    fb = self.app.ui_font
+                    text = "CORDON BROKEN. The hunt goes on."
+                    w = fb.size(text)[0] + 16
+                    self._chip(screen, text, rect.centerx - w / 2, rect.bottom - fb.get_linesize() - 22, (140, 240, 170), font=fb)
         if getattr(self.app, 'show_fps', False):
             self._chip(screen, f"{self.app.fps:4.0f} fps", rect.right - 90, rect.bottom - 30, (150, 160, 190))
 

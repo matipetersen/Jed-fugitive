@@ -301,6 +301,14 @@ class GameManager:
         except Exception:
             pass
 
+        # Opening escape: Sith squads land around the crash site
+        try:
+            if getattr(self, 'cordon_enabled', True):
+                from jedi_fugitive.game.cordon import start_cordon
+                start_cordon(self)
+        except Exception:
+            pass
+
         # load item definitions and place them on the map (best-effort)
         try:
             self.items_on_map = getattr(self, "items_on_map", [])
@@ -329,7 +337,12 @@ class GameManager:
                                 floor_ch = getattr(Display, "FLOOR", ".")
                                 try:
                                     if self.game_map[ry][rx] == floor_ch and (rx,ry) != (getattr(self.player,"x",None), getattr(self.player,"y",None)):
-                                        self.items_on_map.append({"x":rx,"y":ry,"item":it})
+                                        # same schema as every other map item, and visible on the map
+                                        entry = {k: v for k, v in dict(it).items()}
+                                        entry.update({"x": rx, "y": ry})
+                                        if entry.get("token"):
+                                            self.game_map[ry][rx] = entry["token"]
+                                        self.items_on_map.append(entry)
                                         placed = True
                                 except Exception:
                                     break
@@ -454,6 +467,12 @@ class GameManager:
             pass
 
         try:
+            from jedi_fugitive.game.cordon import update_cordon
+            update_cordon(self)
+        except Exception:
+            pass
+
+        try:
             # enemies and projectiles
             # trace before enemy processing
             try:
@@ -490,6 +509,8 @@ class GameManager:
         """
         if getattr(self, 'fanatic_spawned', False) or getattr(self, 'tomb_levels', None):
             return
+        if getattr(getattr(self, 'cordon', None), 'active', False):
+            return  # one chase at a time: first escape the cordon
         if getattr(self.player, '_stress_system_active', False):
             return  # already been inside a tomb
         px, py = int(self.player.x), int(self.player.y)
@@ -1210,10 +1231,11 @@ class GameManager:
                 "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate  ?=help q=quit",
                 "",
                 "OBJECTIVE:",
-                "  1. Infiltrate Sith tombs (marked 'D') to recover 3 corrupted Jedi artifacts",
-                "  2. Cleanse your spirit - resist the Dark Side's corruption",
-                "  3. Use artifacts to power the comms terminal (C) and call for extraction",
-                "  4. Defeat whoever comes for you and escape to your ship (S)",
+                "  1. Break out of the Sith cordon closing around your crash site",
+                "  2. Infiltrate Sith tombs (marked 'D') to recover 3 corrupted Jedi artifacts",
+                "  3. Cleanse your spirit - resist the Dark Side's corruption",
+                "  4. Use artifacts to power the comms terminal (C) and call for extraction",
+                "  5. Defeat whoever comes for you and escape to your ship (S)",
                 "",
                 "SURVIVAL TIPS:",
                 "  • Manage your stress - high stress increases Force costs and reduces accuracy",
@@ -1659,94 +1681,16 @@ class GameManager:
             except Exception:
                 pass
 
-            # After moving: check for items to pick up automatically
+            # After moving: pick up whatever lies here (drops, map items, item glyphs).
+            # The old path imported a function that did not exist, so only enemy drops
+            # were auto-collected, and without the inventory limit.
             try:
-                for it in list(getattr(self, 'items_on_map', []) or []):
-                    try:
-                        if it.get('x') == nx and it.get('y') == ny:
-                            # attempt to add to inventory
-                            try:
-                                from jedi_fugitive.game.inventory import add_item_to_inventory
-                                added = add_item_to_inventory(self.player, it)
-                                if added:
-                                    try:
-                                        self.ui.messages.add(f"You pick up {it.get('name', 'an item')}.")
-                                    except Exception:
-                                        pass
-                                    # remove from map
-                                    try:
-                                        self.items_on_map.remove(it)
-                                        self.game_map[ny][nx] = getattr(Display, 'FLOOR', '.')
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
-                            break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-            # After moving: check for equipment drops to pick up automatically
-            try:
-                if hasattr(self, 'equipment_drops') and (nx, ny) in self.equipment_drops:
-                    drop_data = self.equipment_drops[(nx, ny)]
-                    drop_type = drop_data.get('type', 'weapon')
-                    dropped_item = drop_data.get('item')
-                    item_name = drop_data.get('name', 'Unknown Item')
-                    item_rarity = drop_data.get('rarity', 'Common')
-                    
-                    # Add equipment to player inventory
-                    try:
-                        if not hasattr(self.player, 'inventory'):
-                            self.player.inventory = []
-                        
-                        # Create inventory item based on type
-                        if drop_type == 'weapon':
-                            inventory_item = {
-                                'name': item_name,
-                                'type': 'weapon',
-                                'weapon_data': dropped_item,
-                                'rarity': item_rarity
-                            }
-                        elif drop_type == 'armor':
-                            inventory_item = {
-                                'name': item_name,
-                                'type': 'armor',
-                                'armor_data': dropped_item,
-                                'rarity': item_rarity,
-                                'defense': getattr(dropped_item, 'defense', 0),
-                                'evasion_mod': getattr(dropped_item, 'evasion_mod', 0),
-                                'hp_bonus': getattr(dropped_item, 'hp_bonus', 0),
-                                'slot': getattr(dropped_item, 'slot', 'body')
-                            }
-                        else:  # consumable
-                            inventory_item = {
-                                'name': item_name,
-                                'type': 'consumable',
-                                'id': dropped_item.get('id', 'unknown'),
-                                'effect': dropped_item.get('effect', {}),
-                                'description': dropped_item.get('description', '')
-                            }
-                        
-                        self.player.inventory.append(inventory_item)
-                        
-                        # Message with rarity indicator
-                        if item_rarity in ['Legendary', 'Epic']:
-                            self.ui.messages.add(f"★★★ You pick up the {item_rarity.upper()} {item_name}! ★★★")
-                        elif item_rarity == 'Rare':
-                            self.ui.messages.add(f"★★ You pick up the RARE {item_name}! ★★")
-                        elif item_rarity == 'Uncommon':
-                            self.ui.messages.add(f"★ You pick up {item_name}")
-                        else:
-                            self.ui.messages.add(f"You pick up {item_name}")
-                        
-                        # Remove equipment from map
-                        del self.equipment_drops[(nx, ny)]
-                        if self.game_map[ny][nx] == 'E':
-                            self.game_map[ny][nx] = getattr(Display, 'FLOOR', '.')
-                    except Exception:
-                        pass
+                from jedi_fugitive.items.registry import ITEM_GLYPHS
+                has_item = ((nx, ny) in (getattr(self, 'equipment_drops', None) or {}) or
+                            any(it.get('x') == nx and it.get('y') == ny for it in getattr(self, 'items_on_map', []) or []) or
+                            (tstr in ITEM_GLYPHS and (nx, ny) not in (getattr(self, 'map_landmarks', None) or {})))
+                if has_item:
+                    equipment.pick_up(self)
             except Exception:
                 pass
 

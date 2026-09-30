@@ -40,12 +40,12 @@ def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], 
     item_chances = {Display.GOLD:0.35, Display.FOOD:0.08, Display.POTION:0.12}
     
     # Crafting materials (common to rare based on depth)
-    material_tokens = ['m', 'M', 'w', 'P']  # Common materials
+    material_tokens = ['m', 'h', 'w', 'e']  # Common materials
     if depth >= 2:
-        material_tokens.extend(['p', 'l', 'C'])  # Uncommon materials
+        material_tokens.extend(['p', 'l', 'i'])  # Uncommon materials
     if depth >= 4:
         item_chances[Display.ARTIFACT] = 0.05
-        material_tokens.extend(['o'])  # Rare materials
+        material_tokens.extend(['k'])  # Rare materials
     if depth >= 6:
         material_tokens.extend(['K'])  # Legendary materials
     

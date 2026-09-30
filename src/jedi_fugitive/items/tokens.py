@@ -54,8 +54,8 @@ try:
                 if 'blaster pistol' in ln and 'b' not in TOKEN_MAP:
                     TOKEN_MAP['b'] = {'id': 'blaster_pistol', 'name': nm, 'token': 'b', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm}
                 # lightsaber token mapping (use 'L' if available)
-                if 'lightsaber' in ln and 'L' not in TOKEN_MAP:
-                    TOKEN_MAP['L'] = {'id': 'lightsaber', 'name': nm, 'token': 'L', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm}
+                if 'lightsaber' in ln and '/' not in TOKEN_MAP:
+                    TOKEN_MAP['/'] = {'id': 'lightsaber', 'name': nm, 'token': '/', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm}
             except Exception:
                 continue
 except Exception:
@@ -84,15 +84,16 @@ try:
     from jedi_fugitive.items import crafting as crafting_mod
     if crafting_mod is not None:
         materials = getattr(crafting_mod, 'MATERIALS', [])
+        # lowercase glyphs that do not collide with terrain/landmarks (M/P/C/o used to)
         material_tokens = {
             'm': 'Scrap Metal',
-            'M': 'Durasteel Plate',
+            'h': 'Durasteel Plate',
             'w': 'Fused Wire',
-            'P': 'Power Cell',
+            'e': 'Power Cell',
             'p': 'Plasteel Composite',
             'l': 'Focusing Lens',
-            'C': 'Advanced Circuitry',
-            'o': 'Cortosis Ore',
+            'i': 'Advanced Circuitry',
+            'k': 'Cortosis Ore',
             'K': 'Kyber Crystal',
         }
         

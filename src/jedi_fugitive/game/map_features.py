@@ -716,9 +716,11 @@ def generate_world(game):
             tokens = list(TOKEN_MAP.keys())
             # Weight lightsaber
             try:
-                if 'L' in tokens:
+                if '/' in tokens:
                     weight = int(getattr(game, 'lightsaber_weight', 3) or 3)
-                    tokens.extend(['L'] * max(0, weight - 1))
+                    tokens.extend(['/'] * max(0, weight - 1))
+                # quest artifacts only exist at the bottom of tombs
+                tokens = [t for t in tokens if t != 'Q']
             except Exception:
                 pass
         except Exception:
@@ -1104,7 +1106,8 @@ def enter_tomb(game):
 
             # Generate items for this level
             level_items = []
-            place_items(level_map, rooms, depth)
+            # (generate_dungeon_level already scattered this floor's items; a second
+            # place_items() call here used to double them)
             
             # Place corrupted Jedi Artifact on the final level
             if depth == num_levels and rooms:

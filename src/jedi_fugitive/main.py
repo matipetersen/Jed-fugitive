@@ -13,6 +13,7 @@ def _parse_args(argv=None):
     p.add_argument("--tick-ms", type=int, default=200,
                    help="real-time world tick length in milliseconds (default: 200)")
     p.add_argument("--fullscreen", action="store_true", help="start fullscreen (F11 toggles)")
+    p.add_argument("--no-intro", action="store_true", help="skip the crash cinematic")
     p.add_argument("--size", default=None, help="window size, e.g. 1600x960")
     p.add_argument("--world-size", default="large", choices=["small", "normal", "large", "huge"],
                    help="overworld size (default: large, 440x300 tiles)")
@@ -54,8 +55,12 @@ def _main_gui(args):
         gm = GameManager(app.stdscr)
         gm.world_size = args.world_size
         gm.tick_seconds = max(0.05, args.tick_ms / 1000.0)
-        # world generation is slow on the huge surface map: keep the window responsive
-        app.run_loading(lambda: (gm.initialize(), gm.generate_world()))
+        # the crash cinematic plays while the world is generated in the background
+        intro = None
+        if not args.no_intro:
+            from jedi_fugitive.gfx.intro import Intro
+            intro = Intro(app)
+        app.run_loading(lambda: (gm.initialize(), gm.generate_world()), intro=intro)
         if args.realtime:
             gm.set_realtime(True)
         gm.run(skip_init=True)

@@ -264,174 +264,94 @@ def pick_up(game):
             getattr(Display, "ARTIFACT", "A"): {"name":"Artifact"},
         }
         
-        # Check for enemy equipment drops (uses 'E' token for equipment, 'M' token for materials)
-        if (cell == 'E' or cell == 'M') and hasattr(game, 'equipment_drops'):
-            try:
-                equipment_drop = game.equipment_drops.get((px, py))
-                if equipment_drop:
-                    # capacity check
-                    max_inv = int(getattr(game, 'max_inventory', 9) or 9)
-                    cur_inv = len(getattr(game.player, 'inventory', []) or [])
-                    if cur_inv >= max_inv:
-                        try: game.ui.messages.add("Inventory full. Can't pick up item.")
-                        except Exception: pass
-                        return
-                    
-                    if not hasattr(game.player, 'inventory') or game.player.inventory is None:
-                        game.player.inventory = []
-                    
-                    # Add the actual item object to inventory
-                    dropped_item = equipment_drop['item']
-                    game.player.inventory.append(dropped_item)
-                    
-                    # Clear the map
-                    game.game_map[py][px] = floor
-                    
-                    # Remove from equipment_drops
-                    del game.equipment_drops[(px, py)]
-                    
-                    # Message
-                    item_name = equipment_drop.get('name', 'equipment')
-                    try: game.ui.messages.add(f"Picked up {item_name}.")
-                    except Exception: pass
-                    
-                    # Add to travel log with item details
-                    try:
-                        if hasattr(game.player, 'add_log_entry'):
-                            item_type = equipment_drop.get('type', 'item')
-                            item_rarity = equipment_drop.get('rarity', 'Common')
-                            
-                            # Get item description
-                            item_desc = ""
-                            if hasattr(dropped_item, 'description'):
-                                item_desc = getattr(dropped_item, 'description', '')
-                            elif isinstance(dropped_item, dict):
-                                item_desc = dropped_item.get('description', '')
-                            
-                            # Create narrative entry
-                            if item_type == 'weapon':
-                                base_dmg = getattr(dropped_item, 'base_damage', 0) if hasattr(dropped_item, 'base_damage') else 0
-                                entry = game.player.narrative_text(
-                                    light_version=f"Found {item_name} ({item_rarity}). {item_desc}",
-                                    dark_version=f"Claimed {item_name} ({item_rarity}) - a fitting tool for my power! {item_desc}",
-                                    balanced_version=f"Found {item_name} ({item_rarity}, +{base_dmg} attack). {item_desc}"
-                                )
-                            elif item_type == 'armor':
-                                entry = game.player.narrative_text(
-                                    light_version=f"Found {item_name} ({item_rarity}) for protection. {item_desc}",
-                                    dark_version=f"Seized {item_name} ({item_rarity}) to strengthen myself. {item_desc}",
-                                    balanced_version=f"Found {item_name} ({item_rarity}). {item_desc}"
-                                )
-                            elif item_type == 'material':
-                                entry = game.player.narrative_text(
-                                    light_version=f"Collected {item_name} ({item_rarity}) - may be useful for crafting. {item_desc}",
-                                    dark_version=f"Scavenged {item_name} ({item_rarity}) - a resource for my arsenal. {item_desc}",
-                                    balanced_version=f"Found crafting material: {item_name} ({item_rarity}). {item_desc}"
-                                )
-                            else:
-                                entry = game.player.narrative_text(
-                                    light_version=f"Found {item_name}. {item_desc}",
-                                    dark_version=f"Acquired {item_name} to fuel my journey. {item_desc}",
-                                    balanced_version=f"Found {item_name}. {item_desc}"
-                                )
-                            game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
-                    except Exception:
-                        pass
-                    
-                    try:
-                        pass  # turn_count advances once per world tick (GameManager._world_tick)
-                    except Exception:
-                        pass
-                    
-                    return
-            except Exception as e:
-                print(f"Error picking up equipment drop: {e}")
-                pass
-        
-        # Prefer explicit item entries placed on the map (game.items_on_map)
+        # Unified pickup: enemy drops, explicit map entries, then bare item glyphs.
+        # Everything is materialized into its real inventory form (see items/registry.py).
+        from jedi_fugitive.items import registry
+        if not hasattr(game.player, 'inventory') or game.player.inventory is None:
+            game.player.inventory = []
+        inv = game.player.inventory
+        max_inv = int(getattr(game, 'max_inventory', 9) or 9)
+        drops = getattr(game, 'equipment_drops', None) or {}
         try:
             items_here = [it for it in getattr(game, 'items_on_map', []) or [] if it.get('x') == px and it.get('y') == py]
         except Exception:
             items_here = []
-        # inventory capacity (default 9)
-        max_inv = int(getattr(game, 'max_inventory', 9) or 9)
-        cur_inv = len(getattr(game.player, 'inventory', []) or [])
-        if items_here:
-            it = items_here[0]
-            try:
-                if cur_inv >= max_inv:
-                    try: game.ui.messages.add("Inventory full. Can't pick up item.")
-                    except Exception: pass
-                    return
-                if not hasattr(game.player, 'inventory') or game.player.inventory is None:
-                    game.player.inventory = []
-                entry = dict(it) if isinstance(it, dict) else it
-                game.player.inventory.append(entry)
-                # remove map entry and clear glyph on the map
-                try:
-                    game.items_on_map.remove(it)
-                except Exception:
-                    game.items_on_map = [i for i in getattr(game, 'items_on_map', []) or [] if not (i.get('x') == px and i.get('y') == py)]
-                try:
-                    game.game_map[py][px] = floor
-                except Exception:
-                    pass
-                
-                item_name = entry.get('name', entry.get('token', 'item'))
-                try: game.ui.messages.add(f"Picked up {item_name}.")
-                except Exception: pass
-                
-                # Add to travel log
-                try:
-                    if hasattr(game.player, 'add_log_entry'):
-                        item_desc = entry.get('description', '')
-                        entry_text = game.player.narrative_text(
-                            light_version=f"Found {item_name}. {item_desc}",
-                            dark_version=f"Acquired {item_name} for my arsenal. {item_desc}",
-                            balanced_version=f"Found {item_name}. {item_desc}"
-                        )
-                        game.player.add_log_entry(entry_text, getattr(game, 'turn_count', 0))
-                except Exception:
-                    pass
-                
-                try:
-                    pass  # turn_count advances once per world tick (GameManager._world_tick)
-                except Exception:
-                    pass
-                return
-            except Exception:
-                pass
 
-        if cell in token_map:
-            # add rich item dict so equip/use logic has full info
-            if not hasattr(game.player, "inventory") or game.player.inventory is None:
-                game.player.inventory = []
-            # capacity check
-            max_inv = int(getattr(game, 'max_inventory', 9) or 9)
-            cur_inv = len(getattr(game.player, 'inventory', []) or [])
-            if cur_inv >= max_inv:
+        picked = []
+        journal_kind = None
+        rarity = ''
+        if (px, py) in drops:
+            if len(inv) >= max_inv:
                 try: game.ui.messages.add("Inventory full. Can't pick up item.")
                 except Exception: pass
                 return
-            info = token_map.get(cell)
+            drop = drops.pop((px, py))
+            picked = [registry.materialize(drop.get('item'))]
+            journal_kind = drop.get('type', 'item')
+            rarity = drop.get('rarity', '')
+        elif items_here:
+            entry = items_here[0]
+            is_cache = entry.get('guarded') or entry.get('name') == 'Guarded Supply Cache'
+            if is_cache:
+                picked = registry.cache_loot()
+            else:
+                picked = [registry.materialize(entry)]
+            if len(inv) + len(picked) > max_inv:
+                try: game.ui.messages.add("Inventory full. Can't pick up item.")
+                except Exception: pass
+                return
             try:
-                # make a shallow copy to avoid mutating shared prototypes
-                item_entry = dict(info)
-            except Exception:
-                item_entry = {"token": cell, "name": str(cell)}
-            # ensure token/name present
-            item_entry.setdefault('token', cell)
-            item_entry.setdefault('name', item_entry.get('name', str(cell)))
-            game.player.inventory.append(item_entry)
-            game.game_map[py][px] = floor
-            try: game.ui.messages.add(f"Picked up {item_entry.get('name','item')}.") 
-            except Exception: pass
-            try:
-                pass  # turn_count advances once per world tick (GameManager._world_tick)
+                game.items_on_map.remove(entry)
             except Exception:
                 pass
+            if is_cache:
+                try: game.ui.messages.add("You force the Sith supply cache open.")
+                except Exception: pass
+        elif cell in token_map:
+            if len(inv) >= max_inv:
+                try: game.ui.messages.add("Inventory full. Can't pick up item.")
+                except Exception: pass
+                return
+            picked = [registry.materialize(token_map.get(cell))]
+
+        picked = [it for it in picked if it is not None]
+        if picked:
+            for it in picked:
+                inv.append(it)
+                nm = registry.item_name(it)
+                if rarity in ('Legendary', 'Epic'):
+                    msg = f"★★★ You pick up the {rarity.upper()} {nm}! ★★★"
+                elif rarity == 'Rare':
+                    msg = f"★★ You pick up the RARE {nm}! ★★"
+                else:
+                    msg = f"Picked up {nm}."
+                try: game.ui.messages.add(msg)
+                except Exception: pass
+                # Jedi artifacts power the comms terminal: tell the player where they stand
+                if isinstance(it, dict) and it.get('type') == 'quest_item':
+                    have = sum(1 for i in inv if isinstance(i, dict) and i.get('type') == 'quest_item')
+                    game.artifacts_collected = max(getattr(game, 'artifacts_collected', 0), have)
+                    try:
+                        game.ui.messages.add(f"Jedi Artifact recovered ({have}/{getattr(game, 'artifacts_needed', 3)}). Bring them to the comms terminal.")
+                    except Exception: pass
+                    try:
+                        game.player.add_to_travel_log(f"[ARTIFACT] Recovered a corrupted Jedi relic ({have}/3). Its dark pulse beats against my palm.")
+                    except Exception: pass
+            # clear the glyph once nothing else lies on this tile
+            try:
+                still = (px, py) in drops or any(it.get('x') == px and it.get('y') == py for it in getattr(game, 'items_on_map', []) or [])
+                if not still and cell in registry.ITEM_GLYPHS | {'L'}:
+                    game.game_map[py][px] = floor
+            except Exception:
+                pass
+            if journal_kind and hasattr(game.player, 'add_log_entry'):
+                try:
+                    nm = registry.item_name(picked[0])
+                    game.player.add_log_entry(f"Found {nm}{' (' + rarity + ')' if rarity else ''} on a fallen foe.", getattr(game, 'turn_count', 0))
+                except Exception:
+                    pass
             return
-        
+
         # Gold is now handled at the top of this function
         
         if cell in pickup_map:
@@ -463,9 +383,10 @@ def pick_up(game):
                         game.game_map[py][px] = floor
                         # narrative counter
                         try:
-                            game.artifacts_collected = getattr(game, 'artifacts_collected', 0) + 1
+                            # Sith artifacts are a temptation, not the quest relics that power the comms
+                            game.sith_artifacts_collected = getattr(game, 'sith_artifacts_collected', 0) + 1
                             try:
-                                game.ui.messages.add(f"Artifact collected ({game.artifacts_collected}/{getattr(game, 'artifacts_needed', 3)})")
+                                game.ui.messages.add("A Sith artifact. Use it (u) to ABSORB or DESTROY its power.")
                             except Exception:
                                 pass
                         except Exception:
@@ -529,11 +450,7 @@ def pick_up(game):
             # track narrative artifact collection (game-level counter)
             try:
                 if cell == getattr(Display, 'ARTIFACT', 'A'):
-                    game.artifacts_collected = getattr(game, 'artifacts_collected', 0) + 1
-                    try:
-                        game.ui.messages.add(f"Artifact collected ({game.artifacts_collected}/{getattr(game, 'artifacts_needed', 3)})")
-                    except Exception:
-                        pass
+                    game.sith_artifacts_collected = getattr(game, 'sith_artifacts_collected', 0) + 1
             except Exception:
                 pass
             try: game.ui.messages.add(f"Picked up {it.get('name','item')}.") 
@@ -734,6 +651,16 @@ def equip_item(game):
                     except Exception: pass
                     break
 
+        # the replaced item goes back to the pack instead of vanishing
+        try:
+            prev = prev_armor if is_armor else prev_weapon
+            if prev is not None and prev is not chosen:
+                inv.append(prev)
+                pn = prev.get('name', 'item') if isinstance(prev, dict) else getattr(prev, 'name', 'item')
+                game.ui.messages.add(f"You stow your {pn}.")
+        except Exception:
+            pass
+
         # Message already displayed in equip logic above (with attack bonus for weapons)
         if is_armor:
             try: game.ui.messages.add(f"Equipped {name}.") 
@@ -787,10 +714,21 @@ def drop_item(game):
             if hasattr(chosen, 'token'):
                 item_entry['token'] = getattr(chosen, 'token')
         
+        # Keep the real object so picking it back up restores the same item
+        try:
+            from jedi_fugitive.items import registry
+            item_entry = registry.map_entry(chosen, px, py, token=item_entry.get('token') if isinstance(chosen, dict) else None)
+        except Exception:
+            pass
         # Add to map items
         if not hasattr(game, 'items_on_map') or game.items_on_map is None:
             game.items_on_map = []
         game.items_on_map.append(item_entry)
+        try:
+            if game.game_map[py][px] == getattr(Display, 'FLOOR', '.'):
+                game.game_map[py][px] = item_entry.get('token') or 'E'
+        except Exception:
+            pass
         
         # Remove from inventory
         try:
@@ -1010,12 +948,41 @@ def use_item(game):
                     pass
                 return False
 
+        ctype = chosen.get('type') if isinstance(chosen, dict) else getattr(chosen, 'type', None)
+        cname = chosen.get('name', 'item') if isinstance(chosen, dict) else getattr(chosen, 'name', 'item')
+        if ctype == 'material':
+            try: game.ui.messages.add(f"{cname} is a crafting material. Press 'C' to craft with it.")
+            except Exception: pass
+            return False
+        if ctype == 'quest_item':
+            try: game.ui.messages.add(f"The {cname} must be placed in the comms terminal. Keep it safe.")
+            except Exception: pass
+            return False
+
         if not item_obj or ('effect' not in item_obj and 'token' not in item_obj):
             try: game.ui.messages.add("That item can't be used directly. Try equipping it (press 'e').")
             except Exception: pass
             return False
 
-        eff = item_obj.get('effect', {})
+        if isinstance(item_obj, dict) and not item_obj.get('effect'):
+            try:
+                from jedi_fugitive.items import registry
+                resolved = registry.materialize(item_obj)
+                if isinstance(resolved, dict):
+                    item_obj = resolved
+            except Exception:
+                pass
+        eff = item_obj.get('effect') or {}
+        if not isinstance(eff, dict):
+            eff = {}
+        # Grenades are thrown, not detonated at your feet: hand over to the targeting mode
+        if 'area_damage' in eff:
+            game.pending_grenade_throw = True
+            game.target_x = getattr(game.player, 'x', 0)
+            game.target_y = getattr(game.player, 'y', 0)
+            try: game.ui.messages.add("Grenade primed: move the reticle (range 3) and press Enter to throw, Esc to cancel.")
+            except Exception: pass
+            return False
         used = False
         # heal effect
         if 'heal' in eff:
@@ -1097,6 +1064,7 @@ def use_item(game):
             # consume one instance from inventory
             try:
                 inv.remove(chosen)
+                return True
             except Exception:
                 # try to remove matching token or dict
                 for i in list(inv):
@@ -1337,6 +1305,11 @@ def craft_item(game, recipe_name):
             except Exception: pass
             return False
         
+        if recipe.recipe_type == "weapon_upgrade" and not getattr(game.player, 'equipped_weapon', None):
+            try: game.ui.messages.add("No weapon equipped to upgrade!")
+            except Exception: pass
+            return False
+
         # Consume materials
         game.player.inventory = consume_materials(game.player.inventory, recipe.materials)
         

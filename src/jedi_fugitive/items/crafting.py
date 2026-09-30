@@ -306,3 +306,84 @@ def consume_materials(inventory: List[Any], materials_needed: Dict[str, int]) ->
         new_inventory.append(item)
     
     return new_inventory
+
+class CraftingManager:
+    def __init__(self, game):
+        self.game = game
+
+    def get_available_recipes(self):
+        """Return list of recipes the player can craft based on level."""
+        available = []
+        for recipe in CRAFTING_RECIPES:
+            if getattr(self.game.player, 'level', 1) >= recipe.required_level:
+                available.append(recipe)
+        return available
+
+    def can_craft(self, recipe):
+        return check_materials(self.game.player.inventory, recipe.materials)
+
+    def craft(self, recipe):
+        if not self.can_craft(recipe):
+            if hasattr(self.game.ui, 'messages'):
+                self.game.ui.messages.add(f"Not enough materials for {recipe.name}.")
+            return False
+        
+        # Consume materials
+        self.game.player.inventory = consume_materials(self.game.player.inventory, recipe.materials)
+        
+        # Apply result
+        success = False
+        if recipe.recipe_type == "weapon_upgrade":
+            success = self._upgrade_weapon(recipe)
+        elif recipe.recipe_type == "item_craft":
+            success = self._craft_item(recipe)
+        
+        if success:
+            if hasattr(self.game.ui, 'messages'):
+                self.game.ui.messages.add(f"Successfully crafted {recipe.name}!")
+        else:
+            if hasattr(self.game.ui, 'messages'):
+                self.game.ui.messages.add(f"Failed to craft {recipe.name}.")
+        
+        return success
+
+    def _upgrade_weapon(self, recipe):
+        weapon = getattr(self.game.player, 'equipped_weapon', None)
+        if not weapon:
+            if hasattr(self.game.ui, 'messages'):
+                self.game.ui.messages.add("No weapon equipped to upgrade.")
+            return False
+            
+        # Apply stats
+        res = recipe.result
+        if 'stat' in res:
+            current = getattr(weapon, res['stat'], 0)
+            setattr(weapon, res['stat'], current + res['bonus'])
+        if 'stat2' in res:
+            current = getattr(weapon, res['stat2'], 0)
+            setattr(weapon, res['stat2'], current + res['bonus2'])
+        if 'name' in res:
+            weapon.name = f"{res['name']} {weapon.name}"
+            
+        return True
+
+    def _craft_item(self, recipe):
+        # Create item and add to inventory
+        res = recipe.result
+        
+        # Simple item creation logic - can be expanded
+        # For now, we'll create a simple object or dict depending on what inventory expects
+        # Assuming inventory can hold objects with 'name' and 'type'
+        
+        class CraftedItem:
+            def __init__(self, data):
+                self.name = data.get('name', 'Unknown Item')
+                self.type = data.get('type', 'misc')
+                self.data = data
+                for k, v in data.items():
+                    setattr(self, k, v)
+                    
+        new_item = CraftedItem(res)
+        self.game.player.inventory.append(new_item)
+        return True
+

@@ -1,0 +1,26 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-12-12 14:52:06
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-12-12 14:52:06] INFO: Game started
+[2025-12-12 14:52:06] INFO: Game initialization started
+[2025-12-12 14:52:06] INFO: World generation started
+[2025-12-12 14:52:07] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-12-12 14:52:07] INFO: Game loop started
+[2025-12-12 14:53:39] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-12-12 14:53:39] INFO: Game initialization started
+[2025-12-12 14:53:39] INFO: World generation started
+[2025-12-12 14:53:40] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-12-12 14:53:40] INFO: Game loop started
+[2025-12-12 14:57:34] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+SESSION ENDED
+================================================================================
+End time: 2025-12-12 14:57:34
+Session duration: 0:05:28.227580
+================================================================================

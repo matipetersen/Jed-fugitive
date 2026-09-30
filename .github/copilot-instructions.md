@@ -1,6 +1,6 @@
-# Jedi Fugitive - Copilot Instructions
+# Dark Meridian - Copilot Instructions
 
-Terminal-based roguelike built with Python curses. Star Wars-themed Jedi fugitive simulator with stress/alignment psychology system, Force abilities, and procedurally generated maps.
+Terminal-based roguelike built with Python curses. Star Wars-themed Dark Meridian simulator with stress/alignment psychology system, Force abilities, and procedurally generated maps.
 
 ## Architecture Overview
 
@@ -92,7 +92,7 @@ When equipping items:
 **Requires real terminal** (not VS Code integrated terminal):
 ```bash
 export TERM=xterm-256color
-python -m jedi_fugitive.main
+python -m dark_meridian.main
 ```
 
 VS Code users: Configure launch.json to use external terminal or run from Terminal.app/iTerm.
@@ -119,7 +119,7 @@ Check specific scripts in `scripts/` for targeted validation (e.g., `test_equip_
 **Windows**: `scripts\build_windows.ps1`
 **CI**: `.github/workflows/build.yml` builds on push to main, uploads artifacts
 
-PyInstaller config: `--onefile --name "jedi-fugitive" src/jedi_fugitive/main.py`
+PyInstaller config: `--onefile --name "dark-meridian" src/dark_meridian/main.py`
 
 ### Tuning Difficulty
 Edit `config.py`:
@@ -130,7 +130,7 @@ Edit `config.py`:
 ## Module Organization
 
 ```
-src/jedi_fugitive/
+src/dark_meridian/
 ├── main.py                  # Entry point, curses wrapper, headless fallback
 ├── config.py                # Global constants (map ratios, difficulty, save file)
 ├── game/
@@ -191,4 +191,4 @@ src/jedi_fugitive/
 - Map coordinates follow `game_map[y][x]` convention (row-major access)
 - Tests use `DummyStdScr` to simulate curses for headless execution
 - Always prefer `game.add_message()` over direct `ui.messages.add()` for broader compatibility
-- When debugging, check `/tmp/jedi_fugitive_debug.txt` for detailed state snapshots
+- When debugging, check `/tmp/dark_meridian_debug.txt` for detailed state snapshots

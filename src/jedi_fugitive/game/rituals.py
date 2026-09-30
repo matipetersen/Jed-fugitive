@@ -280,6 +280,92 @@ BURIAL_CEREMONIES = {
     }
 }
 
+# Combat stance/form rituals
+FORM_MEDITATION_RITUALS = {
+    'form_i_meditation': {
+        'name': 'Form I: Shii-Cho Kata',
+        'corruption_required': (0, 100),  # Available to all
+        'duration': 'Practice the ancient forms',
+        'description': [
+            "You practice the fundamental strikes of Form I - the Way of the Sarlacc.",
+            "Wide sweeping motions, basic but effective against multiple opponents.",
+            "This is where all Jedi begin. The foundation of lightsaber combat.",
+            "Through repetition, the form becomes part of you.",
+        ],
+        'effects': {
+            'form_learned': 'Shii-Cho',
+            'message': 'Form I: Shii-Cho mastered. The foundation of all forms.'
+        }
+    },
+    'form_iii_meditation': {
+        'name': 'Form III: Soresu Meditation',
+        'corruption_required': (0, 50),
+        'level_required': 3,
+        'duration': 'Master defensive techniques',
+        'description': [
+            "You focus on defense, letting attacks flow past you harmlessly.",
+            "Form III - the Way of the Mynock. Patient, immovable, unbreakable.",
+            "You visualize deflecting countless blaster bolts, outlasting any foe.",
+            "Like Obi-Wan Kenobi, you become a fortress of the Light.",
+        ],
+        'effects': {
+            'form_learned': 'Soresu',
+            'defense_bonus': 5,
+            'message': 'Form III: Soresu learned. You are now a master of defense.'
+        }
+    },
+    'form_v_meditation': {
+        'name': 'Form V: Shien/Djem So Practice',
+        'corruption_required': (30, 80),
+        'level_required': 5,
+        'duration': 'Channel power through aggression',
+        'description': [
+            "You practice powerful strikes, each one devastating and direct.",
+            "Form V - turning defense into overwhelming offense.",
+            "Like the ancient Jedi battlemaster Kao Cen Darach, you dominate the battlefield with raw strength.",
+            "Power, aggression, victory. The form of champions.",
+        ],
+        'effects': {
+            'form_learned': 'Shien',
+            'attack_bonus': 5,
+            'message': 'Form V: Shien mastered. Your strikes are now devastating.'
+        }
+    },
+    'form_vii_meditation': {
+        'name': 'Form VII: Juyo Ritual',
+        'corruption_required': (60, 100),
+        'level_required': 8,
+        'duration': 'Embrace controlled chaos',
+        'description': [
+            "You move without thought, channeling raw emotion into combat.",
+            "Form VII - the Ferocity Form. Unpredictable, overwhelming, dangerous.",
+            "Only the strongest can use this without falling to darkness.",
+            "You dance on the edge between control and chaos.",
+        ],
+        'effects': {
+            'form_learned': 'Juyo',
+            'attack_bonus': 8,
+            'corruption_change': 5,
+            'message': 'Form VII: Juyo learned. Beware - this form is perilous.'
+        }
+    },
+    'stance_change_ritual': {
+        'name': 'Combat Stance Meditation',
+        'corruption_required': (0, 100),
+        'duration': 'Attune to a different fighting style',
+        'description': [
+            "You meditate on your combat style, seeking to adapt.",
+            "The Force guides your movements, showing you new techniques.",
+            "Each stance has strengths - you must choose wisely.",
+            "Your form is part of who you are as a warrior.",
+        ],
+        'effects': {
+            'stance_selection': True,
+            'message': 'Meditation complete. You may now switch combat stances.'
+        }
+    }
+}
+
 # Special ceremonies for milestones
 MILESTONE_CEREMONIES = {
     'knighthood': {
@@ -427,6 +513,17 @@ def get_available_rituals(corruption_level, location=None, level=1, tombs_comple
             if can_perform:
                 available.append(('milestone', ritual_id, ritual_data))
     
+    # Check form meditation rituals
+    for ritual_id, ritual_data in FORM_MEDITATION_RITUALS.items():
+        min_corrupt, max_corrupt = ritual_data['corruption_required']
+        if min_corrupt <= corruption_level <= max_corrupt:
+            # Check level requirement if present
+            if 'level_required' in ritual_data:
+                if level >= ritual_data['level_required']:
+                    available.append(('form', ritual_id, ritual_data))
+            else:
+                available.append(('form', ritual_id, ritual_data))
+    
     return available
 
 def perform_ritual(ritual_category, ritual_id, player, game_state):
@@ -448,7 +545,8 @@ def perform_ritual(ritual_category, ritual_id, player, game_state):
         'jedi': JEDI_RITES,
         'sith': SITH_RITES,
         'burial': BURIAL_CEREMONIES,
-        'milestone': MILESTONE_CEREMONIES
+        'milestone': MILESTONE_CEREMONIES,
+        'form': FORM_MEDITATION_RITUALS
     }
     
     ritual_data = ritual_sets[ritual_category].get(ritual_id)

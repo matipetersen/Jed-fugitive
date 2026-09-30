@@ -156,12 +156,12 @@ def propose_new_system():
     print("  • Deflects blaster fire")
     
     print("\nForm IV: Ataru (Level 5+)")
-    print("  • Acrobatic aggression (Yoda)")
+    print("  • Acrobatic aggression (Ataru Form)")
     print("  • +3 Attack, +4 Evasion, -10% Force cost")
     print("  • Multiple rapid strikes")
     
     print("\nForm V: Shien/Djem So (Level 6+)")
-    print("  • Power attacks (Anakin/Luke)")
+    print("  • Power attacks (Djem So Form)")
     print("  • +4 Attack, +2 Defense, +5% Crit")
     print("  • Counter-attacks after blocks")
     
@@ -182,7 +182,7 @@ def propose_new_system():
     print("  • Extra attack per turn")
     
     print("\nSaberstaff Mastery (Level 6+, requires Shii-Cho + Ataru)")
-    print("  • Double-bladed technique (Darth Maul)")
+    print("  • Double-bladed technique (Juyo/Vaapad Form)")
     print("  • +3 Attack, +2 Defense, +1 Evasion (with saberstaff)")
     print("  • Spinning attacks hit multiple enemies")
     

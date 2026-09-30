@@ -91,14 +91,17 @@ COMBOS = {
 }
 
 class ComboTracker:
-    """Tracks player action sequences and triggers combo bonuses."""\n    \n    def __init__(self, game):
+    """Tracks player action sequences and triggers combo bonuses."""
+    
+    def __init__(self, game):
         self.game = game
         self.action_history = []  # List of recent actions
         self.active_buffs = []  # List of active combo buffs
         self.last_combo_turn = -999  # Track when last combo triggered
     
     def record_action(self, action_type):
-        \"\"\"Record a player action and check for combo triggers.\"\"\"\n        turn = getattr(self.game, 'turn_count', 0)
+        """Record a player action and check for combo triggers."""
+        turn = getattr(self.game, 'turn_count', 0)
         
         # Add to history
         self.action_history.append({
@@ -114,7 +117,8 @@ class ComboTracker:
         self.check_combos()
     
     def check_combos(self):
-        """Check if any combos have been triggered."""\n        turn = getattr(self.game, 'turn_count', 0)
+        """Check if any combos have been triggered."""
+        turn = getattr(self.game, 'turn_count', 0)
         
         for combo_name, combo_data in COMBOS.items():
             sequence = combo_data['sequence']
@@ -142,7 +146,8 @@ class ComboTracker:
                 break
     
     def trigger_combo(self, combo_name, combo_data):
-        """Trigger a combo effect."""\n        turn = getattr(self.game, 'turn_count', 0)
+        """Trigger a combo effect."""
+        turn = getattr(self.game, 'turn_count', 0)
         
         # Show message
         try:
@@ -184,7 +189,8 @@ class ComboTracker:
             ))
     
     def apply_aoe_damage(self, combo_data):
-        """Apply area-of-effect damage from combo."""\n        px = self.game.player.x
+        """Apply area-of-effect damage from combo."""
+        px = self.game.player.x
         py = self.game.player.y
         radius = combo_data.get('aoe_radius', 3)
         damage = combo_data.get('aoe_damage', 10)
@@ -213,7 +219,8 @@ class ComboTracker:
                 pass
     
     def tick_buffs(self):
-        \"\"\"Process active combo buffs each turn.\"\"\"\n        buffs_to_remove = []
+        """Process active combo buffs each turn."""
+        buffs_to_remove = []
         
         for buff in self.active_buffs:
             buff['turns_remaining'] -= 1
@@ -238,7 +245,8 @@ class ComboTracker:
             self.active_buffs.remove(buff)
     
     def get_active_bonuses(self):
-        \"\"\"Get currently active combo bonuses for display.\"\"\"\n        bonuses = []
+        """Get currently active combo bonuses for display."""
+        bonuses = []
         for buff in self.active_buffs:
             data = buff['data']
             turns = buff['turns_remaining']
@@ -253,5 +261,6 @@ class ComboTracker:
         return bonuses
     
     def clear_temp_bonuses(self):
-        \"\"\"Clear temporary single-use bonuses after they're consumed.\"\"\"\n        if hasattr(self.game.player, 'combo_damage_bonus'):
+        """Clear temporary single-use bonuses after they're consumed."""
+        if hasattr(self.game.player, 'combo_damage_bonus'):
             delattr(self.game.player, 'combo_damage_bonus')

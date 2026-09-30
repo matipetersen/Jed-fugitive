@@ -12,7 +12,7 @@ class Disguise:
 # Example disguises
 DISGUISE_TYPES = {
     'civilian': Disguise('Civilian Clothes', 'Simple local attire.', 20, ['Settlers']),
-    'stormtrooper': Disguise('Stormtrooper Armor', 'Imperial trooper armor.', 40, ['Imperial']),
+    'sith_trooper': Disguise('Sith Trooper Armor', 'Standard Sith Empire trooper armor.', 40, ['Sith Empire']),
     'merchant': Disguise('Merchant Garb', 'Trader outfit with Hutt insignia.', 30, ['Hutt']),
 }
 

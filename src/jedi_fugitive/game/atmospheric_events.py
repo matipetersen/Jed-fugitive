@@ -210,6 +210,31 @@ class AtmosphericEventManager:
             if effect not in self.game.atmospheric_modifiers:
                 self.game.atmospheric_modifiers[effect] = 0
             self.game.atmospheric_modifiers[effect] += value
+        
+        # Apply immediate gameplay effects
+        player = self.game.player
+        
+        # Visibility changes
+        if 'visibility_range' in effects:
+            vis_change = effects['visibility_range']
+            if hasattr(player, 'los_radius'):
+                player.los_radius = max(1, player.los_radius + vis_change)
+                # Recompute visibility
+                try:
+                    self.game.compute_visibility()
+                except:
+                    pass
+        
+        # Stress effects
+        if 'stress_per_turn' in effects:
+            stress_change = effects['stress_per_turn']
+            if hasattr(player, 'add_stress') and stress_change > 0:
+                player.add_stress(stress_change, source='atmospheric_event')
+        
+        # Movement cost changes (stored for movement processing)
+        if 'movement_cost' in effects:
+            # This is checked during movement in input_handler
+            pass
     
     def remove_event_effects(self, event):
         """Remove the effects of an atmospheric event."""

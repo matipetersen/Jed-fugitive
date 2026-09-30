@@ -9,7 +9,11 @@ import random
 import traceback
 
 from jedi_fugitive.ui.silq_ui import SILQUI
-from jedi_fugitive.utils.crash_logger import get_logger, log_error, log_info, log_game_event
+from jedi_fugitive.utils.crash_logger import log_error, log_info, log_game_event
+from jedi_fugitive.game import logger
+
+# Use the global logger for this module
+log = getattr(logger, 'log', None)
 from jedi_fugitive.game.player import Player
 from jedi_fugitive.game import projectiles, force_abilities, map_features, input_handler, ui_renderer, equipment
 from jedi_fugitive.game.enemy import Enemy, EnemyType, process_enemies as enemy_process_enemies
@@ -25,8 +29,119 @@ from jedi_fugitive.game import abilities, map_features as mf
 from jedi_fugitive.game.sith_codex import SithCodex, populate_canon, populate_artifacts
 from jedi_fugitive.game.save_system import save_game, load_game, apply_save_data, get_autosave_path
 from jedi_fugitive.game.npc_encounters import NPCEncounters, NPC
+from jedi_fugitive.game.npc_quest import QuestManager
+from jedi_fugitive.game.pursuit import PursuitSystem
+from jedi_fugitive.game.factions import FactionManager
+from jedi_fugitive.items.crafting import CraftingManager
 
 class GameManager:
+
+    def initialize(self):
+        """
+        Initialize the game state, UI, player, and any other required systems.
+        This method is called before the main game loop starts.
+        """
+        # Initialize UI colors
+        if hasattr(self, 'ui'):
+            self.ui.init_colors()
+            # Create initial layout
+            map_w, map_h, stats_w, abil_w, message_h, cmd_h = self._compute_layout()
+            self.ui.create_layout(map_w, map_h, stats_w, abil_w, message_h, cmd_h)
+            
+        # Ensure player exists
+        if not hasattr(self, 'player'):
+            self.player = Player(0, 0)
+        
+        # Give player starting equipment
+        try:
+            from jedi_fugitive.items.weapons import Weapon, WeaponType
+            # Starting vibroblade
+            vibroblade = Weapon(
+                name="Vibroblade",
+                weapon_type=WeaponType.MELEE,
+                base_damage=8,
+                accuracy=85
+            )
+            # Starting blaster pistol - MUST use BLASTER_PISTOL type for auto-aim to work
+            blaster = Weapon(
+                name="Blaster Pistol",
+                weapon_type=WeaponType.BLASTER_PISTOL,
+                base_damage=10,
+                accuracy=75,
+                range=5,
+                ammo=50
+            )
+            self.player.inventory.append(vibroblade)
+            self.player.inventory.append(blaster)
+            self.player.equipped_weapon = vibroblade
+        except Exception:
+            pass
+
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+        # Initialize UI
+        self.ui = SILQUI(self.stdscr)
+        
+        # Initialize player at (0, 0) (will be repositioned by world gen)
+        self.player = Player(0, 0)
+        # Critical: Set game reference for level-up system
+        self.player.game = self
+        
+        # Initialize core game state
+        self.enemies = []
+        self.artifacts_collected = 0  # Track Jedi artifacts collected
+        self.artifacts_needed = 3     # Total artifacts needed for victory
+        self.game_map = []
+        self.items_on_map = []
+        
+        # Initialize Expansion Systems
+        self.quest_manager = QuestManager()
+        self.pursuit_system = PursuitSystem(self.player)
+        self.faction_manager = FactionManager()
+        self.crafting_manager = CraftingManager(self)
+        self.fauna_manager = FaunaManager(self)  # Initialize fauna system for creature encounters
+        self.atmospheric_manager = AtmosphericEventManager(self)  # Initialize atmospheric events
+        self.npcs_on_map = {}  # (x, y) -> QuestNPC
+        self.active_conversations = {} # (x, y) -> conversation state
+        
+        # NEW SYSTEMS
+        from jedi_fugitive.game.stealth_system import StealthSystem
+        from jedi_fugitive.game.faction_battles import FactionBattleManager
+        self.stealth_system = StealthSystem()
+        self.faction_battle_manager = FactionBattleManager()
+        
+        # Link systems to player
+        self.player.stealth_system = self.stealth_system
+        self.player.faction_manager = self.faction_manager
+        
+        # Additional initialization can be added here if needed
+
+    def update_player_corruption(self, new_corruption):
+        """
+        Update player corruption and sync lightsaber blade color.
+        
+        Args:
+            new_corruption: New corruption value (0-100)
+        """
+        # Clamp to valid range
+        new_corruption = max(0, min(100, new_corruption))
+        
+        # Update player corruption
+        self.player.corruption = new_corruption
+        
+        # Update lightsaber blade color if player has one
+        if hasattr(self.player, 'lightsaber') and self.player.lightsaber:
+            try:
+                old_color = self.player.lightsaber.blade_color
+                self.player.lightsaber.update_corruption(new_corruption)
+                new_color = self.player.lightsaber.blade_color
+                
+                # Notify player if color changed
+                if old_color != new_color:
+                    self.ui.messages.add(f"Your lightsaber blade shifts to {new_color}!")
+            except Exception:
+                pass
+
     def move_environment_object(self, x, y, direction=(0, 0), action="move"):
         """
         Attempt to interact with an object at (x, y) in the given direction.
@@ -60,157 +175,6 @@ class GameManager:
             # For now, just return True to indicate success
             return True
         return False
-    """Clean, defensive GameManager suitable to drive the curses UI and other subsystems."""
-
-    def __init__(self, stdscr):
-        print("⟳ Initializing Dark Meridian...")
-        self.stdscr = stdscr
-        # Get term size for later use
-        self.term_w = self.stdscr.getmaxyx()[1]
-        self.ui = SILQUI(stdscr)
-        self.ui.init_colors()
-        self.dialog = DialogueSystem()
-        self.player = Player(0, 0)
-        self.enemies = []
-        self.game_map = []
-        self.items_on_map = []  # Initialize items list
-        self.tomb_entrances = set()
-        self.special_dungeons = {}  # Map of (x,y) -> dungeon_data
-        self.current_special_dungeon = None  # Current dungeon instance
-        self.panels_ready = False
-        self.current_depth = 1
-        self.current_location = "Crash Site"
-        self.turn_count = 0
-        self.pending_force_ability = None
-        self.target_x = 0
-        self.target_y = 0
-        self.combat_log = []
-        self.last_commands = ""
-        self.running = True
-        self.show_popups = False
-        
-        # Atmospheric immersion tracking
-        self.last_atmosphere_turn = 0
-        self.last_memory_turn = 0
-        self.last_vision_turn = 0
-        
-        # Narrative events tracking
-        self.last_journal_turn = 0
-        self.last_holocron_turn = 0
-        self.last_distress_turn = 0
-        self.last_environmental_turn = 0
-        
-        # Track used events to prevent repetition
-        self.used_journals = set()
-        self.used_holocrons = set()
-        self.used_distress_signals = set()
-        self.used_environmental_events = set()
-        self.used_random_events = set()
-        self.used_fauna_encounters = {}  # Per-biome tracking
-        
-        # Pending narrative choice
-        self.pending_narrative_choice = None  # Stores (event_data, choice_mapping, event_type)
-        
-        # Biome encounters tracking
-        self.visited_biomes = set()
-        self.last_encounter_turn = 0
-        
-        # Initialize player milestone tracking
-        if not hasattr(self.player, 'total_kills'):
-            self.player.total_kills = 0
-        if not hasattr(self.player, 'tombs_discovered'):
-            self.player.tombs_discovered = 0
-        if not hasattr(self.player, 'max_tomb_depth'):
-            self.player.max_tomb_depth = 0
-        if not hasattr(self.player, 'artifacts_collected'):
-            self.player.artifacts_collected = []
-
-        # Post-game stats
-        self.turns = 0
-        self.death_cause = None
-        self.death_biome = None
-        self.death_pos = None
-        self.victory = False
-        self.death = False
-
-        # FOV/exploration
-        self.visible = set()
-        self.explored = set()
-        # Fog of war toggle (on by default)
-        self.fog_of_war = True
-        print("✓ Game engine initialized")
-
-        # defaults
-        self.player.los_radius = getattr(self.player, "los_radius", 6)
-        self.player.los_bonus_turns = getattr(self.player, "los_bonus_turns", 0)
-
-        # containers
-        self.projectiles = []
-        self.active_effects = {}
-        # narrative/quest state
-        self.artifacts_needed = 3
-        self.artifacts_collected = 0
-        self.comms_established = False
-        self.ship_pos = None
-        
-        # Enemy respawn system
-        self.last_respawn_turn = 0
-        self.respawn_interval = 150  # Respawn enemies every 150 turns (base rate)
-        
-        # Enhanced NPC quest system
-        try:
-            from jedi_fugitive.game.npc_quest import QuestManager
-            self.quest_manager = QuestManager()
-        except ImportError:
-            self.quest_manager = None
-        
-        # Combat narrator for immersive combat descriptions
-        try:
-            from jedi_fugitive.game.combat_narrator import CombatNarrator
-            self.combat_narrator = CombatNarrator()
-        except ImportError:
-            self.combat_narrator = None
-        
-        self.npcs_on_map = {}  # Dict mapping (x,y) positions to NPC objects
-        self.active_conversations = {}  # Track ongoing NPC conversations
-        self.enemies_per_respawn = 1  # Start with 1 enemy per respawn cycle
-        self.key_bindings = {}
-        self.key_help = {}
-        self.last_size = (0, 0)
-        self.layout = {}
-        self.show_codex = False  # Toggle for Sith Codex display
-        
-        # Autosave system
-        self.autosave_interval = 20  # Save every 20 turns
-        self.last_autosave_turn = 0
-        
-        # Atmospheric events system
-        self.atmospheric_manager = AtmosphericEventManager(self)
-        
-        # Fauna system
-        self.fauna_manager = FaunaManager(self)
-        
-        # default splash/instruction lines exposed to the command/help panel
-        self.splash_instructions = [
-            "=============== DARK MERIDIAN ===============",
-            ">>> The Order has fallen. Your Master is dead. <<<",
-            "The meridian between light and dark calls to you.",
-            "Will you resist corruption, or embrace your destiny?",
-            "================== SURVIVAL ==================",
-            "Navigate: ↑↓←→ arrows  hjkl cardinal  ybn/7913 diagonal", 
-            "Scavenge: g=pickup  e=equip  u=use  d=drop  x=inspect",
-            "Destroy: Walk into enemy  t=grenade  F=blaster",
-            "Channel: f=Force abilities  c=compass  m=meditate  R=rituals",
-            "Record: j=hero's journal  i=inventory  v=Sith codex  @=character",
-            "Creatures: Colored symbols on map = fauna encounters (1-5 to interact)",
-            "Wildlife: 1-5=interact with creatures when encountered",
-            "System: ?=help  S=save  C=craft  q=quit  ESC=cancel",
-            "===============================================",
-            "[WARNING] Every choice corrupts or purifies your soul",
-            "[ARTIFACTS] 'a'=ABSORB power or 'd'=DESTROY temptation",
-            "[FATE] The Force watches. The galaxy bleeds. Your path awaits.",
-            "[SYSTEM] Autosave every 20 turns • Manual save: 'S'",
-        ]
 
     def _compute_layout(self) -> Tuple[int,int,int,int,int,int]:
         h, w = self.ui.term_h, self.ui.term_w
@@ -222,177 +186,12 @@ class GameManager:
         cmd_h = 4
         return map_w, map_h, stats_w, abil_w, message_h, cmd_h
 
-    def initialize(self):
-        print("⟳ Initializing game UI...")
-        # compute layout and notify UI (robust, minimal)
-        try:
-            self.ui.term_h, self.ui.term_w = self.stdscr.getmaxyx()
-            print(f"✓ Terminal size: {self.ui.term_h}x{self.ui.term_w}")
-        except Exception as e:
-            print(f"⚠ Could not get terminal size: {e}")
-            self.ui.term_h, self.ui.term_w = 40, 140
-        
-        mw, mh, sw, aw, mhmsg, cmdh = self._compute_layout()
-        print(f"⟳ Creating UI layout (map:{mw}x{mh}, stats:{sw}, abilities:{aw})...")
-        try:
-            self.ui.create_layout(mw, mh, sw, aw, mhmsg, cmdh)
-            print("✓ UI layout created")
-        except Exception as e:
-            print(f"✗ UI layout creation failed: {e}")
-            import traceback
-            traceback.print_exc()
-            pass
-        self.panels_ready = True
-        print("⟳ Setting up message buffer...")
-        # ensure message buffer
-        try:
-            self.ui.messages = UIMessageBuffer()
-            print("✓ Message buffer ready")
-            # Display intro with theme
-            intro_lines = [
-                "╔═══════════════════════════════════════════════════════════╗",
-                "║              J E D I   F U G I T I V E                    ║",
-                "║                                                           ║",
-                "║          A Force-Sensitive Warrior's Journey              ║",
-                "╚═══════════════════════════════════════════════════════════╝",
-                "",
-                "Your ship has crashed. The Force calls to you with both",
-                "light and darkness. Every choice shapes your destiny.",
-                "",
-                "◆ ABSORB artifacts → Gain dark power, increase corruption",
-                "◆ DESTROY artifacts → Gain light power, resist darkness",
-                "",
-                "Your path is yours alone. Will you embrace the shadows,",
-                "or walk in the light?",
-                "",
-                "Press '?' for help | 'j' for journal | 'q' to quit"
-            ]
-            for line in intro_lines:
-                self.ui.messages.add(line)
-        except Exception as e:
-            print(f"✗ Message buffer setup failed: {e}")
-            try:
-                self.ui.messages = UIMessageBuffer() if 'UIMessageBuffer' in globals() else None
-            except Exception:
-                self.ui.messages = None
-        print("⟳ Wiring player to UI...")
-        # Wire UI/game references into player so player.level_up can present UI prompts
-        try:
-            if getattr(self, 'player', None) is not None:
-                try:
-                    setattr(self.player, 'ui', self.ui)
-                except Exception: pass
-                try:
-                    setattr(self.player, 'game', self)
-                except Exception: pass
-                # ensure player has a _base_stats snapshot for equipment reapplication
-                try:
-                    self.player._base_stats = {
-                        'attack': int(getattr(self.player, 'attack', 0)),
-                        'defense': int(getattr(self.player, 'defense', 0)),
-                        'evasion': int(getattr(self.player, 'evasion', 0)),
-                        'max_hp': int(getattr(self.player, 'max_hp', 0)),
-                        'accuracy': int(getattr(self.player, 'accuracy', 0)),
-                    }
-                except Exception:
-                    try:
-                        self.player._base_stats = {
-                            'attack': 1,
-                            'defense': 0,
-                            'evasion': 0,
-                            'max_hp': 10,
-                            'accuracy': 80,
-                        }
-                    except Exception:
-                        self.player._base_stats = {}
-        except Exception as e:
-            print(f"✗ Player wiring failed: {e}")
-            pass
-        print("⟳ Setting up starting inventory...")
-        # Give the player a training lightsaber and stimpack to start
-        try:
-            if not hasattr(self.player, 'inventory') or self.player.inventory is None:
-                self.player.inventory = []
-            
-            # Add Training Saber as starting weapon
-            from jedi_fugitive.items.weapons import WEAPONS
-            try:
-                training_saber = None
-                for weapon in WEAPONS:
-                    if hasattr(weapon, 'name') and weapon.name == 'Training Saber':
-                        training_saber = weapon
-                        break
-                if training_saber:
-                    self.player.inventory.append(training_saber)
-                    print("✓ Added Training Saber to inventory")
-            except Exception as e:
-                print(f"⚠ Could not add Training Saber: {e}")
-            
-            # Add one stimpack
-            from jedi_fugitive.items.consumables import ITEM_DEFS
-            def _lookup(id_):
-                try:
-                    for it in ITEM_DEFS:
-                        if it.get('id') == id_:
-                            return dict(it)
-                except Exception:
-                    pass
-                return {'id': id_, 'name': id_}
-            
-            try:
-                self.player.inventory.append(_lookup('stimpack'))
-                print("✓ Added Stimpack to inventory")
-            except Exception:
-                try: 
-                    self.player.inventory.append({'id':'stimpack','name':'Stimpack'})
-                except Exception: 
-                    pass
-            
-            print("✓ Starting inventory added (Training Saber, 1 stimpack)")
-        except Exception as e:
-            print(f"✗ Starting inventory setup failed: {e}")
-            pass
-        # initial commands hint
-        self.last_commands = "Move: h/j/k/l or arrows. g=pickup f=force q=quit"
-        print("⟳ Registering key commands...")
-        # register inspect key so it appears in the commands/help panel
-        try:
-            # register a no-op handler; input handling for 'x' is implemented in input_handler
-            self.register_command('x', lambda: None, 'Inspect')
-        except Exception as e:
-            print(f"⚠ Inspect command registration failed: {e}")
-            try:
-                # best-effort: set help entry directly
-                self.key_help['x'] = 'Inspect'
-                self.update_command_gui()
-            except Exception:
-                pass
-        # register a scan/Force sense ability (key 'c') to help locate tombs
-        try:
-            self.register_command('c', lambda: self.perform_scan(), 'Force Sense')
-        except Exception as e:
-            print(f"⚠ Scan command registration failed: {e}")
-            try:
-                self.key_help['c'] = 'Force Sense'
-                self.update_command_gui()
-            except Exception:
-                pass
-        print("⟳ Initializing Sith Codex...")
-        # Initialize Sith Codex (optional subsystem). Safe: if anything fails we keep going.
-        try:
-            self.sith_codex = SithCodex()
-            populate_canon(self.sith_codex)
-            populate_artifacts(self.sith_codex)
-            print("✓ Sith Codex initialized")
-        except Exception as e:
-            print(f"⚠ Sith Codex initialization failed: {e}")
-            self.sith_codex = None
 
-        print("✓ Game initialization complete")
+    # (logger-based initialize method is above; duplicate removed)
 
     def generate_world(self):
         print("⟳ Generating galaxy...")
-        logger = get_logger()
+        # use global logger from game package
         try:
             map_features.generate_world(self)
             # Debug: Check tomb entrance generation
@@ -402,7 +201,7 @@ class GameManager:
             
             # Write tomb positions to debug file for verification
             try:
-                with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                     fh.write(f"World generation complete:\n")
                     fh.write(f"  Tomb entrances: {getattr(self, 'tomb_entrances', set())}\n")
                     fh.write(f"  Special dungeons: {list(getattr(self, 'surface_special_dungeons', {}).keys())}\n")
@@ -429,7 +228,7 @@ class GameManager:
                 
         except Exception as e:
             print(f"✗ World generation failed: {e}")
-            log_error("WORLD_GEN_CRASH", "World generation failed", e, logger.get_game_state_snapshot(self))
+            log_error("WORLD_GEN_CRASH", "World generation failed", e, None)
             traceback.print_exc()
             try: self.ui.messages.add(f"World generation failed: {e}") 
             except Exception: pass
@@ -506,7 +305,7 @@ class GameManager:
             pass
 
     def run(self):
-        logger = get_logger()
+        # use global logger from game package
         try:
             log_info("Game initialization started")
             self.initialize()
@@ -514,30 +313,92 @@ class GameManager:
             self.generate_world()
             log_info("Game loop started")
         except Exception as e:
-            log_error("INIT_CRASH", "Failed during game initialization", e, logger.get_game_state_snapshot(self))
+            log_error("INIT_CRASH", "Failed during game initialization", e, None)
             raise
         
+        # Ensure basic runtime attributes exist (in case initialize() is a no-op)
+        if not hasattr(self, 'running'):
+            self.running = True
+        if not hasattr(self, 'turns'):
+            self.turns = 0
+        if not hasattr(self, 'last_autosave_turn'):
+            self.last_autosave_turn = 0
+        if not hasattr(self, 'autosave_interval'):
+            self.autosave_interval = 200
+
         # main loop
         while self.running:
+            # Check for terminal resize and update UI layout
+            try:
+                h, w = self.stdscr.getmaxyx()
+                if h != self.ui.term_h or w != self.ui.term_w:
+                    self.ui.term_h, self.ui.term_w = h, w
+                    # Recalculate and recreate layout with new dimensions
+                    map_w, map_h, stats_w, abil_w, message_h, cmd_h = self._compute_layout()
+                    self.ui.create_layout(map_w, map_h, stats_w, abil_w, message_h, cmd_h)
+            except Exception:
+                pass
+            
             # redraw
             try:
                 self.draw()
             except Exception as e:
-                log_error("RENDER_ERROR", "Error during draw()", e, logger.get_game_state_snapshot(self))
+                log_error("RENDER_ERROR", "Error during draw()", e, None)
                 try: self.dump_debug_state()
                 except Exception: pass
             # input
+            player_took_action = False
             try:
                 key = self.stdscr.getch()
-                input_handler.handle_input(self, key)
+                player_took_action = input_handler.handle_input(self, key)
             except Exception as e:
-                log_error("INPUT_ERROR", "Error handling input", e, logger.get_game_state_snapshot(self))
+                log_error("INPUT_ERROR", "Error handling input", e, None)
                 try: self.ui.messages.add("Input handler error.")
                 except Exception: pass
 
-            # process game tick
+            # process game tick ONLY if player took a valid action
+            if not player_took_action:
+                continue
+                
             try:
                 self.turns += 1
+
+                # --- SYSTEM INTEGRATION: Periodic Updates ---
+                # Pursuit detection decay and predator check
+                self.update_pursuit()
+                
+                # NEW: Stealth system update (replaces old suspicion decay)
+                if hasattr(self, 'stealth_system'):
+                    try:
+                        stealth_msg = self.stealth_system.update_stealth(self.player, self, action_type="idle")
+                        if stealth_msg:
+                            self.ui.messages.add(stealth_msg)
+                    except Exception:
+                        pass
+                
+                # NEW: Faction battle manager update
+                if hasattr(self, 'faction_battle_manager'):
+                    try:
+                        battle_messages = self.faction_battle_manager.update_battles(self)
+                        for msg in battle_messages:
+                            self.ui.messages.add(msg)
+                    except Exception:
+                        pass
+                
+                # Corruption system effects
+                if getattr(self, 'corruption_system', None):
+                    # Example: trigger warnings at thresholds
+                    c = getattr(self.player, 'corruption', 0)
+                    if c >= 80:
+                        try: self.ui.messages.add("#5#[WARNING] Light side powers are locked!#0#")
+                        except Exception: pass
+                    elif c >= 50:
+                        try: self.ui.messages.add("#4#[WARNING] Animals avoid you...#0#")
+                        except Exception: pass
+                    elif c >= 20:
+                        try: self.ui.messages.add("#3#[WARNING] NPCs are wary of your presence.#0#")
+                        except Exception: pass
+                # --- END SYSTEM INTEGRATION ---
                 
                 # Autosave system
                 try:
@@ -596,7 +457,11 @@ class GameManager:
                             self.player.add_log_entry(death_entry, self.turn_count)
                         else:
                             # Combat death - get last enemy that attacked
-                            last_enemy = getattr(self.player, 'last_attacking_enemy', 'a Sith warrior')
+                            last_enemy = getattr(self.player, 'last_attacking_enemy', None)
+                            # Provide fallback if enemy name is None or empty
+                            if not last_enemy or last_enemy == 'None':
+                                last_enemy = 'a dark adversary'
+                            
                             if in_tomb:
                                 tomb_floor = getattr(self, 'tomb_floor', 1)
                                 location_desc = f"the depths of Sith Tomb Level {tomb_floor + 1}"
@@ -643,7 +508,7 @@ class GameManager:
                     # Loading...
                     sys.stdout.flush()
                     self.running = False
-                    break
+                    return  # Exit run() method to trigger death screen display
             except Exception:
                 pass
 
@@ -685,6 +550,34 @@ class GameManager:
                         self.ui.messages.add(vision)
                     except Exception:
                         pass
+            except Exception:
+                pass
+            
+            # Atmospheric events system - weather, visibility, environmental effects
+            # Only update when player moves or after sufficient time has passed
+            # Skip atmospheric events in tombs (tomb-specific events handled separately)
+            
+            # Check for POI at player position and show interaction menu
+            try:
+                px = getattr(self.player, 'x', 0)
+                py = getattr(self.player, 'y', 0)
+                if hasattr(self, 'map_landmarks') and (px, py) in self.map_landmarks:
+                    landmark = self.map_landmarks[(px, py)]
+                    
+                    # Exclude ship and comms from POI interactions - they're special landmarks
+                    landmark_name = landmark.get('name', '')
+                    if 'Ship' in landmark_name or 'Comms' in landmark_name or 'Terminal' in landmark_name:
+                        # Skip POI interaction for ship/comms - they have their own special handling
+                        pass
+                    else:
+                        # Show POI interaction popup for actual POIs
+                        if not getattr(self, '_poi_popup_shown', set()):
+                            self._poi_popup_shown = set()
+                        
+                        poi_key = (px, py)
+                        if poi_key not in self._poi_popup_shown:
+                            self._poi_popup_shown.add(poi_key)
+                            self._show_poi_interaction_popup(landmark, px, py)
             except Exception:
                 pass
             
@@ -978,7 +871,8 @@ class GameManager:
                         # Apply corruption effect
                         effect = journal.get('corruption_effect', 0)
                         if effect != 0:
-                            self.player.corruption = max(0, min(100, self.player.corruption + effect))
+                            new_corruption = max(0, min(100, self.player.corruption + effect))
+                            self.update_player_corruption(new_corruption)
                     except Exception:
                         pass
                 
@@ -993,7 +887,8 @@ class GameManager:
                         # Apply corruption effect
                         effect = holocron.get('corruption_effect', 0)
                         if effect != 0:
-                            self.player.corruption = max(0, min(100, self.player.corruption + effect))
+                            new_corruption = max(0, min(100, self.player.corruption + effect))
+                            self.update_player_corruption(new_corruption)
                     except Exception:
                         pass
                 
@@ -1156,47 +1051,247 @@ class GameManager:
         except Exception: pass
         return False
 
+    def animate_projectile(self, start_x, start_y, end_x, end_y, symbol='*', delay=0.035):
+        """Animate a projectile flying from start to end."""
+        import time
+        import math
+        
+        # Calculate path points
+        points = []
+        dx = end_x - start_x
+        dy = end_y - start_y
+        distance = math.sqrt(dx*dx + dy*dy)
+        steps = max(1, int(distance))
+        
+        for i in range(1, steps + 1):
+            t = i / steps
+            x = int(start_x + dx * t)
+            y = int(start_y + dy * t)
+            points.append((x, y))
+            
+        # Animate
+        for x, y in points:
+            # Redraw game state first to clear previous projectile position
+            try:
+                self.draw()
+            except Exception:
+                pass
+            
+            # Draw projectile on top
+            try:
+                # Calculate screen coordinates
+                # This logic duplicates draw_map_panel but is necessary to draw on top correctly
+                panel = self.ui.panels.get('map') if getattr(self.ui, "panels", None) else self.stdscr
+                if not panel: continue
+                
+                ph, pw = panel.getmaxyx()
+                view_h = max(1, ph - 2)
+                view_w = max(1, pw - 2)
+                map_h = len(self.game_map)
+                map_w = len(self.game_map[0]) if map_h else 0
+
+                px = max(0, min(getattr(self.player, "x", 0), map_w - 1 if map_w else 0))
+                py = max(0, min(getattr(self.player, "y", 0), map_h - 1 if map_h else 0))
+                
+                half_w = view_w // 2
+                half_h = view_h // 2
+                start_cam_x = px - half_w
+                start_cam_y = py - half_h
+                
+                if map_w <= view_w:
+                    start_cam_x = 0
+                else:
+                    start_cam_x = max(0, min(start_cam_x, map_w - view_w))
+                    
+                if map_h <= view_h:
+                    start_cam_y = 0
+                else:
+                    start_cam_y = max(0, min(start_cam_y, map_h - view_h))
+                
+                screen_x = x - start_cam_x + 1 # +1 for border
+                screen_y = y - start_cam_y + 1 # +1 for border
+                
+                if 0 < screen_x < pw - 1 and 0 < screen_y < ph - 1:
+                    panel.addstr(screen_y, screen_x, symbol, curses.color_pair(11) | curses.A_BOLD) # Yellow/Bright
+                    panel.refresh()
+                    
+                time.sleep(delay)
+            except Exception:
+                pass
+        
+        # Final redraw to clear projectile
+        try:
+            self.draw()
+        except Exception:
+            pass
+
     def _cmd_fire_blaster(self):
         try:
             if hasattr(self.ui, "cursor") and getattr(self.ui.cursor, "visible", False):
                 tx, ty = self.ui.cursor.x, self.ui.cursor.y
             else:
+                # Default to firing right if no cursor
                 tx = self.player.x + 8; ty = self.player.y
         except Exception:
             tx = self.player.x + 8; ty = self.player.y
+            
         try:
-            projectiles.spawn_blaster(self, self.player.x, self.player.y, tx, ty, damage=5, owner=self.player, max_range=20)
-            try: self.ui.messages.add("You fire your blaster!") 
-            except Exception: pass
+            # Calculate path
+            sx, sy = self.player.x, self.player.y
+            
+            # Bresenham line
+            def _bresenham_line(x0, y0, x1, y1):
+                dx = abs(x1 - x0)
+                dy = -abs(y1 - y0)
+                sx_ = 1 if x0 < x1 else -1
+                sy_ = 1 if y0 < y1 else -1
+                err = dx + dy
+                x, y = x0, y0
+                while True:
+                    yield x, y
+                    if x == x1 and y == y1:
+                        break
+                    e2 = 2 * err
+                    if e2 >= dy:
+                        err += dy
+                        x += sx_
+                    if e2 <= dx:
+                        err += dx
+                        y += sy_
+
+            # Find stopping point
+            stop_x, stop_y = tx, ty
+            hit_enemy = None
+            
+            # Use global Display class
+            wall_ch = getattr(Display, "WALL", "#")
+            tree_ch = getattr(Display, "TREE", "T")
+            
+            path = list(_bresenham_line(sx, sy, tx, ty))
+            # Limit range
+            max_range = 20
+            if len(path) > max_range:
+                path = path[:max_range]
+                
+            for bx, by in path:
+                if (bx, by) == (sx, sy):
+                    continue
+                
+                # Check bounds
+                if not (0 <= by < len(self.game_map) and 0 <= bx < len(self.game_map[0])):
+                    stop_x, stop_y = bx, by
+                    break
+                    
+                # Check walls/trees
+                ch = self.game_map[by][bx]
+                if ch in (wall_ch, tree_ch) or (isinstance(ch, str) and ch and ch[0] in ("#", "|", "+")):
+                    stop_x, stop_y = bx, by
+                    break
+                    
+                # Check enemies
+                for e in getattr(self, 'enemies', []):
+                    if getattr(e, 'x', -1) == bx and getattr(e, 'y', -1) == by and getattr(e, 'is_alive', lambda: True)():
+                        stop_x, stop_y = bx, by
+                        hit_enemy = e
+                        break
+                if hit_enemy:
+                    break
+                
+                stop_x, stop_y = bx, by
+
+            # Animate
+            self.animate_projectile(sx, sy, stop_x, stop_y, symbol='*', delay=0.02)
+            
+            if hit_enemy:
+                # Deflection logic for enemies
+                deflected = False
+                # Check if enemy is Sith/Jedi (has lightsaber or force powers)
+                enemy_name = getattr(hit_enemy, 'name', '').lower()
+                
+                can_deflect = False
+                # Check types (assuming EnemyType enum values or similar)
+                # Or just check name for "sith", "jedi", "inquisitor"
+                if "sith" in enemy_name or "jedi" in enemy_name or "inquisitor" in enemy_name or "acolyte" in enemy_name:
+                    can_deflect = True
+                
+                if can_deflect:
+                    # Chance to deflect
+                    chance = 0.3
+                    if "lord" in enemy_name or "master" in enemy_name:
+                        chance = 0.6
+                    
+                    if random.random() < chance:
+                        deflected = True
+                        
+                        # Check for reflection
+                        reflect_chance = 0.0
+                        if "lord" in enemy_name or "master" in enemy_name:
+                            reflect_chance = 0.4
+                        elif "inquisitor" in enemy_name:
+                            reflect_chance = 0.2
+                        
+                        if random.random() < reflect_chance:
+                            self.ui.messages.add(f"#11#{getattr(hit_enemy, 'name', 'Enemy')} reflects your shot back at you!#0#")
+                            # Animate return bolt
+                            self.animate_projectile(stop_x, stop_y, sx, sy, symbol='*', delay=0.02)
+                            
+                            # Damage player
+                            reflect_dmg = random.randint(5, 10)
+                            # Player class doesn't have take_damage, modify hp directly
+                            self.player.hp -= reflect_dmg
+                            
+                            # Track attacker for death message
+                            self.player.last_attacking_enemy = getattr(hit_enemy, 'name', 'Enemy')
+                            self.player.last_damage_taken = reflect_dmg
+                            self.player.last_attack_type = "reflected shot"
+                            
+                            self.ui.messages.add(f"The reflected bolt hits you for {reflect_dmg} damage!")
+                        else:
+                            self.ui.messages.add(f"{getattr(hit_enemy, 'name', 'Enemy')} deflects your shot!")
+                            self.animate_projectile(stop_x, stop_y, stop_x, stop_y, symbol='X', delay=0.1)
+
+                if not deflected:
+                    damage = 5 + getattr(self.player, 'ranged_mastery', 0)
+                    hit_enemy.take_damage(damage, game=self)
+                    self.ui.messages.add(f"You hit {getattr(hit_enemy, 'name', 'Enemy')} for {damage} damage!")
+            else:
+                self.ui.messages.add("You fire your blaster!")
+
             return True
-        except Exception:
-            try: self.ui.messages.add("You can't fire now.") 
+        except Exception as e:
+            try: self.ui.messages.add(f"Error firing blaster: {e}") 
             except Exception: pass
             return False
 
     def enter_tomb(self) -> bool:
         """Wrapper for entering tombs from UI/input; calls map_features.enter_tomb(self)."""
-        logger = get_logger()
+        # use global logger from game package
         try:
-            print("⟳ Entering tomb...")
+            if log:
+                log.info("⟳ Entering tomb...")
             log_game_event("TOMB_ENTRY", f"Player entering tomb at ({self.player.x}, {self.player.y})")
             # prefer map_features implementation (import at top as mf)
             try:
                 entered = mf.enter_tomb(self)
-                print(f"✓ Tomb entry result: {entered}")
+                if log:
+                    log.info(f"✓ Tomb entry result: {entered}")
                 log_game_event("TOMB_ENTRY", f"Tomb entry successful: {entered}")
             except Exception as e:
-                print(f"⚠ First tomb entry attempt failed: {e}")
-                log_error("TOMB_ENTRY_ERROR", "First tomb entry attempt failed", e, logger.get_game_state_snapshot(self))
+                if log:
+                    log.error(f"⚠ First tomb entry attempt failed: {e}")
+                    log.exception("First tomb entry error", exc_info=e)
+                log_error("TOMB_ENTRY_ERROR", "First tomb entry attempt failed", e, None)
                 # fallback to direct import in case alias not present
                 from jedi_fugitive.game import map_features as _mf
                 entered = _mf.enter_tomb(self)
-                print(f"✓ Tomb entry (fallback) result: {entered}")
+                if log:
+                    log.info(f"✓ Tomb entry (fallback) result: {entered}")
             if not entered:
-                print(f"✗ Tomb entry failed - returned False")
-                print(f"  Current depth: {getattr(self,'current_depth',None)}")
-                print(f"  Tomb entrances: {len(getattr(self,'tomb_entrances',set()))} found")
-                print(f"  Player position: ({self.player.x}, {self.player.y})")
+                if log:
+                    log.warning(f"✗ Tomb entry failed - returned False")
+                    log.warning(f"  Current depth: {getattr(self,'current_depth',None)}")
+                    log.warning(f"  Tomb entrances: {len(getattr(self,'tomb_entrances',set()))} found")
+                    log.warning(f"  Player position: ({self.player.x}, {self.player.y})")
                 try:
                     if getattr(self, "ui", None) and getattr(self.ui, "messages", None):
                         self.ui.messages.add("Failed to enter tomb (map_features returned False).")
@@ -1204,7 +1299,7 @@ class GameManager:
                     pass
                 # debug dump for developers
                 try:
-                    with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                    with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                         fh.write(f"GameManager.enter_tomb: map_features.enter_tomb returned False; depth={getattr(self,'current_depth',None)} tombs={getattr(self,'tomb_entrances',None)}\n")
                 except Exception:
                     pass
@@ -1217,7 +1312,6 @@ class GameManager:
                     self.ui.messages.add("You descend into the Sith dungeon...")
             except Exception:
                 pass
-            
             # Track tomb discovery for milestone system (first tomb only)
             try:
                 current_discovered = getattr(self.player, 'tombs_discovered', 0)
@@ -1225,21 +1319,21 @@ class GameManager:
                     self.player.tombs_discovered = 1
             except Exception:
                 pass
-            
             return True
         except Exception as e:
-            print(f"✗ TOMB ENTRY ERROR: {e}")
-            import traceback
-            traceback.print_exc()
+            if log:
+                log.error(f"✗ TOMB ENTRY ERROR: {e}")
+                log.exception("Tomb entry error", exc_info=e)
             try:
-                with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                     fh.write("GameManager.enter_tomb exception:\n")
+                    import traceback
                     traceback.print_exc(file=fh)
             except Exception:
                 pass
             try:
                 if getattr(self, "ui", None) and getattr(self.ui, "messages", None):
-                    self.ui.messages.add("Failed to enter tomb (see /tmp/jedi_fugitive_debug.txt).")
+                    self.ui.messages.add("Failed to enter tomb (see /tmp/dark_meridian_debug.txt).")
             except Exception:
                 pass
             return False
@@ -1592,9 +1686,12 @@ class GameManager:
                         if (x, y) != artifact_pos and (x, y) != entrance_pos:
                             floor_positions.append((x, y))
             
-            # Spawn 3-5 enemies based on dungeon level
+            # Spawn 5-10 enemies based on dungeon level and floor
             current_floor = self.current_special_dungeon.get('current_floor', 1)
-            enemy_count = random.randint(2 + current_floor, 4 + current_floor)
+            num_levels = self.current_special_dungeon.get('num_levels', 1)
+            # More enemies on deeper floors
+            base_enemy_count = 5 + (current_floor - 1) * 2
+            enemy_count = random.randint(base_enemy_count, base_enemy_count + 5)
             player_level = getattr(self.player, 'level', 1)
             
             # Enemy factory mapping for unique dungeon enemies
@@ -1629,6 +1726,9 @@ class GameManager:
                         # Scale enemy level with dungeon floor
                         enemy_level = max(1, player_level + current_floor - 1)
                         enemy = factory(level=enemy_level, x=spawn_x, y=spawn_y)
+                        
+                        # Ensure enemy has unique symbol - symbols are set in factory functions
+                        # No need to override since each create_X function sets its own unique symbol
                         
                         self.enemies.append(enemy)
                     
@@ -1737,6 +1837,194 @@ class GameManager:
         except Exception as e:
             self.ui.messages.add(f"Error handling artifact: {e}")
 
+    def _show_poi_interaction_popup(self, landmark, px, py):
+        """Show interactive popup for POI with options to Absorb (Dark) or Destroy (Light)."""
+        import curses
+        import textwrap
+        try:
+            poi_name = landmark.get('name', 'Point of Interest')
+            lore = landmark.get('lore', [])
+            has_sith_lore = 'sith_lore' in landmark
+            
+            # Create popup window - MUCH LARGER for full lore text
+            h, w = self.stdscr.getmaxyx()
+            menu_height = min(30, h - 4)  # Increased from 15
+            menu_width = min(90, w - 4)   # Increased from 60
+            start_y = (h - menu_height) // 2
+            start_x = (w - menu_width) // 2
+            
+            popup = curses.newwin(menu_height, menu_width, start_y, start_x)
+            popup.box()
+            popup.addstr(0, 2, f" {poi_name} ", curses.A_BOLD)
+            
+            # Show lore if available - wrap long lines
+            y_pos = 2
+            if lore:
+                max_line_width = menu_width - 6
+                for line in lore[:10]:  # Show more lines (was 3)
+                    if y_pos >= menu_height - 8:  # Leave room for options
+                        break
+                    # Wrap long lines instead of truncating
+                    wrapped_lines = textwrap.wrap(line, width=max_line_width)
+                    for wrapped in wrapped_lines[:3]:  # Max 3 lines per entry
+                        if y_pos < menu_height - 8:
+                            popup.addstr(y_pos, 2, wrapped, curses.A_DIM)
+                            y_pos += 1
+                y_pos += 1
+            
+            # Show options
+            xp_destroy = 50 if has_sith_lore else 30
+            xp_absorb = 35 if has_sith_lore else 20
+            
+            popup.addstr(y_pos, 2, "Choose your path:", curses.A_BOLD)
+            y_pos += 1
+            popup.addstr(y_pos, 2, f"[D] Destroy (Light) - +{xp_destroy} XP, -5 Corruption")
+            y_pos += 1
+            popup.addstr(y_pos, 2, f"[A] Absorb (Dark) - +{xp_absorb} XP, +8 Corruption")
+            y_pos += 1
+            popup.addstr(y_pos, 2, "[ESC] Leave it alone")
+            
+            popup.addstr(menu_height - 1, 2, "Your choice: ", curses.A_REVERSE)
+            popup.refresh()
+            
+            # Get player choice
+            while True:
+                key = self.stdscr.getch()
+                
+                if key == ord('D') or key == ord('d'):
+                    # Destroy POI (Light Side)
+                    self._destroy_poi(landmark, px, py, xp_destroy)
+                    break
+                elif key == ord('A') or key == ord('a'):
+                    # Absorb POI (Dark Side)
+                    self._absorb_poi(landmark, px, py, xp_absorb)
+                    break
+                elif key == 27:  # ESC
+                    try:
+                        self.ui.messages.add(f"You leave the {poi_name} undisturbed.")
+                    except Exception:
+                        pass
+                    break
+            
+            # Close popup
+            del popup
+            
+        except Exception as e:
+            try:
+                self.ui.messages.add(f"POI interaction error: {e}")
+            except Exception:
+                pass
+    
+    def _destroy_poi(self, landmark, px, py, xp_reward):
+        """Destroy POI for Light Side XP."""
+        try:
+            poi_name = landmark.get('name', 'Point of Interest')
+            self.player.light_xp = getattr(self.player, 'light_xp', 0) + xp_reward
+            
+            # Reduce corruption
+            if hasattr(self.player, 'corruption_system') and self.player.corruption_system:
+                self.player.corruption_system.adjust_corruption(-5)
+            else:
+                self.player.dark_corruption = max(0, self.player.dark_corruption - 5)
+            
+            # Faction rep
+            if hasattr(self.player, 'faction_manager') and self.player.faction_manager:
+                self.player.faction_manager.adjust_reputation('Republic', 2)
+                self.player.faction_manager.adjust_reputation('Settlers', 2)
+            
+            # Check for level up
+            while self.player.light_xp >= self.player.xp_to_next_light:
+                self.player.light_xp -= self.player.xp_to_next_light
+                self.player.light_level += 1
+                self.player.level = max(self.player.light_level, self.player.dark_level)
+                self.player.xp_to_next_light = int(self.player.xp_to_next_light * 1.5)
+                try:
+                    self.player.level_up()
+                    self.ui.messages.add(f"LIGHT SIDE LEVEL UP! Now level {self.player.level}")
+                except Exception:
+                    pass
+            
+            # Remove POI from map
+            from jedi_fugitive.game.level import Display
+            floor = getattr(Display, "FLOOR", ".")
+            self.game_map[py][px] = floor
+            del self.map_landmarks[(px, py)]
+            
+            # Journal entry
+            try:
+                if hasattr(self.player, 'add_log_entry'):
+                    entry = self.player.narrative_text(
+                        light_version=f"Destroyed {poi_name} to cleanse this evil place. Gained {xp_reward} XP.",
+                        dark_version=f"Destroyed {poi_name}, wasting its power. Gained {xp_reward} XP.",
+                        balanced_version=f"Destroyed {poi_name}. Gained {xp_reward} XP."
+                    )
+                    self.player.add_log_entry(entry, self.turn_count)
+            except Exception:
+                pass
+            
+            self.ui.messages.add(f"#2#Destroyed {poi_name}! +{xp_reward} Light XP, -5 Corruption#0#")
+            
+        except Exception as e:
+            try:
+                self.ui.messages.add(f"Destroy failed: {e}")
+            except Exception:
+                pass
+    
+    def _absorb_poi(self, landmark, px, py, xp_reward):
+        """Absorb POI energy for Dark Side XP."""
+        try:
+            poi_name = landmark.get('name', 'Point of Interest')
+            self.player.dark_xp = getattr(self.player, 'dark_xp', 0) + xp_reward
+            
+            # Increase corruption
+            if hasattr(self.player, 'corruption_system') and self.player.corruption_system:
+                self.player.corruption_system.adjust_corruption(8)
+            else:
+                self.player.dark_corruption = min(100, self.player.dark_corruption + 8)
+            
+            # Faction rep
+            if hasattr(self.player, 'faction_manager') and self.player.faction_manager:
+                self.player.faction_manager.adjust_reputation('Sith Empire', 2)
+                self.player.faction_manager.adjust_reputation('Republic', -2)
+            
+            # Check for level up
+            while self.player.dark_xp >= self.player.xp_to_next_dark:
+                self.player.dark_xp -= self.player.xp_to_next_dark
+                self.player.dark_level += 1
+                self.player.level = max(self.player.light_level, self.player.dark_level)
+                self.player.xp_to_next_dark = int(self.player.xp_to_next_dark * 1.5)
+                try:
+                    self.player.level_up()
+                    self.ui.messages.add(f"DARK SIDE LEVEL UP! Now level {self.player.level}")
+                except Exception:
+                    pass
+            
+            # Remove POI from map
+            from jedi_fugitive.game.level import Display
+            floor = getattr(Display, "FLOOR", ".")
+            self.game_map[py][px] = floor
+            del self.map_landmarks[(px, py)]
+            
+            # Journal entry
+            try:
+                if hasattr(self.player, 'add_log_entry'):
+                    entry = self.player.narrative_text(
+                        light_version=f"Absorbed energy from {poi_name}. The darkness tempts me... Gained {xp_reward} XP.",
+                        dark_version=f"Drained {poi_name}'s power! Its energy flows through me! Gained {xp_reward} XP.",
+                        balanced_version=f"Absorbed {poi_name}. Gained {xp_reward} XP."
+                    )
+                    self.player.add_log_entry(entry, self.turn_count)
+            except Exception:
+                pass
+            
+            self.ui.messages.add(f"#5#Absorbed {poi_name}! +{xp_reward} Dark XP, +8 Corruption#0#")
+            
+        except Exception as e:
+            try:
+                self.ui.messages.add(f"Absorb failed: {e}")
+            except Exception:
+                pass
+
     def _absorb_special_artifact(self, artifact_data):
         """Absorb the power of a special artifact (Dark Side choice)."""
         try:
@@ -1751,7 +2039,7 @@ class GameManager:
             if corruption_gain > 0:
                 current_corruption = getattr(self.player, 'corruption', 50)
                 new_corruption = min(100, current_corruption + corruption_gain)
-                self.player.corruption = new_corruption
+                self.update_player_corruption(new_corruption)
                 self.ui.messages.add(f"Corruption increased by {corruption_gain}! (Now: {new_corruption})")
             
             # Apply special effects
@@ -1823,6 +2111,33 @@ class GameManager:
                 self.player.x = len(layout[0]) // 2
                 self.player.y = len(layout) // 2
             
+            # Set dungeon-specific line of sight (different for each dungeon type)
+            # Shadowmaze: very limited vision
+            # Crystal Garden: medium vision (crystals refract light)
+            # Bone Cathedral: good vision (open cathedral)
+            # Echo Chambers: variable vision (echoes confuse perception)
+            # Others: moderately reduced vision
+            from jedi_fugitive.game.special_dungeons import DungeonType
+            
+            if dungeon_type == DungeonType.SHADOWMAZE:
+                self.player.los_radius = 3  # Very dark, limited visibility
+            elif dungeon_type == DungeonType.DREAM_NEXUS:
+                self.player.los_radius = 4  # Dreamlike fog
+            elif dungeon_type == DungeonType.MEMORY_VAULT:
+                self.player.los_radius = 4  # Memory fragments obscure vision
+            elif dungeon_type == DungeonType.TWISTED_LIBRARY:
+                self.player.los_radius = 5  # Cramped stacks of books
+            elif dungeon_type == DungeonType.PAIN_FORGE:
+                self.player.los_radius = 5  # Smoke and heat distortion
+            elif dungeon_type == DungeonType.CRYSTAL_GARDEN:
+                self.player.los_radius = 6  # Crystals refract light oddly
+            elif dungeon_type == DungeonType.ECHO_CHAMBERS:
+                self.player.los_radius = 7  # Sound helps perception
+            elif dungeon_type == DungeonType.BONE_CATHEDRAL:
+                self.player.los_radius = 8  # Large open cathedral space
+            else:
+                self.player.los_radius = 5  # Default reduced visibility
+            
             # Generate special dungeon features
             self._spawn_special_dungeon_enemies(template, layout)
             
@@ -1893,7 +2208,7 @@ class GameManager:
             if corruption_loss > 0:
                 current_corruption = getattr(self.player, 'corruption', 50)
                 new_corruption = max(0, current_corruption - corruption_loss)
-                self.player.corruption = new_corruption
+                self.update_player_corruption(new_corruption)
                 self.ui.messages.add(f"Corruption decreased by {corruption_loss}! (Now: {new_corruption})")
             
             # Apply positive effects
@@ -2085,6 +2400,7 @@ class GameManager:
     def show_full_story(self):
         """Display the player's complete travel log - their full story."""
         import sys
+        import textwrap
         try:
             log = getattr(self.player, 'travel_log', [])
             if not log:
@@ -2099,6 +2415,9 @@ class GameManager:
             # Group by significant events for better readability
             print(f"Total entries: {len(log)}\n")
             
+            # Show entries with better pagination
+            entries_per_page = 15  # Reduced from 20 for better readability
+            
             for i, entry in enumerate(log, 1):
                 # Handle both dict and string entries for backward compatibility
                 if isinstance(entry, dict):
@@ -2109,18 +2428,28 @@ class GameManager:
                     turn = 0
                     text = str(entry)
                 
-                # Format with turn number and entry
+                # Format with turn number and entry - wrap long lines
                 if turn > 0:
-                    print(f"[Turn {turn}] {text}")
+                    prefix = f"[Turn {turn}] "
                 else:
-                    print(f"{text}")
+                    prefix = ""
                 
-                # Pause every 20 entries for readability
-                if i % 20 == 0 and i < len(log):
-                    print(f"\n--- {i}/{len(log)} entries shown ---")
+                # Wrap text to 76 characters (leaving margin)
+                wrapped_lines = textwrap.wrap(prefix + text, width=76, 
+                                             initial_indent="",
+                                             subsequent_indent="  ")
+                for line in wrapped_lines:
+                    print(line)
+                
+                # Pause every N entries for readability
+                if i % entries_per_page == 0 and i < len(log):
+                    print(f"\n{'─'*80}")
+                    print(f"Showing entries {i-entries_per_page+1}-{i} of {len(log)}".center(80))
+                    print(f"{'─'*80}")
                     try:
-                        response = input("Press Enter for more, or 'q' to finish: ").lower()
+                        response = input("\n[ENTER] Continue  |  [Q] Skip to end: ").lower().strip()
                         if response == 'q':
+                            print("\nSkipping to final statistics...\n")
                             break
                     except Exception:
                         pass
@@ -2213,6 +2542,12 @@ class GameManager:
         except Exception:
             pass
 
+    def update_pursuit(self):
+        """Update pursuit system and check for predator spawn."""
+        if hasattr(self, 'pursuit_system'):
+            self.pursuit_system.decay_detection()
+            self.pursuit_system.check_predator_spawn(self)
+
     def add_message(self, text: str):
         """Safe helper to add a message to the UI message buffer or fallback to stdout.
 
@@ -2236,7 +2571,7 @@ class GameManager:
 
     def dump_debug_state(self, path="/tmp/jedi_fugitive_debug.txt"):
         try:
-            paths = [path, os.path.join(os.getcwd(), "jedi_fugitive_debug.txt")]
+            paths = [path, os.path.join(os.getcwd(), "dark_meridian_debug.txt")]
             for p in paths:
                 try:
                     with open(p, "a") as f:
@@ -2264,7 +2599,7 @@ class GameManager:
                 except Exception:
                     pass
             try:
-                sys.stderr.write("JediFugitive: wrote debug snapshot to /tmp/jedi_fugitive_debug.txt and ./jedi_fugitive_debug.txt\n")
+                sys.stderr.write("Dark Meridian: wrote debug snapshot to /tmp/dark_meridian_debug.txt and ./dark_meridian_debug.txt\n")
                 sys.stderr.flush()
             except Exception:
                 pass
@@ -2337,6 +2672,25 @@ class GameManager:
         return None
     
     def handle_input(self, key):
+        # Handle active conversations first
+        if self.active_conversations:
+            # Get the first active conversation (simplified)
+            pos, conv_data = next(iter(self.active_conversations.items()))
+            
+            if conv_data['type'] == 'quest_offer':
+                if key == ord('a'):
+                    # Accept quest
+                    if self.quest_manager.accept_quest(conv_data['quest'], self.player):
+                        self.ui.messages.add(f"Quest accepted: {conv_data['quest'].title}")
+                    else:
+                        self.ui.messages.add("Could not accept quest.")
+                else:
+                    self.ui.messages.add("Quest declined.")
+                
+                # Clear conversation
+                del self.active_conversations[pos]
+                return False
+
         try:
             res = input_handler.handle_input(self, key)
             return res
@@ -2356,64 +2710,88 @@ class GameManager:
     def show_splash_static(term_w):
         """Show an immersive Star Wars inspired splash. Static version for pre-curses display."""
         try:
+            def center(text):
+                """Center text to terminal width"""
+                if len(text) >= term_w:
+                    return text
+                padding = (term_w - len(text)) // 2
+                return ' ' * padding + text
+            
             box_width = max(20, min(term_w - 10, 80))
             splash = [
                 "",
-                f"    ╔{'═' * box_width}╗",
-                f"    ║{' ' * box_width}║",
-                f"    ║{'DARK MERIDIAN: ECHOES OF THE FALLEN'.center(box_width)}║",
-                f"    ║{' ' * box_width}║",
-                f"    ╚{'═' * box_width}╝",
+                center("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"),
+                center("┃                                                                   ┃"),
+                center("┃                      PREPARE FOR DESCENT                         ┃"),
+                center("┃                                                                   ┃"),
+                center("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"),
                 "",
-                "Your ship has crashed on a remote Sith world. The dark side permeates this place.",
-                "Ancient tombs and forgotten ruins dot the landscape - Sith sanctuaries corrupting",
-                "the very fabric of the Force.",
+                center("The Valley of the Dark Lords stretches before you - endless"),
+                center("dunes of red sand concealing the tombs of Sith more ancient"),
+                center("than the Republic itself. Each step deeper into this cursed"),
+                center("place pulls at your connection to the Light..."),
                 "",
-                "Your mission: Recover stolen Jedi artifacts from the tombs and escape alive.",
-                "But the Sith have corrupted these sacred relics... and the darkness hungers for you.",
+                center("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
                 "",
-                "═" * min(term_w, 80),
+                center("THE JEDI CODE"),
+                "",
+                center("There is no emotion, there is peace."),
+                center("There is no ignorance, there is knowledge."),
+                center("There is no passion, there is serenity."),
+                center("There is no chaos, there is harmony."),
+                center("There is no death, there is the Force."),
+                "",
+                center("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
+                "",
+                center("CONTROLS:"),
+                center("Movement: Arrow Keys / WASD / HJKL (Vim keys)"),
+                center("Diagonal: Y U B N  or  Numpad 7 9 1 3"),
+                "",
+                center("[g] Pick up    [e] Equipment    [i] Inventory    [d] Drop"),
+                center("[u] Use item   [c] Craft        [x] Inspect      [t] Talk/Trade"),
+                "",
+                center("[Space] Attack / Fire weapon (auto-aims to nearest enemy)"),
+                center("[Z] Force Push   [X] Lightning   [C] Drain   [V] Heal"),
+                center("[Shift+Z] Hide/Stealth   [Shift+D] Equip Disguise"),
+                "",
+                center("[@] Character    [F] Factions    [L] Journey Log    [?] Help"),
+                center("[S] Save Game    [Q] Quit"),
+                "",
+                center("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
+                "",
+                center("SURVIVAL GUIDE:"),
+                "",
+                center("COMBAT: Ranged weapons auto-target nearest enemy. Melee"),
+                center("requires adjacent positioning. Use Force powers"),
+                center("wisely - they drain your connection to the Force."),
+                "",
+                center("CORRUPTION: Dark side powers are tempting... but each use"),
+                center("pulls you closer to the abyss. Your lightsaber"),
+                center("blade changes color as you fall or rise."),
+                "",
+                center("STEALTH: Hide in cover (trees, rocks) to avoid detection."),
+                center("Disguises grant faction access. High detection"),
+                center("spawns elite Sith Predators hunting you."),
+                "",
+                center("FACTIONS: Five factions war for control. Help them in"),
+                center("dynamic battles or stay neutral. Reputation"),
+                center("affects trading, quests, and survival."),
+                "",
+                center("TOMBS: Eight special dungeons hold ancient treasures."),
+                center("Marka Ragnos, Sith Keep, Echo Chambers, and more."),
+                center("Each has unique challenges and legendary rewards."),
+                "",
+                center("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
+                "",
+                center("\"The dark places of the galaxy hold many secrets -\""),
+                center("\"treasures of power, and terrible truths. Few who\""),
+                center("\"seek them return unchanged.\"  - Master Kreia"),
+                "",
+                center("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
                 "",
             ]
-            # Add a small lightsaber ASCII art for embellishment
-            splash += [
-                "        /\\",
-                "       //\\\\          THE JEDI CODE:",
-                "      ///\\\\\\         There is no emotion, there is peace.",
-                "     ////\\\\\\\\        There is no ignorance, there is knowledge.",
-                "    /////\\\\\\\\\\       There is no passion, there is serenity.",
-                "   //////\\\\\\\\\\\\      There is no chaos, there is harmony.",
-                "  ///////\\\\\\\\\\\\\\     There is no death, there is the Force.",
-                " ////////\\\\\\\\\\\\\\\\",
-                "/////////\\\\\\\\\\\\\\\\\\",
-                "         |",
-                "         |          But here, in this dark place, will you hold true?",
-                "         |",
-                "",
-                "═" * min(term_w, 80),
-                "",
-            ]
-            # short, friendly instructions to display under the splash
-            instructions = [
-                "CONTROLS:",
-                "  Move: ↑↓←→ arrows or hjkl    Diagonal: ybn or numpad 7913",
-                "  g=pickup e=equip u=use d=drop  x=inspect j=journal f=force c=compass m=meditate  ?=help q=quit",
-                "",
-                "OBJECTIVE:",
-                "  1. Infiltrate Sith tombs (marked 'D') to recover 3 corrupted Jedi artifacts",
-                "  2. Cleanse your spirit - resist the Dark Side's corruption",
-                "  3. Use artifacts to power the comms terminal (C) and call for extraction",
-                "  4. Defeat whoever comes for you and escape to your ship (S)",
-                "",
-                "SURVIVAL TIPS:",
-                "  • Manage your stress - high stress increases Force costs and reduces accuracy",
-                "  • Light Side (calm, defensive) or Dark Side (aggressive, powerful) choices affect your fate",
-                "  • Use Force abilities wisely - they consume Force points that regenerate slowly",
-                "  • Equipment improves your stats - vibroblades add attack, shields add defense",
-                "  • Meditate when safe to reduce stress and restore balance",
-                "",
-            ]
-            # Always print splash lines to stdout
+            
+            # Print splash
             for ln in splash:
                 print(ln)
                 sys.stdout.flush()
@@ -2757,29 +3135,37 @@ class GameManager:
                 "Press any key to exit."
             ]
 
+            # Center function for death screen
+            def center_death(text):
+                """Center text to terminal width"""
+                if len(text) >= term_w:
+                    return text
+                padding = (term_w - len(text)) // 2
+                return ' ' * padding + text
+            
             # Lightsaber duel ASCII art for defeat
             defeat_art = [
-                "                    GAME OVER                    ",
+                center_death("GAME OVER"),
                 "",
-                "              The Dark Side Prevails             ",
+                center_death("The Dark Side Prevails"),
                 "",
-                "                      /\\                         ",
-                "                     |  |                        ",
-                "                     |  |        ___             ",
-                "                     |  |       |   |            ",
-                "          ___        |  |       |   |            ",
-                "         |   |       |  |       |   |            ",
-                "    ___  |   |       |  |    ___|   |            ",
-                "   |   |_|   |    ___|  |   |   |   |___         ",
-                "   |   |     |___|      |___|       |   |        ",
-                "   |    JEDI     |   VS  |    SITH     |         ",
-                "   |_____________|       |_____________|         ",
-                "        /     \\              /     \\             ",
-                "       /       \\            /       \\            ",
-                "      |  FALLEN |          | VICTOR  |           ",
-                "       \\_______/            \\_______/            ",
+                center_death("/\\"),
+                center_death("|  |"),
+                center_death("|  |        ___"),
+                center_death("|  |       |   |"),
+                center_death("___        |  |       |   |"),
+                center_death("|   |       |  |       |   |"),
+                center_death("___  |   |       |  |    ___|   |"),
+                center_death("|   |_|   |    ___|  |   |   |   |___"),
+                center_death("|   |     |___|      |___|       |   |"),
+                center_death("|    JEDI     |   VS  |    SITH     |"),
+                center_death("|_____________|       |_____________|"),
+                center_death("/     \\              /     \\"),
+                center_death("/       \\            /       \\"),
+                center_death("|  FALLEN |          | VICTOR  |"),
+                center_death("\\_______/            \\_______/"),
                 "",
-                "     Your lightsaber dims as darkness falls...   ",
+                center_death("Your lightsaber dims as darkness falls..."),
                 "",
             ]
 
@@ -2839,31 +3225,40 @@ class GameManager:
             # Add travel log summary
             try:
                 log = getattr(self.player, 'travel_log', [])
-                if log:
+                if log and len(log) > 0:
                     stats_lines.append("")
-                    stats_lines.append("=== YOUR FINAL MOMENTS ===")
-                    for entry in log[-5:]:  # Show last 5 log entries
-                        text = entry.get('text', '')
-                        stats_lines.append(f"• {text}")
+                    stats_lines.append("=== YOUR JOURNEY ===")
+                    # Show last 10 entries
+                    recent_entries = log[-10:]
+                    for entry in recent_entries:
+                        if isinstance(entry, dict):
+                            text = entry.get('text', '')
+                        else:
+                            text = str(entry)
+                        # Truncate long entries
+                        if len(text) > 70:
+                            text = text[:67] + "..."
+                        stats_lines.append(text)
             except Exception:
                 pass
             
-            # Always print to stdout first
-            print("\n" + "="*term_w)
-            sys.stdout.flush()
+            # Print death screen
+            print("\n")
             for ln in defeat_art:
-                print(ln.center(term_w))
+                print(ln)
                 sys.stdout.flush()
-            print("")
-            sys.stdout.flush()
-            for ln in stats_lines:
-                print(ln.center(term_w))
-                sys.stdout.flush()
-            print("="*term_w + "\n")
-            sys.stdout.flush()  # Ensure output is visible
             
-            # Automatically show full story
+            print("")
+            for ln in stats_lines:
+                print(ln)
+                sys.stdout.flush()
+            
+            # Automatically show full story/journey log
+            print("\n" + "="*term_w)
+            print("Press [ENTER] to view your complete journey log...")
+            print("="*term_w)
             try:
+                input()
                 self.show_full_story()
             except Exception:
                 pass
@@ -2877,19 +3272,16 @@ class GameManager:
                 choice = input("\nYour choice: ").strip().upper()
                 
                 if choice == 'P':
-                    # Return True to signal restart
                     return True
                 else:
                     return False
             except Exception:
                 return False
-        except Exception:
+                
+        except Exception as e:
             print("GAME OVER")
-            try:
-                choice = input("Play again? [P/Q]: ").strip().upper()
-                return choice == 'P'
-            except Exception:
-                return False
+            print(f"Error displaying death stats: {e}")
+            return False
 
     def _try_move_player(self, dx: int, dy: int) -> bool:
         """
@@ -2911,19 +3303,29 @@ class GameManager:
             # DEBUG: Log target tile for every move
             try:
                 if tstr == 'D':
-                    with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                    with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                         fh.write(f"!!! MOVING TO 'D' TILE at ({nx}, {ny}), target={repr(target)}, tstr='{tstr}'\n")
             except: pass
             walkable = True
             # Simple non-walkable check: only block walls and terrain obstacles
             try:
-                # NON-walkable tiles (everything else is walkable)
+                # NON-walkable tiles (only actual walls and major obstacles)
+                # Display.WALL = '█', but some maps use '#'
+                # Natural obstacles: '~' (dunes), 'r' (rocks), 'T' (trees), '^' (mountains)
                 non_walkable = {
-                    '#',  # walls
-                    '~',  # dunes (impassable terrain)
-                    'r',  # rocks (large obstacles)
-                    'T',  # trees (blocking)
+                    '█',  # Display.WALL (primary wall tile)
+                    '#',  # Legacy wall tile
+                    '^',  # Mountains (impassable)
+                    '♣',  # Trees (Display.TREE)
+                    '≈',  # Waves/dunes (Display.DUNE)
+                    '≋',  # Double waves
+                    '~',  # Water/waves
+                    'T',  # Legacy tree symbol
+                    '╬',  # Bone Cathedral walls
                 }
+                
+                # Allow special dungeon floor tiles to be walkable
+                # (◊, ., ▪, ≈, ≋, ▫, ▓, ∞, etc.)
                 
                 if tstr in non_walkable:
                     walkable = False
@@ -2940,19 +3342,40 @@ class GameManager:
             except Exception:
                 pass
 
-            # After moving: check for stairs in tombs and trigger floor change
+            # After moving: check for stairs in tombs AND special dungeons
             try:
                 in_tomb = hasattr(self, 'tomb_levels') and hasattr(self, 'tomb_stairs') and hasattr(self, 'tomb_floor')
-                if in_tomb:
+                in_special_dungeon = hasattr(self, 'current_special_dungeon')
+                
+                if in_tomb or in_special_dungeon:
                     tile = str(self.game_map[ny][nx])
                     stairs_down = getattr(Display, 'STAIRS_DOWN', '>')
                     stairs_up = getattr(Display, 'STAIRS_UP', '<')
-                    if tile == str(stairs_down):
-                        changed = self.change_floor(1)
-                        if changed and getattr(self.ui, 'messages', None):
-                            self.ui.messages.add("You descend the stairs...")
-                        return True
-                    elif tile == str(stairs_up):
+                    
+                    if tile == str(stairs_down) or tile == '>':
+                        # Special dungeon stairs - go to next floor
+                        if in_special_dungeon:
+                            try:
+                                dungeon = self.current_special_dungeon
+                                current_floor = dungeon.get('current_floor', 1)
+                                num_levels = dungeon.get('num_levels', 1)
+                                if current_floor < num_levels:
+                                    # Re-enter dungeon to go to next floor
+                                    entrance = getattr(self, 'pre_special_dungeon_state', {}).get('entrance_pos')
+                                    if entrance:
+                                        self._enter_special_dungeon({'type': dungeon['type'], 'template': dungeon['template']}, entrance[0], entrance[1])
+                                        if getattr(self.ui, 'messages', None):
+                                            self.ui.messages.add(f"You descend to level {current_floor + 1}...")
+                                        return True
+                            except Exception as e:
+                                pass
+                        # Regular tomb stairs
+                        elif in_tomb:
+                            changed = self.change_floor(1)
+                            if changed and getattr(self.ui, 'messages', None):
+                                self.ui.messages.add("You descend the stairs...")
+                            return True
+                    elif tile == str(stairs_up) or tile == '<':
                         changed = self.change_floor(-1)
                         if changed and getattr(self.ui, 'messages', None):
                             self.ui.messages.add("You climb the stairs...")
@@ -2962,7 +3385,7 @@ class GameManager:
 
             # DEBUG: Log every move and check for tomb proximity
             try:
-                with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                     fh.write(f"Player moved to ({nx}, {ny}), tile='{self.game_map[ny][nx]}'\n")
                     tomb_entrances = getattr(self, 'tomb_entrances', set())
                     if (nx, ny) in tomb_entrances:
@@ -3214,7 +3637,7 @@ class GameManager:
                 # DEBUG: Log entry to special tiles section
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Entered 'handle stepping on special tiles' section for 'D' at ({nx}, {ny})\n")
                 except: pass
                 
@@ -3228,7 +3651,7 @@ class GameManager:
                 # DEBUG
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Passed Sith Keep check\n")
                 except: pass
                 
@@ -3242,7 +3665,7 @@ class GameManager:
                 # DEBUG
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Passed Sith Keep exit check\n")
                 except: pass
                 
@@ -3261,20 +3684,20 @@ class GameManager:
                 except Exception as ex:
                     try:
                         if tstr == 'D':
-                            with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                            with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                                 fh.write(f">>> EXCEPTION in special dungeon check: {ex}\n")
                     except: pass
                 
                 # DEBUG
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Passed special dungeon data check, special_dungeon_data={special_dungeon_data}\n")
                 except: pass
                 
                 if special_dungeon_data:
                     try:
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> FOUND special_dungeon_data! Calling _handle_special_dungeon_entrance\n")
                     except: pass
                     try:
@@ -3285,7 +3708,7 @@ class GameManager:
                 # DEBUG
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Passed special dungeon entrance handler\n")
                 except: pass
                 
@@ -3302,7 +3725,7 @@ class GameManager:
                     except Exception as ex:
                         try:
                             if tstr == 'D':
-                                with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                                with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                                     fh.write(f">>> EXCEPTION in special dungeon artifact check: {ex}\n")
                                     fh.write(f"    current_special_dungeon={getattr(self, 'current_special_dungeon', None)}\n")
                         except: pass
@@ -3310,7 +3733,7 @@ class GameManager:
                 # DEBUG
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Passed special dungeon artifact check\n")
                 except: pass
                 
@@ -3327,14 +3750,14 @@ class GameManager:
                     except Exception as ex:
                         try:
                             if tstr == 'D':
-                                with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                                with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                                     fh.write(f">>> EXCEPTION in special dungeon exit check: {ex}\n")
                         except: pass
                 
                 # DEBUG: Check if we reach this point
                 try:
                     if tstr == 'D':
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f">>> Reached tomb entrance check section for 'D' at ({nx}, {ny})\n")
                 except: pass
                 
@@ -3343,7 +3766,7 @@ class GameManager:
                 if tstr in ("D",):
                     # Debug tomb entrance detection FIRST
                     try:
-                        with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                        with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                             fh.write(f"\n=== TOMB ENTRANCE DEBUG ===\n")
                             fh.write(f"Player stepped on 'D' at position {(nx, ny)}\n")
                             fh.write(f"Target tile: {repr(target)} (type: {type(target)})\n")
@@ -3366,7 +3789,7 @@ class GameManager:
                             fh.write("=== END DEBUG ===\n\n")
                     except Exception as e:
                         try:
-                            with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                            with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                                 fh.write(f"Error writing debug: {e}\n")
                         except:
                             pass
@@ -3389,7 +3812,7 @@ class GameManager:
                     if target == getattr(Display, "SITH_ENTRANCE", None):
                         entrance_hit = True
                         try:
-                            with open("/tmp/jedi_fugitive_debug.txt", "a") as fh:
+                            with open("/tmp/dark_meridian_debug.txt", "a") as fh:
                                 fh.write(f"entrance_hit via Display.SITH_ENTRANCE check\n")
                         except: pass
                 except Exception:
@@ -3973,7 +4396,11 @@ class GameManager:
             if new < 0 or new >= len(self.tomb_levels):
                 try:
                     if getattr(self.ui, 'messages', None):
-                        self.ui.messages.add("You can't go that way.")
+                        if new < 0:
+                            self.ui.messages.add("You can't go that way.")
+                        else:
+                            self.ui.messages.add("#red#This is the deepest level. There are no more stairs down.#0#")
+                            self.ui.messages.add("The Jedi Artifact should be on this floor!")
                 except Exception:
                     pass
                 return False
@@ -4017,10 +4444,13 @@ class GameManager:
                         floor_enemies = tomb_enemies_list[new]
                         if floor_enemies is not None and isinstance(floor_enemies, list):
                             self.enemies = [e for e in floor_enemies if e is not None]
+                            print(f"  ✓ Loaded {len(self.enemies)} enemies for tomb floor {new+1}")
                         else:
                             self.enemies = []
+                            print(f"  ⚠ No enemies on tomb floor {new+1}")
                     else:
                         self.enemies = []
+                        print(f"  ⚠ No enemy data for tomb floor {new+1}")
                 except Exception as e:
                     print(f"ERROR loading tomb enemies for floor {new}: {e}")
                     import traceback
@@ -4182,12 +4612,19 @@ class GameManager:
     def _tick_effects(self):
         """Per-turn effects processed centrally: stress accrual, being hunted ticks, environmental checks."""
         try:
-            # Progressive enemy spawning system
+            # Progressive enemy spawning system (works on surface and in tombs)
             try:
                 from jedi_fugitive.game.progressive_spawning import process_progressive_spawning
-                process_progressive_spawning(self)
-            except Exception:
-                pass  # Don't break game if spawning fails
+                # Only spawn if not too many enemies already present
+                current_enemy_count = len(getattr(self, 'enemies', []))
+                if current_enemy_count < 15:  # Max 15 enemies at once
+                    process_progressive_spawning(self)
+            except Exception as e:
+                # Log the error for debugging but don't break game
+                try:
+                    print(f"Progressive spawning error: {e}")
+                except:
+                    pass
             
             # Random events system
             try:
@@ -4675,11 +5112,30 @@ class GameManager:
                     
                     if valid_stair_distance:
                         
-                        # Choose enemy type based on random roll
+                        # Choose enemy type based on random roll and player level
                         choice_roll = random.random()
                         lvl = max(1, player_level + random.randint(-1, 2))
                         
-                        if choice_roll < 0.35:
+                        # Include massive creatures at higher levels
+                        if player_level >= 8 and choice_roll < 0.05:
+                            # 5% chance of massive creature at high levels
+                            massive_choices = [
+                                sith.create_crimson_leviathan,
+                                sith.create_bone_crusher,
+                                sith.create_stone_titan,
+                                sith.create_tomb_serpent
+                            ]
+                            e = random.choice(massive_choices)(level=lvl)
+                        elif player_level >= 5 and choice_roll < 0.08:
+                            # 3% chance of smaller massive creatures at mid levels
+                            massive_choices = [
+                                sith.create_shadow_stalker,
+                                sith.create_dark_weaver,
+                                sith.create_void_tendril,
+                                sith.create_frost_behemoth
+                            ]
+                            e = random.choice(massive_choices)(level=lvl)
+                        elif choice_roll < 0.35:
                             e = sith.create_sith_trooper(level=lvl)
                         elif choice_roll < 0.55:
                             e = sith.create_sith_acolyte(level=lvl)
@@ -4811,7 +5267,7 @@ class GameManager:
                 if corruption > 70:  # High corruption attracts stronger enemies
                     enemy_pool.extend(['shadow_stalker', 'corrupted_jedi'])
                 if corruption < 30:  # Light side attracts different enemies
-                    enemy_pool.extend(['imperial_agent', 'bounty_hunter'])
+                    enemy_pool.extend(['sith_spy', 'bounty_hunter'])
                 
                 if not enemy_pool:
                     enemy_pool = ['sith_trooper', 'dark_jedi']
@@ -4848,7 +5304,12 @@ class GameManager:
                     # Check if tile is walkable
                     try:
                         tile = str(self.game_map[spawn_y][spawn_x])
-                        if tile in {'#', '~', 'r', 'T'}:  # Non-walkable tiles
+                        # Block walls and mountains (allow special dungeon floors)
+                        non_walkable = {
+                            '\u2588', '#', '^',
+                            '\u2593', '\u2666', '\u256c', '\u2551', '\u25a4', '\u25a3', '\u224b'
+                        }
+                        if tile in non_walkable:
                             continue
                     except Exception:
                         continue
@@ -4859,9 +5320,24 @@ class GameManager:
                     
                     # Spawn enemy
                     try:
-                        from jedi_fugitive.game.enemy import create_enemy
+                        from jedi_fugitive.game import enemies_sith as sith
                         enemy_type = __import__('random').choice(enemy_pool)
-                        enemy = create_enemy(enemy_type, spawn_x, spawn_y)
+                        
+                        # Map enemy type strings to factory functions
+                        enemy_factories = {
+                            'sith_trooper': sith.create_sith_trooper,
+                            'dark_jedi': sith.create_sith_warrior,
+                            'sith_assassin': sith.create_sith_assassin,
+                            'sith_lord': sith.create_sith_lord,
+                            'dark_side_adept': sith.create_sith_sorcerer,
+                            'shadow_stalker': sith.create_shadow_stalker,
+                            'corrupted_jedi': sith.create_sith_warrior,
+                            'sith_spy': sith.create_sith_acolyte,
+                            'bounty_hunter': sith.create_sith_officer,
+                        }
+                        
+                        factory = enemy_factories.get(enemy_type, sith.create_sith_trooper)
+                        enemy = factory(level=player_level, x=spawn_x, y=spawn_y)
                         
                         # Scale enemy stats based on difficulty
                         if hasattr(enemy, 'attack'):
@@ -4898,7 +5374,7 @@ class GameManager:
         if corruption > 70:
             return "🔴 Your dark power draws the attention of shadow hunters..."
         elif corruption < 30:
-            return "🔵 Imperial forces have detected your Jedi presence..."
+            return "🔵 Sith forces have detected your Jedi presence..."
         elif tombs_cleared >= 3:
             return "⚫ Ancient guardians stir, sensing the tomb disturbances..."
         elif spawn_count >= 5:

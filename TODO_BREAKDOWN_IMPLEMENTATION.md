@@ -1,4 +1,4 @@
-# 🛠️ SYSTEM EXPANSION BREAKDOWN: IMPLEMENTATION STEPS
+# 🛠️ DARK MERIDIAN SYSTEM EXPANSION BREAKDOWN: IMPLEMENTATION STEPS
 
 ## 1. Pursuit & Detection System
 - Design a global "detection meter" and a Sith Predator AI.
@@ -47,4 +47,4 @@
 
 ---
 
-*Each system can be developed and tested independently, then integrated for a seamless, dynamic gameplay experience.*
+*Each system can be developed and tested independently, then integrated for a seamless, dynamic Dark Meridian gameplay experience.*

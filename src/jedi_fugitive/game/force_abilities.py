@@ -350,9 +350,26 @@ class ForceLightning(ForceAbility):
                         enemy_name = getattr(user, "name", "Enemy")
                         target_name = getattr(target, "name", "target")
                         if hasattr(target, 'hp') and target.hp <= 0:
-                            messages.add(f"{enemy_name} strikes {target_name} down with Force Lightning! [{dmg} damage]")
+                            # Fatal lightning descriptions
+                            import random
+                            fatal_messages = [
+                                f"#13#Crackling dark energy erupts from your fingertips - {target_name} convulses and falls!#0#",
+                                f"#13#Force Lightning arcs through {target_name}'s body - they collapse in a smoking heap!#0#",
+                                f"#13#Blue-white electricity engulfs {target_name} - their scream cuts short as they drop!#0#",
+                                f"#13#You channel the dark side's fury - {target_name} spasms violently and dies!#0#",
+                            ]
+                            messages.add(f"{random.choice(fatal_messages)} [{dmg} damage]")
                         else:
-                            messages.add(f"{enemy_name} blasts {target_name} with Force Lightning! [{dmg} damage]")
+                            # Non-fatal lightning descriptions
+                            import random
+                            hit_messages = [
+                                f"#13#Dark lightning lances from your hands, striking {target_name}!#0#",
+                                f"#13#Tendrils of crackling energy surge into {target_name}!#0#",
+                                f"#13#You unleash the storm - {target_name} writhes in agony!#0#",
+                                f"#13#Force Lightning tears through {target_name}'s defenses!#0#",
+                                f"#13#Sith fury manifests as pure energy, scorching {target_name}!#0#",
+                            ]
+                            messages.add(f"{random.choice(hit_messages)} [{dmg} damage]")
                     except Exception: 
                         messages.add(f"Force: Lightning deals {dmg} damage to {getattr(target,'name', 'the target')}.")
                 
@@ -611,8 +628,28 @@ class ForceChoke(ForceAbility):
             
             target_name = getattr(target, 'name', 'the enemy')
             if messages:
-                try: messages.add(f"You choke {target_name} with the Force! ({damage} damage, stunned)")
-                except: pass
+                import random
+                if hasattr(target, 'hp') and target.hp <= 0:
+                    # Fatal choke descriptions
+                    fatal_messages = [
+                        f"#13#You close your fist - {target_name}'s throat crushes with a sickening crack!#0#",
+                        f"#13#An invisible grip tightens around {target_name}'s neck - they collapse, lifeless!#0#",
+                        f"#13#{target_name} claws desperately at their throat as the Force crushes the life from them!#0#",
+                        f"#13#The dark side flows through you - {target_name} expires with a strangled gasp!#0#",
+                    ]
+                    try: messages.add(f"{random.choice(fatal_messages)} [{damage} damage]")
+                    except: pass
+                else:
+                    # Non-fatal choke descriptions
+                    choke_messages = [
+                        f"#13#You reach out with the Force - {target_name} clutches at their throat, gasping!#0#",
+                        f"#13#An invisible hand grips {target_name}'s windpipe - they struggle for air!#0#",
+                        f"#13#{target_name} chokes and sputters as you crush their throat with the Force!#0#",
+                        f"#13#You clench your fist - {target_name} writhes in agony, unable to breathe!#0#",
+                        f"#13#The dark side surges through you, strangling {target_name} from afar!#0#",
+                    ]
+                    try: messages.add(f"{random.choice(choke_messages)} [{damage} damage, stunned]")
+                    except: pass
             
             # Dark side increases stress
             if hasattr(user, 'add_stress'):
@@ -671,8 +708,28 @@ class ForceDrain(ForceAbility):
             
             target_name = getattr(target, 'name', 'the enemy')
             if messages:
-                try: messages.add(f"You drain life from {target_name}! ({drain_amount} damage, +{drain_amount} HP)")
-                except: pass
+                import random
+                if hasattr(target, 'hp') and target.hp <= 0:
+                    # Fatal drain descriptions
+                    fatal_messages = [
+                        f"#13#You rip the life essence from {target_name} - they wither into a desiccated husk!#0#",
+                        f"#13#{target_name}'s vitality flows into you as they age decades in seconds and collapse!#0#",
+                        f"#13#Tendrils of dark energy drain {target_name} completely - their corpse falls like ash!#0#",
+                        f"#13#You feast on {target_name}'s life force until nothing remains but an empty shell!#0#",
+                    ]
+                    try: messages.add(f"{random.choice(fatal_messages)} [{drain_amount} damage, +{drain_amount} HP]")
+                    except: pass
+                else:
+                    # Non-fatal drain descriptions
+                    drain_messages = [
+                        f"#13#Dark tendrils snake out, siphoning {target_name}'s life essence into you!#0#",
+                        f"#13#You feel invigorated as {target_name}'s vitality pours into your body!#0#",
+                        f"#13#{target_name} weakens and pales as you drain their life force!#0#",
+                        f"#13#Crimson energy flows from {target_name} to you - their strength becomes yours!#0#",
+                        f"#13#You channel the dark side, leeching life from {target_name}'s trembling form!#0#",
+                    ]
+                    try: messages.add(f"{random.choice(drain_messages)} [{drain_amount} damage, +{drain_amount} HP]")
+                    except: pass
             
             # Dark side increases stress
             if hasattr(user, 'add_stress'):

@@ -5,6 +5,9 @@ These are lightweight, data-driven factories that attach small custom
 `take_turn(game)` hooks where needed. Keep changes non-invasive so the
 main enemy processing loop continues to work.
 """
+
+from jedi_fugitive.game import logger
+log = getattr(logger, 'log', None)
 from typing import Optional
 import random
 from jedi_fugitive.game.enemy import Enemy
@@ -16,29 +19,38 @@ def _attach_take_turn(e: Enemy, fn):
     # Simply assign a callable that accepts one arg (game). process_enemies will call it.
     try:
         e.take_turn = lambda game, _fn=fn: _fn(game, e)
-    except Exception:
+    except Exception as e1:
+        if log:
+            log.exception("Failed to attach take_turn (lambda _fn)", exc_info=e1)
         try:
             e.take_turn = lambda game: fn(game, e)
-        except Exception:
-            pass
+        except Exception as e2:
+            if log:
+                log.exception("Failed to attach take_turn (lambda fallback)", exc_info=e2)
 
 
 def create_sith_acolyte(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Acolyte", 14 + level * 2, 6 + level, 2 + level//3, 5, EnemyPersonality(), 20, x, y, level=level)
-    e.symbol = 'a'
+    e.symbol = 'a'  # Acolyte
+    e.color = 1  # Red
+    e.faction = 'Sith Empire'  # Faction assignment
     return e
 
 
 def create_sith_warrior(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Warrior", 28 + level * 6, 12 + int(level * 1.5), 6 + level//2, 6, EnemyPersonality(), 60, x, y, level=level)
-    e.symbol = 'W'
+    e.symbol = 'W'  # Warrior
+    e.color = 1  # Red
+    e.faction = 'Sith Empire'  # Faction assignment
     return e
 
 
 def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     # highly evasive short-lived assassin; special: first strike bonus and occasional vanish
     e = Enemy("Sith Assassin", 12 + level * 2, 10 + level, 2 + level//4, 20 + level, EnemyPersonality(), 80, x, y, level=level)
-    e.symbol = 'x'
+    e.symbol = 'A'  # Assassin
+    e.color = 5  # Magenta/Purple
+    e.faction = 'Sith Empire'  # Faction assignment
 
     def assassin_ai(game, self):
         try:
@@ -48,8 +60,9 @@ def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                     self._is_stealthed = True
                     if getattr(game.ui, 'messages', None):
                         game.ui.messages.add(f"{self.name} melts into the shadows!")
-                except Exception:
-                    pass
+                except Exception as e:
+                    if log:
+                        log.exception("Assassin vanish error", exc_info=e)
 
             # if stealthed, have a chance to teleport behind player and strike
             player = getattr(game, 'player', None)
@@ -66,8 +79,9 @@ def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                                 if not any(getattr(o,'x',None)==nx and getattr(o,'y',None)==ny for o in game.enemies):
                                     self.x = nx; self.y = ny
                                     break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        if log:
+                            log.exception("Assassin teleport error", exc_info=e)
                     # perform a heavy attack on player
                     try:
                         dmg = max(1, int(getattr(self, 'attack', 5) * 1.4))
@@ -75,17 +89,21 @@ def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                             player.hp = max(0, getattr(player, 'hp', 0) - dmg)
                         if getattr(game.ui, 'messages', None):
                             game.ui.messages.add(f"{self.name} ambushes you for {dmg} damage!")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        if log:
+                            log.exception("Assassin ambush error", exc_info=e)
                     # break stealth after attack
                     try:
                         self._is_stealthed = False
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        if log:
+                            log.exception("Assassin break stealth error", exc_info=e)
                     return True
 
             return False
-        except Exception:
+        except Exception as e:
+            if log:
+                log.exception("Assassin AI error", exc_info=e)
             return False
 
     _attach_take_turn(e, assassin_ai)
@@ -94,7 +112,9 @@ def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 
 def create_sith_sorcerer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Sorcerer", 18 + level * 3, 6 + level, 3 + level//3, 8, EnemyPersonality(), 100, x, y, level=level)
-    e.symbol = 'S'
+    e.symbol = 's'  # Sorcerer
+    e.color = 5  # Magenta/Purple
+    e.faction = 'Sith Empire'  # Faction assignment
     # give a couple of force abilities for ranged behavior
     try:
         e.force_abilities = {
@@ -103,7 +123,9 @@ def create_sith_sorcerer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
         }
         # sorcerer has a modest pool
         e.force_points = 3 + level//2
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("Failed to assign force abilities to Sith Sorcerer", exc_info=e)
         e.force_abilities = {}
 
     def sorcerer_ai(game, self):
@@ -125,8 +147,9 @@ def create_sith_sorcerer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                             try: self._ability_last_used[getattr(lightning,'name',str(lightning))] = getattr(game,'turn_count',0)
                             except Exception: pass
                             return True
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        if log:
+                            log.exception("Sith Sorcerer AI error", exc_info=e)
 
             # else possibly reveal to increase LOS for itself
             reveal = fa.get('reveal')
@@ -161,33 +184,44 @@ def create_sith_sorcerer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 
 def create_sith_wardroid(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith WarDroid", 32 + level * 8, 10 + level//1, 8 + level//2, 3, EnemyPersonality(), 120, x, y, level=level)
-    e.symbol = 'd'
+    e.symbol = 'd'  # Droid
+    e.color = 7  # White/Gray
+    e.faction = 'Sith Empire'  # Faction assignment
     # war droids are slow but tanky; no special AI needed
     return e
 
 
 def create_tukata(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Tuk'ata", 12 + level * 3, 8 + level//1, 1 + level//4, 12, EnemyPersonality(), 40, x, y, level=level)
-    e.symbol = 't'
+    e.symbol = 'w'  # Wolf/beast
+    e.color = 1  # Red
+    e.faction = 'Sith Empire'  # Faction assignment (Sith war beasts)
     # fast: occasionally move two steps; reuse default behavior but mark aggressiveness
     return e
 
 
 def create_terentatek(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Terentatek", 80 + level * 20, 20 + level * 2, 10 + level//1, 2, EnemyPersonality(), 400, x, y, level=level)
-    e.symbol = 'R'
+    e.symbol = 'm'  # Monster
+    e.color = 1  # Red
+    e.faction = 'Sith Empire'  # Faction assignment (Sith-bred creatures)
+    e.is_massive = True
     return e
 
 
 def create_sith_trooper(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Trooper", 16 + level * 3, 9 + level, 3 + level//2, 6, EnemyPersonality(), 30, x, y, level=level)
-    e.symbol = 'q'
+    e.symbol = 'T'  # Trooper
+    e.color = 1  # Red
+    e.faction = 'Sith Empire'  # Faction assignment
     return e
 
 
 def create_sith_officer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Officer", 22 + level * 4, 10 + level, 5 + level//2, 8, EnemyPersonality(), 120, x, y, level=level)
-    e.symbol = 'V'
+    e.symbol = 'O'  # Officer
+    e.color = 3  # Yellow
+    e.faction = 'Sith Empire'  # Faction assignment
 
     def officer_ai(game, self):
         try:
@@ -215,7 +249,9 @@ def create_sith_officer(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 
 def create_sith_lord(level: int = 5, x: int = 0, y: int = 0) -> Enemy:
     e = Enemy("Sith Lord", 70 + level * 12, 18 + level * 2, 8 + level, 6, EnemyPersonality(), 800, x, y, level=level)
-    e.symbol = 'H'
+    e.symbol = 'L'  # Lord
+    e.color = 1  # Red
+    e.faction = 'Sith Empire'  # Faction assignment
     e.is_boss = True
     # grant boss-level force abilities
     try:
@@ -234,7 +270,9 @@ def create_sith_lord(level: int = 5, x: int = 0, y: int = 0) -> Enemy:
 def create_dread_inquisitor(level: int = 6, x: int = 0, y: int = 0) -> Enemy:
     """A feared inquisitor who specializes in draining Force and unleashing brutal lightning."""
     e = Enemy("Dread Inquisitor", 90 + level * 18, 20 + level * 2, 10 + level, 10, EnemyPersonality(), 1200, x, y, level=level)
-    e.symbol = 'X'
+    e.symbol = 'I'  # Inquisitor
+    e.color = 5  # Magenta/Purple
+    e.faction = 'Sith Empire'  # Faction assignment
     e.is_boss = True
     try:
         e.force_abilities = {
@@ -326,6 +364,7 @@ def create_sith_inquisitor(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
     base_hp = 100 + level * 20
     e = Enemy(sith_name, int(base_hp * 2.5), 22 + level * 2, 12 + level, 8, EnemyPersonality(), 2000, x, y, level=level)
     e.symbol = 'U'  # Changed from 'L' to 'U' to avoid Lightsaber conflict
+    e.faction = 'Sith Empire'  # Faction assignment
     e.is_boss = True
     try:
         e.force_abilities = {
@@ -450,7 +489,8 @@ def create_sith_inquisitor(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
 def create_obsidian_regent(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
     """An ancient regent who manipulates the battlefield and summons brief guardians."""
     e = Enemy("Obsidian Regent", 120 + level * 22, 14 + level * 2, 12 + level, 6, EnemyPersonality(), 1600, x, y, level=level)
-    e.symbol = 'Z'
+    e.symbol = 'R'  # Regent
+    e.color = 6  # Cyan
     e.is_boss = True
     try:
         e.force_abilities = {
@@ -650,6 +690,8 @@ def create_jedi_master(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     e.is_boss = True
     e.lightsaber_color = "blue"
     e.combat_stance = "defensive"
+    e.faction = 'Republic'  # Jedi Master belongs to Republic faction
+    e.color = 4  # Blue color for Republic
     
     try:
         e.force_abilities = {
@@ -753,7 +795,7 @@ def create_jedi_master(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_memory_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Memory Wraith - Steals your memories and confuses you."""
     e = Enemy("Memory Wraith", 20 + level * 4, 8 + level, 4 + level//2, 12, EnemyPersonality(), 70, x, y, level=level)
-    e.symbol = 'Ṁ'
+    e.symbol = 'M'
     e.description = "A ghostly entity formed from stolen memories"
     return e
 
@@ -761,7 +803,7 @@ def create_memory_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_crystal_guardian(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Crystal Guardian - Heavily armored crystal construct."""
     e = Enemy("Crystal Guardian", 35 + level * 7, 10 + level, 8 + level, 4, EnemyPersonality(), 80, x, y, level=level)
-    e.symbol = '♦'
+    e.symbol = 'D'
     e.description = "A living crystal formation animated by dark energy"
     return e
 
@@ -769,7 +811,7 @@ def create_crystal_guardian(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_shadow_stalker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Shadow Stalker - Fast, evasive, strikes from darkness."""
     e = Enemy("Shadow Stalker", 15 + level * 3, 12 + int(level * 1.5), 3 + level//3, 18 + level, EnemyPersonality(), 90, x, y, level=level)
-    e.symbol = '▪'
+    e.symbol = 'B'
     e.description = "A being of living shadow that hunts in darkness"
     return e
 
@@ -777,7 +819,7 @@ def create_shadow_stalker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_bone_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Bone Wraith - Undead guardian of the bone cathedral."""
     e = Enemy("Bone Wraith", 25 + level * 5, 9 + level, 5 + level//2, 8, EnemyPersonality(), 75, x, y, level=level)
-    e.symbol = '☠'
+    e.symbol = 'b'  # Bone wraith
     e.description = "A vengeful spirit bound to ancient bones"
     return e
 
@@ -785,7 +827,7 @@ def create_bone_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_echo_banshee(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Echo Banshee - Sonic attacks, screams that damage."""
     e = Enemy("Echo Banshee", 18 + level * 4, 10 + level, 3 + level//3, 10, EnemyPersonality(), 85, x, y, level=level)
-    e.symbol = '♪'
+    e.symbol = 'N'
     e.description = "A creature of pure sound that screams eternally"
     return e
 
@@ -793,7 +835,7 @@ def create_echo_banshee(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_knowledge_seeker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Knowledge Seeker - Corrupted scholar seeking forbidden lore."""
     e = Enemy("Knowledge Seeker", 22 + level * 4, 7 + level, 5 + level//2, 9, EnemyPersonality(), 95, x, y, level=level)
-    e.symbol = '§'
+    e.symbol = 'P'
     e.description = "A scholar driven mad by forbidden knowledge"
     return e
 
@@ -801,7 +843,7 @@ def create_knowledge_seeker(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_pain_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Pain Wraith - Born from suffering, inflicts agony."""
     e = Enemy("Pain Wraith", 23 + level * 5, 11 + level, 4 + level//2, 7, EnemyPersonality(), 80, x, y, level=level)
-    e.symbol = '†'
+    e.symbol = 'C'
     e.description = "An entity forged from accumulated suffering"
     return e
 
@@ -809,6 +851,6 @@ def create_pain_wraith(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
 def create_nightmare_herald(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
     """Nightmare Herald - Manifests your fears."""
     e = Enemy("Nightmare Herald", 26 + level * 5, 10 + level, 5 + level//2, 11, EnemyPersonality(), 85, x, y, level=level)
-    e.symbol = '☾'
+    e.symbol = 'H'
     e.description = "A creature from the realm of nightmares"
     return e

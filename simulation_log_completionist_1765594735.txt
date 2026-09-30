@@ -1,0 +1,103 @@
+[Turn 0] Initializing game...
+[Turn 0] Generating world...
+[Turn 0] World generated: 4 tombs, 2 special dungeons
+[Turn 0] Player starting position: (168, 277)
+[Turn 0] Player starting stats: HP=30/30, Attack=15, Defense=8
+[Turn 0] === STARTING COMPLETIONIST RUN ===
+[Turn 0] Testing movement system...
+[Turn 10]   Moved from (168, 276) to (168, 275)
+[Turn 10] Testing combat system...
+[Turn 10]   Fighting Sith Trooper
+[Turn 10]     Defeated Sith Trooper
+[Turn 10]   Fighting Sith Ghost
+[Turn 10]     Defeated Sith Ghost
+[Turn 10] Testing NPC system...
+[Turn 10]   No NPCs spawned
+[Turn 10] Testing fauna system...
+[Turn 10]   Fauna manager initialized ✓
+[Turn 10] Testing Force abilities...
+[Turn 10]   Player has 1 Force abilities
+[Turn 10] Testing special dungeons...
+[Turn 10]   Found 2 special dungeons
+[Turn 10] Testing tomb system...
+[Turn 10]   Moving to tomb at (124, 310)
+[Turn 10] Entering tomb...
+[Turn 10]   Exploring tomb level 1/4
+[Turn 10]     Defeated Sith Trooper
+[Turn 10]     Defeated Sith Trooper
+[Turn 20]   Exploring tomb level 2/4
+[Turn 20]     Defeated Sith Trooper
+[Turn 20]     Defeated Sith Trooper
+[Turn 20]     Defeated Sith Trooper
+[Turn 30]   Exploring tomb level 3/4
+[Turn 30]     Defeated Sith Trooper
+[Turn 30]     Defeated Sith Trooper
+[Turn 30]     Defeated Sith Trooper
+[Turn 40]   Exploring tomb level 4/4
+[Turn 40]     Defeated Sith Trooper
+[Turn 40]     LEVEL UP! Now level 1
+[Turn 40]     Defeated Sith Trooper
+[Turn 50]   Found artifact! Total: 1/3
+[Turn 50]   Tomb exploration successful ✓
+[Turn 50] Testing inventory system...
+[Turn 50]   Player has 2 items
+[Turn 50] Testing quest system...
+[Turn 50]   Quest manager initialized ✓
+[Turn 50] Completing artifacts collection...
+[Turn 50] Entering tomb...
+[Turn 50]   Exploring tomb level 1/5
+[Turn 50]     Defeated Sith Trooper
+[Turn 50]     Defeated Sith Trooper
+[Turn 50]     Defeated Sith Trooper
+[Turn 60]   Exploring tomb level 2/5
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 70]   Exploring tomb level 3/5
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 80]   Exploring tomb level 4/5
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 90]   Exploring tomb level 5/5
+[Turn 90]     LEVEL UP! Now level 1
+[Turn 90]     Defeated Sith Trooper
+[Turn 90]     Defeated Sith Trooper
+[Turn 90]     Defeated Sith Trooper
+[Turn 100]   Found artifact! Total: 2/3
+[Turn 100] Entering tomb...
+[Turn 100]   Exploring tomb level 1/5
+[Turn 100]     Defeated Sith Trooper
+[Turn 100]     Defeated Sith Trooper
+[Turn 100]     Defeated Sith Trooper
+[Turn 110]   Exploring tomb level 2/5
+[Turn 110]     Defeated Sith Trooper
+[Turn 110]     Defeated Sith Trooper
+[Turn 110]     Defeated Sith Trooper
+[Turn 120]   Exploring tomb level 3/5
+[Turn 120]     Defeated Sith Trooper
+[Turn 120]     Defeated Sith Trooper
+[Turn 120]     Defeated Sith Trooper
+[Turn 130]   Exploring tomb level 4/5
+[Turn 130]     LEVEL UP! Now level 1
+[Turn 130]     Defeated Sith Trooper
+[Turn 130]     Defeated Sith Trooper
+[Turn 130]     Defeated Sith Trooper
+[Turn 130]     Defeated Sith Trooper
+[Turn 140]   Exploring tomb level 5/5
+[Turn 140]     Defeated Sith Trooper
+[Turn 140]     Defeated Sith Trooper
+[Turn 140]     Defeated Sith Trooper
+[Turn 140]     Defeated Sith Trooper
+[Turn 150]   Found artifact! Total: 3/3
+[Turn 150] Activating comms terminal...
+[Turn 248]   ✓ Comms activated (traveled 85 tiles)
+[Turn 248] Final confrontation at ship...
+[Turn 274]   Darth Malice appears for final battle!
+[Turn 274]   Player: HP=89, Atk=23, Def=14
+[Turn 274]     LEVEL UP! Now level 1
+[Turn 274]   ✓ Darth Malice DEFEATED!
+[Turn 279] === COMPLETIONIST RUN COMPLETE ===
+[Turn 279] VICTORY! Escaped in 279 turns with all systems tested!

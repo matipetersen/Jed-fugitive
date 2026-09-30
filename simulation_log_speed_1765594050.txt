@@ -1,0 +1,59 @@
+[Turn 0] Initializing game...
+[Turn 0] Generating world...
+[Turn 0] World generated: 3 tombs, 3 special dungeons
+[Turn 0] Player starting position: (268, 265)
+[Turn 0] Player starting stats: HP=30/30, Attack=15, Defense=8
+[Turn 0] === STARTING SPEED RUN ===
+[Turn 0] Moving to tomb at (264, 301) (distance: 40)
+[Turn 0] Entering tomb...
+[Turn 0]   Exploring tomb level 1/3
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 10]   Exploring tomb level 2/3
+[Turn 10]     Defeated Sith Trooper
+[Turn 10]     Defeated Sith Trooper
+[Turn 20]   Exploring tomb level 3/3
+[Turn 20]     Defeated Sith Trooper
+[Turn 20]     Defeated Sith Trooper
+[Turn 20]     Defeated Sith Trooper
+[Turn 30]   Found artifact! Total: 1/3
+[Turn 30] Moving to tomb at (219, 246) (distance: 69)
+[Turn 30] Entering tomb...
+[Turn 30]   Exploring tomb level 1/4
+[Turn 30]     Defeated Sith Trooper
+[Turn 30]     Defeated Sith Trooper
+[Turn 30]     Defeated Sith Trooper
+[Turn 40]   Exploring tomb level 2/4
+[Turn 40]     LEVEL UP! Now level 1
+[Turn 40]     Defeated Sith Trooper
+[Turn 40]     Defeated Sith Trooper
+[Turn 50]   Exploring tomb level 3/4
+[Turn 50]     Defeated Sith Trooper
+[Turn 50]     Defeated Sith Trooper
+[Turn 50]     Defeated Sith Trooper
+[Turn 60]   Exploring tomb level 4/4
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 70]   Found artifact! Total: 2/3
+[Turn 70] Moving to tomb at (323, 217) (distance: 105)
+[Turn 70] Entering tomb...
+[Turn 70]   Exploring tomb level 1/3
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 80]   Exploring tomb level 2/3
+[Turn 80]     LEVEL UP! Now level 1
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 90]   Exploring tomb level 3/3
+[Turn 90]     Defeated Sith Trooper
+[Turn 90]     Defeated Sith Trooper
+[Turn 100]   Found artifact! Total: 3/3
+[Turn 100] === SPEED RUN COMPLETE ===
+[Turn 100] Victory achieved in 100 turns!

@@ -1,9 +1,13 @@
+
 from jedi_fugitive.game.enemy import Enemy
 from typing import Tuple, List
 # fixed import: Display lives in game.level, not jedi_fugitive.display
 from jedi_fugitive.game.level import Display
 from jedi_fugitive.items.weapons import WeaponType, Weapon
 import random
+from jedi_fugitive.utils.logger import get_logger
+
+logger = get_logger("combat")
 
 def calculate_hit(accuracy: int, evasion: int) -> bool:
     """Calculate if an attack hits based on accuracy and evasion."""
@@ -13,17 +17,23 @@ def calculate_hit(accuracy: int, evasion: int) -> bool:
 def player_attack(player, enemy, messages=None, game=None):
     """Player attacks enemy. Accepts optional messages buffer and game for compatibility."""
     try:
+        # Update pursuit system if available
+        if game and hasattr(game, 'pursuit_system'):
+            game.pursuit_system.update_detection('combat')
+
         # prefer player's effective accuracy which accounts for stress/equipment
         try:
             acc = int(player.get_effective_accuracy())
-        except Exception:
+        except Exception as e:
+            logger.exception(f"Exception getting player effective accuracy: {e}")
             acc = getattr(player, "accuracy", 0)
         ev = getattr(enemy, "evasion", 0)
         if calculate_hit(acc, ev):
             if getattr(player, "equipped_weapon", None):
                 try:
                     dmg = player.equipped_weapon.get_damage()
-                except Exception:
+                except Exception as e:
+                    logger.exception(f"Exception getting weapon damage: {e}")
                     dmg = getattr(player, "attack", 1)
             else:
                 dmg = getattr(player, "attack", 1)
@@ -35,7 +45,6 @@ def player_attack(player, enemy, messages=None, game=None):
             if weapon:
                 try:
                     weapon_type = getattr(weapon, 'weapon_type', None)
-                    
                     # Apply melee/ranged mastery
                     if weapon_type in [WeaponType.VIBROBLADE, WeaponType.COMBAT_KNIFE, WeaponType.ELECTROSTAFF]:
                         melee_bonus = getattr(player, 'melee_mastery', 0)
@@ -43,28 +52,28 @@ def player_attack(player, enemy, messages=None, game=None):
                     elif weapon_type in [WeaponType.BLASTER_PISTOL, WeaponType.BLASTER_RIFLE, WeaponType.HEAVY_BLASTER]:
                         ranged_bonus = getattr(player, 'ranged_mastery', 0)
                         dmg += ranged_bonus
-                    
                     # Apply dual wield mastery if both hands have weapons
                     if offhand and hasattr(offhand, 'weapon_type'):
                         dual_bonus = getattr(player, 'dual_wield_mastery', 0)
                         dmg += dual_bonus
-                except Exception:
-                    pass  # Silently ignore mastery errors
+                except Exception as e:
+                    logger.exception(f"Exception applying mastery bonuses: {e}")
             try:
                 enemy.hp = getattr(enemy, "hp", 0) - int(dmg)
-            except Exception:
-                try: setattr(enemy, "hp", getattr(enemy, "hp", 0) - int(dmg))
-                except Exception: pass
+            except Exception as e:
+                logger.exception(f"Exception setting enemy.hp: {e}")
+                try:
+                    setattr(enemy, "hp", getattr(enemy, "hp", 0) - int(dmg))
+                except Exception as e2:
+                    logger.exception(f"Exception using setattr for enemy.hp: {e2}")
             
             # Generate descriptive combat message
             if messages is not None:
                 try:
                     enemy_name = getattr(enemy, 'name', 'the enemy')
                     enemy_hp = getattr(enemy, 'hp', 0)
-                    
                     # Select body part and action based on damage and enemy HP
                     body_parts = ['head', 'torso', 'arm', 'leg', 'chest', 'shoulder']
-                    
                     if enemy_hp <= 0:
                         # Death blow descriptions with ASCII art
                         death_messages = [
@@ -93,12 +102,13 @@ def player_attack(player, enemy, messages=None, game=None):
                             f"Your blade finds {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]"
                         ]
                         messages.add(random.choice(hit_messages))
-                except Exception: 
+                except Exception as e:
+                    logger.exception(f"Exception generating combat message: {e}")
                     messages.add(f"You hit {getattr(enemy,'name','the enemy')} for {dmg}.")
             return True, int(dmg)
         else:
             if messages is not None:
-                try: 
+                try:
                     miss_messages = [
                         "Your attack misses!",
                         "You swing but miss!",
@@ -106,10 +116,12 @@ def player_attack(player, enemy, messages=None, game=None):
                         "The enemy dodges your attack!"
                     ]
                     messages.add(random.choice(miss_messages))
-                except Exception: 
+                except Exception as e:
+                    logger.exception(f"Exception generating miss message: {e}")
                     messages.add("You miss.")
             return False, 0
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Attack failed: {e}")
         if messages is not None:
             try: messages.add("Attack failed (internal).")
             except Exception: pass

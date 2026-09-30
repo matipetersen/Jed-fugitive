@@ -22,7 +22,11 @@ class CombatNarrator:
             "melee": ["blade", "weapon", "steel", "edge"],
             "lightsaber": ["lightsaber", "plasma blade", "Jedi weapon", "energy sword"],
             "force": ["dark energy", "Force power", "invisible hand", "mystical force"],
-            "ranged": ["energy bolt", "blaster fire", "plasma shot", "laser burst"]
+            "ranged": ["energy bolt", "blaster fire", "plasma shot", "laser burst"],
+            "blaster": ["blaster bolt", "searing plasma", "crimson energy", "deadly shot"],
+            "rifle": ["rifle blast", "high-powered bolt", "precision shot", "rifle fire"],
+            "force_lightning": ["crackling lightning", "dark electricity", "Sith fury", "Force storm"],
+            "force_push": ["Force wave", "telekinetic blast", "invisible force", "kinetic shockwave"]
         }
     
     def get_attack_description(self, attacker_name: str, damage: int, 

@@ -1,5 +1,5 @@
 # COMPREHENSIVE CODEBASE AUDIT REPORT
-## Jedi Fugitive - November 21, 2025
+## Dark Meridian - November 21, 2025
 
 ---
 
@@ -7,7 +7,7 @@
 
 **Overall Status**: ✅ **EXCELLENT INTEGRATION** - 83.3% system integration with mature, well-connected codebase
 
-The Jedi Fugitive project demonstrates exceptional system architecture with comprehensive functionality, minimal technical debt, and excellent integration between all major game systems. No critical missing functions or orphaned code were identified.
+The Dark Meridian project demonstrates exceptional system architecture with comprehensive functionality, minimal technical debt, and excellent integration between all major game systems. No critical missing functions or orphaned code were identified.
 
 ---
 
@@ -172,7 +172,7 @@ Some markdown files document completed features or planned enhancements:
 
 ## ✅ CONCLUSION
 
-The Jedi Fugitive codebase represents a **mature, well-integrated game** with:
+The Dark Meridian codebase represents a **mature, well-integrated game** with:
 
 - **Exceptional System Integration** (83.3%)
 - **Zero Critical Missing Functions**

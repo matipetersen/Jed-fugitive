@@ -1,4 +1,4 @@
-    def equip_disguise(self, disguise):
+def equip_disguise(self, disguise):
         """
         Equip a disguise item (instance of Disguise or string key for DISGUISE_TYPES).
         Updates detection and suspicion accordingly.
@@ -34,6 +34,7 @@ class LevelUpOption:
 
 class Player:
     def __init__(self, x, y):
+        self.turn_count = 0  # Track the number of turns taken by the player
         self.x = x
         self.y = y
         self._hp = 15  # Use private attribute for property backing

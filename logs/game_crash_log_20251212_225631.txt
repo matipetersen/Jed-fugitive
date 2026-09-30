@@ -1,0 +1,73 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-12-12 22:56:31
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-12-12 22:56:31] INFO: Game started
+
+================================================================================
+[2025-12-12 22:56:31] CURSES_ERROR: Curses initialization failed
+================================================================================
+
+Exception Type: error
+Exception Message: endwin() returned ERR
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/opt/anaconda3/lib/python3.11/curses/__init__.py", line 94, in wrapper
+    return func(stdscr, *args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/main.py", line 13, in _curses_main
+    from jedi_fugitive.game.game_manager import GameManager
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 17, in <module>
+    from jedi_fugitive.game.player import Player
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/player.py", line 24, in <module>
+    from jedi_fugitive.game.force_abilities import FORCE_ABILITIES, ForceAbility, ForcePushPull
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/force_abilities.py", line 348
+    if messages is not None:
+    ^^
+SyntaxError: expected 'except' or 'finally' block
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/main.py", line 186, in main
+    gm = curses.wrapper(_curses_main)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/curses/__init__.py", line 101, in wrapper
+    endwin()
+_curses.error: endwin() returned ERR
+
+================================================================================
+
+================================================================================
+[2025-12-12 22:56:31] CRASH: Unexpected error in main game loop
+================================================================================
+
+Exception Type: SyntaxError
+Exception Message: expected 'except' or 'finally' block (force_abilities.py, line 348)
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/main.py", line 225, in main
+    from jedi_fugitive.game.game_manager import GameManager
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 17, in <module>
+    from jedi_fugitive.game.player import Player
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/player.py", line 24, in <module>
+    from jedi_fugitive.game.force_abilities import FORCE_ABILITIES, ForceAbility, ForcePushPull
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/force_abilities.py", line 348
+    if messages is not None:
+    ^^
+SyntaxError: expected 'except' or 'finally' block
+
+================================================================================
+
+================================================================================
+SESSION ENDED
+================================================================================
+End time: 2025-12-12 22:56:31
+Session duration: 0:00:00.033394
+================================================================================

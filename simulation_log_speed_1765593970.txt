@@ -1,0 +1,15 @@
+[Turn 0] Initializing game...
+[Turn 0] Generating world...
+[Turn 0] World generated: 4 tombs, 3 special dungeons
+[Turn 0] Player starting position: (225, 166)
+[Turn 0] Player starting stats: HP=15/15, Attack=10, Defense=5
+[Turn 0] === STARTING SPEED RUN ===
+[Turn 0] Moving to tomb at (221, 220) (distance: 58)
+[Turn 0] Entering tomb...
+[Turn 0]   Exploring tomb level 1/5
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 10]   Exploring tomb level 2/5
+[Turn 10]     DIED to Sith Trooper

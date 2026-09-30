@@ -325,7 +325,32 @@ def draw_map_panel(game):
                         if (ex, ey) in local_visible:
                             evx = ex - start_x; evy = ey - start_y
                             if evy == vy and 0 <= evx < len(line_chars):
-                                line_chars[evx] = (getattr(e, "symbol", "E"), curses.color_pair(2) | curses.A_BOLD)
+                                # Enemy symbol based on type - check both 'char' and 'symbol' attributes
+                                symbol = getattr(e, 'symbol', getattr(e, 'char', 'E'))
+                                
+                                # Use single-width Unicode symbols for specific enemy types
+                                # Avoid emoji (they're double-width and cause alignment issues)
+                                if symbol == 'E': symbol = 'E'   # Generic enemy
+                                elif symbol == 'T': symbol = 'T' # Trooper
+                                elif symbol == 'G': symbol = 'G' # Ghost
+                                elif symbol == 'I': symbol = 'I' # Inquisitor
+                                elif symbol == 'J': symbol = 'J' # Jedi Master
+                                elif symbol == 'S': symbol = 'S' # Sith
+                                elif symbol == 'D': symbol = 'D' # Droid
+                                elif symbol == 'B': symbol = 'B' # Boss
+                                elif symbol == 'M': symbol = 'M' # Massive creature
+                                elif symbol == 'F': symbol = 'f' # Fauna
+                                # Otherwise keep the original symbol
+                                
+                                # Use faction color if available, otherwise default to red
+                                enemy_color = getattr(e, 'color', None)
+                                if enemy_color is not None:
+                                    color = curses.color_pair(enemy_color) | curses.A_BOLD
+                                else:
+                                    # Default red for enemies without faction
+                                    color = curses.color_pair(2) | curses.A_BOLD
+                                
+                                line_chars[evx] = (symbol, color)
                 except Exception:
                     continue
 
@@ -339,9 +364,9 @@ def draw_map_panel(game):
                                 nvx = npc_x - start_x
                                 nvy = npc_y - start_y
                                 if nvy == vy and 0 <= nvx < len(line_chars):
-                                    # Get NPC symbol and color
-                                    symbol = getattr(npc, 'symbol', '@')  
-                                    color = curses.color_pair(3) | curses.A_BOLD  # Yellow for NPCs
+                                    # Get NPC symbol and color (use @ to avoid double-width issues)
+                                    symbol = '@'
+                                    color = curses.color_pair(11) | curses.A_BOLD  # Cyan for NPCs
                                     line_chars[nvx] = (symbol, color)
                     except Exception:
                         continue
@@ -494,18 +519,28 @@ def draw_stats_panel(game):
             panel.addstr(0, 21, "╬", curses.A_BOLD | curses.color_pair(7))
         except:
             panel.addstr(0, 2, " POWER STATUS ", curses.A_BOLD | curses.color_pair(1))
-        # show current objective if a Sith Device exists (either placed or recorded)
+        
+        # Show objective: Collect 3 Jedi Artifacts
         try:
-            sd = getattr(game, 'sith_device', None)
-            if sd:
-                total = len(getattr(game, 'tomb_levels', [])) if getattr(game, 'tomb_levels', None) else getattr(sd, 'get', lambda k, d=None: d)('level', None)
-                cur_level = getattr(game, 'tomb_floor', 0) + 1 if getattr(game, 'tomb_levels', None) else getattr(game, 'current_depth', 1)
-                obj_line = f"Objective: Find the Sith Device (Current L:{cur_level})"
-                try:
-                    panel.addstr(0, max(2, panel.getmaxyx()[1]//2 - len(obj_line)//2), obj_line[: panel.getmaxyx()[1] - 4], curses.color_pair(3) | curses.A_BOLD)
-                except Exception:
-                    try: panel.addstr(1, 2, obj_line[: panel.getmaxyx()[1] - 4], curses.color_pair(3))
-                    except Exception: pass
+            artifacts_collected = getattr(game, 'artifacts_collected', 0)
+            artifacts_needed = getattr(game, 'artifacts_needed', 3)
+            
+            # Build objective text based on progress
+            if artifacts_collected >= artifacts_needed:
+                obj_line = f"⭐ OBJECTIVE COMPLETE: Return to ship! ({artifacts_collected}/{artifacts_needed} artifacts)"
+                obj_color = curses.color_pair(2) | curses.A_BOLD  # Green
+            elif artifacts_collected > 0:
+                obj_line = f"OBJECTIVE: Collect Jedi Artifacts ({artifacts_collected}/{artifacts_needed})"
+                obj_color = curses.color_pair(3) | curses.A_BOLD  # Yellow
+            else:
+                obj_line = f"OBJECTIVE: Find and collect 3 Jedi Artifacts from Sith tombs (0/3)"
+                obj_color = curses.color_pair(3)  # Yellow
+            
+            try:
+                panel.addstr(0, max(2, panel.getmaxyx()[1]//2 - len(obj_line)//2), obj_line[: panel.getmaxyx()[1] - 4], obj_color)
+            except Exception:
+                try: panel.addstr(1, 2, obj_line[: panel.getmaxyx()[1] - 4], obj_color)
+                except Exception: pass
         except Exception:
             pass
         stats_lines = game.player.get_stats_display()
@@ -535,6 +570,14 @@ def draw_stats_panel(game):
                 # Show Dark Side progress
                 panel.addstr(cur_row, left, f"#1#Dark Level: {dark_level}#0# ({dark_xp}/{dark_xp_next} XP)"[: panel.getmaxyx()[1] - 4])
                 cur_row += 1
+                
+                # Show Detection Level (Pursuit System)
+                if hasattr(game, 'pursuit_system'):
+                    detection = game.pursuit_system.detection_level
+                    # Color based on level: Green < 30, Yellow < 70, Red >= 70
+                    det_color = "#2#" if detection < 30 else "#3#" if detection < 70 else "#1#"
+                    panel.addstr(cur_row, left, f"{det_color}Detection: {detection}%#0#"[: panel.getmaxyx()[1] - 4])
+                    cur_row += 1
                 
             except Exception:
                 # Fallback to basic display
@@ -660,10 +703,54 @@ def draw_stats_panel(game):
                 inv_start = cur_row + 1
             except Exception:
                 inv_start = cur_row
-        panel.addstr(inv_start, 2, "-" * (panel.getmaxyx()[1] - 4))
-        panel.addstr(inv_start + 1, 2, "Inventory:", curses.A_UNDERLINE)
+        # --- SYSTEM INTEGRATION: Pursuit, Disguise, Faction, Corruption, Saber ---
+        row = inv_start
+        panel.addstr(row, 2, "-" * (panel.getmaxyx()[1] - 4))
+        row += 1
+        # Pursuit/Detection
+        pursuit = getattr(game, 'pursuit_system', None)
+        if pursuit:
+            detection = getattr(pursuit, 'detection_level', None)
+            if detection is not None:
+                panel.addstr(row, 2, f"Detection: {detection}"[: panel.getmaxyx()[1] - 4], curses.color_pair(3))
+                row += 1
+        # Suspicion/Disguise
+        disguise = getattr(game.player, 'disguise', None)
+        suspicion = getattr(game.player, 'suspicion', None)
+        if disguise:
+            panel.addstr(row, 2, f"Disguise: {getattr(disguise, 'name', str(disguise))}"[: panel.getmaxyx()[1] - 4], curses.color_pair(4))
+            row += 1
+        if suspicion is not None:
+            panel.addstr(row, 2, f"Suspicion: {suspicion}"[: panel.getmaxyx()[1] - 4], curses.color_pair(1))
+            row += 1
+        # Faction Reputation
+        factions = getattr(game, 'faction_manager', None)
+        if factions:
+            rep = getattr(factions, 'reputation', None)
+            if rep:
+                for fname, val in rep.items():
+                    panel.addstr(row, 2, f"{fname} Rep: {val}"[: panel.getmaxyx()[1] - 4], curses.color_pair(6))
+                    row += 1
+        # Corruption/Moral
+        corruption = getattr(game.player, 'corruption', None)
+        if corruption is not None:
+            panel.addstr(row, 2, f"Corruption: {corruption}"[: panel.getmaxyx()[1] - 4], curses.color_pair(5))
+            row += 1
+        # Dynamic Lightsaber
+        saber = getattr(game.player, 'lightsaber', None)
+        if saber:
+            saber_name = getattr(saber, 'name', 'Custom Saber')
+            saber_parts = getattr(saber, 'parts', None)
+            saber_desc = saber_name
+            if saber_parts:
+                saber_desc += " [" + ", ".join([getattr(p, 'name', str(p)) for p in saber_parts]) + "]"
+            panel.addstr(row, 2, f"Saber: {saber_desc}"[: panel.getmaxyx()[1] - 4], curses.color_pair(2))
+            row += 1
+        # --- END SYSTEM INTEGRATION ---
+        panel.addstr(row, 2, "Inventory:", curses.A_UNDERLINE)
+        row += 1
         token_names = {"v": "Vibroblade", "s": "Energy Shield", "b": "Blaster Pistol"}
-        inv_lines_limit = max(0, panel.getmaxyx()[0] - inv_start - 3)
+        inv_lines_limit = max(0, panel.getmaxyx()[0] - row - 3)
         def _item_name(item):
             try:
                 if isinstance(item, str):
@@ -677,15 +764,15 @@ def draw_stats_panel(game):
 
         for i, item in enumerate(game.player.inventory[: inv_lines_limit]):
             name = _item_name(item)
-            panel.addstr(inv_start + 2 + i, 2, f"- {name}"[: panel.getmaxyx()[1] - 4])
+            panel.addstr(row + i, 2, f"- {name}"[: panel.getmaxyx()[1] - 4])
+        row += inv_lines_limit
         try:
-            panel.addstr(inv_start + 2 + inv_lines_limit, 2, "-" * (panel.getmaxyx()[1] - 4))
+            panel.addstr(row, 2, "-" * (panel.getmaxyx()[1] - 4))
             # format equipped names safely
             try:
                 ew = getattr(game.player, 'equipped_weapon', None)
                 eo = getattr(game.player, 'equipped_offhand', None)
                 ea = getattr(game.player, 'equipped_armor', None)
-                
                 def _fmt(eq):
                     if eq is None:
                         return 'None'
@@ -694,7 +781,6 @@ def draw_stats_panel(game):
                     if isinstance(eq, str):
                         return token_names.get(eq, eq)
                     return getattr(eq, 'name', str(eq))
-                
                 # Main weapon with ammo if applicable
                 weapon_line = f"Main: {_fmt(ew)}"
                 ammo_display = ""
@@ -703,60 +789,10 @@ def draw_stats_panel(game):
                     max_ammo = None
                     if isinstance(ew, dict):
                         ammo = ew.get('ammo', None)
-                        # Try to get max ammo from weapon def
                         max_ammo = ew.get('max_ammo', None)
                     elif hasattr(ew, 'ammo'):
                         ammo = getattr(ew, 'ammo', None)
                         max_ammo = getattr(ew, 'max_ammo', None)
-                    
-                    if ammo is not None:
-                        # Visual ammo counter with bullets
-                        if ammo > 0:
-                            # Show bullets based on percentage
-                            if max_ammo and max_ammo > 0:
-                                bullet_count = min(10, max_ammo)  # Max 10 bullets displayed
-                                filled = int((ammo / max_ammo) * bullet_count)
-                                ammo_display = f" {'●' * filled}{'○' * (bullet_count - filled)}"
-                            else:
-                                # Just show count if max unknown
-                                ammo_display = f" [{ammo}rds]"
-                        else:
-                            ammo_display = " [EMPTY]"
-                
-                try:
-                    panel.addstr(inv_start + 3 + inv_lines_limit, 2, weapon_line[: panel.getmaxyx()[1] - 4 - len(ammo_display)])
-                    if ammo_display:
-                        # Color code ammo display
-                        if "[EMPTY]" in ammo_display:
-                            color = curses.color_pair(1) | curses.A_BOLD  # Red
-                        elif '●' in ammo_display:
-                            bullets_filled = ammo_display.count('●')
-                            bullets_total = ammo_display.count('●') + ammo_display.count('○')
-                            if bullets_filled >= bullets_total * 0.7:
-                                color = curses.color_pair(2)  # Green
-                            elif bullets_filled >= bullets_total * 0.3:
-                                color = curses.color_pair(3)  # Yellow
-                            else:
-                                color = curses.color_pair(1)  # Red
-                        else:
-                            color = curses.color_pair(7)  # White
-                        panel.addstr(inv_start + 3 + inv_lines_limit, 2 + len(weapon_line), ammo_display, color)
-                except Exception:
-                    panel.addstr(inv_start + 3 + inv_lines_limit, 2, (weapon_line + ammo_display)[: panel.getmaxyx()[1] - 4])
-                
-                # Offhand
-                offhand_line = f"Off: {_fmt(eo)}"
-                ammo_display = ""
-                if eo:
-                    ammo = None
-                    max_ammo = None
-                    if isinstance(eo, dict):
-                        ammo = eo.get('ammo', None)
-                        max_ammo = eo.get('max_ammo', None)
-                    elif hasattr(eo, 'ammo'):
-                        ammo = getattr(eo, 'ammo', None)
-                        max_ammo = getattr(eo, 'max_ammo', None)
-                    
                     if ammo is not None:
                         if ammo > 0:
                             if max_ammo and max_ammo > 0:
@@ -767,9 +803,8 @@ def draw_stats_panel(game):
                                 ammo_display = f" [{ammo}rds]"
                         else:
                             ammo_display = " [EMPTY]"
-                
                 try:
-                    panel.addstr(inv_start + 4 + inv_lines_limit, 2, offhand_line[: panel.getmaxyx()[1] - 4 - len(ammo_display)])
+                    panel.addstr(row + 1, 2, weapon_line[: panel.getmaxyx()[1] - 4 - len(ammo_display)])
                     if ammo_display:
                         if "[EMPTY]" in ammo_display:
                             color = curses.color_pair(1) | curses.A_BOLD
@@ -784,17 +819,57 @@ def draw_stats_panel(game):
                                 color = curses.color_pair(1)
                         else:
                             color = curses.color_pair(7)
-                        panel.addstr(inv_start + 4 + inv_lines_limit, 2 + len(offhand_line), ammo_display, color)
+                        panel.addstr(row + 1, 2 + len(weapon_line), ammo_display, color)
                 except Exception:
-                    panel.addstr(inv_start + 4 + inv_lines_limit, 2, (offhand_line + ammo_display)[: panel.getmaxyx()[1] - 4])
-                
+                    panel.addstr(row + 1, 2, (weapon_line + ammo_display)[: panel.getmaxyx()[1] - 4])
+                # Offhand
+                offhand_line = f"Off: {_fmt(eo)}"
+                ammo_display = ""
+                if eo:
+                    ammo = None
+                    max_ammo = None
+                    if isinstance(eo, dict):
+                        ammo = eo.get('ammo', None)
+                        max_ammo = eo.get('max_ammo', None)
+                    elif hasattr(eo, 'ammo'):
+                        ammo = getattr(eo, 'ammo', None)
+                        max_ammo = getattr(eo, 'max_ammo', None)
+                    if ammo is not None:
+                        if ammo > 0:
+                            if max_ammo and max_ammo > 0:
+                                bullet_count = min(10, max_ammo)
+                                filled = int((ammo / max_ammo) * bullet_count)
+                                ammo_display = f" {'●' * filled}{'○' * (bullet_count - filled)}"
+                            else:
+                                ammo_display = f" [{ammo}rds]"
+                        else:
+                            ammo_display = " [EMPTY]"
+                try:
+                    panel.addstr(row + 2, 2, offhand_line[: panel.getmaxyx()[1] - 4 - len(ammo_display)])
+                    if ammo_display:
+                        if "[EMPTY]" in ammo_display:
+                            color = curses.color_pair(1) | curses.A_BOLD
+                        elif '●' in ammo_display:
+                            bullets_filled = ammo_display.count('●')
+                            bullets_total = ammo_display.count('●') + ammo_display.count('○')
+                            if bullets_filled >= bullets_total * 0.7:
+                                color = curses.color_pair(2)
+                            elif bullets_filled >= bullets_total * 0.3:
+                                color = curses.color_pair(3)
+                            else:
+                                color = curses.color_pair(1)
+                        else:
+                            color = curses.color_pair(7)
+                        panel.addstr(row + 2, 2 + len(offhand_line), ammo_display, color)
+                except Exception:
+                    panel.addstr(row + 2, 2, (offhand_line + ammo_display)[: panel.getmaxyx()[1] - 4])
                 # Armor
-                panel.addstr(inv_start + 5 + inv_lines_limit, 2, f"Armor: {_fmt(ea)}"[: panel.getmaxyx()[1] - 4])
+                panel.addstr(row + 3, 2, f"Armor: {_fmt(ea)}"[: panel.getmaxyx()[1] - 4])
             except Exception:
                 try:
-                    panel.addstr(inv_start + 3 + inv_lines_limit, 2, f"W: {getattr(game.player, 'equipped_weapon', 'None')}"[: panel.getmaxyx()[1] - 4])
-                    panel.addstr(inv_start + 4 + inv_lines_limit, 2, f"Off: {getattr(game.player, 'equipped_offhand', 'None')}"[: panel.getmaxyx()[1] - 4])
-                    panel.addstr(inv_start + 5 + inv_lines_limit, 2, f"A: {getattr(game.player, 'equipped_armor', 'None')}"[: panel.getmaxyx()[1] - 4])
+                    panel.addstr(row + 1, 2, f"W: {getattr(game.player, 'equipped_weapon', 'None')}"[: panel.getmaxyx()[1] - 4])
+                    panel.addstr(row + 2, 2, f"Off: {getattr(game.player, 'equipped_offhand', 'None')}"[: panel.getmaxyx()[1] - 4])
+                    panel.addstr(row + 3, 2, f"A: {getattr(game.player, 'equipped_armor', 'None')}"[: panel.getmaxyx()[1] - 4])
                 except Exception:
                     pass
         except Exception: pass
@@ -819,10 +894,15 @@ def draw_stats_panel(game):
                         if int(getattr(e, 'x', -999)) == fx and int(getattr(e, 'y', -999)) == fy and getattr(e, 'is_alive', (lambda: True))():
                             ename = getattr(e, 'name', str(e))
                             lvl = getattr(e, 'level', None)
+                            hp = getattr(e, 'hp', '?')
+                            max_hp = getattr(e, 'max_hp', '?')
+                            dist = max(abs(fx - px), abs(fy - py))  # Chebyshev distance
+                            
+                            # Build detailed ahead description
                             if lvl is not None:
-                                ahead_desc = f"{ename} (Lv {lvl})"
+                                ahead_desc = f"{ename} (Lv{lvl}) HP:{hp}/{max_hp} [{dist}t]"
                             else:
-                                ahead_desc = f"{ename}"
+                                ahead_desc = f"{ename} HP:{hp}/{max_hp} [{dist}t]"
                             break
                     except Exception:
                         continue

@@ -1,38 +1,41 @@
+# Global for passing load_save to _curses_main
+_LOAD_SAVE_FOR_CURSES = False
+
 import curses
 import sys
 import traceback
 import os
 
-from jedi_fugitive.game.game_manager import GameManager
 
-def _curses_main(stdscr, load_save=False):
-    # Existing initialization entrypoint expected by the project
+def _curses_main(stdscr):
     try:
+        # Import GameManager and save system only after curses is initialized
+        from jedi_fugitive.game.game_manager import GameManager
         gm = GameManager(stdscr)
         
         # Load save if requested
-        if load_save:
+        global _LOAD_SAVE_FOR_CURSES
+        if _LOAD_SAVE_FOR_CURSES:
             try:
                 from jedi_fugitive.game.save_system import load_game, apply_save_data, get_autosave_path
                 save_data = load_game(get_autosave_path())
                 if save_data and apply_save_data(gm, save_data):
-                    # Save was loaded successfully
                     if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
                         gm.ui.messages.add("Game loaded! Welcome back, wanderer.")
                 else:
-                    # Load failed, start new game
                     if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
                         gm.ui.messages.add("Failed to load save. Starting new game...")
             except Exception as e:
-                # Load failed, start new game
                 if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
                     gm.ui.messages.add(f"Load error: {e}. Starting new game...")
         
-        gm.run()
-        # Return the game manager so we can check death/victory state
+        try:
+            gm.run()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
         return gm
     except Exception as e:
-        # Try to ensure curses cleans up
         try:
             curses.endwin()
         except Exception:
@@ -43,18 +46,90 @@ def main():
     from jedi_fugitive.game.sith_codex import get_random_loading_message
     from jedi_fugitive.game.save_system import get_autosave_path, list_saves
     
-    print("\n" + "=" * 63)
-    print("|" + " " * 61 + "|")
-    print("|            >>> DARK MERIDIAN <<<                     |")
-    print("|" + " " * 61 + "|")
-    print("|    The Order burns. Your Master lies dead. The          |")
-    print("|    meridian between light and dark calls to you.        |")
-    print("|                                                         |")
-    print("|    Will you fall to corruption, or rise above it?       |")
-    print("|" + " " * 61 + "|")
-    print("=" * 63 + "\n")
+    # === INITIAL SPLASH SCREEN (printed to terminal before game starts) ===
+    # Get terminal width for centering
+    try:
+        term_width = shutil.get_terminal_size().columns
+    except:
+        term_width = 80
     
-    # Check for existing save files
+    # Center function for variable-width content
+    def center_line(text):
+        """Center a line of text in the terminal"""
+        if len(text) >= term_width:
+            return text
+        padding = (term_width - len(text)) // 2
+        return ' ' * padding + text
+    
+    # Box components (already sized)
+    box_line = "╔═══════════════════════════════════════════════════════════════════════════╗"
+    empty_line = "║                                                                           ║"
+    dark_line1 = "║                       ██████╗  █████╗ ██████╗ ██╗  ██╗                   ║"
+    dark_line2 = "║                       ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝                   ║"
+    dark_line3 = "║                       ██║  ██║███████║██████╔╝█████╔╝                    ║"
+    dark_line4 = "║                       ██║  ██║██╔══██║██╔══██╗██╔═██╗                    ║"
+    dark_line5 = "║                       ██████╔╝██║  ██║██║  ██║██║  ██╗                   ║"
+    dark_line6 = "║                       ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝                   ║"
+    merid_line1 = "║           ███╗   ███╗███████╗██████╗ ██╗██████╗ ██╗ █████╗ ███╗   ██╗   ║"
+    merid_line2 = "║           ████╗ ████║██╔════╝██╔══██╗██║██╔══██╗██║██╔══██╗████╗  ██║   ║"
+    merid_line3 = "║           ██╔████╔██║█████╗  ██████╔╝██║██║  ██║██║███████║██╔██╗ ██║   ║"
+    merid_line4 = "║           ██║╚██╔╝██║██╔══╝  ██╔══██╗██║██║  ██║██║██╔══██║██║╚██╗██║   ║"
+    merid_line5 = "║           ██║ ╚═╝ ██║███████╗██║  ██║██║██████╔╝██║██║  ██║██║ ╚████║   ║"
+    merid_line6 = "║           ╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ║"
+    box_bottom = "╚═══════════════════════════════════════════════════════════════════════════╝"
+    
+    print("\n" * 3)
+    print(center_line("="*80))
+    print()
+    print(center_line(box_line))
+    print(center_line(empty_line))
+    print(center_line(dark_line1))
+    print(center_line(dark_line2))
+    print(center_line(dark_line3))
+    print(center_line(dark_line4))
+    print(center_line(dark_line5))
+    print(center_line(dark_line6))
+    print(center_line(empty_line))
+    print(center_line(merid_line1))
+    print(center_line(merid_line2))
+    print(center_line(merid_line3))
+    print(center_line(merid_line4))
+    print(center_line(merid_line5))
+    print(center_line(merid_line6))
+    print(center_line(empty_line))
+    print(center_line(box_bottom))
+    print()
+    print(center_line("="*80))
+    print()
+    print(center_line("═══════════════════════════════════════════════════════════════════════"))
+    print()
+    print(center_line("Your transport burns in the wastes of Korriban, the ancient"))
+    print(center_line("Sith homeworld. The crash site smolders behind you - your"))
+    print(center_line("only hope of escape reduced to twisted metal and ash."))
+    print()
+    print(center_line("Towering tombs pierce the crimson sky. Sith Lords long dead"))
+    print(center_line("whisper through the Force, their power seeping into the very"))
+    print(center_line("stones beneath your feet. The dark side is strong here..."))
+    print()
+    print(center_line("YOUR MISSION: Recover stolen Jedi holocrons from the tombs"))
+    print(center_line("YOUR CHALLENGE: Resist the corruption gnawing at your soul"))
+    print(center_line("YOUR FATE: Escape with your life... and your light intact"))
+    print()
+    print(center_line("═══════════════════════════════════════════════════════════════════════"))
+    print()
+    print(center_line("\"The dark places of the galaxy hold many secrets -\""))
+    print(center_line("\"treasures of power, and terrible truths. Few who\""))
+    print(center_line("\"seek them return unchanged.\"  - Master Kreia"))
+    print()
+    print(center_line("═══════════════════════════════════════════════════════════════════════"))
+    print()
+    print(center_line("Press [ENTER] to start your journey..."))
+    print()
+    
+    # Wait for user to read splash screen
+    input()
+
+    # Check for save files and allow selection
     load_save = False
     try:
         saves = list_saves()
@@ -77,6 +152,9 @@ def main():
             elif choice == 'Q':
                 print("⚡ The darkness claims another soul. May the Force be with you... ⚡")
                 sys.exit(0)
+        else:
+            # No saves - just wait for enter
+            pass
     except Exception as e:
         print(f"⚠ Error checking for saves: {e}")
     
@@ -110,94 +188,66 @@ def main():
     play_again = True
     while play_again:
         try:
-            # Show splash before curses starts
-            try:
-                term_size = os.get_terminal_size()
-                term_w = term_size.columns
-                GameManager.show_splash_static(term_w)
-                sys.stdout.flush()  # Ensure splash is visible
-                # Wait for user to press Enter before starting curses
-                if not load_save:
-                    input("\nPress Enter to begin your journey...")
-                else:
-                    input("\nPress Enter to continue your journey...")
-            except Exception as e:
-                print(f"⚠ Splash screen initialization issue: {e}")
-                sys.stdout.flush()
+            # Show loading message
+            print()
             print(get_random_loading_message())
-            
+            sys.stdout.flush()
+
             # Primary: run under curses wrapper (requires a real terminal)
-            gm = curses.wrapper(_curses_main, load_save)
+            try:
+                global _LOAD_SAVE_FOR_CURSES
+                _LOAD_SAVE_FOR_CURSES = load_save
+                gm = curses.wrapper(_curses_main)
+            except Exception as e:
+                print(f"[DEBUG] Exception in curses.wrapper: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
+
+            # Ensure curses is properly ended before showing ending screens
+            try:
+                curses.endwin()
+            except Exception:
+                pass
             
             # After curses exits, show death or victory screen if applicable
             restart = False
             if gm and hasattr(gm, 'death') and gm.death:
-                sys.stdout.flush()
                 restart = gm.show_death_stats()
             elif gm and hasattr(gm, 'victory') and gm.victory:
-                sys.stdout.flush()
                 restart = gm.show_victory_stats()
             # If neither death nor victory, user quit normally - don't restart
             elif gm and hasattr(gm, 'running') and not gm.running:
                 # User quit with 'q' - exit cleanly
                 restart = False
-            
+
             # Check if user wants to play again
             play_again = restart
             load_save = False  # Always start fresh game on restart
-            
+
         except curses.error as e:
             if logger:
                 logger.log_error("CURSES_ERROR", "Curses initialization failed", e)
-            sys.stderr.write("Curses initialization failed: " + repr(e) + "\n")
-            sys.stderr.write("Make sure you run the game in a real terminal (Terminal.app / iTerm) and TERM is set, e.g.:\n")
-            sys.stderr.write("  export TERM=xterm-256color\n")
-            sys.stderr.write("Or configure your VS Code launch config to use an external terminal.\n")
-            sys.stderr.write("Attempting a headless initialization for diagnostics...\n")
+            print("\n" + "="*60)
+            print("⚠️  TERMINAL INCOMPATIBILITY DETECTED")
+            print("="*60)
+            print("\nThis game requires a proper terminal with curses support.")
+            print("\n❌ Current environment cannot display the game interface.")
+            print("\n✅ To play the game, run it in:")
+            print("   • macOS: Terminal.app or iTerm2")
+            print("   • Linux: gnome-terminal, konsole, xterm")
+            print("   • Windows: Windows Terminal or WSL")
+            print("\n📝 Quick fix for macOS/Linux:")
+            print("   export TERM=xterm-256color")
+            print("   python -m jedi_fugitive.main")
+            print("\n💡 VS Code users: Configure launch.json to use external terminal")
+            print("="*60 + "\n")
             play_again = False
-        # Headless diagnostic fallback: instantiate GameManager with a minimal dummy stdscr
-        try:
-            class DummyStdScr:
-                def __init__(self, h=24, w=80):
-                    self._h = h; self._w = w
-                def getmaxyx(self): return (self._h, self._w)
-                def subwin(self, h, w, y, x): return self
-                def clear(self): pass
-                def erase(self): pass
-                def border(self): pass
-                def addstr(self, *args, **kwargs): pass
-                def addnstr(self, *args, **kwargs): pass
-                def refresh(self): pass
-                def noutrefresh(self): pass
-                def resize(self, h, w): self._h = h; self._w = w
-                def mvwin(self, y, x): pass
-                def move(self, y, x): pass
-                def clrtoeol(self): pass
-                def getch(self): return -1
+            # Skip headless diagnostic since it confuses users
+            if logger:
+                logger.close()
+            return
 
-            dummy = DummyStdScr()
-            print(get_random_loading_message())
-            gm = GameManager(dummy)
-            try:
-                print(get_random_loading_message())
-                gm.initialize()
-                print(get_random_loading_message())
-                gm.generate_world()
-                print(get_random_loading_message())
-                gm.compute_visibility()
-                print(get_random_loading_message())
-                gm.draw()
-                print("✓ Headless initialization successful")
-                sys.stderr.write("Headless initialization successful. The UI draw completed without a TTY.\n")
-                sys.stderr.write("Run in a proper terminal to play the game.\n")
-            except Exception as e:
-                print(f"⚠ Headless initialization encountered an issue: {e}")
-                sys.stderr.write("Headless initialization failed:\n")
-                traceback.print_exc(limit=20)
-            except Exception as e:
-                print(f"⚠ Error during diagnostics: {e}")
-                sys.stderr.write("Unexpected error while attempting headless diagnostics:\n")
-                traceback.print_exc(limit=20)
         except KeyboardInterrupt:
             print("\n\nGame interrupted. Farewell, wanderer.")
             play_again = False
@@ -216,6 +266,7 @@ def main():
     # Close logger
     if logger:
         logger.close()
+
 
 if __name__ == "__main__":
     main()

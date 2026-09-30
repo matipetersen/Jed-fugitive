@@ -1,3 +1,5 @@
+from jedi_fugitive.game import logger as game_logger
+log = getattr(game_logger, 'get_logger', lambda name=None: None)("save_system")
 """Save and load game state system."""
 import json
 import os
@@ -10,9 +12,9 @@ def get_save_directory() -> Path:
     """Get the save directory path, creating it if needed."""
     # Use user's home directory for cross-platform compatibility
     if os.name == 'nt':  # Windows
-        save_dir = Path(os.environ.get('APPDATA', '~')) / 'JediFugitive' / 'saves'
+        save_dir = Path(os.environ.get('APPDATA', '~')) / 'DarkMeridian' / 'saves'
     else:  # Mac/Linux
-        save_dir = Path.home() / '.jedi_fugitive' / 'saves'
+        save_dir = Path.home() / '.dark_meridian' / 'saves'
     
     save_dir.mkdir(parents=True, exist_ok=True)
     return save_dir
@@ -33,7 +35,9 @@ def _is_json_serializable(obj) -> bool:
     try:
         json.dumps(obj)
         return True
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        if log:
+            log.exception("Object not JSON serializable", exc_info=e)
         return False
 
 

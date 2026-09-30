@@ -1,6 +1,11 @@
+
 from jedi_fugitive.game.force_abilities import ForcePushPull
+# Logger import
+from jedi_fugitive.utils.logger import get_logger
+logger = get_logger(__name__)
 
 def choose_ability(game):
+    """Show Force abilities menu popup and return chosen ability."""
     abilities = game.player.get_available_abilities() or []
     expanded = []
     for a in abilities:
@@ -18,7 +23,8 @@ def choose_ability(game):
                     except TypeError:
                         try:
                             return self._base.use(*args, self.mode, **kwargs)
-                        except Exception:
+                        except Exception as e:
+                            logger.exception(f"Exception in ForcePushPull _W.use: {e}")
                             return False
             expanded.append(_W(a, "push"))
             expanded.append(_W(a, "pull"))
@@ -26,24 +32,54 @@ def choose_ability(game):
             expanded.append(a)
     abilities = expanded
     if not abilities:
-        try: game.ui.messages.add("No abilities available.") 
-        except Exception: pass
+        try:
+            game.ui.messages.add("No Force abilities available yet.")
+        except Exception as e:
+            logger.exception(f"Exception adding 'No abilities available.' message: {e}")
         return None
-    for i, a in enumerate(abilities[:9]):
-        try: game.ui.messages.add(f"{i+1}) {getattr(a,'name',str(a))}") 
-        except Exception: pass
+    
+    # Create popup menu
+    import curses
+    h, w = game.stdscr.getmaxyx()
+    menu_height = min(len(abilities) + 4, h - 4)
+    menu_width = 50
+    start_y = (h - menu_height) // 2
+    start_x = (w - menu_width) // 2
+    
+    # Create popup window
     try:
-        from jedi_fugitive.game.ui_renderer import draw
-        draw(game)
-    except Exception:
-        pass
+        popup = curses.newwin(menu_height, menu_width, start_y, start_x)
+        popup.box()
+        popup.addstr(0, 2, " FORCE ABILITIES ", curses.A_BOLD)
+        
+        # Display abilities
+        for i, a in enumerate(abilities[:9]):
+            ability_name = getattr(a, 'name', str(a))
+            popup.addstr(i + 2, 2, f"{i+1}) {ability_name}")
+        
+        popup.addstr(menu_height - 1, 2, "[ESC] Cancel", curses.A_DIM)
+        popup.refresh()
+    except Exception as e:
+        logger.exception(f"Exception creating Force abilities popup: {e}")
+        # Fallback to message-based menu
+        for i, a in enumerate(abilities[:9]):
+            try:
+                game.ui.messages.add(f"{i+1}) {getattr(a,'name',str(a))}")
+            except Exception: pass
+        try:
+            from jedi_fugitive.game.ui_renderer import draw
+            draw(game)
+        except Exception: pass
+    
     key = game.stdscr.getch()
     if key >= ord('1') and key <= ord('9'):
         idx = key - ord('1')
         if idx < len(abilities):
             return abilities[idx]
-    try: game.ui.messages.add("Ability selection cancelled.") 
-    except Exception: pass
+    try:
+        game.ui.messages.add("Ability selection cancelled.")
+    except Exception as e:
+        logger.exception(f"Exception adding 'Ability selection cancelled.' message: {e}")
     return None
 
 def use_force_ability(game, ability, tx, ty):
@@ -62,20 +98,35 @@ def use_force_ability(game, ability, tx, ty):
             except TypeError:
                 try:
                     used = ability.use(game.player, tx, ty)
-                except Exception:
+                except Exception as e:
+                    logger.exception(f"Exception using ability (final fallback): {e}")
                     used = False
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Exception using ability: {e}")
         used = False
+    
+    # Update pursuit system if ability was used successfully
+    if used and hasattr(game, 'pursuit_system'):
+        game.pursuit_system.update_detection('force')
+
     # restore equipment if cleared
     try:
         if prev_w is not None and getattr(game.player, "equipped_weapon", None) is None:
-            try: from jedi_fugitive.game.equipment import _apply_equipment_effects; _apply_equipment_effects(game, prev_w, "weapon")
-            except Exception: game.player.equipped_weapon = prev_w
+            try:
+                from jedi_fugitive.game.equipment import _apply_equipment_effects
+                _apply_equipment_effects(game, prev_w, "weapon")
+            except Exception as e:
+                logger.exception(f"Exception restoring equipped weapon: {e}")
+                game.player.equipped_weapon = prev_w
         if prev_a is not None and getattr(game.player, "equipped_armor", None) is None:
-            try: from jedi_fugitive.game.equipment import _apply_equipment_effects; _apply_equipment_effects(game, prev_a, "armor")
-            except Exception: game.player.equipped_armor = prev_a
-    except Exception:
-        pass
+            try:
+                from jedi_fugitive.game.equipment import _apply_equipment_effects
+                _apply_equipment_effects(game, prev_a, "armor")
+            except Exception as e:
+                logger.exception(f"Exception restoring equipped armor: {e}")
+                game.player.equipped_armor = prev_a
+    except Exception as e:
+        logger.exception(f"Exception in equipment restore block: {e}")
 
     if used:
         try: game.ui.messages.add(f"Used {getattr(ability,'name',str(ability))}.") 
@@ -84,6 +135,26 @@ def use_force_ability(game, ability, tx, ty):
         # if ability wrapper specified a mode, apply push/pull physics to the actor on (tx,ty)
         mode = getattr(ability, "mode", None)
         if mode in ("push", "pull"):
+            # Add descriptive Force push/pull message
+            import random
+            if mode == "push":
+                push_messages = [
+                    f"#11#You thrust your hand forward - an invisible Force wave erupts outward!#0#",
+                    f"#11#The Force surges through you, hurling everything before you backward!#0#",
+                    f"#11#With a commanding gesture, you unleash a telekinetic blast!#0#",
+                    f"#11#Raw Force energy explodes from your palm!#0#",
+                ]
+                try: game.ui.messages.add(random.choice(push_messages))
+                except Exception: pass
+            else:
+                pull_messages = [
+                    f"#11#You clench your fist - the Force yanks your target toward you!#0#",
+                    f"#11#An invisible grip seizes your foe, dragging them closer!#0#",
+                    f"#11#You reach out through the Force, pulling your enemy inexorably forward!#0#",
+                    f"#11#With a sharp gesture, you command the Force to bring them to you!#0#",
+                ]
+                try: game.ui.messages.add(random.choice(pull_messages))
+                except Exception: pass
             try:
                 # First, check if target is a boulder (for Sith Keep puzzles)
                 map_h = len(game.game_map)

@@ -1,5 +1,11 @@
+
 from enum import Enum
 import random
+
+# Logger import
+from jedi_fugitive.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Dynamic taunts based on player's dark side progression with environmental context
 ENEMY_TAUNTS_BY_ALIGNMENT = {
@@ -101,6 +107,154 @@ ENEMY_TAUNTS_BY_ALIGNMENT = {
 }
 
 ENEMY_TAUNTS = ENEMY_TAUNTS_BY_ALIGNMENT["light"]
+
+# Faction-specific taunts for human/sentient enemies
+FACTION_TAUNTS = {
+    "Sith Empire": {
+        "attack": [
+            "For the Sith Empire!",
+            "Submit to the Emperor!",
+            "Republic scum!",
+            "You are in violation of Sith law!",
+            "Blast them!",
+            "No one escapes the Sith!",
+            "Sector is not clear, engaging!",
+            "Target acquired, terminating!",
+            "Long live the Emperor!",
+            "Your resistance is futile!",
+        ],
+        "defend": [
+            "Hold the line!",
+            "Reinforcements are inbound!",
+            "You cannot break Sith discipline!",
+            "For the glory of the Empire!",
+            "Maintain formation!",
+        ],
+        "low_hp": [
+            "I die for the Empire!",
+            "Requesting backup...!",
+            "You'll never defeat us all!",
+            "The Emperor... protects...",
+            "Mission... failed...",
+        ]
+    },
+    "Republic": {
+        "attack": [
+            "For the Republic!",
+            "Down with the Sith!",
+            "We fight for freedom!",
+            "You won't take us alive!",
+            "For the Senate!",
+            "Hope never dies!",
+            "Tyranny ends here!",
+            "Remember Coruscant!",
+        ],
+        "defend": [
+            "Stay strong!",
+            "We have to hold them back!",
+            "For the cause!",
+            "Don't let them break us!",
+            "Freedom is worth fighting for!",
+        ],
+        "low_hp": [
+            "Others will take my place!",
+            "The Republic... remains...",
+            "Freedom... forever...",
+            "Tell them... I stood...",
+        ]
+    },
+    "Hutt": { # Cartel thugs/mercenaries
+        "attack": [
+            "The Hutt wants you dead!",
+            "Nothing personal, just business!",
+            "There's a high price on your head!",
+            "Pay up or die!",
+            "No one crosses the Cartel!",
+            "Your credits are mine!",
+            "Looks like a big payout!",
+        ],
+        "defend": [
+            "I'm not paid enough for this!",
+            "You'll pay for that!",
+            "My contract doesn't cover this!",
+            "Protect the merchandise!",
+        ],
+        "low_hp": [
+            "Double... the pay...",
+            "I should have asked for more...",
+            "Not worth... the credits...",
+            "The Hutt will... find you...",
+        ]
+    },
+    "Settlers": {
+        "attack": [
+            "Get off our land!",
+            "We protect our own!",
+            "Leave us alone!",
+            "You brought this on yourself!",
+            "We won't be victims anymore!",
+            "Defend the settlement!",
+        ],
+        "defend": [
+            "Stand your ground!",
+            "Protect the families!",
+            "We have nowhere else to go!",
+            "This is our home!",
+        ],
+        "low_hp": [
+            "Please... spare the others...",
+            "I tried...",
+            "Don't let them... take it...",
+            "My family...",
+        ]
+    },
+    "Mandalorian": {
+        "attack": [
+            "This is the Way.",
+            "I can bring you in warm, or I can bring you in cold.",
+            "Weapons are part of my religion.",
+            "For Mandalore!",
+            "Prove your worth!",
+            "A worthy opponent!",
+            "Beskar holds!",
+        ],
+        "defend": [
+            "Your attacks are useless against Beskar!",
+            "Is that the best you have?",
+            "Armor holds!",
+            "I am iron!",
+        ],
+        "low_hp": [
+            "A warrior's death...",
+            "This is the Way...",
+            "You fought... well...",
+            "Mandalore... endures...",
+        ]
+    },
+    "Sith": { # Cultists/Acolytes specifically
+        "attack": [
+            "Peace is a lie!",
+            "Through passion, I gain strength!",
+            "The Force shall free me!",
+            "Bleed for me!",
+            "Your pain feeds the Dark Side!",
+            "Suffer!",
+            "Die, Jedi!",
+        ],
+        "defend": [
+            "My chains are broken!",
+            "Power! Unlimited power!",
+            "The Dark Side is my shield!",
+            "Your light is dimming!",
+        ],
+        "low_hp": [
+            "The Force... shall free me...",
+            "My passion... burns...",
+            "Darkness... take me...",
+            "I return... to the shadows...",
+        ]
+    }
+}
 
 # Animal/Fauna taunts (emotes only, no words)
 FAUNA_TAUNTS = {
@@ -445,7 +599,7 @@ def get_contextual_taunt(player, situation="attack", game_context=None):
 
 
 class EnemyPersonality:
-    def __init__(self, is_jedi=False, enemy_type=None, personality_traits=None):
+    def __init__(self, is_jedi=False, enemy_type=None, personality_traits=None, aggressiveness=50, cautiousness=50, name=None):
         self.is_jedi = is_jedi
         self.enemy_type = enemy_type
         self.personality_traits = personality_traits or []
@@ -453,6 +607,23 @@ class EnemyPersonality:
         self.combat_history = []  # Track combat interactions
         self.relationship_modifier = 0  # How enemy feels about player
         self.fear_level = 0  # 0-100, affects taunts when low HP
+        
+        # Legacy/AI traits
+        self.aggressiveness = int(aggressiveness) if aggressiveness is not None else 50
+        self.cautiousness = int(cautiousness) if cautiousness is not None else 50
+        self.name = name or "Personality"
+
+    def choose_action(self, context=None):
+        """Return a string representing a chosen behavior (best-effort)."""
+        try:
+            import random
+            if random.random() < (self.aggressiveness / 100.0):
+                return "attack"
+            if random.random() < (self.cautiousness / 100.0):
+                return "retreat"
+            return "attack" # Default
+        except:
+            return "attack"
 
     def get_taunt(self, situation, player=None):
         """Get a taunt based on situation and player alignment/actions."""
@@ -492,7 +663,8 @@ class EnemyPersonality:
                 # Fallback to base taunts
                 taunt_list = self.base_taunts.get(situation, ["..."])
             return random.choice(taunt_list)
-        except Exception:
+        except Exception as e:
+            logger.exception(f"Exception in EnemyPersonality.get_taunt: {e}")
             # Ultimate fallback
             return random.choice(["*hisses*", "*growls*", "*scuttles*", "*creature noises*"])
 
@@ -678,5 +850,6 @@ def get_massive_creature_taunt(creature_type: str, situation: str = "attack") ->
         taunts = MASSIVE_CREATURE_TAUNTS.get(creature_key, {})
         taunt_list = taunts.get(situation, taunts.get("attack", ["*Massive creature stirs*"]))
         return random.choice(taunt_list)
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Exception in get_massive_creature_taunt: {e}")
         return "*The massive creature looms menacingly*"

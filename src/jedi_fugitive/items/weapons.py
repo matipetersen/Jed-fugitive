@@ -147,7 +147,7 @@ WEAPONS = [
     # Common Ranged (3 weapons)
     Weapon("DL-44 Blaster Pistol", WeaponType.BLASTER_PISTOL, (4, 8), 75, 2, 5, ["Quick Draw", "Reliable"],
            base_damage=3, accuracy_mod=5, crit_mod=3, rarity="Common",
-           description="Han Solo's favorite. Reliable sidearm. +3 Attack",
+           description="Reliable Republic sidearm. Standard issue. +3 Attack",
            hands=HandRequirement.ONE_HAND, ammo=12, range=5),
     Weapon("Ion Blaster", WeaponType.RANGED, (5, 9), 80, 2, 6, ["Droid Killer", "EMP"],
            base_damage=4, accuracy_mod=6, crit_mod=3, rarity="Common",
@@ -161,7 +161,7 @@ WEAPONS = [
     # Uncommon Ranged (3 weapons)
     Weapon("E-11 Blaster Rifle", WeaponType.BLASTER_RIFLE, (6, 10), 80, 3, 7, ["Stunning Shot", "Precision"],
            base_damage=5, accuracy_mod=7, crit_mod=4, rarity="Uncommon",
-           description="Standard Imperial rifle. Good accuracy. +5 Attack, +7 Accuracy",
+           description="Standard Sith rifle. Good accuracy. +5 Attack, +7 Accuracy",
            hands=HandRequirement.TWO_HAND, ammo=30, range=7),
     Weapon("Bowcaster", WeaponType.WOOKIE_BOWCASTER, (12, 18), 65, 5, 4, ["Explosive Quarrels", "Knockback"],
            base_damage=8, accuracy_mod=2, crit_mod=8, rarity="Uncommon",

@@ -1,0 +1,80 @@
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 479, in main
+    success = speed_sim.speed_run()
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 299, in speed_run
+    if not self.explore_tomb():
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 244, in explore_tomb
+    if self.simulate_combat(enemy):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 197, in simulate_combat
+    while self.game.player.xp >= self.game.player.xp_needed:
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Player' object has no attribute 'xp_needed'
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 494, in main
+    success = comp_sim.completionist_run()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 328, in completionist_run
+    if self.simulate_combat(enemy):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/test_game_simulation.py", line 197, in simulate_combat
+    while self.game.player.xp >= self.game.player.xp_needed:
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Player' object has no attribute 'xp_needed'
+JEDI FUGITIVE - GAME SIMULATION TEST
+================================================================================
+
+1. SPEED RUN TEST
+--------------------------------------------------------------------------------
+[Turn 0] Initializing game...
+[Turn 0] Generating world...
+⟳ Generating galaxy...
+  Calculating reachable tiles for tomb placement...
+  Found 11870 reachable tiles.
+  Warning: No reachable floor tiles found for biome forest
+  Warning: No reachable floor tiles found for biome rocky
+  Warning: No reachable floor tiles found for biome river
+  Placed 4 tombs.
+  Placed special dungeon: Forge of Eternal Torment at (214, 303)
+  Placed special dungeon: The Labyrinth of Shadows at (148, 311)
+✓ Placed 2 special dungeons on surface
+✓ World generated successfully: 4 tombs, 2 special dungeons
+[LOGGER] Crash logging enabled: /Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/logs/game_crash_log_20251212_234706.txt
+✓ Generated 0 NPCs with quests on surface
+[Turn 0] World generated: 4 tombs, 2 special dungeons
+[Turn 0] Player starting position: (170, 281)
+[Turn 0] Player starting stats: HP=30/30, Attack=15, Defense=8
+[Turn 0] === STARTING SPEED RUN ===
+[Turn 0] Moving to tomb at (186, 238) (distance: 59)
+[Turn 0] Entering tomb...
+[Turn 0]   Exploring tomb level 1/4
+Speed run failed with error: 'Player' object has no attribute 'xp_needed'
+
+
+
+2. COMPLETIONIST RUN TEST
+--------------------------------------------------------------------------------
+[Turn 0] Initializing game...
+[Turn 0] Generating world...
+⟳ Generating galaxy...
+  Calculating reachable tiles for tomb placement...
+  Found 11824 reachable tiles.
+  Warning: No reachable floor tiles found for biome forest
+  Warning: No reachable floor tiles found for biome rocky
+  Placed 6 tombs.
+  Placed special dungeon: Cathedral of Ancient Bones at (267, 350)
+  Placed special dungeon: Halls of Eternal Echo at (225, 312)
+✓ Placed 2 special dungeons on surface
+✓ World generated successfully: 6 tombs, 2 special dungeons
+✓ Generated 0 NPCs with quests on surface
+[Turn 0] World generated: 6 tombs, 2 special dungeons
+[Turn 0] Player starting position: (200, 342)
+[Turn 0] Player starting stats: HP=30/30, Attack=15, Defense=8
+[Turn 0] === STARTING COMPLETIONIST RUN ===
+[Turn 0] Testing movement system...
+[Turn 10]   Moved from (194, 343) to (193, 342)
+[Turn 10] Testing combat system...
+[Turn 10]   Fighting Sith Trooper
+Completionist run failed with error: 'Player' object has no attribute 'xp_needed'

@@ -1,6 +1,9 @@
+
 import curses
 from jedi_fugitive.game.level import Display
 from jedi_fugitive.config import MAX_INVENTORY_SIZE
+from jedi_fugitive.game import logger as game_logger
+log = getattr(game_logger, 'get_logger', lambda name=None: None)("equipment")
 
 
 def _unlock_dark_ability(game):
@@ -213,20 +216,20 @@ def _is_usable_item(item):
     return False
 
 def inventory_chooser(game, filter_type=None):
-    """Enhanced chooser with filtering. filter_type: 'equippable', 'usable', or None (all items)."""
+    """Enhanced chooser with filtering using popup dialogue. filter_type: 'equippable', 'usable', or None (all items)."""
     try:
         all_inv = getattr(game.player, "inventory", []) or []
         
         # Filter inventory based on type
         if filter_type == 'equippable':
             inv = [item for item in all_inv if _is_equippable_item(item)]
-            title = "=== EQUIPPABLE ITEMS (press 1-9, ESC to cancel) ==="
+            title = "EQUIPPABLE ITEMS"
         elif filter_type == 'usable':
             inv = [item for item in all_inv if _is_usable_item(item)]
-            title = "=== USABLE ITEMS (press 1-9, ESC to cancel) ==="
+            title = "USABLE ITEMS"
         else:
             inv = all_inv
-            title = "=== SELECT ITEM (press 1-9, ESC to cancel) ==="
+            title = "INVENTORY"
         
         if not inv:
             filter_msg = {
@@ -239,102 +242,68 @@ def inventory_chooser(game, filter_type=None):
             except Exception: 
                 pass
             return None
-            
-        # Clear messages and show selection prompt
-        try:
-            game.ui.messages.add(title)
-        except Exception:
-            pass
-            
-        # Show up to 9 options with enhanced descriptions
-        for i, it in enumerate(inv[:9]):
+        
+        # Build items list for popup dialogue
+        popup_items = []
+        for it in inv:
             name = it if isinstance(it, str) else (it.get("name") if isinstance(it, dict) else getattr(it, "name", str(it)))
-            try:
-                # Show item type/description if available
-                desc = ""
-                if isinstance(it, str):
-                    # Token items
-                    token_names = {'v': 'Vibroblade', 'b': 'Blaster', 's': 'Armor'}
-                    name = token_names.get(it, it)
-                    desc = " [Equipment]"
-                elif isinstance(it, dict):
-                    item_type = it.get("type", "")
-                    if item_type:
-                        desc = f" [{item_type.title()}]"
-                    elif it.get("artifact_id"):
-                        desc = " [Artifact]"
-                elif hasattr(it, 'hands'):
-                    # Weapon with hand requirement
-                    hands = getattr(it, 'hands', None)
-                    if hands:
-                        desc = f" [{hands.value} Weapon]"
-                    else:
-                        desc = " [Weapon]"
-                elif hasattr(it, 'is_shield') and getattr(it, 'is_shield', False):
-                    # Shield with defense bonus
-                    def_bonus = getattr(it, 'defense_bonus', 0)
-                    ev_bonus = getattr(it, 'evasion_bonus', 0)
-                    if ev_bonus > 0:
-                        desc = f" [Shield: +{def_bonus} DEF, +{ev_bonus} EVA]"
-                    elif ev_bonus < 0:
-                        desc = f" [Shield: +{def_bonus} DEF, {ev_bonus} EVA]"
-                    else:
-                        desc = f" [Shield: +{def_bonus} DEF]"
-                elif hasattr(it, 'defense_bonus'):
-                    desc = f" [Armor: +{getattr(it, 'defense_bonus', 0)} DEF]"
-                elif hasattr(it, 'defense'):
-                    desc = " [Armor]"
-                
-                game.ui.messages.add(f"  {i+1}) {name}{desc}")
-            except Exception:
-                pass
+            desc = ""
+            
+            # Generate descriptions
+            if isinstance(it, str):
+                token_names = {'v': 'Vibroblade', 'b': 'Blaster', 's': 'Armor'}
+                name = token_names.get(it, it)
+                desc = "Equipment"
+            elif isinstance(it, dict):
+                item_type = it.get("type", "")
+                if item_type:
+                    desc = item_type.title()
+                elif it.get("artifact_id"):
+                    desc = "Artifact"
+            elif hasattr(it, 'hands'):
+                hands = getattr(it, 'hands', None)
+                if hands:
+                    desc = f"{hands.value} Weapon"
+                else:
+                    desc = "Weapon"
+            elif hasattr(it, 'is_shield') and getattr(it, 'is_shield', False):
+                def_bonus = getattr(it, 'defense_bonus', 0)
+                ev_bonus = getattr(it, 'evasion_bonus', 0)
+                if ev_bonus > 0:
+                    desc = f"Shield: +{def_bonus} DEF, +{ev_bonus} EVA"
+                elif ev_bonus < 0:
+                    desc = f"Shield: +{def_bonus} DEF, {ev_bonus} EVA"
+                else:
+                    desc = f"Shield: +{def_bonus} DEF"
+            elif hasattr(it, 'defense_bonus'):
+                desc = f"Armor: +{getattr(it, 'defense_bonus', 0)} DEF"
+            elif hasattr(it, 'defense'):
+                desc = "Armor"
+            elif hasattr(it, 'base_damage'):
+                damage = getattr(it, 'base_damage', 0)
+                desc = f"Weapon: {damage} DMG"
+            
+            popup_items.append((name, desc, {}))
+        
+        # Show popup dialogue
         try:
-            game.ui.messages.add("===========================================")
-            game.ui.messages.add("Press 'x' to inspect selected item")  # NEW
+            result = game.ui.popup_dialogue(popup_items, title=title, show_details=True, allow_inspect=True)
+            
+            # Handle inspect action
+            if isinstance(result, tuple) and result[0] == 'inspect':
+                idx = result[1]
+                if 0 <= idx < len(inv):
+                    _inspect_inventory_item(game, inv[idx])
+                    # Return to inventory after inspect
+                    return inventory_chooser(game, filter_type)
+                return None
+            
+            # Handle selection
+            if result is not None and 0 <= result < len(inv):
+                return inv[result]
+            
         except Exception:
-            pass
-        # force a draw so messages appear
-        try:
-            from jedi_fugitive.game.ui_renderer import draw
-            draw(game)
-        except Exception:
-            pass
-        # wait for a single keypress
-        key = game.stdscr.getch()
-        # Handle ESC to cancel
-        if key == 27:
-            try:
-                game.ui.messages.add("Selection cancelled.")
-            except Exception:
-                pass
-            return None
-        # NEW: Handle 'x' for inspect
-        if key == ord('x'):
-            try:
-                game.ui.messages.add("Select item number (1-9) to inspect, or ESC to cancel:")
-                from jedi_fugitive.game.ui_renderer import draw
-                draw(game)
-                inspect_key = game.stdscr.getch()
-                if inspect_key >= ord('1') and inspect_key <= ord('9'):
-                    idx = inspect_key - ord('1')
-                    if idx < len(inv):
-                        item_to_inspect = inv[idx]
-                        _inspect_inventory_item(game, item_to_inspect)
-                        # Return to inventory menu after inspect
-                        return inventory_chooser(game, filter_type)
-            except Exception as e:
-                try:
-                    game.ui.messages.add(f"Inspect failed: {e}")
-                except:
-                    pass
-            return None
-        if key >= ord('1') and key <= ord('9'):
-            idx = key - ord('1')
-            if idx < len(inv):
-                return inv[idx]
-        try:
-            game.ui.messages.add("Invalid selection. Press 1-9 to choose, 'x' to inspect.")
-        except Exception:
+            # Fallback to None if popup fails
             pass
     except Exception:
         try: game.ui.messages.add("Inventory chooser failed.")
@@ -699,10 +668,25 @@ def pick_up(game):
                         # narrative counter
                         try:
                             game.artifacts_collected = getattr(game, 'artifacts_collected', 0) + 1
+                            artifacts_collected = game.artifacts_collected
+                            artifacts_needed = getattr(game, 'artifacts_needed', 3)
+                            
+                            # Big visual feedback for artifact collection
                             try:
-                                game.ui.messages.add(f"Artifact collected ({game.artifacts_collected}/{getattr(game, 'artifacts_needed', 3)})")
-                            except Exception:
-                                pass
+                                if artifacts_collected >= artifacts_needed:
+                                    game.ui.messages.add(f"#green#══════════════════════════════#0#")
+                                    game.ui.messages.add(f"#green#⭐ FINAL ARTIFACT COLLECTED! ⭐#0#")
+                                    game.ui.messages.add(f"#green#All {artifacts_needed} Jedi Artifacts recovered!#0#")
+                                    game.ui.messages.add(f"#yellow#→ Return to your ship to activate comms!#0#")
+                                    game.ui.messages.add(f"#green#══════════════════════════════#0#")
+                                else:
+                                    game.ui.messages.add(f"#cyan#════════════════════════════#0#")
+                                    game.ui.messages.add(f"#cyan#✦ JEDI ARTIFACT RECOVERED ✦#0#")
+                                    game.ui.messages.add(f"Progress: {artifacts_collected}/{artifacts_needed} artifacts")
+                                    game.ui.messages.add(f"#yellow#→ Seek {artifacts_needed - artifacts_collected} more in other tombs#0#")
+                                    game.ui.messages.add(f"#cyan#════════════════════════════#0#")
+                            except:
+                                game.ui.messages.add(f"Artifact collected ({artifacts_collected}/{artifacts_needed})")
                         except Exception:
                             pass
                         
@@ -791,13 +775,13 @@ def pick_up(game):
         try: game.ui.messages.add("Nothing to pick up here.") 
         except Exception: pass
     except Exception as e:
-        try: 
-            import traceback
+        try:
             game.ui.messages.add(f"Pick up failed: {str(e)}")
-            # Debug: print to terminal
-            # Error: Pick up error: {e}
-            traceback.print_exc()
-        except Exception: pass
+            if log:
+                log.exception("Pick up failed", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Pick up error logging failed: {log_exc}")
 
 def equip_item(game):
     """Equip item: uses filtered inventory chooser for equippable items only."""
@@ -1028,9 +1012,14 @@ def equip_item(game):
             game.turn_count = getattr(game, 'turn_count', 0) + 1
         except Exception:
             pass
-    except Exception:
-        try: game.ui.messages.add("Equip failed (internal).") 
-        except Exception: pass
+    except Exception as e:
+        try:
+            game.ui.messages.add("Equip failed (internal).")
+            if log:
+                log.exception("Equip failed (internal)", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Equip error logging failed: {log_exc}")
 
 
 def drop_item(game):
@@ -1112,10 +1101,13 @@ def drop_item(game):
         
         return True
     except Exception as e:
-        try: 
+        try:
             game.ui.messages.add(f"Drop failed: {e}")
-        except Exception: 
-            pass
+            if log:
+                log.exception("Drop failed", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Drop error logging failed: {log_exc}")
         return False
 
 
@@ -1191,30 +1183,19 @@ def use_item(game):
                         game.player.dark_corruption = min(100, getattr(game.player, 'dark_corruption', 0) + 15)
                         game.ui.messages.add(f"You ABSORB {artifact_name}'s dark power! +{xp_gain} Dark XP")
                         
-                        # Check for dark side level up
+                        # Check for dark side level up - USE UNIFIED SYSTEM
                         while game.player.dark_xp >= getattr(game.player, 'xp_to_next_dark', 100):
                             game.player.dark_level = getattr(game.player, 'dark_level', 1) + 1
                             game.player.dark_xp -= getattr(game.player, 'xp_to_next_dark', 100)
-                            game.player.xp_to_next_dark = game.player.dark_level * 100
+                            game.player.xp_to_next_dark = int(game.player.xp_to_next_dark * 1.5)
                             game.player.level = max(getattr(game.player, 'light_level', 1), game.player.dark_level)
                             
-                            # Use unified level up system with interactive popup
+                            # Call unified level_up() which shows interactive menu
                             try:
-                                # Set up UI context for player
-                                game.player.ui = game.ui
-                                game.player.game = game
                                 game.player.level_up()
                                 game.ui.messages.add(f"Dark Side Level Up! Now Dark Level {game.player.dark_level}")
-                            except Exception as e:
-                                # Fallback if popup fails - apply dark side bonuses using CURRENT stats
-                                game.player.max_hp = game.player.max_hp + 5
-                                game.player.attack = game.player.attack + 2  # +2 for dark path
-                                game.player.defense = game.player.defense + 1
-                                game.player.evasion = game.player.evasion + 1
-                                game.player.accuracy = game.player.accuracy + 1
-                                game.ui.messages.add(f"Level up! You are now Level {game.player.dark_level}")
-                                game.ui.messages.add(f"Dark path: +5 HP, +2 ATK, +1 DEF, +1 EVA, +1 ACC")
-                                _unlock_dark_ability(game)
+                            except Exception:
+                                pass
                         
                         if hasattr(game.player, 'add_log_entry'):
                             # Dark Side artifact absorption - narrative reflects growing corruption
@@ -1231,30 +1212,19 @@ def use_item(game):
                         game.player.dark_corruption = max(0, getattr(game.player, 'dark_corruption', 0) - 10)
                         game.ui.messages.add(f"You DESTROY {artifact_name}, purifying its essence! +{xp_gain} Light XP")
                         
-                        # Check for light side level up
+                        # Check for light side level up - USE UNIFIED SYSTEM
                         while game.player.light_xp >= getattr(game.player, 'xp_to_next_light', 100):
                             game.player.light_level = getattr(game.player, 'light_level', 1) + 1
                             game.player.light_xp -= getattr(game.player, 'xp_to_next_light', 100)
-                            game.player.xp_to_next_light = game.player.light_level * 100
+                            game.player.xp_to_next_light = int(game.player.xp_to_next_light * 1.5)
                             game.player.level = max(game.player.light_level, getattr(game.player, 'dark_level', 1))
                             
-                            # Use unified level up system with interactive popup
+                            # Call unified level_up() which shows interactive menu
                             try:
-                                # Set up UI context for player
-                                game.player.ui = game.ui
-                                game.player.game = game
                                 game.player.level_up()
                                 game.ui.messages.add(f"Light Side Level Up! Now Light Level {game.player.light_level}")
-                            except Exception as e:
-                                # Fallback if popup fails - apply light side bonuses using CURRENT stats
-                                game.player.max_hp = game.player.max_hp + 5
-                                game.player.attack = game.player.attack + 1
-                                game.player.defense = game.player.defense + 1
-                                game.player.evasion = game.player.evasion + 2  # +2 for light path
-                                game.player.accuracy = game.player.accuracy + 1
-                                game.ui.messages.add(f"Level up! You are now Level {game.player.light_level}")
-                                game.ui.messages.add(f"Light path: +5 HP, +1 ATK, +1 DEF, +2 EVA, +1 ACC")
-                                _unlock_light_ability(game)
+                            except Exception:
+                                pass
                         
                         if hasattr(game.player, 'add_log_entry'):
                             # Light Side artifact destruction - narrative reflects purity/resistance
@@ -1424,13 +1394,13 @@ def use_item(game):
         except Exception: pass
         return False
     except Exception as e:
-        try: 
-            import traceback
+        try:
             game.ui.messages.add(f"Use failed: {str(e)}")
-            # Debug: print to terminal
-            # Error: Use item error: {e}
-            traceback.print_exc()
-        except Exception: pass
+            if log:
+                log.exception("Use item failed", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Use item error logging failed: {log_exc}")
         return False
 
 
@@ -1524,9 +1494,14 @@ def equip_offhand(game, item):
             pass
         
         return True
-    except Exception:
-        try: game.ui.messages.add("Failed to equip offhand.")
-        except Exception: pass
+    except Exception as e:
+        try:
+            game.ui.messages.add("Failed to equip offhand.")
+            if log:
+                log.exception("Equip offhand failed", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Equip offhand error logging failed: {log_exc}")
         return False
 
 
@@ -1563,9 +1538,14 @@ def unequip_offhand(game):
         
         game.player.equipped_offhand = None
         return True
-    except Exception:
-        try: game.ui.messages.add("Failed to unequip offhand.")
-        except Exception: pass
+    except Exception as e:
+        try:
+            game.ui.messages.add("Failed to unequip offhand.")
+            if log:
+                log.exception("Unequip offhand failed", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Unequip offhand error logging failed: {log_exc}")
         return False
 
 
@@ -1856,6 +1836,11 @@ def craft_item(game, recipe_name):
         
         return True
     except Exception as e:
-        try: game.ui.messages.add(f"Crafting error: {e}")
-        except Exception: pass
+        try:
+            game.ui.messages.add(f"Crafting error: {e}")
+            if log:
+                log.exception("Crafting menu error", exc_info=e)
+        except Exception as log_exc:
+            if log:
+                log.error(f"Crafting menu error logging failed: {log_exc}")
         return False

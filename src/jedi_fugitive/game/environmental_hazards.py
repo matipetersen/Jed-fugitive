@@ -109,14 +109,17 @@ ATMOSPHERIC_HAZARDS = {
 }
 
 class HazardManager:
-    """Manages environmental hazards on the map."""\n    \n    def __init__(self, game):
+    """Manages environmental hazards on the map."""
+    
+    def __init__(self, game):
         self.game = game
         self.hazard_tiles = {}  # (x, y) -> hazard_type
         self.active_atmospheric = []  # List of active atmospheric hazards
         self.player_effects = {}  # effect_type -> turns_remaining
     
     def spawn_hazards_on_map(self):
-        """Spawn environmental hazards across the map based on biome."""\n        try:
+        """Spawn environmental hazards across the map based on biome."""
+        try:
             map_h = len(self.game.game_map)
             map_w = len(self.game.game_map[0]) if map_h > 0 else 0
             biomes = getattr(self.game, 'map_biomes', None)
@@ -160,7 +163,8 @@ class HazardManager:
             print(f"Error spawning hazards: {e}")
     
     def check_player_hazard(self):
-        """Check if player is standing on a hazard tile and apply effects."""\n        px = self.game.player.x
+        """Check if player is standing on a hazard tile and apply effects."""
+        px = self.game.player.x
         py = self.game.player.y
         
         if (px, py) in self.hazard_tiles:
@@ -188,7 +192,8 @@ class HazardManager:
                 self.player_effects[effect] = duration
     
     def tick_effects(self):
-        """Process ongoing status effects on player."""\n        effects_to_remove = []
+        """Process ongoing status effects on player."""
+        effects_to_remove = []
         
         for effect_type, turns_remaining in list(self.player_effects.items()):
             if turns_remaining <= 0:
@@ -240,7 +245,8 @@ class HazardManager:
                 pass
     
     def tick_atmospheric(self):
-        """Process atmospheric hazards."""\n        hazards_to_remove = []
+        """Process atmospheric hazards."""
+        hazards_to_remove = []
         
         for hazard in self.active_atmospheric:
             hazard['turns_remaining'] -= 1

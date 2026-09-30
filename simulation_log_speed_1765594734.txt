@@ -1,0 +1,95 @@
+[Turn 0] Initializing game...
+[Turn 0] Generating world...
+[Turn 0] World generated: 6 tombs, 2 special dungeons
+[Turn 0] Player starting position: (257, 187)
+[Turn 0] Player starting stats: HP=30/30, Attack=15, Defense=8
+[Turn 0] === STARTING SPEED RUN ===
+[Turn 0] Phase 1: Collecting 3 artifacts...
+[Turn 0] Moving to tomb at (245, 191) (distance: 16)
+[Turn 0] Entering tomb...
+[Turn 0]   Exploring tomb level 1/5
+[Turn 0]     Defeated Sith Trooper
+[Turn 0]     Defeated Sith Trooper
+[Turn 10]   Exploring tomb level 2/5
+[Turn 10]     Defeated Sith Trooper
+[Turn 10]     Defeated Sith Trooper
+[Turn 20]   Exploring tomb level 3/5
+[Turn 20]     Defeated Sith Trooper
+[Turn 20]     Defeated Sith Trooper
+[Turn 20]     Defeated Sith Trooper
+[Turn 30]   Exploring tomb level 4/5
+[Turn 30]     Defeated Sith Trooper
+[Turn 30]     Defeated Sith Trooper
+[Turn 30]     Defeated Sith Trooper
+[Turn 40]   Exploring tomb level 5/5
+[Turn 40]     Defeated Sith Trooper
+[Turn 40]     Defeated Sith Trooper
+[Turn 50]   Found artifact! Total: 1/3
+[Turn 50] Moving to tomb at (293, 210) (distance: 50)
+[Turn 50] Entering tomb...
+[Turn 50]   Exploring tomb level 1/5
+[Turn 50]     LEVEL UP! Now level 1
+[Turn 50]     Defeated Sith Trooper
+[Turn 50]     Defeated Sith Trooper
+[Turn 60]   Exploring tomb level 2/5
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 60]     Defeated Sith Trooper
+[Turn 70]   Exploring tomb level 3/5
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 70]     Defeated Sith Trooper
+[Turn 80]   Exploring tomb level 4/5
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     Defeated Sith Trooper
+[Turn 80]     LEVEL UP! Now level 1
+[Turn 80]     Defeated Sith Trooper
+[Turn 90]   Exploring tomb level 5/5
+[Turn 90]     Defeated Sith Trooper
+[Turn 90]     Defeated Sith Trooper
+[Turn 90]     Defeated Sith Trooper
+[Turn 100]   Found artifact! Total: 2/3
+[Turn 100] Moving to tomb at (268, 134) (distance: 57)
+[Turn 100] Entering tomb...
+[Turn 100]   Exploring tomb level 1/4
+[Turn 100]     Defeated Sith Trooper
+[Turn 100]     Defeated Sith Trooper
+[Turn 100]     Defeated Sith Trooper
+[Turn 110]   Exploring tomb level 2/4
+[Turn 110]     Defeated Sith Trooper
+[Turn 110]     Defeated Sith Trooper
+[Turn 110]     Defeated Sith Trooper
+[Turn 110]     Defeated Sith Trooper
+[Turn 120]   Exploring tomb level 3/4
+[Turn 120]     Defeated Sith Trooper
+[Turn 120]     Defeated Sith Trooper
+[Turn 120]     LEVEL UP! Now level 1
+[Turn 120]     Defeated Sith Trooper
+[Turn 120]     Defeated Sith Trooper
+[Turn 130]   Exploring tomb level 4/4
+[Turn 130]     Defeated Sith Trooper
+[Turn 130]     Defeated Sith Trooper
+[Turn 130]     Defeated Sith Trooper
+[Turn 130]     Defeated Sith Trooper
+[Turn 140]   Found artifact! Total: 3/3
+[Turn 140] ✓ All 3 artifacts collected!
+[Turn 140] Phase 2: Activating comms terminal...
+[Turn 140]   Traveling to comms at (285, 190) (distance: 27)
+[Turn 175]   ✓ Comms activated at turn 175
+[Turn 175]   'Beacon signal transmitted - your ship is inbound!'
+[Turn 175] Phase 3: Returning to ship for extraction...
+[Turn 175]   Traveling to ship at (279, 191) (distance: 7)
+[Turn 199]   Arrived at ship at turn 199
+[Turn 199] Phase 4: FINAL CONFRONTATION!
+[Turn 199]   Darth Malice appears! (HP: 115, Attack: 25)
+[Turn 199]   Player ready: (HP: 89, Attack: 23, Defense: 14)
+[Turn 199]   'The Light makes you weak, Jedi filth!'
+[Turn 199]     LEVEL UP! Now level 1
+[Turn 199]   ✓ Darth Malice DEFEATED!
+[Turn 199]   The Sith Lord falls, defeated by your skill and determination.
+[Turn 199] Phase 5: Boarding ship...
+[Turn 204] === SPEED RUN COMPLETE ===
+[Turn 204] VICTORY achieved in 204 turns!
+[Turn 204] You escape the planet, artifacts secured, darkness vanquished!

@@ -809,7 +809,14 @@ class FaunaManager:
                     
                     try:
                         result = self.handle_fauna_interaction(interaction_type, encounter_key)
+                        # Show the interaction result text
                         self.game.ui.messages.add(f"#6#[FAUNA]#0# {result}")
+                        # Force a screen refresh to show all messages
+                        if hasattr(self.game.ui, 'draw'):
+                            try:
+                                self.game.ui.draw(self.game)
+                            except:
+                                pass
                     except Exception as e:
                         self.game.ui.messages.add(f"Fauna interaction failed: {e}")
                 elif choice == len(interactions):

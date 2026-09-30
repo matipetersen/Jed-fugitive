@@ -14,7 +14,7 @@ class NPCType(Enum):
     REFUGEE = "refugee"
     MERCHANT = "merchant" 
     JEDI_SURVIVOR = "jedi_survivor"
-    REBEL = "rebel"
+    REPUBLIC = "republic"
     CIVILIAN = "civilian"
     INJURED_PILOT = "injured_pilot"
     RESEARCHER = "researcher"
@@ -92,77 +92,148 @@ class QuestNPC:
         base_dialogues = {
             NPCType.REFUGEE: {
                 "light": [
-                    f"{self.name}: Thank the Force! Are you here to help us?",
-                    f"{self.name}: Please, we've been waiting for rescue for days!",
-                    f"{self.name}: A Jedi? We thought all hope was lost!"
+                    f"{self.name}: Thank the stars! A Jedi? We thought we were abandoned.",
+                    f"{self.name}: Please, help us. The Sith Empire took everything.",
+                    f"{self.name}: You have a kind face. Are you here to save us?"
                 ],
                 "neutral": [
-                    f"{self.name}: Another traveler... are you friend or foe?", 
-                    f"{self.name}: We don't have much, but we're not looking for trouble.",
-                    f"{self.name}: You look capable. Perhaps we can help each other?"
+                    f"{self.name}: Keep your distance. We've been burned by strangers before.", 
+                    f"{self.name}: We don't have credits, if that's what you want.",
+                    f"{self.name}: Just passing through? Don't bring the Sith down on us."
                 ],
                 "dark": [
-                    f"{self.name}: Stay back! We want no trouble with the Sith!",
-                    f"{self.name}: Please... we have nothing of value to you!",
-                    f"{self.name}: Mercy! We're just trying to survive!"
+                    f"{self.name}: *trembling* Take what you want, just leave us be!",
+                    f"{self.name}: *eyes wide with fear* A Sith... please, mercy!",
+                    f"{self.name}: We have nothing! Why do you torment us?"
                 ]
             },
             
             NPCType.MERCHANT: {
                 "light": [
-                    f"{self.name}: Welcome, friend! I have supplies for those fighting the good fight.",
-                    f"{self.name}: A light in these dark times! Let me show you my finest wares.",
-                    f"{self.name}: Business has been rough, but I always have time for a hero."
+                    f"{self.name}: Ah, a guardian of peace! I have special discounts for the Order.",
+                    f"{self.name}: Dangerous times for trade, but I'm happy to help a Jedi.",
+                    f"{self.name}: Supplies for the righteous cause? I have just the thing."
                 ],
                 "neutral": [
-                    f"{self.name}: Greetings, traveler. Credits speak louder than reputation here.",
-                    f"{self.name}: New face, same story. What are you buying?", 
-                    f"{self.name}: I deal in goods, not politics. What do you need?"
+                    f"{self.name}: Credits are the only language I speak fluently.",
+                    f"{self.name}: Buy or move on, time is money.", 
+                    f"{self.name}: I don't ask questions, I just sell goods."
                 ],
                 "dark": [
-                    f"{self.name}: *nervously* L-lord Sith... how may I serve you?",
-                    f"{self.name}: I have... special items for those with particular tastes.",
-                    f"{self.name}: Please, take what you need. I ask no payment from the Sith."
+                    f"{self.name}: *nervously* My Lord... everything is free for you, of course.",
+                    f"{self.name}: I have... illicit goods that might interest someone of your... power.",
+                    f"{self.name}: Please, take it all! Just don't hurt me!"
                 ]
             },
             
             NPCType.JEDI_SURVIVOR: {
                 "light": [
-                    f"{self.name}: I sense the Light within you, young one. Come, let us talk.",
-                    f"{self.name}: Another survivor of the Purge... there is hope yet.",
-                    f"{self.name}: The Force brought us together. This is no coincidence."
+                    f"{self.name}: The Force is strong with you. We are not the last.",
+                    f"{self.name}: I felt your presence. It is good to see a friendly face.",
+                    f"{self.name}: The Order may be fallen, but we are still Jedi."
                 ],
                 "neutral": [
-                    f"{self.name}: I sense conflict within you. The path ahead is unclear.",
-                    f"{self.name}: You walk between light and shadow. Choose wisely.",
-                    f"{self.name}: The Force flows through you, but your destination is clouded."
+                    f"{self.name}: Your path is uncertain. Be careful, the dark side is seductive.",
+                    f"{self.name}: You walk the line between light and dark. A dangerous game.",
+                    f"{self.name}: I sense conflict. Do not let your emotions rule you."
                 ],
                 "dark": [
-                    f"{self.name}: I sense the darkness in you... but also the man you once were.",
-                    f"{self.name}: You have fallen far, but redemption is always possible.",
-                    f"{self.name}: *sadly* Another lost to the dark side. I failed you as I failed them all."
+                    f"{self.name}: *ignites lightsaber* You have fallen. I will do what I must.",
+                    f"{self.name}: Another brother lost to the shadow. I will end your suffering.",
+                    f"{self.name}: The dark side has consumed you. There is no return."
                 ]
             },
             
             NPCType.CHILD: {
                 "light": [
-                    f"{self.name}: Are you a hero? My mom said heroes would come save us!",
-                    f"{self.name}: You look nice! Are you going to help find my family?",
-                    f"{self.name}: I'm not scared anymore! You're here to protect us, right?"
+                    f"{self.name}: Wow! A real Jedi? Can you lift rocks with your mind?",
+                    f"{self.name}: My dad said the Jedi were gone. I knew he was wrong!",
+                    f"{self.name}: Are you going to beat the bad guys?"
                 ],
                 "neutral": [
-                    f"{self.name}: *hides behind cover* Are... are you one of the good people?",
-                    f"{self.name}: I don't know if I should talk to strangers...",
-                    f"{self.name}: My parents told me to be careful. You seem okay though."
+                    f"{self.name}: *peeking out* You look scary... but not like the Sith troopers.",
+                    f"{self.name}: Do you have any food? I'm hungry.",
+                    f"{self.name}: Are you a bounty hunter? Like in the stories?"
                 ],
                 "dark": [
-                    f"{self.name}: *trembling* Please don't hurt me! I'll be good!",
-                    f"{self.name}: *crying* I want my mommy! Don't take me away!",
-                    f"{self.name}: *cowering* I didn't do anything wrong, I promise!"
+                    f"{self.name}: *crying* You look like the monsters in my dreams!",
+                    f"{self.name}: *running away* Mommy! Help!",
+                    f"{self.name}: *shaking* Please don't hurt me..."
+                ]
+            },
+
+            NPCType.REPUBLIC: {
+                "light": [
+                    f"{self.name}: Commander? No... but you're with us, aren't you?",
+                    f"{self.name}: The Republic needs people like you. We're fighting a losing war.",
+                    f"{self.name}: Good to see a friendly face. The Sith are everywhere."
+                ],
+                "neutral": [
+                    f"{self.name}: Keep your head down. The Sith are watching.",
+                    f"{self.name}: If you're not with us, stay out of our way.",
+                    f"{self.name}: Information is worth more than credits these days."
+                ],
+                "dark": [
+                    f"{self.name}: *reaching for blaster* Sith spy! You won't take me alive!",
+                    f"{self.name}: You reek of the dark side. Stay back!",
+                    f"{self.name}: We'll never surrender to your kind!"
+                ]
+            },
+
+            NPCType.INJURED_PILOT: {
+                "light": [
+                    f"{self.name}: *coughing* My ship... I tried to evade them... help me...",
+                    f"{self.name}: Thank the Force... I thought I was done for.",
+                    f"{self.name}: Can you get me to a med-center? I have vital intel."
+                ],
+                "neutral": [
+                    f"{self.name}: *groaning* I can pay... just get me out of here.",
+                    f"{self.name}: Don't leave me here to die... I have credits.",
+                    f"{self.name}: Look, I don't care who you are. Just help me."
+                ],
+                "dark": [
+                    f"{self.name}: *gasping* You... you're one of them...",
+                    f"{self.name}: Just finish it... I won't talk...",
+                    f"{self.name}: *spits blood* The Republic will... win..."
+                ]
+            },
+
+            NPCType.RESEARCHER: {
+                "light": [
+                    f"{self.name}: Fascinating! A Force user? I have so many questions!",
+                    f"{self.name}: These ruins predate the Republic! We must preserve them.",
+                    f"{self.name}: Please, protect my findings. This knowledge is precious."
+                ],
+                "neutral": [
+                    f"{self.name}: Careful! Don't touch anything. This site is unstable.",
+                    f"{self.name}: I'm here for the history, not the war.",
+                    f"{self.name}: If you find any artifacts, I'll pay well for them."
+                ],
+                "dark": [
+                    f"{self.name}: *backing away* You seek the forbidden texts? I... I can show you.",
+                    f"{self.name}: Such power... you must be drawn to the dark energy here.",
+                    f"{self.name}: Don't destroy this place! The knowledge belongs to everyone!"
+                ]
+            },
+
+            NPCType.CIVILIAN: {
+                "light": [
+                    f"{self.name}: Bless you, master Jedi. We live in fear.",
+                    f"{self.name}: Is it true? Is the Republic coming back?",
+                    f"{self.name}: We just want to live in peace."
+                ],
+                "neutral": [
+                    f"{self.name}: I didn't see anything. I don't know anything.",
+                    f"{self.name}: Just passing through. Don't mind me.",
+                    f"{self.name}: Hard times for everyone, eh?"
+                ],
+                "dark": [
+                    f"{self.name}: *averting eyes* I obey! I obey!",
+                    f"{self.name}: Please, I'm a loyal citizen!",
+                    f"{self.name}: *frozen in fear*"
                 ]
             }
         }
-        
         try:
             dialogues = base_dialogues.get(self.npc_type, {})
             alignment_dialogues = dialogues.get(alignment, [f"{self.name}: Hello there."])
@@ -291,7 +362,7 @@ class QuestManager:
         biome_npcs = {
             'desert': [NPCType.REFUGEE, NPCType.MERCHANT, NPCType.CIVILIAN],
             'forest': [NPCType.REFUGEE, NPCType.JEDI_SURVIVOR, NPCType.CHILD, NPCType.CIVILIAN],
-            'mountains': [NPCType.REFUGEE, NPCType.REBEL, NPCType.CIVILIAN],
+            'mountains': [NPCType.REFUGEE, NPCType.REPUBLIC, NPCType.CIVILIAN],
             'crash_site': [NPCType.INJURED_PILOT, NPCType.REFUGEE, NPCType.RESEARCHER],
         }
         
@@ -301,7 +372,7 @@ class QuestManager:
         if player_level >= 5 and random.random() < 0.3:
             possible_types.append(NPCType.JEDI_SURVIVOR)
         if player_level >= 3 and random.random() < 0.4:
-            possible_types.append(NPCType.REBEL)
+            possible_types.append(NPCType.REPUBLIC)
             
         return random.choice(possible_types) if possible_types else None
     
@@ -312,8 +383,8 @@ class QuestManager:
             NPCType.REFUGEE: ["Kira Thorne", "Marcus Vale", "Elena Skyborn", "David Cross", "Sarah Vex"],
             NPCType.MERCHANT: ["Josto the Trader", "Mira Coinwright", "Bren Goodseller", "Nala Markup"],
             NPCType.JEDI_SURVIVOR: ["Master Kellan", "Knight Bastila", "Knight Sera", "Padawan Jex"],
-            NPCType.REBEL: ["Captain Rex", "Lieutenant Maya", "Sergeant Korr", "Agent Blackwood"],
-            NPCType.CHILD: ["Little Timmy", "Young Leia", "Small Ben", "Tiny Sara"],
+            NPCType.REPUBLIC: ["Captain Rex", "Lieutenant Maya", "Sergeant Korr", "Agent Blackwood"],
+            NPCType.CHILD: ["Little Timmy", "Young Vette", "Small Ben", "Tiny Sara"],
             NPCType.INJURED_PILOT: ["Pilot Voss", "Commander Ash", "Flight Leader Tano", "Captain Solo"],
             NPCType.RESEARCHER: ["Dr. Aphra", "Scholar Voss", "Archaeologist Ming", "Professor Kell"]
         }
@@ -338,7 +409,7 @@ class QuestManager:
         backstories = {
             NPCType.REFUGEE: [
                 f"Fled when the Sith attacked their settlement in the {biome}.",
-                f"Lost everything in a recent Imperial raid.",
+                f"Lost everything in a recent Sith raid.",
                 f"Searching for family members separated during the evacuation.",
                 f"Former civilian now struggling to survive in the wilderness."
             ],
@@ -601,7 +672,7 @@ class QuestManager:
             NPCType.REFUGEE: f"Please, you must help me! {quest.description}",
             NPCType.MERCHANT: f"I have a business proposition: {quest.description}",
             NPCType.JEDI_SURVIVOR: f"The Force led you to me. {quest.description}",
-            NPCType.REBEL: f"We need your assistance, friend. {quest.description}",
+            NPCType.REPUBLIC: f"We need your assistance, friend. {quest.description}",
             NPCType.CHILD: f"Mister, can you help me? {quest.description}",
             NPCType.INJURED_PILOT: f"My ship crashed... {quest.description}",
             NPCType.RESEARCHER: f"My research depends on this: {quest.description}"
@@ -627,7 +698,7 @@ class QuestManager:
             NPCType.REFUGEE: "This world is so dangerous... I'm just trying to survive.",
             NPCType.MERCHANT: "Looking for supplies? I might have something useful.",
             NPCType.JEDI_SURVIVOR: "The Force is strong in this place, but so is the darkness.",
-            NPCType.REBEL: "Keep fighting the good fight, friend.",
+            NPCType.REPUBLIC: "Keep fighting the good fight, friend.",
             NPCType.CHILD: "Are you a Jedi? You look brave!",
             NPCType.INJURED_PILOT: "My ship's in bad shape, but I'll manage.",
             NPCType.RESEARCHER: "This planet holds many secrets..."

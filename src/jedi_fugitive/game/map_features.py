@@ -1,3 +1,6 @@
+"""
+Map Features Module (with logging)
+"""
 # Map object tags for environmental interaction
 OBJECT_TAGS = {
     '#': {"movable": True, "breakable": True},  # Boulder/rock
@@ -21,6 +24,16 @@ from jedi_fugitive.game.enemy import Enemy, EnemyPersonality, EnemyType
 from jedi_fugitive.game.sith_codex import SITH_LORE
 from jedi_fugitive.game import enemies_sith as sith
 
+# --- LOGGER INIT AT END OF FILE ---
+###############################
+# LOGGER INIT (for all functions)
+###############################
+try:
+    from jedi_fugitive.game import logger as game_logger
+    log = getattr(game_logger, 'get_logger', lambda name=None: None)("map_features")
+except Exception:
+    log = None
+
 def get_reachable_tiles(game_map, start_x, start_y):
     """Return a set of (x, y) tuples reachable from start position."""
     mh = len(game_map)
@@ -37,19 +50,22 @@ def get_reachable_tiles(game_map, start_x, start_y):
             nx, ny = cx + dx, cy + dy
             if 0 <= nx < mw and 0 <= ny < mh:
                 if (nx, ny) not in reachable:
-                    # Check if walkable (floor or other walkable tiles)
-                    tile = game_map[ny][nx]
-                    walkable_tiles = [
-                        floor_ch,
-                        getattr(Display, 'WRECKAGE', 'x'),
-                        getattr(Display, 'DUNE', '~'),
-                        getattr(Display, 'SITH_ENTRANCE', 'D'),
-                        getattr(Display, 'SHIP', 'S'),
-                        getattr(Display, 'COMMS', 'C'),
-                        'K',  # Sith Keep entrance
-                        '='  # Bridge tile
-                    ]
-                    if tile in walkable_tiles:
+                    # Check if walkable (use blacklist approach for better special dungeon support)
+                    tile = str(game_map[ny][nx])
+                    # Block walls and mountains (allow all floors including special dungeon tiles)
+                    non_walkable_tiles = {
+                        '\u2588',  # Display.WALL / Shadowmaze walls
+                        '#',  # Legacy wall
+                        '^',  # Mountains
+                        '\u2593',  # Memory Vault crystal walls
+                        '\u2666',  # Crystal Garden walls
+                        '\u256c',  # Bone Cathedral walls
+                        '\u2551',  # Echo Chambers acoustic walls
+                        '\u25a4',  # Twisted Library bookshelf walls
+                        '\u25a3',  # Pain Forge metal walls
+                        '\u224b',  # Dream Nexus fluid walls
+                    }
+                    if tile not in non_walkable_tiles:
                         reachable.add((nx, ny))
                         queue.append((nx, ny))
     return reachable
@@ -58,7 +74,8 @@ def generate_world(game):
     """Generate crash site map, scale it, place fewer trees, spawn enemies and place items/tomb entrances."""
     try:
         from jedi_fugitive.game.sith_codex import get_random_loading_message
-        print(get_random_loading_message())
+        if log:
+            log.info(get_random_loading_message())
         # allow a configurable inflation of the base crash-site size (adds N to width/height)
         # Reasonable size for exploration without being unwieldy
         crash_inflate = int(getattr(game, 'crash_inflate', 80) or 80)
@@ -66,28 +83,55 @@ def generate_world(game):
         base_h = 30
         cm, rooms = generate_crash_site(width=base_w + crash_inflate, height=base_h + crash_inflate)
     except Exception as e:
-        print(f"⚠ Warning: Crash site generation encountered an issue: {e}")
+        if log:
+            log.warning(f"Crash site generation encountered an issue: {e}")
+            log.exception("Crash site generation error", exc_info=e)
         try:
             game.ui.messages.add("Crash site generator failed.")
-        except Exception:
-            pass
+        except Exception as e2:
+            if log:
+                log.exception("Crash site generator failed to add UI message", exc_info=e2)
         return
 
     # create a larger surface map but keep the crash_site clearing unchanged
     try:
-        # Moderately larger world for exploration and scattered POIs
-        outer_scale = int(getattr(game, 'outer_map_scale', 150) or 150)  # More moderate increase from 120 to 150
+        # Larger world with varied shapes for more exploration (360° wraparound world)
+        outer_scale = int(getattr(game, 'outer_map_scale', 350) or 350)  # Increased from 200 to 350 for massive world
         try:
             if getattr(game, 'randomize_map_size', True):
-                min_scale = max(2, outer_scale // 1.5)  # Allow some reduction for variety
-                max_scale = max(2, outer_scale * 1.2)  # More moderate multiplier
+                min_scale = max(2, outer_scale // 1.3)  # More variation range
+                max_scale = max(2, outer_scale * 1.3)  # More variation range
                 outer_scale = random.randint(min_scale, max_scale)
-        except Exception:
-            pass
+        except Exception as e:
+            if log:
+                log.exception("Randomize map size error", exc_info=e)
         h = len(cm)
         w = len(cm[0]) if h else 0
-        new_h = max(h, h + outer_scale)
-        new_w = max(w, w + outer_scale)
+        
+        # Create varied map shapes instead of perfect squares
+        map_shape = random.choice(['elliptical', 'diamond', 'rectangular', 'irregular'])
+        if map_shape == 'elliptical':
+            # Wider than tall (like an ellipse)
+            new_h = max(h, h + int(outer_scale * 0.8))
+            new_w = max(w, w + int(outer_scale * 1.2))
+        elif map_shape == 'diamond':
+            # Diamond shape (equal but rotated)
+            new_h = max(h, h + outer_scale)
+            new_w = max(w, w + outer_scale)
+        elif map_shape == 'rectangular':
+            # Elongated rectangle
+            if random.random() < 0.5:
+                # Horizontal
+                new_h = max(h, h + int(outer_scale * 0.7))
+                new_w = max(w, w + int(outer_scale * 1.4))
+            else:
+                # Vertical
+                new_h = max(h, h + int(outer_scale * 1.4))
+                new_w = max(w, w + int(outer_scale * 0.7))
+        else:  # irregular
+            # Asymmetric irregular shape
+            new_h = max(h, h + random.randint(int(outer_scale * 0.6), int(outer_scale * 1.3)))
+            new_w = max(w, w + random.randint(int(outer_scale * 0.6), int(outer_scale * 1.3)))
 
         # initialize a big canvas filled with walls
         big = [[getattr(Display, 'WALL', '#') for _ in range(new_w)] for _ in range(new_h)]
@@ -103,6 +147,31 @@ def generate_world(game):
                     big[off_y + yy][off_x + xx] = cm[yy][xx]
                 except Exception:
                     continue
+
+        # Apply shape masking to create organic map boundaries
+        if map_shape in ['elliptical', 'diamond', 'irregular']:
+            center_y = new_h // 2
+            center_x = new_w // 2
+            wall_ch = getattr(Display, 'WALL', '#')
+            
+            for y in range(new_h):
+                for x in range(new_w):
+                    dy = abs(y - center_y) / max(1, new_h / 2.0)
+                    dx = abs(x - center_x) / max(1, new_w / 2.0)
+                    
+                    if map_shape == 'elliptical':
+                        # Ellipse formula: (x/a)^2 + (y/b)^2 > 1
+                        if (dx * dx + dy * dy) > 1.0:
+                            big[y][x] = wall_ch
+                    elif map_shape == 'diamond':
+                        # Diamond shape: |x| + |y| > radius
+                        if (dx + dy) > 1.0:
+                            big[y][x] = wall_ch
+                    elif map_shape == 'irregular':
+                        # Irregular organic shape with noise
+                        noise = random.random() * 0.3  # Add randomness
+                        if (dx * dx + dy * dy) > (1.0 - noise):
+                            big[y][x] = wall_ch
 
         game.game_map = big
         # Expand the pasted crash clearing outward so the walkable area scales
@@ -204,19 +273,19 @@ def generate_world(game):
         game.player.x = 1
         game.player.y = 1
 
-    # generate simple biome regions across the larger map: assign each tile a biome
+    # generate biome regions with SOFT TRANSITIONS (gradient blending between biomes)
     try:
         mh = len(game.game_map)
         mw = len(game.game_map[0]) if mh else 0
-        biome_types = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass']
+        biome_types = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass', 'wasteland', 'volcanic', 'tundra']
         centers = []
         
         # Ensure we have at least one of each major biome type to guarantee diversity
-        guaranteed_biomes = ['forest', 'desert', 'rocky', 'plains']
+        guaranteed_biomes = ['forest', 'desert', 'rocky', 'plains', 'wasteland']
         random.shuffle(guaranteed_biomes)
         
-        # Calculate number of centers - increased for more variation
-        num_centers = min(20, max(10, mw * mh // 3000) + 8)
+        # Calculate number of centers - MORE centers for larger world with better coverage
+        num_centers = min(35, max(15, mw * mh // 2500) + 12)  # Increased from 20 to 35 max
         
         for i in range(num_centers):
             cx = random.randint(0, max(0, mw - 1))
@@ -229,19 +298,56 @@ def generate_world(game):
                 b = random.choice(biome_types)
             centers.append((cx, cy, b))
             
+        # SOFT TRANSITION ALGORITHM: Use weighted distance instead of hard boundaries
         biome_map = [[None for _ in range(mw)] for _ in range(mh)]
+        transition_radius = 25  # Pixels within this distance create gradual transitions
+        
         for y in range(mh):
             for x in range(mw):
-                best = None
-                bdist = None
+                # Calculate weighted influence from ALL nearby biome centers
+                influences = {}  # biome -> total_influence
+                total_weight = 0.0
+                
                 for (cx, cy, b) in centers:
+                    # Manhattan distance for faster calculation
                     d = abs(cx - x) + abs(cy - y)
-                    if bdist is None or d < bdist:
-                        bdist = d
-                        best = b
-                biome_map[y][x] = best or 'plains'
+                    
+                    # Inverse distance weighting with soft falloff
+                    if d < transition_radius * 2:  # Only consider nearby centers
+                        # Smooth falloff curve (inverse square with minimum)
+                        weight = 1.0 / max(1.0, (d / transition_radius) ** 1.5)
+                        influences[b] = influences.get(b, 0.0) + weight
+                        total_weight += weight
+                
+                # Determine dominant biome with transition zones
+                if influences and total_weight > 0:
+                    # Normalize influences
+                    normalized = {b: w / total_weight for b, w in influences.items()}
+                    
+                    # Get strongest biome
+                    dominant = max(normalized.items(), key=lambda item: item[1])
+                    dominant_biome = dominant[0]
+                    dominant_strength = dominant[1]
+                    
+                    # Create transition zones where multiple biomes compete
+                    if dominant_strength < 0.6:  # Transition zone threshold
+                        # Pick from top 2 competing biomes with probability based on strength
+                        top_biomes = sorted(normalized.items(), key=lambda item: item[1], reverse=True)[:2]
+                        if len(top_biomes) > 1 and random.random() > dominant_strength:
+                            # Sometimes use secondary biome in transition zones
+                            biome_map[y][x] = top_biomes[1][0]
+                        else:
+                            biome_map[y][x] = dominant_biome
+                    else:
+                        # Strong dominant biome
+                        biome_map[y][x] = dominant_biome
+                else:
+                    biome_map[y][x] = 'plains'  # Fallback
+                    
         game.map_biomes = biome_map
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("Biome generation error", exc_info=e)
         game.map_biomes = None
 
     # Place terrain features (trees, rocks) with biome-specific densities
@@ -259,8 +365,14 @@ def generate_world(game):
         plains_density = float(getattr(game, 'tree_density_floor', 0.06) or 0.06)
         rocky_density = float(getattr(game, 'rock_density_floor', 0.12) or 0.12)
         desert_rock_density = float(getattr(game, 'desert_rock_density', 0.08) or 0.08)
+        wasteland_density = float(getattr(game, 'wasteland_rock_density', 0.15) or 0.15)
+        volcanic_density = float(getattr(game, 'volcanic_rock_density', 0.18) or 0.18)
+        tundra_density = float(getattr(game, 'tundra_rock_density', 0.10) or 0.10)
 
-        candidates_by_biome = {'forest': [], 'plains': [], 'rocky': [], 'desert': [], 'river': [], 'mountain_pass': []}
+        candidates_by_biome = {
+            'forest': [], 'plains': [], 'rocky': [], 'desert': [], 'river': [], 
+            'mountain_pass': [], 'wasteland': [], 'volcanic': [], 'tundra': []
+        }
         for y in range(mh):
             for x in range(mw):
                 try:
@@ -455,8 +567,9 @@ def generate_world(game):
                 if random.random() < 0.65:  # 65% chance of mountain, 35% chance of pass (increased from 20%)
                     game.game_map[ty][tx] = getattr(Display, 'WALL', '#')
                     placed += 1
-    except Exception:
-        pass
+    except Exception as e:
+        if log:
+            log.exception("Error in generate_world outer", exc_info=e)
 
     # Place richer landmarks and POIs across the larger surface map (increased count)
     try:
@@ -717,8 +830,9 @@ def generate_world(game):
                                 g._patrol_index = 0
                 except Exception:
                     continue
-        except Exception:
-            pass
+        except Exception as e:
+            if log:
+                log.exception("Error in generate_world (inner)", exc_info=e)
 
         # Import planetary enemies for biome-specific spawning
         try:
@@ -770,7 +884,7 @@ def generate_world(game):
             lvl = max(1, player_level + random.randint(-1, 2))
             
             if choice_roll < 0.6:
-                # Sith enemies (Imperial forces hunting the player)
+                # Sith enemies (Sith forces hunting the player)
                 sith_roll = random.random()
                 if sith_roll < 0.4:
                     e = sith.create_sith_trooper(level=lvl)
@@ -974,12 +1088,12 @@ def generate_world(game):
                         min_dist = min(min_dist, dist)
 
                     # If no tombs placed yet, or this is farther than current best
-                    # Also ensure minimum distance of 20 tiles from other tombs
-                    if (not placed_tombs and min_dist > 20) or min_dist > best_min_dist:
+                    # Ensure minimum distance of 50 tiles from other tombs for better spacing
+                    if (not placed_tombs and min_dist > 50) or min_dist > best_min_dist:
                         best_min_dist = min_dist
                         best_tile = (tile_x, tile_y)
 
-                if best_tile and best_min_dist > 20:  # Ensure tombs aren't too close
+                if best_tile and best_min_dist > 50:  # Ensure tombs are well separated
                     placed_tombs.append(best_tile)
                     game.tomb_entrances.add(best_tile)
                     # Mark on map - bounds check before assignment
@@ -1411,15 +1525,17 @@ def enter_tomb(game):
 
             # Generate enemies for this level
             level_enemies = []
+            enemies_spawned = 0
             for room in rooms:
-                num_enemies = random.randint(1, 3)
+                num_enemies = random.randint(2, 4)  # Increased from 1-3 to 2-4
                 for _ in range(num_enemies):
                     # Find valid spawn position (at least 3 tiles from stairs)
                     spawn_attempts = 0
                     max_attempts = 50
                     valid_position = False
+                    ex, ey = 0, 0
                     
-                    while spawn_attempts < max_attempts and not valid_position:
+                    while spawn_attempts < max_attempts:
                         ex = random.randint(room[0] + 1, room[0] + room[2] - 2)
                         ey = random.randint(room[1] + 1, room[1] + room[3] - 2)
                         
@@ -1446,20 +1562,29 @@ def enter_tomb(game):
                             if distance < min_stair_distance:
                                 valid_position = False
                         
+                        if valid_position:
+                            break  # Found valid position
+                        
                         spawn_attempts += 1
                     
-                    # Only spawn enemy if valid position found
-                    if valid_position:
+                    # Spawn enemy if valid position found
+                    if valid_position and ex > 0 and ey > 0:
                         # Create appropriate enemy for depth
-                        if depth == 1:
-                            enemy = sith.create_sith_trooper(level=max(1, getattr(game.player, 'level', 1)))
-                        elif depth == 2:
-                            enemy = sith.create_sith_acolyte(level=max(1, getattr(game.player, 'level', 1) + 1))
-                        else:
-                            # Reduced scaling: depth 3 = player+1, depth 4 = player+2, etc.
-                            enemy = sith.create_sith_warrior(level=max(1, getattr(game.player, 'level', 1) + max(0, depth - 2)))
-                        enemy.x, enemy.y = ex, ey
-                        level_enemies.append(enemy)
+                        try:
+                            if depth == 1:
+                                enemy = sith.create_sith_trooper(level=max(1, getattr(game.player, 'level', 1)))
+                            elif depth == 2:
+                                enemy = sith.create_sith_acolyte(level=max(1, getattr(game.player, 'level', 1) + 1))
+                            else:
+                                # Reduced scaling: depth 3 = player+1, depth 4 = player+2, etc.
+                                enemy = sith.create_sith_warrior(level=max(1, getattr(game.player, 'level', 1) + max(0, depth - 2)))
+                            enemy.x, enemy.y = ex, ey
+                            level_enemies.append(enemy)
+                            enemies_spawned += 1
+                        except Exception as e:
+                            print(f"    ⚠ Failed to create enemy: {e}")
+            
+            print(f"    ✓ Spawned {enemies_spawned} enemies on level {depth}")
             game.tomb_enemies.append(level_enemies)
 
             # Generate items for this level
@@ -1473,11 +1598,13 @@ def enter_tomb(game):
                 last_room = rooms[-1]
                 artifact_x = last_room[0] + last_room[2] // 2
                 artifact_y = last_room[1] + last_room[3] // 2
+                artifact_placed = False
                 
                 # Ensure floor tile is clear before placing artifact
                 if level_map[artifact_y][artifact_x] == Display.FLOOR:
                     level_map[artifact_y][artifact_x] = 'Q'
-                    print(f"  ✓ Quest artifact 'Q' placed at ({artifact_x}, {artifact_y}) on final level")
+                    artifact_placed = True
+                    print(f"  ✓ Quest artifact 'Q' placed at ({artifact_x}, {artifact_y}) on final level {depth}")
                 else:
                     # Find alternative position in last room
                     for attempt in range(20):
@@ -1486,26 +1613,37 @@ def enter_tomb(game):
                         if level_map[alt_y][alt_x] == Display.FLOOR:
                             level_map[alt_y][alt_x] = 'Q'
                             artifact_x, artifact_y = alt_x, alt_y
+                            artifact_placed = True
                             print(f"  ✓ Quest artifact 'Q' placed at alternate position ({artifact_x}, {artifact_y})")
                             break
                 
-                token_info = TOKEN_MAP.get('Q', {'name': 'Jedi Artifact', 'type': 'quest_item'})
-                artifact_entry = {
-                    'x': artifact_x, 'y': artifact_y, 'token': 'Q',
-                    'name': token_info.get('name', 'Jedi Artifact'),
-                    'type': token_info.get('type', 'quest_item'),
-                    'description': token_info.get('description', 'Corrupted Jedi relic pulsing with dark energy'),
-                    'quest': True
-                }
-                level_items.append(artifact_entry)
+                if artifact_placed:
+                    token_info = TOKEN_MAP.get('Q', {'name': 'Jedi Artifact', 'type': 'quest_item'})
+                    artifact_entry = {
+                        'x': artifact_x, 'y': artifact_y, 'token': 'Q',
+                        'name': token_info.get('name', 'Jedi Artifact'),
+                        'type': token_info.get('type', 'quest_item'),
+                        'description': token_info.get('description', 'Corrupted Jedi relic pulsing with dark energy'),
+                        'quest': True
+                    }
+                    level_items.append(artifact_entry)
+                    print(f"  ✓ Artifact added to level_items list at ({artifact_x}, {artifact_y})")
+                    print(f"  ✓ Artifact 'Q' token placed on map at ({artifact_x}, {artifact_y})")
+                    print(f"  ✓ Map tile at artifact location: '{level_map[artifact_y][artifact_x]}'")
+                else:
+                    print(f"  ✗ WARNING: Failed to place artifact on final level!")
             
-            # Convert map items to item objects
+            # Convert map items to item objects (including 'Q' artifact token)
             for y in range(len(level_map)):
                 for x in range(len(level_map[0])):
                     tile = level_map[y][x]
-                    if tile in [Display.GOLD, Display.FOOD, Display.POTION, Display.ARTIFACT]:
+                    # Include 'Q' in the list of pickable tokens
+                    if tile in [Display.GOLD, Display.FOOD, Display.POTION, Display.ARTIFACT, 'Q']:
                         from jedi_fugitive.items.tokens import TOKEN_MAP
                         token_info = TOKEN_MAP.get(tile, {'name': 'Item', 'type': 'misc'})
+                        # Don't double-add artifact if already added above
+                        if tile == 'Q' and depth == num_levels:
+                            continue  # Already added in artifact placement section
                         item_entry = {
                             'x': x, 'y': y, 'token': tile,
                             'name': token_info.get('name', 'Item'),
@@ -1519,6 +1657,9 @@ def enter_tomb(game):
         # Set initial tomb state
         game.tomb_floor = 0
         game.current_depth = 1
+        
+        # Set tomb visibility (dark underground)
+        game.player.los_radius = 4  # Reduced visibility in dark tombs
 
         # Set player to first level entrance (stairs up position)
         first_stairs = game.tomb_stairs[0].get('up')
@@ -1534,9 +1675,16 @@ def enter_tomb(game):
         game.game_map = game.tomb_levels[0]
         game.enemies = game.tomb_enemies[0]
         game.items_on_map = game.tomb_items[0]
+        
+        # Recompute visibility for tomb
+        try:
+            game.compute_visibility()
+        except Exception:
+            pass
 
-        # Reduce LOS in dungeon
-        game.player.los_radius = max(3, getattr(game.player, 'los_radius', 6) - 2)
+        # Reduce LOS in Sith tomb dungeons
+        # Sith tombs: 4 tiles (dark, ancient stone corridors with flickering shadows)
+        game.player.los_radius = 4
         
         # First tomb entry - activate permanent stress system
         if not getattr(game.player, '_stress_system_active', False):
@@ -1741,7 +1889,7 @@ def spawn_loot_caches(game, count=8):
         
         # Loot cache names with themes
         cache_names = [
-            "Imperial Weapons Cache",
+            "Sith Weapons Cache",
             "Sith Armory",
             "Smuggler's Stash",
             "Republic Supply Drop",
@@ -1921,9 +2069,8 @@ def spawn_loot_caches(game, count=8):
         return placed_count
         
     except Exception as e:
-        print(f"Error spawning loot caches: {e}")
-        import traceback
-        traceback.print_exc()
+        if log:
+            log.exception(f"Error spawning loot caches: {e}", exc_info=e)
         return 0
 
 
@@ -2026,7 +2173,6 @@ def spawn_npcs_on_map(game):
         return npcs_spawned
         
     except Exception as e:
-        print(f"Error spawning NPCs: {e}")
-        import traceback
-        traceback.print_exc()
+        if log:
+            log.exception(f"Error spawning NPCs: {e}", exc_info=e)
         return 0

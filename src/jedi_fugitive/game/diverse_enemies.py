@@ -20,6 +20,8 @@ def create_sith_sniper(level=1):
     enemy.preferred_range = 6
     enemy.alert_range = 10
     enemy.description = "A deadly sharpshooter who prefers distance"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 
@@ -39,6 +41,8 @@ def create_sith_brawler(level=1):
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 8
     enemy.description = "A fearsome warrior who charges without hesitation"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 
@@ -58,6 +62,8 @@ def create_sith_assassin(level=1):
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 7
     enemy.description = "A cunning killer who strikes from the shadows"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 
@@ -78,6 +84,8 @@ def create_sith_trooper(level=1):
     enemy.preferred_range = 4
     enemy.alert_range = 6
     enemy.description = "A disciplined soldier with tactical training"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 
@@ -97,6 +105,8 @@ def create_sith_scout(level=1):
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 9
     enemy.description = "An agile scout who circles to find weaknesses"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 
@@ -116,6 +126,8 @@ def create_sith_guardian(level=1):
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 5
     enemy.description = "A heavily armored defender built like a fortress"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 
@@ -135,6 +147,8 @@ def create_dark_acolyte(level=1):
     enemy.enemy_behavior = 'standard'
     enemy.alert_range = 7
     enemy.description = "A Force-sensitive apprentice of the dark side"
+    enemy.faction = 'Sith Empire'
+    enemy.color = 1  # Red for Sith
     return enemy
 
 

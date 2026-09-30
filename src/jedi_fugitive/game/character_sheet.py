@@ -14,7 +14,7 @@ def show_character_sheet(game):
         alignment = 'Unknown'
     
     lines.append("╔════════════════════════════════════════════════════════════╗")
-    lines.append("║          JEDI FUGITIVE - CHARACTER SHEET                   ║")
+    lines.append("║          DARK MERIDIAN - CHARACTER SHEET                   ║")
     lines.append("╚════════════════════════════════════════════════════════════╝")
     lines.append("")
     

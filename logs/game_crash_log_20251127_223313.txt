@@ -1,0 +1,52 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2025-11-27 22:33:13
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2025-11-27 22:33:13] INFO: Game started
+[2025-11-27 22:33:15] INFO: Game initialization started
+[2025-11-27 22:33:15] INFO: World generation started
+[2025-11-27 22:33:16] EVENT [WORLD_GEN]: World generation completed successfully
+[2025-11-27 22:33:16] INFO: Game loop started
+
+================================================================================
+[2025-11-27 22:33:16] CURSES_ERROR: Curses initialization failed
+================================================================================
+
+Exception Type: error
+Exception Message: endwin() returned ERR
+
+Stack Trace:
+Traceback (most recent call last):
+  File "/opt/anaconda3/lib/python3.11/curses/__init__.py", line 94, in wrapper
+    return func(stdscr, *args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/main.py", line 31, in _curses_main
+    gm.run()
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/game/game_manager.py", line 227, in run
+    while self.running:
+          ^^^^^^^^^^^^
+AttributeError: 'GameManager' object has no attribute 'running'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/matiaspetersen/Documents/Spider/ScholarsOf/jedi-fugitive/src/jedi_fugitive/main.py", line 130, in main
+    gm = curses.wrapper(_curses_main, load_save)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/curses/__init__.py", line 101, in wrapper
+    endwin()
+_curses.error: endwin() returned ERR
+
+================================================================================
+[2025-11-27 22:33:17] EVENT [WORLD_GEN]: World generation completed successfully
+
+================================================================================
+SESSION ENDED
+================================================================================
+End time: 2025-11-27 22:33:17
+Session duration: 0:00:03.793262
+================================================================================

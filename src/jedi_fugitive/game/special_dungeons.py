@@ -316,7 +316,7 @@ DUNGEON_TEMPLATES = {
             "The sound of your heartbeat reverberates through the halls.",
             "Ancient chants echo from empty chambers.",
         ],
-        'floor_tile': '~',   # Resonant floor
+        'floor_tile': '≋',   # Resonant floor (fluid wave pattern)
         'wall_tile': '║',    # Acoustic walls
         'special_features': ['resonance_chambers', 'sound_traps'],
         'artifact': ArtifactType.ECHO_CRYSTAL,
@@ -431,7 +431,7 @@ DUNGEON_TEMPLATES = {
             "Heat radiates from cold stone, fueled by ancient suffering.",
             "You hear the distant sound of hammers striking in empty chambers.",
         ],
-        'floor_tile': '▓',   # Forge floor
+        'floor_tile': '░',   # Forge floor (light shade)
         'wall_tile': '▣',    # Metal-reinforced stone
         'special_features': ['torment_anvils', 'pain_conduits'],
         'artifact': ArtifactType.TORMENT_CROWN,

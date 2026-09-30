@@ -18,7 +18,7 @@ def create_desert_raider(level=1):
         xp_value=32,
         level=level
     )
-    enemy.symbol = 'r'
+    enemy.symbol = '☠'  # Skull and crossbones for raider
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 9
     enemy.description = "Sun-scorched nomad who knows every dune"
@@ -34,15 +34,16 @@ def create_sandworm_spawn(level=1):
         attack=13 + level * 2,
         defense=4,
         evasion=8,
-        personality=None,
+        personality=None,  # Creature - no personality/taunts
         xp_value=40,
         level=level
     )
-    enemy.symbol = 'w'
+    enemy.symbol = '⛬'  # Worm/serpent symbol
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 6
     enemy.description = "Young sandworm hunting in the dunes"
     enemy.biome = 'desert'
+    enemy.is_creature = True  # Mark as non-sentient creature
     return enemy
 
 
@@ -58,11 +59,12 @@ def create_dust_stalker(level=1):
         xp_value=38,
         level=level
     )
-    enemy.symbol = 'd'
+    enemy.symbol = 'Ψ'  # Psi symbol for stalker
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 8
     enemy.description = "Creature that moves like a mirage through sandstorms"
     enemy.biome = 'desert'
+    enemy.is_creature = True
     return enemy
 
 
@@ -80,11 +82,12 @@ def create_forest_ambusher(level=1):
         xp_value=35,
         level=level
     )
-    enemy.symbol = 'a'
+    enemy.symbol = 'Θ'  # Theta for ambusher
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 7
     enemy.description = "Silent hunter that strikes from the shadows of trees"
     enemy.biome = 'forest'
+    enemy.is_creature = True
     return enemy
 
 
@@ -100,11 +103,12 @@ def create_vine_beast(level=1):
         xp_value=42,
         level=level
     )
-    enemy.symbol = 'v'
+    enemy.symbol = 'Θ'  # Plant/vine symbol
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 5
     enemy.description = "Massive creature tangled with aggressive plant life"
     enemy.biome = 'forest'
+    enemy.is_creature = True
     return enemy
 
 
@@ -120,11 +124,12 @@ def create_canopy_hunter(level=1):
         xp_value=33,
         level=level
     )
-    enemy.symbol = 'h'
+    enemy.symbol = 'Φ'  # Phi for hunter
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 8
     enemy.description = "Tree-dwelling predator with incredible reflexes"
     enemy.biome = 'forest'
+    enemy.is_creature = True
     return enemy
 
 
@@ -142,11 +147,12 @@ def create_rock_lizard(level=1):
         xp_value=36,
         level=level
     )
-    enemy.symbol = 'l'
+    enemy.symbol = 'Λ'  # Lambda for lizard
     enemy.enemy_behavior = 'standard'
     enemy.alert_range = 6
     enemy.description = "Stone-skinned reptile that waits motionless for prey"
     enemy.biome = 'rocky'
+    enemy.is_creature = True
     return enemy
 
 
@@ -162,7 +168,7 @@ def create_cliff_raider(level=1):
         xp_value=34,
         level=level
     )
-    enemy.symbol = 'c'
+    enemy.symbol = '↑'  # Up arrow for cliff raider
     enemy.enemy_behavior = 'ranged'
     enemy.preferred_range = 5
     enemy.alert_range = 10
@@ -183,11 +189,12 @@ def create_boulder_brute(level=1):
         xp_value=50,
         level=level
     )
-    enemy.symbol = 'B'
+    enemy.symbol = '⚉'  # Boulder/rock symbol
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 6
     enemy.description = "Enormous beast covered in stone-like hide"
     enemy.biome = 'rocky'
+    enemy.is_creature = True
     return enemy
 
 
@@ -205,11 +212,12 @@ def create_plains_stalker(level=1):
         xp_value=30,
         level=level
     )
-    enemy.symbol = 'p'
+    enemy.symbol = 'Ξ'  # Xi for stalker
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 10
     enemy.description = "Fast-moving hunter that circles prey in open terrain"
     enemy.biome = 'plains'
+    enemy.is_creature = True
     return enemy
 
 
@@ -225,11 +233,12 @@ def create_grassland_pack_hunter(level=1):
         xp_value=28,
         level=level
     )
-    enemy.symbol = 'k'
+    enemy.symbol = 'Ω'  # Omega for pack hunter
     enemy.enemy_behavior = 'flanker'
     enemy.alert_range = 9
     enemy.description = "Cunning predator that hunts in coordinated groups"
     enemy.biome = 'plains'
+    enemy.is_creature = True
     return enemy
 
 
@@ -245,11 +254,12 @@ def create_plains_charger(level=1):
         xp_value=44,
         level=level
     )
-    enemy.symbol = 'C'
+    enemy.symbol = '⚈'  # Heavy block for charger
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 7
     enemy.description = "Massive herd animal that tramples intruders"
     enemy.biome = 'plains'
+    enemy.is_creature = True
     return enemy
 
 
@@ -267,11 +277,12 @@ def create_river_lurker(level=1):
         xp_value=35,
         level=level
     )
-    enemy.symbol = 'u'
+    enemy.symbol = '≈'  # Wave symbol for lurker
     enemy.enemy_behavior = 'standard'
     enemy.alert_range = 6
     enemy.description = "Amphibious creature that drags prey into water"
     enemy.biome = 'river'
+    enemy.is_creature = True
     return enemy
 
 
@@ -287,11 +298,12 @@ def create_swamp_crawler(level=1):
         xp_value=37,
         level=level
     )
-    enemy.symbol = 's'
+    enemy.symbol = 'Π'  # Pi for crawler
     enemy.enemy_behavior = 'standard'
     enemy.alert_range = 5
     enemy.description = "Toxic marsh dweller with venomous bite"
     enemy.biome = 'river'
+    enemy.is_creature = True
     return enemy
 
 
@@ -307,11 +319,12 @@ def create_water_serpent(level=1):
         xp_value=40,
         level=level
     )
-    enemy.symbol = 'S'
+    enemy.symbol = '≋'  # Serpent wave
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 8
     enemy.description = "Massive serpent that strikes from beneath the surface"
     enemy.biome = 'river'
+    enemy.is_creature = True
     return enemy
 
 
@@ -329,11 +342,12 @@ def create_scrap_scavenger(level=1):
         xp_value=30,
         level=level
     )
-    enemy.symbol = 'x'
+    enemy.symbol = 's'  # Scavenger
     enemy.enemy_behavior = 'standard'
     enemy.alert_range = 7
     enemy.description = "Opportunistic creature drawn to metal and debris"
     enemy.biome = 'crash_site'
+    enemy.is_creature = True
     return enemy
 
 
@@ -349,11 +363,12 @@ def create_radiation_mutant(level=1):
         xp_value=42,
         level=level
     )
-    enemy.symbol = 'm'
+    enemy.symbol = '☮'  # Radiation symbol
     enemy.enemy_behavior = 'aggressive'
     enemy.alert_range = 6
     enemy.description = "Twisted creature mutated by toxic wreckage"
     enemy.biome = 'crash_site'
+    enemy.is_creature = True
     return enemy
 
 

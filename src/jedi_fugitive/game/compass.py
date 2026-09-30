@@ -1,3 +1,5 @@
+from jedi_fugitive.game import logger
+log = getattr(logger, 'log', None)
 """
 Compass and scanning system to reveal nearby Points of Interest, enemies, and objectives.
 """
@@ -131,10 +133,13 @@ def show_compass_scan(game):
         
         return True
     except Exception as e:
+        if log:
+            log.exception("Compass scan failed", exc_info=e)
         try:
             game.ui.messages.add(f"Compass scan failed: {e}")
-        except:
-            pass
+        except Exception as e2:
+            if log:
+                log.exception("Compass scan failed to add UI message", exc_info=e2)
         return False
 
 def get_direction_string(dx, dy):

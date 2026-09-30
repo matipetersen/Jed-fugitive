@@ -1,20 +1,9 @@
 from enum import Enum
 import random
 import math
-from jedi_fugitive.game.personality import ENEMY_TAUNTS
-try:
-    from jedi_fugitive.game.combat import calculate_hit
-except Exception:
-    def calculate_hit(a, b):
-        # fallback simple hit check
-        try:
-            return random.random() < 0.5
-        except Exception:
-            return False
-try:
-    from jedi_fugitive.game.level import Display
-except Exception:
-    Display = None
+from jedi_fugitive.game.personality import ENEMY_TAUNTS, EnemyPersonality
+from jedi_fugitive.utils.logger import get_logger
+log = get_logger("enemy")
 
 
 # ============ AI Helper Functions ============
@@ -37,7 +26,9 @@ def ai_should_retreat(enemy, game):
             return True
             
         return False
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("ai_should_retreat error", exc_info=e)
         return False
 
 
@@ -53,7 +44,9 @@ def ai_find_retreat_direction(enemy, game):
         if dx == 0 and dy == 0:
             dx = random.choice([-1, 1])
         return dx, dy
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("ai_find_retreat_direction error", exc_info=e)
         return (0, 0)
 
 
@@ -70,7 +63,9 @@ def ai_count_nearby_allies(enemy, game, radius=3):
             if dist <= radius:
                 count += 1
         return count
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("ai_count_nearby_allies error", exc_info=e)
         return 0
 
 
@@ -111,7 +106,9 @@ def ai_find_flanking_position(enemy, game):
             game._flanking_cache[cache_key] = result
             
         return result
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("ai_find_flanking_position error", exc_info=e)
         return (0, 0)
 
 
@@ -157,7 +154,9 @@ def ai_maintain_range(enemy, game, preferred_distance=4):
             game._range_cache[cache_key] = result
             
         return result
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("ai_maintain_range error", exc_info=e)
         return (0, 0)
 
 
@@ -180,8 +179,27 @@ def ai_can_move_to(game, x, y, exclude_enemy=None):
                 game._pathfinding_cache[cache_key] = False
                 return False
             
-            floor_char = getattr(Display, 'FLOOR', '.')
-            is_walkable_terrain = game.game_map[y][x] == floor_char
+            from jedi_fugitive.game.level import Display
+            tile = str(game.game_map[y][x])
+            # Check if NOT a wall or mountain (allow all floor tiles including special dungeon floors)
+            # Include special dungeon wall tiles
+            non_walkable = {
+                '\u2588',  # Display.WALL / Shadowmaze walls
+                '#',  # Legacy wall tile
+                '^',  # Mountains (impassable)
+                '\u2593',  # Memory Vault crystal walls
+                '\u2666',  # Crystal Garden walls
+                '\u256c',  # Bone Cathedral walls
+                '\u2551',  # Echo Chambers acoustic walls
+                '\u25a4',  # Twisted Library bookshelf walls
+                '\u25a3',  # Pain Forge metal walls
+                '\u224b',  # Dream Nexus fluid walls
+                '\u2663',  # Trees (Display.TREE)
+                '\u2248',  # Waves/dunes (Display.DUNE)
+                '~',  # Water/waves
+                'T',  # Legacy tree symbol
+            }
+            is_walkable_terrain = tile not in non_walkable
             game._pathfinding_cache[cache_key] = is_walkable_terrain
         
         if not is_walkable_terrain:
@@ -199,7 +217,9 @@ def ai_can_move_to(game, x, y, exclude_enemy=None):
                 return False
         
         return True
-    except Exception:
+    except Exception as e:
+        if log:
+            log.exception("ai_can_move_to error", exc_info=e)
         return False
 
 
@@ -258,7 +278,7 @@ def ai_get_enemy_behavior(enemy):
 
 
 class EnemyType(Enum):
-    STORMTROOPER = 1
+    SITH_TROOPER = 1
     SITH_GHOST = 2
     INQUISITOR = 3
     JEDI_MASTER = 4
@@ -332,8 +352,8 @@ class Enemy:
         # defaults for typed EnemyType
         self.x = 0; self.y = 0
         et = getattr(self, "type", None)
-        if et == EnemyType.STORMTROOPER:
-            self.name = "Stormtrooper"
+        if et == EnemyType.SITH_TROOPER:
+            self.name = "Sith Trooper"
             self.symbol = 'T'
             self.base_hp = 12
             self.max_hp = 12
@@ -450,13 +470,15 @@ class Enemy:
                 if hasattr(game, 'player'):
                     game.player.dark_xp = getattr(game.player, 'dark_xp', 0) + xp_reward
                     
-                    # Check for dark level up
+                    # Check for dark level up - USE UNIFIED SYSTEM
                     while game.player.dark_xp >= getattr(game.player, 'xp_to_next_dark', 100):
                         game.player.dark_level = getattr(game.player, 'dark_level', 1) + 1
                         game.player.dark_xp -= getattr(game.player, 'xp_to_next_dark', 100)
                         game.player.xp_to_next_dark = int(game.player.xp_to_next_dark * 1.5)
                         game.player.level = max(getattr(game.player, 'light_level', 1), game.player.dark_level)
                         
+                        # Call unified level_up() which shows interactive menu
+                        game.player.level_up()
                         if hasattr(game, 'ui') and hasattr(game.ui, 'messages'):
                             game.ui.messages.add(f"#1#DARK SIDE LEVEL UP!#0# Now Dark Level {game.player.dark_level}")
                     
@@ -504,20 +526,20 @@ class Enemy:
     def attempt_ranged_shot(self, game):
         """Stormtrooper blaster shot (range 2-4). Animation stops at first blocking tile."""
         try:
-            # identify stormtrooper type robustly
+            # identify sith trooper type robustly
             et = getattr(self, "type", None)
-            is_storm = False
+            is_trooper = False
             try:
                 from jedi_fugitive.game.enemy import EnemyType
-                if et == getattr(EnemyType, "STORMTROOPER", None):
-                    is_storm = True
+                if et == getattr(EnemyType, "SITH_TROOPER", None):
+                    is_trooper = True
             except Exception:
                 pass
-            if not is_storm:
+            if not is_trooper:
                 name = getattr(self, "name", "") or ""
-                if "storm" in name.lower():
-                    is_storm = True
-            if not is_storm:
+                if "sith trooper" in name.lower() or "trooper" in name.lower():
+                    is_trooper = True
+            if not is_trooper:
                 return False
 
             player = getattr(game, "player", None)
@@ -591,6 +613,71 @@ class Enemy:
                 except Exception:
                     pass
                 return True
+
+            # Check for deflection
+            deflected = False
+            if player:
+                # Check if player has lightsaber
+                has_lightsaber = False
+                weapon = getattr(player, 'equipped_weapon', None)
+                if weapon:
+                    w_type = getattr(weapon, 'weapon_type', None)
+                    # Check enum or string
+                    if str(w_type) in ['WeaponType.LIGHTSABER', 'WeaponType.DUAL_LIGHTSABER', 'WeaponType.LIGHTSABER_PIKE']:
+                        has_lightsaber = True
+                    elif "lightsaber" in getattr(weapon, 'name', '').lower():
+                        has_lightsaber = True
+                
+                if has_lightsaber:
+                    # Calculate deflection chance
+                    # Base 20% + (Accuracy - 50)/2 + Form bonuses
+                    deflect_chance = 0.20
+                    acc_stat = getattr(player, 'accuracy', 60)
+                    deflect_chance += max(0, (acc_stat - 50) * 0.005)
+                    
+                    # Form bonuses
+                    active_form = getattr(player, 'active_form', 'Shii-Cho')
+                    if active_form == 'Soresu': # Defensive form
+                        deflect_chance += 0.25
+                    elif active_form == 'Shien': # Blaster deflection form
+                        deflect_chance += 0.35
+                    
+                    if random.random() < deflect_chance:
+                        deflected = True
+                        try:
+                            # Check for reflection (Shien form specializes in this)
+                            reflect_chance = 0.0
+                            if active_form == 'Shien':
+                                reflect_chance = 0.50
+                            elif active_form == 'Soresu':
+                                reflect_chance = 0.10
+                            elif active_form == 'Niman':
+                                reflect_chance = 0.25
+                            
+                            # Accuracy bonus to reflection
+                            reflect_chance += max(0, (acc_stat - 60) * 0.005)
+                            
+                            if random.random() < reflect_chance:
+                                game.ui.messages.add(f"#11#You reflect the bolt back at the shooter!#0#")
+                                # Animate return bolt
+                                if hasattr(game, "animate_projectile"):
+                                    game.animate_projectile(px, py, sx, sy, symbol='*', delay=0.02)
+                                
+                                # Apply damage to shooter
+                                reflect_damage = random.randint(4, 8) + int((acc_stat - 50) / 5)
+                                self.take_damage(reflect_damage, game=game)
+                                game.ui.messages.add(f"The reflected bolt hits {getattr(self, 'name', 'Enemy')} for {reflect_damage} damage!")
+                            else:
+                                game.ui.messages.add(f"#11#You deflect the blaster bolt with your lightsaber!#0#")
+                                # Animate deflection (spark)
+                                if hasattr(game, "animate_projectile"):
+                                    # Just a quick flash at player pos
+                                    game.animate_projectile(px, py, px, py, symbol='X', delay=0.1)
+                        except Exception:
+                            pass
+
+            if deflected:
+                return True # Shot blocked
 
             # otherwise bolt reached player tile -> resolve hit using distance-based accuracy
             acc = 0.30 + max(0, (4 - cheb)) * 0.15
@@ -768,45 +855,118 @@ class Enemy:
             return False
 
 
-class EnemyPersonality:
-    """Lightweight personality container used by map_features and spawn helpers.
-    Keeps a few simple traits and is safe to import from legacy callers.
+# EnemyPersonality is now imported from jedi_fugitive.game.personality
+
+
+def find_enemy_target(enemy, game):
     """
-    def __init__(self, aggressiveness: int = 50, cautiousness: int = 50, name: str = None):
-        try:
-            import random
-        except Exception:
-            random = None
-        self.aggressiveness = int(aggressiveness) if aggressiveness is not None else 50
-        self.cautiousness = int(cautiousness) if cautiousness is not None else 50
-        # optional friendly name for debug/logging
-        if name is None:
-            try:
-                self.name = f"P{random.randint(1,9999)}" if random else "Personality"
-            except Exception:
-                self.name = "Personality"
+    Find the best target for an enemy based on faction relationships.
+    Returns (target_x, target_y, target_object, target_type) where target_type is 'player' or 'enemy'.
+    If no valid target, returns (None, None, None, None).
+    """
+    try:
+        # Get enemy's faction
+        enemy_faction = getattr(enemy, 'faction', None)
+        if not enemy_faction:
+            # No faction = always target player
+            return (getattr(game.player, 'x', 0), getattr(game.player, 'y', 0), game.player, 'player')
+        
+        # Get faction manager
+        faction_manager = getattr(game, 'faction_manager', None)
+        if not faction_manager:
+            # No faction system = always target player
+            return (getattr(game.player, 'x', 0), getattr(game.player, 'y', 0), game.player, 'player')
+        
+        # Check if player is hostile with this enemy's faction
+        player_is_hostile = faction_manager.is_player_hostile_to_faction(enemy_faction)
+        player_is_friendly = faction_manager.is_player_friendly_to_faction(enemy_faction)
+        
+        # Get enemy position
+        ex = getattr(enemy, 'x', 0)
+        ey = getattr(enemy, 'y', 0)
+        
+        # Find nearest hostile target (player or other faction enemies)
+        nearest_hostile = None
+        nearest_hostile_dist = 9999
+        nearest_hostile_type = None
+        
+        # Check other enemies for hostile factions
+        for other in getattr(game, 'enemies', []):
+            if other is enemy:
+                continue
+            if not getattr(other, 'is_alive', lambda: False)():
+                continue
+            
+            other_faction = getattr(other, 'faction', None)
+            if not other_faction:
+                continue  # No faction = not a valid inter-faction target
+            
+            # Check if factions are hostile
+            if faction_manager.are_factions_hostile(enemy_faction, other_faction):
+                ox = getattr(other, 'x', 0)
+                oy = getattr(other, 'y', 0)
+                dist = abs(ex - ox) + abs(ey - oy)
+                
+                if dist < nearest_hostile_dist:
+                    nearest_hostile = other
+                    nearest_hostile_dist = dist
+                    nearest_hostile_type = 'enemy'
+        
+        # Check player as potential target
+        px = getattr(game.player, 'x', 0)
+        py = getattr(game.player, 'y', 0)
+        player_dist = abs(ex - px) + abs(ey - py)
+        
+        # Priority system:
+        # 1. If player is hostile (rep < -20), they are a valid target
+        # 2. If player is friendly (rep > 20), never target them
+        # 3. If player is neutral, only target if no hostile faction enemies nearby
+        
+        if player_is_friendly:
+            # Player is friendly, only target hostile faction enemies
+            if nearest_hostile:
+                return (getattr(nearest_hostile, 'x', 0), getattr(nearest_hostile, 'y', 0), nearest_hostile, 'enemy')
+            else:
+                # No targets, patrol or stay
+                return (None, None, None, None)
+        
+        elif player_is_hostile:
+            # Player is hostile, prioritize closest hostile target
+            if nearest_hostile and nearest_hostile_dist < player_dist:
+                return (getattr(nearest_hostile, 'x', 0), getattr(nearest_hostile, 'y', 0), nearest_hostile, 'enemy')
+            else:
+                return (px, py, game.player, 'player')
+        
         else:
-            self.name = str(name)
-
-    def choose_action(self, context=None):
-        """Return a string representing a chosen behavior (best-effort)."""
-        try:
-            import random
-            if random.random() < (self.aggressiveness / 100.0):
-                return "attack"
-            if random.random() < (self.cautiousness / 100.0):
-                return "retreat"
-        except Exception:
-            pass
-        return "idle"
-
-    def __repr__(self):
-        return f"<EnemyPersonality {self.name} aggr={self.aggressiveness} caut={self.cautiousness}>"
+            # Player is neutral - prioritize faction enemies, but target player if close
+            if nearest_hostile and nearest_hostile_dist < min(player_dist, 10):
+                # Hostile faction enemy is closer or player is far
+                return (getattr(nearest_hostile, 'x', 0), getattr(nearest_hostile, 'y', 0), nearest_hostile, 'enemy')
+            elif player_dist <= 6:
+                # Player is close and neutral = potential target
+                return (px, py, game.player, 'player')
+            elif nearest_hostile:
+                # Target distant faction enemy
+                return (getattr(nearest_hostile, 'x', 0), getattr(nearest_hostile, 'y', 0), nearest_hostile, 'enemy')
+            else:
+                # No targets
+                return (None, None, None, None)
+    
+    except Exception:
+        # Fallback to player on any error
+        return (getattr(game.player, 'x', 0), getattr(game.player, 'y', 0), game.player, 'player')
 
 
 def process_enemies(game):
     """Process enemy turns: movement, taunts and attacks. Defensive and respects depth/difficulty."""
     from jedi_fugitive.config import DIFFICULTY_MULTIPLIER, DEPTH_DIFFICULTY_RATE
+    
+    # Advance projectiles FIRST so blaster bolts move before enemies act
+    try:
+        from jedi_fugitive.game import projectiles as proj
+        proj.advance_projectiles(game)
+    except Exception:
+        pass
     
     # Performance optimization: batch processing and distance caching
     try:
@@ -964,17 +1124,17 @@ def process_enemies(game):
 
                             taunt = None
                             
-                            # Check if this is a massive creature first
+                            # Check if this is a creature (non-sentient beast)
                             try:
-                                if getattr(e, 'is_massive', False):
+                                if getattr(e, 'is_creature', False) or getattr(e, 'is_massive', False):
                                     from jedi_fugitive.game.personality import get_massive_creature_taunt
                                     creature_name = getattr(e, 'name', 'unknown').lower()
                                     taunt = get_massive_creature_taunt(creature_name, situation)
                             except Exception:
                                 pass
                             
-                            # Regular enemy personality taunts
-                            if not taunt:
+                            # Regular enemy personality taunts (only for sentient enemies)
+                            if not taunt and e.personality is not None:
                                 try:
                                     # Pass game context for environmental and situational awareness
                                     taunt = e.personality.get_taunt(situation, game.player, game)
@@ -1060,6 +1220,7 @@ def process_enemies(game):
                                 new_y = getattr(e, 'y', 0) + move_dy
                                 if 0 <= new_y < len(game.game_map) and 0 <= new_x < len(game.game_map[0]):
                                     target_cell = game.game_map[new_x and new_y or new_y][new_x] if False else game.game_map[new_y][new_x]
+                                    from jedi_fugitive.game.level import Display
                                     floor_char = getattr(Display, 'FLOOR', '.')
                                     if target_cell == floor_char and not any((getattr(o, 'x', -1) == new_x and getattr(o, 'y', -1) == new_y) for o in game.enemies) and not (new_x == getattr(game.player, 'x', -1) and new_y == getattr(game.player, 'y', -1)):
                                         e.x = new_x
@@ -1080,6 +1241,21 @@ def process_enemies(game):
                 except Exception:
                     pass
 
+                # Find target based on faction relationships
+                target_x, target_y, target_obj, target_type = find_enemy_target(e, game)
+                
+                # If no target, skip this enemy's turn
+                if target_x is None:
+                    continue
+                
+                # Recalculate distance to actual target (not just player)
+                target_dist = abs(ex - target_x) + abs(ey - target_y)
+                
+                # Update dist and px/py to target for movement/attack logic
+                px_actual = target_x
+                py_actual = target_y
+                dist_actual = target_dist
+                
                 # depth influenced scaling
                 depth = max(1, getattr(game, "current_depth", 1))
                 try:
@@ -1089,17 +1265,50 @@ def process_enemies(game):
 
                 attack_range = 1 + (depth // 3)
 
-                # attack if in range
-                if dist <= attack_range:
+                # attack if in range (target can be player or enemy)
+                if dist_actual <= attack_range:
                     try:
                         atk_stat = int(getattr(e, "attack", 0) * depth_factor)
                     except Exception:
                         atk_stat = int(getattr(e, "attack", 0))
+                    
+                    # Calculate hit chance against target (player or enemy)
                     try:
-                        hit = calculate_hit(atk_stat, getattr(game.player, "evasion", 0))
+                        from jedi_fugitive.game.combat import calculate_hit
+                        target_evasion = getattr(target_obj, "evasion", 0)
+                        hit = calculate_hit(atk_stat, target_evasion)
                     except Exception:
                         hit = False
-                    if hit:
+                    
+                    if hit and target_type == 'enemy':
+                        # Enemy-vs-Enemy combat
+                        try:
+                            target_defense = getattr(target_obj, "defense", 0)
+                            dmg = max(1, int((getattr(e, "attack", 1) - target_defense) * depth_factor))
+                            target_obj.hp -= dmg
+                            
+                            # Message for inter-faction combat
+                            try:
+                                if getattr(game.ui, 'messages', None) and random.random() < 0.3:
+                                    attacker_name = getattr(e, 'name', 'Enemy')
+                                    target_name = getattr(target_obj, 'name', 'Enemy')
+                                    game.ui.messages.add(f"#6#[FACTION WAR]#0# {attacker_name} strikes {target_name} for {dmg} damage!")
+                            except Exception:
+                                pass
+                            
+                            # Check if target died
+                            if getattr(target_obj, 'hp', 0) <= 0:
+                                try:
+                                    if getattr(game.ui, 'messages', None):
+                                        attacker_name = getattr(e, 'name', 'Enemy')
+                                        target_name = getattr(target_obj, 'name', 'Enemy')
+                                        game.ui.messages.add(f"#2#{attacker_name} defeats {target_name}!#0#")
+                                    game.enemies.remove(target_obj)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                    elif hit:
                         try:
                             dmg = max(1, int((getattr(e, "attack", 1) - getattr(game.player, "defense", 0)) * depth_factor))
                         except Exception:
@@ -1163,23 +1372,33 @@ def process_enemies(game):
                                     ]
                                     game.ui.messages.add(random.choice(death_messages))
                                 elif dmg >= 8:
-                                    # Enhanced heavy damage descriptions
+                                    # Enhanced heavy damage descriptions with dramatic impact
                                     heavy_messages = [
                                         f"{enemy_name} savagely strikes your {random.choice(body_parts)}! [{dmg} damage]",
                                         f"{enemy_name}'s attack tears into your {random.choice(body_parts)}! [{dmg} damage]",
                                         f"A brutal hit to your {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
                                         f"{enemy_name} slashes your {random.choice(body_parts)} viciously! [{dmg} damage]",
-                                        f"The violence echoes through the {location_context} as {enemy_name} wounds you! [{dmg} damage]"
+                                        f"The violence echoes through the {location_context} as {enemy_name} wounds you! [{dmg} damage]",
+                                        f"{enemy_name}'s devastating blow crushes your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"A vicious strike from {enemy_name} rends your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"{enemy_name} unleashes a powerful attack on your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"Blood sprays as {enemy_name}'s weapon tears through your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"The force of {enemy_name}'s attack sends pain exploding through your {random.choice(body_parts)}! [{dmg} damage]"
                                     ]
                                     game.ui.messages.add(random.choice(heavy_messages))
                                 else:
-                                    # Enhanced normal damage descriptions
+                                    # Enhanced normal damage descriptions with cinematic flair
                                     hit_messages = [
                                         f"{enemy_name} strikes your {random.choice(body_parts)}. [{dmg} damage]",
                                         f"{enemy_name} hits you in the {random.choice(body_parts)}! [{dmg} damage]",
                                         f"{enemy_name}'s attack wounds your {random.choice(body_parts)}. [{dmg} damage]",
                                         f"You take a hit to the {random.choice(body_parts)} from {enemy_name}! [{dmg} damage]",
-                                        f"In the {location_context}, {enemy_name} finds its mark! [{dmg} damage]"
+                                        f"In the {location_context}, {enemy_name} finds its mark! [{dmg} damage]",
+                                        f"{enemy_name}'s blade grazes your {random.choice(body_parts)}. [{dmg} damage]",
+                                        f"A swift strike from {enemy_name} catches your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"{enemy_name} lunges forward, cutting your {random.choice(body_parts)}. [{dmg} damage]",
+                                        f"Pain flares as {enemy_name} strikes your {random.choice(body_parts)}! [{dmg} damage]",
+                                        f"The {location_context} echoes with your cry as {enemy_name} hits! [{dmg} damage]"
                                     ]
                                     game.ui.messages.add(random.choice(hit_messages))
                         except Exception:
@@ -1308,21 +1527,22 @@ def process_enemies(game):
                             game._ai_cache[cache_key] = ai_should_charge(e, game)
                         
                         if game._ai_cache[cache_key]:
-                            # Direct aggressive movement toward player (use cached positions)
-                            if px > ex:
+                            # Direct aggressive movement toward target (can be player or enemy)
+                            if px_actual > ex:
                                 dx = 1
-                            elif px < ex:
+                            elif px_actual < ex:
                                 dx = -1
-                            if py > ey:
+                            if py_actual > ey:
                                 dy = 1
-                            elif py < ey:
+                            elif py_actual < ey:
                                 dy = -1
                             # Message on first charge
                             try:
                                 if not getattr(e, '_charge_announced', False) and random.random() < 0.3:
                                     e._charge_announced = True
                                     if getattr(game.ui, 'messages', None):
-                                        game.ui.messages.add(f"{getattr(e,'name','Enemies')} coordinate an assault!")
+                                        target_name = "you" if target_type == 'player' else getattr(target_obj, 'name', 'enemy')
+                                        game.ui.messages.add(f"{getattr(e,'name','Enemies')} coordinate an assault on {target_name}!")
                             except Exception:
                                 pass
                         
@@ -1335,76 +1555,77 @@ def process_enemies(game):
                             except Exception:
                                 pass
                         
-                        # SNIPER: stay at long range, don't approach
+                        # SNIPER: stay at long range from target, don't approach
                         elif behavior == 'sniper':
-                            if dist < 5:
-                                # Move away to maintain distance
+                            if dist_actual < 5:
+                                # Move away from target to maintain distance
                                 dx, dy = ai_find_retreat_direction(e, game)
                             else:
                                 # Hold position or sidestep
                                 if random.random() < 0.4:
                                     dx, dy = random.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
                         
-                        # AGGRESSIVE/BRAWLER: always charge directly, ignore tactics
+                        # AGGRESSIVE/BRAWLER: always charge directly toward target, ignore tactics
                         elif behavior == 'aggressive':
-                            if getattr(game.player, "x", 0) > getattr(e, "x", 0):
+                            if px_actual > getattr(e, "x", 0):
                                 dx = 1
-                            elif getattr(game.player, "x", 0) < getattr(e, "x", 0):
+                            elif px_actual < getattr(e, "x", 0):
                                 dx = -1
                             if dx == 0:
-                                if getattr(game.player, "y", 0) > getattr(e, "y", 0):
+                                if py_actual > getattr(e, "y", 0):
                                     dy = 1
-                                elif getattr(game.player, "y", 0) < getattr(e, "y", 0):
+                                elif py_actual < getattr(e, "y", 0):
                                     dy = -1
                         
-                        # FLANKER: always try to attack from sides
+                        # FLANKER: always try to attack from sides (of target)
                         elif behavior == 'flanker':
-                            if dist > 2:
+                            if dist_actual > 2:
+                                # For flanking, still use AI functions but they'll use actual target
                                 dx, dy = ai_find_flanking_position(e, game)
                             else:
-                                # Close enough, move in
-                                if getattr(game.player, "x", 0) > getattr(e, "x", 0):
+                                # Close enough, move in toward target
+                                if px_actual > getattr(e, "x", 0):
                                     dx = 1
-                                elif getattr(game.player, "x", 0) < getattr(e, "x", 0):
+                                elif px_actual < getattr(e, "x", 0):
                                     dx = -1
                                 if dx == 0:
-                                    if getattr(game.player, "y", 0) > getattr(e, "y", 0):
+                                    if py_actual > getattr(e, "y", 0):
                                         dy = 1
-                                    elif getattr(game.player, "y", 0) < getattr(e, "y", 0):
+                                    elif py_actual < getattr(e, "y", 0):
                                         dy = -1
                         
-                        # RANGED: maintain preferred distance
+                        # RANGED: maintain preferred distance from target
                         elif behavior == 'ranged' or hasattr(e, 'attempt_ranged_shot') or getattr(e, 'preferred_range', 0) > 0:
                             preferred_dist = getattr(e, 'preferred_range', 4)
                             dx, dy = ai_maintain_range(e, game, preferred_dist)
                         
-                        # Flanking logic: if 2+ allies nearby and not adjacent to player, try flanking
-                        elif dist > 2 and ai_count_nearby_allies(e, game, radius=5) >= 2:
+                        # Flanking logic: if 2+ allies nearby and not adjacent to target, try flanking
+                        elif dist_actual > 2 and ai_count_nearby_allies(e, game, radius=5) >= 2:
                             if random.random() < 0.4:  # 40% chance to flank instead of direct approach
                                 dx, dy = ai_find_flanking_position(e, game)
                         
-                        # Default: direct pursuit toward player (use cached positions)
+                        # Default: direct pursuit toward target (use target positions)
                         else:
-                            if px > ex:
+                            if px_actual > ex:
                                 dx = 1
-                            elif px < ex:
+                            elif px_actual < ex:
                                 dx = -1
                             if dx == 0:
-                                if py > ey:
+                                if py_actual > ey:
                                     dy = 1
-                                elif py < ey:
+                                elif py_actual < ey:
                                     dy = -1
                     except Exception:
-                        # Fallback to simple pursuit
+                        # Fallback to simple pursuit toward target
                         try:
-                            if getattr(game.player, "x", 0) > getattr(e, "x", 0):
+                            if px_actual > getattr(e, "x", 0):
                                 dx = 1
-                            elif getattr(game.player, "x", 0) < getattr(e, "x", 0):
+                            elif px_actual < getattr(e, "x", 0):
                                 dx = -1
                             if dx == 0:
-                                if getattr(game.player, "y", 0) > getattr(e, "y", 0):
+                                if py_actual > getattr(e, "y", 0):
                                     dy = 1
-                                elif getattr(game.player, "y", 0) < getattr(e, "y", 0):
+                                elif py_actual < getattr(e, "y", 0):
                                     dy = -1
                         except Exception:
                             dx, dy = 0, 0

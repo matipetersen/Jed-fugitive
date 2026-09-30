@@ -277,7 +277,7 @@ class FormDoubleBladed(LightsaberForm):
         super().__init__()
         self.name = "Saberstaff Mastery"
         self.number = 0
-        self.philosophy = "Exotic double-bladed technique. Spinning death. Darth Maul's signature style."
+        self.philosophy = "Exotic double-bladed technique. Spinning death. Ancient Sith assassin signature style."
         self.focus = "Double-Bladed"
         self.alignment_preference = "dark"
         

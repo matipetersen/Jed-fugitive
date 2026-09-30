@@ -45,9 +45,9 @@ SURVIVOR_DIALOGUES = {
     'greeting': [
         "You there! Please, we mean no harm. Are you... are you a Jedi?",
         "By the Force, another survivor! We thought we were alone.",
-        "Stay back! Wait... you're not with the Empire, are you?",
+        "Stay back! Wait... you're not with the Sith Empire, are you?",
         "Please help us. We've been running for weeks.",
-        "We lost so many... Are you here to help or to finish what the Empire started?",
+        "We lost so many... Are you here to help or to finish what the Sith started?",
         "The galaxy is a cruel place now. Any friend is welcome.",
         "We saw your lightsaber. Does that mean hope, or more danger?"
     ],
@@ -62,7 +62,7 @@ SURVIVOR_DIALOGUES = {
         "Your eyes... they're different. What have you become?",
         "You carry darkness with you. Perhaps we should keep our distance.",
         "We've heard rumors of Jedi turning dark. Is it true?",
-        "We fear you almost as much as the Empire. Please, just let us be.",
+        "We fear you almost as much as the Sith. Please, just let us be.",
         "The children are afraid. Please don't hurt us."
     ],
     'trade_offer': [
@@ -73,8 +73,8 @@ SURVIVOR_DIALOGUES = {
         "Some of us were mechanics. Maybe we can fix something for you."
     ],
     'moral_choice_setup': [
-        "The Empire's scouts were here yesterday. They're looking for Force users.",
-        "We have wounded. The Empire took our medical supplies.",
+        "The Sith scouts were here yesterday. They're looking for Force users.",
+        "We have wounded. The Sith took our medical supplies.",
         "We're planning to flee deeper into the wilderness. It's dangerous.",
         "A child is missing. We think she wandered toward the ruins.",
         "Food is running low. Some want to steal from the next camp we find."
@@ -131,7 +131,7 @@ HERMIT_JEDI_DIALOGUES = {
 FALLEN_JEDI_DIALOGUES = {
     'greeting': [
         "Another Jedi? No... you're more than that. I can sense your potential.",
-        "The Order abandoned us. The Empire hunts us. What choice did we have?",
+        "The Order abandoned us. The Sith hunt us. What choice did we have?",
         "You survived too. Have you embraced your anger yet?",
     ],
     'light_rejection': [
@@ -146,7 +146,7 @@ FALLEN_JEDI_DIALOGUES = {
     ],
     'dark_kinship': [
         "Yes! You've embraced what we truly are. The strong survive.",
-        "Together we could be unstoppable. The Empire would fear us.",
+        "Together we could be unstoppable. The Sith Empire would fear us.",
         "I see the hunger in your eyes. Good. Use it.",
     ],
     'temptation_offer': [
@@ -155,8 +155,8 @@ FALLEN_JEDI_DIALOGUES = {
         "Join me. Together we can take what we deserve.",
     ],
     'warning': [
-        "The Inquisitors are coming. They'll find you eventually.",
-        "The Empire doesn't distinguish between light and dark Jedi. We're all targets.",
+        "The Sith Assassins are coming. They'll find you eventually.",
+        "The Sith Empire doesn't distinguish between light and dark Jedi. We're all targets.",
         "Survival is all that matters now. Morality is a luxury.",
     ]
 }
@@ -197,8 +197,8 @@ DARK_HERMIT_DIALOGUES = {
 
 # Moral choices that NPCs can present
 MORAL_CHOICES = {
-    'imperial_scouts': {
-        'setup': "Imperial scouts are tracking this camp. We could ambush them, but...",
+    'sith_scouts': {
+        'setup': "Sith scouts are tracking this camp. We could ambush them, but...",
         'option_light': {
             'text': "Help them escape quietly (Light)",
             'corruption_change': -10,
@@ -209,7 +209,7 @@ MORAL_CHOICES = {
             'text': "Ambush and kill the scouts (Dark)",
             'corruption_change': 15,
             'message': "You strike from the shadows. The scouts never see it coming. The survivors are safe, but at what cost?",
-            'reward': 'imperial_commlink'
+            'reward': 'sith_commlink'
         }
     },
     'wounded_civilian': {
@@ -243,7 +243,7 @@ MORAL_CHOICES = {
         }
     },
     'information_torture': {
-        'setup': "We captured an Imperial. He knows where other survivors are hiding. He won't talk.",
+        'setup': "We captured a Sith trooper. He knows where other survivors are hiding. He won't talk.",
         'option_light': {
             'text': "Let him go or convince him through compassion (Light)",
             'corruption_change': -8,
@@ -459,7 +459,7 @@ def get_moral_choice(npc_type, player_corruption):
     """
     # Survivor camps offer specific moral choices
     if npc_type == 'survivor_camp':
-        choices = ['imperial_scouts', 'wounded_civilian', 'stolen_supplies', 'information_torture']
+        choices = ['sith_scouts', 'wounded_civilian', 'stolen_supplies', 'information_torture']
         choice_id = random.choice(choices)
         return choice_id, MORAL_CHOICES[choice_id]
     
@@ -564,9 +564,9 @@ class NPC:
                 if self.npc_type == 'survivor_camp':
                     npc_faction = 'Settlers'
                 elif self.npc_type == 'hermit_jedi':
-                    npc_faction = 'Rebel'
+                    npc_faction = 'Republic'
                 elif self.npc_type == 'fallen_jedi' or self.npc_type == 'dark_hermit':
-                    npc_faction = 'Imperial'
+                    npc_faction = 'Sith Empire'
                 if npc_faction:
                     rep = hostile_factions.get_reputation(npc_faction)
             # If disguised or reputation is low, increase suspicion
@@ -580,9 +580,9 @@ class NPC:
             if self.npc_type == 'survivor_camp':
                 npc_faction = 'Settlers'
             elif self.npc_type == 'hermit_jedi':
-                npc_faction = 'Rebel'
+                npc_faction = 'Republic'
             elif self.npc_type == 'fallen_jedi' or self.npc_type == 'dark_hermit':
-                npc_faction = 'Imperial'
+                npc_faction = 'Sith Empire'
             if npc_faction:
                 rep = player.faction_manager.get_reputation(npc_faction)
                 if rep is not None and rep > 50:
@@ -611,7 +611,7 @@ class NPC:
             return "You offer to protect them. They are grateful for your kindness."
         elif "story" in option:
             self.quest_given = True
-            return "They tell you of Imperial patrols nearby. You gain insight into the local situation."
+            return "They tell you of Sith patrols nearby. You gain insight into the local situation."
         return "The survivors nod respectfully."
     
     def _handle_hermit_jedi_interaction(self, option, player):

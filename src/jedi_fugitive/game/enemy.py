@@ -286,6 +286,15 @@ class EnemyType(Enum):
     FAUNA = "fauna"
 
 
+def _pdef(player):
+    """Player defense including lightsaber stance bonus."""
+    try:
+        from jedi_fugitive.game import form_combat
+        return form_combat.total_defense(player)
+    except Exception:
+        return getattr(player, "defense", 0) or 0
+
+
 class Enemy:
     def __init__(self, *args, **kwargs):
         """Flexible constructor: supports typed and legacy signatures."""
@@ -648,7 +657,8 @@ class Enemy:
                     deflect_chance += max(0, (acc_stat - 50) * 0.005)
                     
                     # Form bonuses
-                    active_form = getattr(player, 'active_form', 'Shii-Cho')
+                    from jedi_fugitive.game import form_combat as _fc
+                    active_form = _fc.form_key(player) or 'Shii-Cho'
                     if active_form == 'Soresu': # Defensive form
                         deflect_chance += 0.25
                     elif active_form == 'Shien': # Blaster deflection form
@@ -696,7 +706,7 @@ class Enemy:
             roll = random.random()
             if roll <= acc:
                 base_damage = random.randint(1, 4)
-                p_def = getattr(player, "defense", 0) or 0
+                p_def = _pdef(player)
                 damage = max(0, base_damage - int(p_def * 0.5))
                 try:
                     player.hp = max(0, getattr(player, "hp", getattr(player, "max_hp", 0)) - damage)
@@ -1305,10 +1315,22 @@ def process_enemies(game):
                     try:
                         from jedi_fugitive.game.combat import calculate_hit
                         target_evasion = getattr(target_obj, "evasion", 0)
+                        try:
+                            from jedi_fugitive.game import form_combat
+                            target_evasion += form_combat.evasion_bonus(target_obj)
+                        except Exception:
+                            pass
                         hit = calculate_hit(atk_stat, target_evasion)
                     except Exception:
                         hit = False
                     
+                    if not hit and target_type != 'enemy':
+                        try:
+                            from jedi_fugitive.game import form_combat
+                            form_combat.on_enemy_miss(game, e)
+                        except Exception:
+                            pass
+
                     if hit and target_type == 'enemy':
                         # Enemy-vs-Enemy combat
                         try:
@@ -1339,9 +1361,9 @@ def process_enemies(game):
                             pass
                     elif hit:
                         try:
-                            dmg = max(1, int((getattr(e, "attack", 1) - getattr(game.player, "defense", 0)) * depth_factor))
+                            dmg = max(1, int((getattr(e, "attack", 1) - _pdef(game.player)) * depth_factor))
                         except Exception:
-                            dmg = max(1, int(getattr(e, "attack", 1) - getattr(game.player, "defense", 0)))
+                            dmg = max(1, int(getattr(e, "attack", 1) - _pdef(game.player)))
                         try:
                             game.player.hp -= dmg
                             # Track attacker info for death log

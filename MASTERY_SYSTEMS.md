@@ -15,7 +15,7 @@ Fully translating a stone (90% of its key words) gives XP, and every 3rd one giv
 All found inscriptions are archived and can be re-read as your vocabulary grows.
 
 ## Jedi skills (`game/jedi_skills.py`)
-Three trees (Blade, Force Mastery, Lorekeeper) of ranked nodes with prerequisites, level gates and
+Four trees (Blade, Force Mastery, Lorekeeper, Artificer) of ranked nodes with prerequisites, level gates and
 Light/Dark gates. Points: 2 at start, +1 per level-up, +1 per 3 translated stones. Nodes grant stats,
 Force energy/regeneration, cheaper Force costs, stress resistance, sight, translation bonuses and unlock
 Force abilities (Speed, Sight, Blink, Burst, Stun/Protect, Choke, Drain).
@@ -26,3 +26,16 @@ Five devices with three tiers each, built from crafting materials: Holo-Translat
 Tier 2 and 3 require Rakatan fluency (15% / 30%), tying language to technology.
 
 State (skills, lexicon, archive, tech) is written to saves under `mastery`.
+
+## Teachers (`game/npc_encounters.py`)
+Wandering Archivists (`a`; Old Sith / Tythonian / Proto-Mandalorian) and Rakatan Tinkers (`R`) teach
+languages when you talk to them (`t`): two lessons of 4 words each, "show them your inscriptions" (they
+explain words that appear in your archive), and the Tinker trades lessons for Scrap Metal + Fused Wire and
+tells you what to build next.
+
+## Lightsaber form combat (`game/form_combat.py`)
+Stance bonuses now apply (only while wielding a lightsaber): Shii-Cho cleaves an adjacent second enemy,
+Makashi favours duels (+25% alone, -20% surrounded, double-damage crits), Shien/Soresu/Niman deflect
+blaster bolts (Shien name bug fixed) and Shien counter-attacks missed melee blows, Ataru tires you in long
+fights, Juyo/Vaapad scales with corruption and every crit feeds the dark side, Niman lowers Force costs.
+Blade skills add crit chance (Precision Strike) and counters (Riposte).

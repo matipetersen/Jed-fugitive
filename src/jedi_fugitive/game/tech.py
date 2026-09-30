@@ -117,6 +117,20 @@ def next_cost(player, device_id):
     return dev.costs.get(t), t
 
 
+def _skill(player, key):
+    try:
+        from jedi_fugitive.game import jedi_skills
+        return jedi_skills.bonus(player, key)
+    except Exception:
+        return 0
+
+
+def effective_cost(player, cost):
+    """Apply the Efficient Assembly discount (never below 1 of each material)."""
+    d = int(_skill(player, "tech_discount"))
+    return {n: max(1, c - d) if c > 1 else c for n, c in cost.items()}
+
+
 def can_build(player, device_id):
     """(ok, reason)."""
     from jedi_fugitive.items.crafting import check_materials
@@ -126,8 +140,9 @@ def can_build(player, device_id):
     cost, t = next_cost(player, device_id)
     if cost is None:
         return False, "Fully upgraded."
+    cost = effective_cost(player, cost)
     need = TIER_FLUENCY[t]
-    have = languages.fluency(player, "rakatan")
+    have = languages.fluency(player, "rakatan") + _skill(player, "tech_fluency")
     if have + 1e-9 < need:
         return False, f"Needs Rakatan fluency {int(need * 100)}% (you have {int(have * 100)}%)."
     inv = getattr(player, "inventory", None) or []
@@ -143,6 +158,7 @@ def build(player, device_id):
     if not ok:
         return False, why
     cost, t = next_cost(player, device_id)
+    cost = effective_cost(player, cost)
     player.inventory = consume_materials(player.inventory, cost)
     player.tech[device_id] = t
     apply_stats(player)
@@ -152,6 +168,10 @@ def build(player, device_id):
 # ---------------------------------------------------------------- active use
 def _now(game):
     return int(getattr(game, "turn_count", 0) or 0)
+
+
+def _cooldown(player, dev):
+    return max(5, int(dev.cooldown * max(0.4, 1.0 - _skill(player, "cooldown"))))
 
 
 def cooldown_left(player, game, device_id):
@@ -172,14 +192,14 @@ def use(player, game, device_id):
     if left:
         return False, [f"{dev.name} is recharging ({left} ticks)."]
     if device_id == "medunit":
-        heal = MED_HEAL[t]
+        heal = MED_HEAL[t] + int(_skill(player, "med"))
         before = player.hp
         player.hp = min(player.max_hp, player.hp + heal)
-        player.tech_cooldowns[device_id] = _now(game) + dev.cooldown
+        player.tech_cooldowns[device_id] = _now(game) + _cooldown(player, dev)
         return True, [f"The Med-Unit hisses. +{player.hp - before} HP."]
     if device_id == "scanner":
-        msgs = scan_inscriptions(player, game, SCAN_RANGE[t])
-        player.tech_cooldowns[device_id] = _now(game) + dev.cooldown
+        msgs = scan_inscriptions(player, game, SCAN_RANGE[t] + int(_skill(player, "scan")))
+        player.tech_cooldowns[device_id] = _now(game) + _cooldown(player, dev)
         return True, msgs
     return False, ["Nothing happens."]
 
@@ -222,7 +242,7 @@ def device_rows(player):
         if cost is None:
             status = "MAX"
         elif ok:
-            status = f"Build T{nt}: " + ", ".join(f"{c}x {n}" for n, c in cost.items())
+            status = f"Build T{nt}: " + ", ".join(f"{c}x {n}" for n, c in effective_cost(player, cost).items())
         else:
             status = f"T{nt}: {why}"
         rows.append((did, dev.name, t, dev.desc, status))

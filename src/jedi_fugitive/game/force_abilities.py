@@ -70,6 +70,8 @@ class ForceAbility:
         try:
             from jedi_fugitive.game import jedi_skills
             base = base * jedi_skills.force_cost_multiplier(user)
+            from jedi_fugitive.game import form_combat
+            base = base * form_combat.force_cost_multiplier(user)
         except Exception:
             pass
 

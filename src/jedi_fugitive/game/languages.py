@@ -335,6 +335,29 @@ def study(player, lang_id, key, text, rng=None):
     return msgs, True
 
 
+def consult_archive(player, lang_id, n=3, rng=None):
+    """A teacher reads your archived inscriptions and explains the words in them.
+
+    Returns the meanings learned (words that actually appear in your archive first).
+    """
+    rng = rng or random
+    ensure_state(player)
+    flu = fluency(player, lang_id)
+    seen = []
+    for rec in player.inscriptions.values():
+        if rec.get("lang") != lang_id:
+            continue
+        _, info = render_text(player, lang_id, rec["text"], observe=False)
+        seen.extend(w for w in info["unknown"] if w in CORE_WORDS or flu >= ADVANCED_FLUENCY)
+    seen = list(dict.fromkeys(seen))
+    rng.shuffle(seen)
+    got = []
+    for w in seen[:n]:
+        if learn_word(player, lang_id, w):
+            got.append(w)
+    return got
+
+
 # ---------------------------------------------------------------- reading
 def read_inscription(player, key, lang_id, title, text, observe=True):
     """Show an inscription. Returns (rendered, messages).

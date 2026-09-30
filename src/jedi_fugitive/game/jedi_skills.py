@@ -37,6 +37,7 @@ TREES = {
     "blade": "Way of the Blade",
     "force": "Force Mastery",
     "sage": "Lorekeeper",
+    "artificer": "Artificer",
 }
 
 _NODES = [
@@ -55,6 +56,11 @@ _NODES = [
          requires=(("ataru", 2),), alignment="dark", effect={"attack": 2}),
     Node("form_mastery", "Form Mastery", "blade", "Every form flows into the next. +2 attack, +5 accuracy.", 1,
          cost=2, requires=(("ataru", 3),), min_level=8, effect={"attack": 2, "accuracy": 5}),
+
+    Node("precision", "Precision Strike", "blade", "Find the gap in any guard. +3% critical chance per rank.", 3,
+         requires=(("makashi", 1),), effect={"crit": 0.03}),
+    Node("riposte", "Riposte", "blade", "Turn a missed blow into a counter. +8% counter chance per rank.", 3,
+         requires=(("shien", 1),), effect={"counter": 0.08}),
 
     # ---------------------------------------------------------- Force Mastery
     Node("reserve", "Force Reserve", "force", "A deeper well of the Force. +10 max Force energy per rank.", 4,
@@ -91,6 +97,20 @@ _NODES = [
          requires=(("serenity", 1),), effect={"sight": 1}),
     Node("trance", "Healing Trance", "sage", "Mend the body with the Force. +5 max HP per rank.", 3,
          effect={"max_hp": 5}),
+
+    # ---------------------------------------------------------- Artificer
+    Node("salvage", "Efficient Assembly", "artificer", "Devices need 1 less of each multi-unit material per rank.", 2,
+         effect={"tech_discount": 1}),
+    Node("rakatan_insight", "Rakatan Insight", "artificer", "Machine-tongue comes easier: +5% effective Rakatan fluency for building, per rank.", 3,
+         effect={"tech_fluency": 0.05}),
+    Node("overclock", "Overclock", "artificer", "Active devices recharge 15% faster per rank.", 3,
+         requires=(("salvage", 1),), effect={"cooldown": 0.15}),
+    Node("field_medic", "Field Medic", "artificer", "Med-Unit heals +8 HP per rank.", 3,
+         effect={"med": 8}),
+    Node("deep_scan", "Deep Scan", "artificer", "Scanner range +15 tiles per rank.", 3,
+         requires=(("rakatan_insight", 1),), effect={"scan": 15}),
+    Node("plating", "Composite Plating", "artificer", "Reinforce your gear. +1 defense, +3 HP per rank.", 2,
+         requires=(("salvage", 1),), effect={"defense": 1, "max_hp": 3}),
 ]
 NODES = {n.id: n for n in _NODES}
 

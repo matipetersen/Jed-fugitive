@@ -30,6 +30,22 @@ NPC_TYPES = {
         'spawn_chance': 0.08,  # 8% chance per biome
         'biomes': ['desert', 'rocky', 'tomb'],
     },
+    'archivist': {
+        'symbol': 'a',
+        'color': 'cyan',
+        'name': 'Wandering Archivist',
+        'description': 'A scholar who has memorised the speech of dying civilisations.',
+        'spawn_chance': 0.60,
+        'biomes': ['forest', 'plains', 'river', 'rocky', 'mountain_pass'],
+    },
+    'rakatan_tinker': {
+        'symbol': 'R',
+        'color': 'yellow',
+        'name': 'Rakatan Tinker',
+        'description': 'A salvager who reads Infinite Empire machine-script and builds with it.',
+        'spawn_chance': 0.50,
+        'biomes': ['desert', 'rocky', 'plains'],
+    },
     'dark_hermit': {
         'symbol': 'N',  # Changed from D to avoid conflict with Dewback enemy
         'color': 'red',
@@ -508,7 +524,18 @@ class NPC:
         self.symbol = self.data['symbol']
         self.interacted = False
         self.quest_given = False
-    
+        self.lessons = 0  # language lessons given so far (teachers only)
+        self.teaches = self._pick_language()
+
+    def _pick_language(self):
+        if self.npc_type == 'rakatan_tinker':
+            return 'rakatan'
+        if self.npc_type == 'archivist':
+            import hashlib
+            h = int(hashlib.sha256(f"{self.x},{self.y}".encode()).hexdigest(), 16)
+            return ('sith', 'tythonian', 'mando')[h % 3]
+        return None
+
     def get_greeting(self):
         """Get initial greeting based on NPC type"""
         if self.npc_type == 'survivor_camp':
@@ -519,6 +546,10 @@ class NPC:
             return random.choice(FALLEN_JEDI_DIALOGUES['greeting'])
         elif self.npc_type == 'dark_hermit':
             return random.choice(DARK_HERMIT_DIALOGUES['greeting'])
+        elif self.npc_type == 'archivist':
+            return "Ah, a reader! Few care for the old scripts any more. Sit, sit."
+        elif self.npc_type == 'rakatan_tinker':
+            return "Hah! You've got that look - salvage and questions. Show me what you've got."
         else:
             return "Hello, traveler."
     
@@ -542,6 +573,13 @@ class NPC:
             options = ["Ask about Sith knowledge", "Inquire about artifacts"]
             if player.corruption > 30:
                 options.append("Request dark training")
+        elif self.npc_type in ('archivist', 'rakatan_tinker'):
+            from jedi_fugitive.game import languages
+            lname = languages.LANGUAGES[self.teaches]['name']
+            options = [f"Ask to be taught {lname}", "Show them your inscriptions"]
+            if self.npc_type == 'rakatan_tinker':
+                options.append("Barter salvage for lessons")
+                options.append("Ask what you could build")
         
         return options
     
@@ -596,6 +634,47 @@ class NPC:
             return self._handle_fallen_jedi_interaction(chosen_option, player)
         elif self.npc_type == 'dark_hermit':
             return self._handle_dark_hermit_interaction(chosen_option, player)
+        elif self.npc_type in ('archivist', 'rakatan_tinker'):
+            return self._handle_teacher_interaction(chosen_option, player)
+
+    def _handle_teacher_interaction(self, option, player):
+        """Language teachers: lessons, archive consultations, bartering, tech advice."""
+        from jedi_fugitive.game import languages
+        lang = self.teaches
+        lname = languages.LANGUAGES[lang]['name']
+        if option.startswith("Ask to be taught"):
+            if self.lessons >= 2:
+                return f"{self.name}: 'I have taught you all I can in one sitting. Read the stones - practice will do the rest.'"
+            self.lessons += 1
+            got = languages.grant_words(player, lang, 4)
+            if not got:
+                return f"{self.name}: 'You already know everything I could teach you of {lname}.'"
+            words = ", ".join(f"{languages.native_word(lang, w)}='{w}'" for w in got)
+            return f"{self.name} teaches you {lname}: {words}."
+        if option.startswith("Show them"):
+            got = languages.consult_archive(player, lang, 3)
+            if not got:
+                return f"{self.name} studies your notes but finds nothing new to explain in {lname}."
+            words = ", ".join(f"{languages.native_word(lang, w)}='{w}'" for w in got)
+            return f"{self.name} reads your inscriptions aloud and explains: {words}."
+        if option.startswith("Barter"):
+            from jedi_fugitive.items.crafting import check_materials, consume_materials
+            price = {"Scrap Metal": 1, "Fused Wire": 1}
+            if not check_materials(getattr(player, "inventory", []) or [], price):
+                return f"{self.name}: 'Bring me a Scrap Metal and a Fused Wire and we'll talk.'"
+            player.inventory = consume_materials(player.inventory, price)
+            got = languages.grant_words(player, lang, 3)
+            if not got:
+                return f"{self.name} keeps the salvage anyway: 'Nothing left to teach you, friend.'"
+            words = ", ".join(f"{languages.native_word(lang, w)}='{w}'" for w in got)
+            return f"{self.name} trades lessons for salvage: {words}."
+        if option.startswith("Ask what you could build"):
+            from jedi_fugitive.game import tech
+            for did, name, t, desc, status in tech.device_rows(player):
+                if status != "MAX":
+                    return f"{self.name}: 'Next, the {name}. {status}. Press I to build.'"
+            return f"{self.name}: 'You have built everything I know how to build.'"
+        return f"{self.name} nods."
     
     def _handle_survivor_interaction(self, option, player):
         """Handle survivor camp interactions"""

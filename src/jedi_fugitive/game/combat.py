@@ -58,6 +58,13 @@ def player_attack(player, enemy, messages=None, game=None):
                         dmg += dual_bonus
                 except Exception as e:
                     logger.exception(f"Exception applying mastery bonuses: {e}")
+            # Lightsaber form mechanics (stance bonuses, crits, cleave, ...)
+            form_notes = []
+            try:
+                from jedi_fugitive.game import form_combat
+                dmg, form_notes = form_combat.modify_player_attack(player, enemy, int(dmg), game)
+            except Exception as e:
+                logger.exception(f"Exception applying form mechanics: {e}")
             try:
                 enemy.hp = getattr(enemy, "hp", 0) - int(dmg)
             except Exception as e:
@@ -67,6 +74,12 @@ def player_attack(player, enemy, messages=None, game=None):
                 except Exception as e2:
                     logger.exception(f"Exception using setattr for enemy.hp: {e2}")
             
+            try:
+                from jedi_fugitive.game import form_combat
+                form_combat.cleave(player, enemy, int(dmg), game, messages)
+            except Exception as e:
+                logger.exception(f"Exception applying cleave: {e}")
+
             # Generate descriptive combat message
             if messages is not None:
                 try:
@@ -105,6 +118,10 @@ def player_attack(player, enemy, messages=None, game=None):
                 except Exception as e:
                     logger.exception(f"Exception generating combat message: {e}")
                     messages.add(f"You hit {getattr(enemy,'name','the enemy')} for {dmg}.")
+            if messages is not None:
+                for _n in form_notes:
+                    try: messages.add(_n)
+                    except Exception: pass
             return True, int(dmg)
         else:
             if messages is not None:

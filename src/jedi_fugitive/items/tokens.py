@@ -21,7 +21,7 @@ TOKEN_CATEGORIES = {
     'consumables': {'symbols': 'ht*!', 'color': 'green', 'description': 'Healing and energy items'},
     'tools': {'symbols': 'TPF+?', 'color': 'yellow', 'description': 'Utility and equipment'},
     'common_materials': {'symbols': 'mwpl', 'color': 'white', 'description': 'Basic crafting materials'},
-    'rare_materials': {'symbols': 'oK=&#$^~|\\`[]{}', 'color': 'magenta', 'description': 'Rare crafting components'},
+    'rare_materials': {'symbols': 'iKk', 'color': 'magenta', 'description': 'Rare crafting components'},
     'quest_items': {'symbols': 'DJC', 'color': 'cyan', 'description': 'Special story items'}
 }
 
@@ -76,14 +76,8 @@ try:
                 if 'blaster pistol' in ln and 'b' not in TOKEN_MAP:
                     TOKEN_MAP['b'] = {'id': 'blaster_pistol', 'name': nm, 'token': 'b', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm, 'color': 'red'}
                 # lightsaber token mapping (use 'L' if available)
-                if 'lightsaber' in ln and 'L' not in TOKEN_MAP:
-                    TOKEN_MAP['L'] = {'id': 'lightsaber', 'name': nm, 'token': 'L', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm, 'color': 'cyan'}
-                # electrostaff token mapping (use non-conflicting symbol)
-                if 'electrostaff' in ln and '/' not in TOKEN_MAP:
-                    TOKEN_MAP['/'] = {'id': 'electrostaff', 'name': nm, 'token': '/', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm, 'color': 'yellow'}
-                # rifle token mapping (use non-conflicting symbol)
-                if 'rifle' in ln and '_' not in TOKEN_MAP:
-                    TOKEN_MAP['_'] = {'id': 'blaster_rifle', 'name': nm, 'token': '_', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm, 'color': 'red'}
+                if 'lightsaber' in ln and '/' not in TOKEN_MAP:
+                    TOKEN_MAP['/'] = {'id': 'lightsaber', 'name': nm, 'token': '/', 'type': 'weapon', 'description': getattr(w, 'description', ''), 'prototype_name': nm}
             except Exception:
                 continue
 except Exception:
@@ -114,28 +108,17 @@ try:
     from jedi_fugitive.items import crafting as crafting_mod
     if crafting_mod is not None:
         materials = getattr(crafting_mod, 'MATERIALS', [])
+        # lowercase glyphs that do not collide with terrain/landmarks (M/P/C/o used to)
         material_tokens = {
             'm': 'Scrap Metal',
+            'h': 'Durasteel Plate',
             'w': 'Fused Wire',
-            'P': 'Power Cell',
+            'e': 'Power Cell',
             'p': 'Plasteel Composite',
             'l': 'Focusing Lens',
-            'o': 'Cortosis Ore',
+            'i': 'Advanced Circuitry',
+            'k': 'Cortosis Ore',
             'K': 'Kyber Crystal',
-            # Only add truly unique symbols that don't conflict
-            '=': 'Durasteel Plate',
-            '&': 'Advanced Circuitry', 
-            '%': 'Ionization Chamber',
-            '#': 'Phrik Alloy',
-            '$': 'Synthetic Crystal',
-            '^': 'Compact Power Core',
-            '~': 'Beskar Ingot',
-            '|': 'Quantum Processor',
-            '\\': 'Stabilized Plasma',
-            '`': 'Vibro-Motor',
-            '[': 'Sensor Array',
-            ']': 'Reflective Coating',
-            '{': 'Neural Interface',
         }
         
         for token, mat_name in material_tokens.items():

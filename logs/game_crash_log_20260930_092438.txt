@@ -1,0 +1,14 @@
+================================================================================
+DARK MERIDIAN - CRASH & ERROR LOG
+================================================================================
+Session started: 2026-09-30 09:24:38
+Python version: 3.11.14 (main, Oct 21 2025, 18:27:30) [Clang 20.1.8 ]
+Platform: darwin
+================================================================================
+
+[2026-09-30 09:24:38] EVENT [WORLD_GEN]: World generation completed successfully
+[2026-09-30 09:24:38] EVENT [WORLD_GEN]: World generation completed successfully
+[2026-09-30 09:24:38] EVENT [WORLD_GEN]: World generation completed successfully
+[2026-09-30 09:24:38] EVENT [WORLD_GEN]: World generation completed successfully
+[2026-09-30 09:24:38] EVENT [WORLD_GEN]: World generation completed successfully
+[2026-09-30 09:24:39] EVENT [WORLD_GEN]: World generation completed successfully

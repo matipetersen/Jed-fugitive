@@ -23,7 +23,7 @@ def setup_game():
     ui = DummyStdScr()
     gm = GameManager(ui)
     gm.initialize()
-    gm.crash_inflate = 2
+    gm.world_size = 'small'
     gm.generate_world()
     return gm
 
@@ -39,10 +39,14 @@ def run():
     gm.items_on_map.append({'x': x, 'y': y, 'token': 'v', 'name': 'Vibroblade'})
     equipment.pick_up(gm)
     assert len(p.inventory) == 1, 'pickup did not add to inventory'
-    assert gm.turn_count == 1, 'turn_count not incremented on pickup'
+    # single game clock: actions do not advance turn_count themselves, the world tick does
+    assert gm.turn_count == 0, 'pickup advanced the clock by itself (double counting)'
+    gm._world_tick()
+    assert gm.turn_count == 1, 'world tick did not advance turn_count'
     equipment.equip_item(gm)
     assert getattr(p, 'equipped_weapon', None) is not None, 'equip did not set equipped_weapon'
-    assert gm.turn_count == 2, 'turn_count not incremented on equip'
+    gm._world_tick()
+    assert gm.turn_count == 2, 'world tick did not advance turn_count after equip'
     # test unequip with full inventory
     p.inventory = ['i'] * int(getattr(gm, 'max_inventory', 9) or 9)
     p.equipped_weapon = {'name': 'Test Blade'}

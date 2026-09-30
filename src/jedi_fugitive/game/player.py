@@ -1371,4 +1371,11 @@ class Player:
                 self.travel_log = []
             log_entry = {'text': entry, 'turn': turn}
             self.travel_log.append(log_entry)
-            pass
+    def add_to_travel_log(self, entry, turn=None):
+        """Alias used by death/tomb/hunt narration (previously missing, so those entries were lost)."""
+        if turn is None:
+            try:
+                turn = int(getattr(getattr(self, 'game', None), 'turn_count', 0) or 0)
+            except Exception:
+                turn = 0
+        self.add_log_entry(entry, turn)

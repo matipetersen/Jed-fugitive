@@ -1,18 +1,95 @@
 # Global for passing load_save to _curses_main
 _LOAD_SAVE_FOR_CURSES = False
 
-import curses
+import argparse
+import shutil
 import sys
 import traceback
 import os
 
 
+def _parse_args(argv=None):
+    p = argparse.ArgumentParser(prog="jedi-fugitive", description="Jedi Fugitive: Echoes of the Fallen")
+    p.add_argument("--terminal", action="store_true",
+                   help="classic curses UI in the terminal instead of the graphical window")
+    p.add_argument("--realtime", action="store_true",
+                   help="start in real-time mode (graphical UI only; F2 toggles in game)")
+    p.add_argument("--tick-ms", type=int, default=200,
+                   help="real-time world tick length in milliseconds (default: 200)")
+    p.add_argument("--fullscreen", action="store_true", help="start fullscreen (F11 toggles)")
+    p.add_argument("--no-intro", action="store_true", help="skip the crash cinematic")
+    p.add_argument("--size", default=None, help="window size, e.g. 1600x960")
+    p.add_argument("--world-size", default="large", choices=["small", "normal", "large", "huge"],
+                   help="overworld size (default: large, 440x300 tiles)")
+    # PyInstaller/macOS may pass extra arguments (e.g. -psn_*); ignore them
+    args, _unknown = p.parse_known_args(argv)
+    return args
+
+
+def _gui_available():
+    try:
+        import pygame  # noqa: F401
+    except Exception:
+        return False
+    if sys.platform.startswith("linux") or "bsd" in sys.platform:
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY") or os.environ.get("SDL_VIDEODRIVER"))
+    return True
+
+
+def _main_gui(args):
+    """Graphical front-end: pygame window, curses calls served by the shim."""
+    from jedi_fugitive.gfx import pgcurses
+    sys.modules["curses"] = pgcurses
+    from jedi_fugitive.gfx.app import GfxApp
+    size = None
+    if args.size:
+        try:
+            w, h = args.size.lower().split("x")
+            size = (int(w), int(h))
+        except Exception:
+            size = None
+    app = GfxApp(size=size, fullscreen=args.fullscreen)
+    app.install_console_capture()
+    try:
+        from jedi_fugitive.game.game_manager import GameManager
+        from jedi_fugitive.game.sith_codex import get_random_loading_message
+        GameManager.show_splash_static(100)
+        input("Press Enter to begin your journey...")
+        print(get_random_loading_message())
+        gm = GameManager(app.stdscr)
+        gm.world_size = args.world_size
+        gm.tick_seconds = max(0.05, args.tick_ms / 1000.0)
+        # the crash cinematic plays while the world is generated in the background
+        intro = None
+        if not args.no_intro:
+            from jedi_fugitive.gfx.intro import Intro
+            intro = Intro(app)
+        app.run_loading(lambda: (gm.initialize(), gm.generate_world()), intro=intro)
+        if args.realtime:
+            gm.set_realtime(True)
+        gm.run(skip_init=True)
+        if getattr(gm, "death", False):
+            gm.show_death_stats()
+        elif getattr(gm, "victory", False):
+            gm.show_victory_stats()
+    except SystemExit:
+        pass
+    finally:
+        app.shutdown()
+
+
+_WORLD_SIZE = "large"
+
+
 def _curses_main(stdscr):
+    from jedi_fugitive.game.game_manager import GameManager
+    # Existing initialization entrypoint expected by the project
     try:
         # Import GameManager and save system only after curses is initialized
         from jedi_fugitive.game.game_manager import GameManager
         gm = GameManager(stdscr)
-        
+        gm.world_size = _WORLD_SIZE
+
         # Load save if requested
         global _LOAD_SAVE_FOR_CURSES
         if _LOAD_SAVE_FOR_CURSES:
@@ -28,21 +105,32 @@ def _curses_main(stdscr):
             except Exception as e:
                 if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
                     gm.ui.messages.add(f"Load error: {e}. Starting new game...")
-        
-        try:
-            gm.run()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+
+        gm.run()
+        # Return the game manager so we can check death/victory state
         return gm
     except Exception as e:
         try:
+            import curses
             curses.endwin()
         except Exception:
             pass
         raise
 
-def main():
+def main(argv=None):
+    args = _parse_args(argv)
+    if not args.terminal and _gui_available():
+        return _main_gui(args)
+    if args.realtime:
+        sys.stderr.write("Real-time mode needs the graphical UI (pygame); starting turn-based.\n")
+    return _main_terminal(args.world_size)
+
+
+def _main_terminal(world_size="large"):
+    global _WORLD_SIZE
+    _WORLD_SIZE = world_size
+    import curses
+    from jedi_fugitive.game.game_manager import GameManager
     from jedi_fugitive.game.sith_codex import get_random_loading_message
     from jedi_fugitive.game.save_system import get_autosave_path, list_saves
     

@@ -52,12 +52,12 @@ def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], 
     item_chances = {Display.GOLD:0.35, Display.FOOD:0.08, Display.POTION:0.12}
     
     # Crafting materials (common to rare based on depth)
-    material_tokens = ['m', 'M', 'w', 'P']  # Common materials
+    material_tokens = ['m', 'h', 'w', 'e']  # Common materials
     if depth >= 2:
-        material_tokens.extend(['p', 'l', 'C'])  # Uncommon materials
+        material_tokens.extend(['p', 'l', 'i'])  # Uncommon materials
     if depth >= 4:
         item_chances[Display.ARTIFACT] = 0.05
-        material_tokens.extend(['o'])  # Rare materials
+        material_tokens.extend(['k'])  # Rare materials
     if depth >= 6:
         material_tokens.extend(['K'])  # Legendary materials
     
@@ -74,9 +74,38 @@ def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], 
                     game_map[y][x] = random.choices(list(item_chances.keys()), weights=list(item_chances.values()))[0]
 
 def generate_dungeon_level(depth: int, width: int = 80, height: int = 24):
-    """Generate dungeon level - now uses the updated generation.py function."""
-    from jedi_fugitive.map.generation import generate_dungeon_level as gen_level
-    return gen_level(depth, width, height)
+    game_map = [[Display.WALL for _ in range(width)] for _ in range(height)]
+    rooms = []
+    # larger levels get more room attempts so they are not mostly solid rock
+    attempts = random.randint(5, 8) + max(0, (width * height - 80 * 24) // 500)
+    for _ in range(attempts):
+        rw = random.randint(6,12); rh = random.randint(4,8)
+        rx = random.randint(1, width - rw - 1); ry = random.randint(1, height - rh - 1)
+        overlap = False
+        for ox,oy,ow,oh in rooms:
+            if (rx < ox + ow + 1 and rx + rw + 1 > ox and ry < oy + oh + 1 and ry + rh + 1 > oy):
+                overlap = True; break
+        if not overlap:
+            for y in range(ry, ry + rh):
+                for x in range(rx, rx + rw):
+                    game_map[y][x] = Display.FLOOR
+            rooms.append((rx,ry,rw,rh))
+    # connect
+    for i in range(len(rooms)-1):
+        r1 = rooms[i]; r2 = rooms[i+1]
+        x1 = r1[0] + r1[2]//2; y1 = r1[1] + r1[3]//2
+        x2 = r2[0] + r2[2]//2; y2 = r2[1] + r2[3]//2
+        for x in range(min(x1,x2), max(x1,x2)+1): game_map[y1][x] = Display.FLOOR
+        for y in range(min(y1,y2), max(y1,y2)+1): game_map[y][x2] = Display.FLOOR
+    if rooms:
+        # Always place stairs up in first room (for returning from deeper levels)
+        ux,uy = rooms[0][0]+1, rooms[0][1]+1
+        game_map[uy][ux] = Display.STAIRS_UP
+        # Always place stairs down in last room (for descending deeper)
+        dx,dy = rooms[-1][0]+rooms[-1][2]-2, rooms[-1][1]+rooms[-1][3]-2
+        game_map[dy][dx] = Display.STAIRS_DOWN
+    place_items(game_map, rooms, depth)
+    return game_map, rooms
 
 def generate_crash_site(width: int = 80, height: int = 40):
     """Generate a roomy crash site surface map.

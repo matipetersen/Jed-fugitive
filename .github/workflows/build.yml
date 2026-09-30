@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller==5.13.1
+          pip install pyinstaller==5.13.1 "pygame>=2.5"
       - name: Build with PyInstaller
         run: |
           pyinstaller --noconfirm --onefile --console --name "jedi-fugitive" \
@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller==5.13.1
+          pip install pyinstaller==5.13.1 "pygame>=2.5"
           pip install windows-curses
       - name: Build with PyInstaller
         run: |

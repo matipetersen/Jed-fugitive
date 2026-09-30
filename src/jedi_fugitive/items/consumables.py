@@ -34,7 +34,7 @@ ITEM_DEFS = [
     {
         "id": "grenade",
         "name": "Thermal Grenade",
-        "token": "*",
+        "token": "0",
         "type": "consumable",
         # expanded radius: round (circular) area of effect, 3 tiles
         "effect": {"area_damage": 24, "radius": 3},
@@ -51,7 +51,7 @@ ITEM_DEFS = [
     {
         "id": "jedi_meditation_focus",
         "name": "Jedi Meditation Focus",
-        "token": "M",
+        "token": "f",
         "type": "consumable",
         "effect": {"stress_reduction": 40},
         "description": "A focus used to clear the mind. Reduces stress by 40.",
@@ -59,7 +59,7 @@ ITEM_DEFS = [
     {
         "id": "calming_tea",
         "name": "Calming Tea",
-        "token": "T",
+        "token": "t",
         "type": "consumable",
         "effect": {"stress_reduction": 25},
         "description": "A soothing brew that calms the nerves (-25 stress).",
@@ -67,7 +67,7 @@ ITEM_DEFS = [
     {
         "id": "compass",
         "name": "Compass (Tombfinder)",
-        "token": "C",
+        "token": "n",
         "type": "consumable",
         # special effect: when used, triggers a scan/compass action that points toward nearest tomb
         "effect": {"compass": True},
@@ -84,7 +84,7 @@ ITEM_DEFS = [
     {
         "id": "water_canteen",
         "name": "Water Canteen",
-        "token": ":",
+        "token": ";",
         "type": "consumable",
         "effect": {"heal": 5, "stress_reduction": 15},
         "description": "Fresh water from your ship's reserves. Restores 5 HP and calms the mind (-15 stress).",
@@ -92,7 +92,7 @@ ITEM_DEFS = [
     {
         "id": "nutrient_paste",
         "name": "Nutrient Paste",
-        "token": ":",
+        "token": "z",
         "type": "consumable",
         "effect": {"heal": 12},
         "description": "Unappetizing but effective. Restores 12 HP.",

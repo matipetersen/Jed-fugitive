@@ -282,6 +282,7 @@ class EnemyType(Enum):
     SITH_GHOST = 2
     INQUISITOR = 3
     JEDI_MASTER = 4
+    SITH_LORD = 5
     FAUNA = "fauna"
 
 
@@ -385,14 +386,25 @@ class Enemy:
         elif et == EnemyType.JEDI_MASTER:
             self.name = "Jedi Master"
             self.symbol = 'J'
-            self.base_hp = 40
-            self.max_hp = 40
+            self.base_hp = 80
+            self.max_hp = 80
             self.attack = 15
-            self.defense = 10
-            self.accuracy = 85
-            self.xp_value = 60  # Reduced from 200
-            self.alert_range = 12
+            self.defense = 8
+            self.accuracy = 90
+            self.xp_value = 1000
+            self.alert_range = 14
             self.is_boss = True
+        elif et == EnemyType.SITH_LORD:
+            self.name = "Sith Lord"
+            self.symbol = 'L'
+            self.is_boss = True
+            self.base_hp = 80
+            self.max_hp = 80
+            self.attack = 17
+            self.defense = 7
+            self.accuracy = 88
+            self.xp_value = 1000
+            self.alert_range = 14
         else:
             # fallback generic enemy
             self.name = "Enemy"
@@ -1030,6 +1042,23 @@ def process_enemies(game):
                     except Exception:
                         pass
                     continue
+
+                # Awareness: enemies far from the player sleep until approached, and
+                # alerted ones eventually lose the trail. Hunters never give up.
+                # (Keeps a large world populated without every enemy converging.)
+                try:
+                    far = abs(getattr(e, "x", 0) - getattr(game.player, "x", 0)) + abs(getattr(e, "y", 0) - getattr(game.player, "y", 0))
+                    if getattr(e, 'cordon', False) and not getattr(e, '_has_spotted', False):
+                        continue  # holding the cordon ring (moved by game.cordon.update_cordon)
+                    if not getattr(e, 'is_hunter', False):
+                        if getattr(e, '_has_spotted', False):
+                            if far > int(getattr(game, 'enemy_lose_track_radius', 45)):
+                                e._has_spotted = False
+                                continue
+                        elif far > int(getattr(game, 'enemy_wake_radius', 28)):
+                            continue
+                except Exception:
+                    pass
 
                 # Stormtroopers may attempt a ranged blaster shot first (consumes their turn if fired)
                 try:

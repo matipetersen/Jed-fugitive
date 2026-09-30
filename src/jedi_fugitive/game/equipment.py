@@ -896,16 +896,6 @@ def equip_item(game):
                     except Exception: pass
                     break
 
-        # the replaced item goes back to the pack instead of vanishing
-        try:
-            prev = prev_armor if is_armor else prev_weapon
-            if prev is not None and prev is not chosen:
-                game.player.inventory.append(prev)
-                pn = prev.get('name', 'item') if isinstance(prev, dict) else getattr(prev, 'name', 'item')
-                game.ui.messages.add(f"You stow your {pn}.")
-        except Exception:
-            pass
-
         # Message already displayed in equip logic above (with attack bonus for weapons)
         if is_armor:
             try: game.ui.messages.add(f"Equipped {name}.") 

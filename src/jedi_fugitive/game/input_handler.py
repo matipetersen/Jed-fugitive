@@ -1021,6 +1021,7 @@ def handle_input(game, key):
                     "  m = Meditate (reduce stress if safe)",
                     "  p = Toggle popup messages",
                     "  S = Save game (manual save)",
+                    "  N = Lexicon: study ancient inscriptions   O = Jedi skills   I = Technology",
                     "  P = Reveal map (debug/cheat)",
                     "  q / ESC = Quit game (asks for confirmation)",
                     "",
@@ -2203,6 +2204,21 @@ def handle_input(game, key):
                 except Exception: 
                     pass
             return False  # No turn consumed
+
+        # Mastery menus: N = Lexicon (ancient languages), O = Jedi skills, I = Technology
+        if key in (ord('N'), ord('O'), ord('I')):
+            try:
+                from jedi_fugitive.game import mastery_ui
+                if key == ord('N'):
+                    return bool(mastery_ui.open_lexicon(game))
+                if key == ord('O'):
+                    mastery_ui.open_skills(game)
+                    return False
+                return bool(mastery_ui.open_tech(game))
+            except Exception as e:
+                try: game.ui.messages.add(f"Menu error: {e}")
+                except Exception: pass
+            return False
 
         # Crafting menu (capital C)
         if key == ord('C'):

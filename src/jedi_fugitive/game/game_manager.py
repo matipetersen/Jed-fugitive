@@ -397,6 +397,17 @@ class GameManager:
             # Loading...
             self.sith_codex = None
         self._give_starting_weapons()
+        try:
+            from jedi_fugitive.game import languages, jedi_skills, tech
+            languages.ensure_state(self.player)
+            jedi_skills.ensure_state(self.player)
+            tech.ensure_state(self.player)
+            # a scrap of each tongue to start: enough to recognise the scripts
+            for lid in languages.LANGUAGES:
+                languages.grant_words(self.player, lid, 2)
+            self.ui.messages.add("You carry a datapad with fragments of ancient scripts. Press N (Lexicon), O (Skills), I (Tech).")
+        except Exception:
+            pass
 
     # (logger-based initialize method is above; duplicate removed)
 
@@ -2430,6 +2441,18 @@ class GameManager:
             poi_name = landmark.get('name', 'Point of Interest')
             self.player.dark_xp = getattr(self.player, 'dark_xp', 0) + xp_reward
             
+            # Absorbing an inscription pours its language straight into your mind
+            try:
+                from jedi_fugitive.game import languages
+                if landmark.get('sith_lore'):
+                    lid = languages.language_for(landmark, (px, py))
+                    got = languages.grant_words(self.player, lid, 3)
+                    if got:
+                        self.ui.messages.add(f"The dark knowledge floods you: {languages.LANGUAGES[lid]['name']} words "
+                                             f"{', '.join(got)} become clear.")
+            except Exception:
+                pass
+
             # Increase corruption
             if hasattr(self.player, 'corruption_system') and self.player.corruption_system:
                 self.player.corruption_system.adjust_corruption(8)
@@ -4014,11 +4037,21 @@ class GameManager:
                                     self.ui.messages.add(desc)
                                 except Exception:
                                     pass
-                            for ln in lore:
+                            if info.get('sith_lore'):
+                                # inscriptions are written in dead languages: show what the player can read
                                 try:
-                                    self.ui.messages.add(ln)
+                                    from jedi_fugitive.game import mastery_ui
+                                    mastery_ui.read_landmark(self, (lx, ly), info)
                                 except Exception:
-                                    pass
+                                    for ln in lore:
+                                        try: self.ui.messages.add(ln)
+                                        except Exception: pass
+                            else:
+                                for ln in lore:
+                                    try:
+                                        self.ui.messages.add(ln)
+                                    except Exception:
+                                        pass
                             # handle Sith lore
                             sith_lore = info.get('sith_lore')
                             if sith_lore:

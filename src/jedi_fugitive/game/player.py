@@ -323,6 +323,15 @@ class Player:
         self.defense = self.defense + 1
         # Evasion no longer automatic - must choose it
         
+        # Skill point for the Jedi skill trees
+        try:
+            from jedi_fugitive.game import jedi_skills
+            _sp_msg = jedi_skills.on_level_up(self)
+            if getattr(self, 'ui', None) and getattr(self.ui, 'messages', None):
+                self.ui.messages.add(_sp_msg)
+        except Exception:
+            pass
+
         # Grant 2 Force Points per level (changed from 1 every 2 levels)
         self.force_points = getattr(self, "force_points", 0) + 2
         try:
@@ -822,6 +831,11 @@ class Player:
             mastery_bonus = min(0.15, (force_mastery + shield_mastery) * 0.025)  # Up to 15% from masteries
             
             # Total reduction (capped at 60% max reduction)
+            try:
+                from jedi_fugitive.game import jedi_skills
+                mastery_bonus += 1.0 - jedi_skills.stress_multiplier(self)
+            except Exception:
+                pass
             total_reduction = min(0.60, base_reduction + confidence_bonus + mastery_bonus)
             effective = int(max(0, amt * (1.0 - total_reduction)))
             # equipment-based mitigations (armor/weapon may reduce stress gains)
@@ -1221,6 +1235,11 @@ class Player:
         except Exception:
             pass
         
+        try:
+            from jedi_fugitive.game import jedi_skills
+            regen_amount += int(jedi_skills.bonus(self, 'force_regen'))
+        except Exception:
+            pass
         self.force_energy = min(self.max_force_energy, self.force_energy + regen_amount)
         # Update legacy force_points for compatibility
         self.force_points = max(0, int(self.force_energy / 50))

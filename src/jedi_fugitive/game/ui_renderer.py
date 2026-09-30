@@ -1123,7 +1123,7 @@ def draw_commands_panel(game):
         cmds = [
             "Move: ↑↓←→ hjkl  Diag: yubn │ g:Get  e:Equip  u:Use  d:Drop  i:Inventory",
             "Combat: Walk=melee  F:Shoot(2-7 tiles)  t:Grenade │ f:Force  m:Meditate  C:Craft",
-            "Info: x:Inspect  J:Journal  K:Codex  S:Stats │ ?:Help  Q:Quit"
+            "Info: x:Inspect  J:Journal  K:Codex  S:Stats  N:Lexicon  O:Skills  I:Tech │ ?:Help  Q:Quit"
         ]
         
         ph, pw = panel.getmaxyx()

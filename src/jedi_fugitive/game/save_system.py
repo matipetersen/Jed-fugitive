@@ -115,6 +115,56 @@ def _serialize_item(item) -> Optional[Dict[str, Any]]:
             return {'name': 'Unknown', 'type': 'Unknown'}
 
 
+def _pos_key(k):
+    return f"{k[0]},{k[1]}" if isinstance(k, (tuple, list)) else str(k)
+
+
+def _pos_from_key(k):
+    try:
+        x, y = str(k).split(',')
+        return (int(x), int(y))
+    except Exception:
+        return k
+
+
+def _mastery_to_dict(player):
+    from jedi_fugitive.game import languages, jedi_skills, tech
+    languages.ensure_state(player)
+    jedi_skills.ensure_state(player)
+    tech.ensure_state(player)
+    return {
+        'skills': dict(player.skills),
+        'skill_points': player.skill_points,
+        'tech': dict(player.tech),
+        'lexicon': {lid: {'known': sorted(st['known']), 'seen': dict(st['seen'])}
+                    for lid, st in player.lexicon.items()},
+        'inscriptions': {_pos_key(k): v for k, v in player.inscriptions.items()},
+        'translated_entries': [_pos_key(k) for k in player.translated_entries],
+        'study_counts': {_pos_key(k): v for k, v in player.study_counts.items()},
+    }
+
+
+def _mastery_from_dict(player, data):
+    if not data:
+        return
+    from jedi_fugitive.game import languages, jedi_skills, tech
+    languages.ensure_state(player)
+    jedi_skills.ensure_state(player)
+    tech.ensure_state(player)
+    player.skills = dict(data.get('skills', {}))
+    player.skill_points = int(data.get('skill_points', 0))
+    player.tech = dict(data.get('tech', {}))
+    for lid, st in (data.get('lexicon') or {}).items():
+        if lid in player.lexicon:
+            player.lexicon[lid]['known'] = set(st.get('known', []))
+            player.lexicon[lid]['seen'] = dict(st.get('seen', {}))
+    player.inscriptions = {_pos_from_key(k): v for k, v in (data.get('inscriptions') or {}).items()}
+    player.translated_entries = {_pos_from_key(k) for k in data.get('translated_entries', [])}
+    player.study_counts = {_pos_from_key(k): v for k, v in (data.get('study_counts') or {}).items()}
+    jedi_skills.mark_applied(player)
+    tech.mark_applied(player)
+
+
 def serialize_game_state(game) -> Dict[str, Any]:
     """Convert game state to a serializable dictionary."""
     try:
@@ -171,6 +221,12 @@ def serialize_game_state(game) -> Dict[str, Any]:
         travel_log = getattr(game.player, 'travel_log', [])
         player_data['travel_log'] = [str(entry) for entry in travel_log]
         
+        # Mastery systems: skills, languages, technology
+        try:
+            player_data_mastery = _mastery_to_dict(game.player)
+        except Exception:
+            player_data_mastery = {}
+
         # Game state
         game_data = {
             'turn_count': getattr(game, 'turn_count', 0),
@@ -187,6 +243,7 @@ def serialize_game_state(game) -> Dict[str, Any]:
             'version': '1.0',
             'timestamp': datetime.now().isoformat(),
             'player': player_data,
+            'mastery': player_data_mastery,
             'game': game_data,
         }
         
@@ -290,6 +347,12 @@ def apply_save_data(game, save_data: Dict[str, Any]) -> bool:
         if 'travel_log' in player_data:
             game.player.travel_log = player_data['travel_log']
         
+        # Restore mastery systems (skills, languages, technology)
+        try:
+            _mastery_from_dict(game.player, save_data.get('mastery') or {})
+        except Exception as e:
+            print(f"Could not restore mastery data: {e}")
+
         # Restore game state
         for key, value in game_data.items():
             setattr(game, key, value)

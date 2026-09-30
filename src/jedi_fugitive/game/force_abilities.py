@@ -66,12 +66,19 @@ class ForceAbility:
         except Exception:
             base = self.base_cost
         
+        # Skill-tree efficiency
+        try:
+            from jedi_fugitive.game import jedi_skills
+            base = base * jedi_skills.force_cost_multiplier(user)
+        except Exception:
+            pass
+
         # Apply alignment cost modifier
         if hasattr(user, 'get_ability_cost_multiplier'):
             multiplier = user.get_ability_cost_multiplier(self.alignment)
-            return int(math.ceil(base * multiplier))
-        
-        return base
+            return max(1, int(math.ceil(base * multiplier))) if self.base_cost > 0 else 0
+
+        return max(1, int(math.ceil(base))) if self.base_cost > 0 else 0
     
     def get_power_scale(self, user):
         """Calculate power scaling based on alignment mastery.

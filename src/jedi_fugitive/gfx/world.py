@@ -151,6 +151,8 @@ class WorldRenderer:
             return 'wall'
         if ch in self.ITEM_ICONS or (in_tomb and ch == 'Q'):
             return 'item'
+        if ch == '◊':  # a Sith Lord's holocron fragment (tomb_lords)
+            return 'lore'
         if in_tomb:
             if ch in ('>', '<'):
                 return 'stairs'

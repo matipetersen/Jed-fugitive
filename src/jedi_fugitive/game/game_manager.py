@@ -13,7 +13,7 @@ from jedi_fugitive.utils.crash_logger import log_error, log_info, log_game_event
 from jedi_fugitive.game import logger
 
 # Use the global logger for this module
-log = getattr(logger, 'log', None)
+log = logger  # the Logger itself (logger.log is a bound method with no .error/.info)
 from jedi_fugitive.game.player import Player
 from jedi_fugitive.game import projectiles, force_abilities, map_features, input_handler, ui_renderer, equipment
 from jedi_fugitive.game.enemy import Enemy, EnemyType, process_enemies as enemy_process_enemies
@@ -228,7 +228,7 @@ class GameManager:
         # Move object if movable
         if action == "move" and tags.get("movable"):
             if (0 <= new_y < len(self.game_map) and 0 <= new_x < len(self.game_map[0])
-                    and self.game_map[new_y][new_x] == '.'):
+                    and self.game_map[new_y][new_x] == Display.FLOOR):
                 self.game_map[new_y][new_x] = obj
                 self.game_map[y][x] = '.'
                 # Optionally trigger environmental effects here
@@ -891,7 +891,7 @@ class GameManager:
                         for _ in range(100):  # Try 100 times to find valid spot
                             jx = random.randint(1, len(self.game_map[0]) - 2)
                             jy = random.randint(1, len(self.game_map) - 2)
-                            if self.game_map[jy][jx] == '.' and (jx, jy) not in self.map_landmarks:
+                            if self.game_map[jy][jx] == Display.FLOOR and (jx, jy) not in self.map_landmarks:
                                 # Place journal marker
                                 self.game_map[jy][jx] = '?'
                                 journal = random.choice(available)
@@ -924,7 +924,7 @@ class GameManager:
                         for _ in range(100):
                             hx = random.randint(1, len(self.game_map[0]) - 2)
                             hy = random.randint(1, len(self.game_map) - 2)
-                            if self.game_map[hy][hx] == '.' and (hx, hy) not in self.map_landmarks:
+                            if self.game_map[hy][hx] == Display.FLOOR and (hx, hy) not in self.map_landmarks:
                                 # Place holocron marker
                                 self.game_map[hy][hx] = '?'
                                 holocron = random.choice(available)
@@ -954,7 +954,7 @@ class GameManager:
                         for _ in range(100):
                             dx = random.randint(1, len(self.game_map[0]) - 2)
                             dy = random.randint(1, len(self.game_map) - 2)
-                            if self.game_map[dy][dx] == '.' and (dx, dy) not in self.map_landmarks:
+                            if self.game_map[dy][dx] == Display.FLOOR and (dx, dy) not in self.map_landmarks:
                                 # Place distress signal marker
                                 self.game_map[dy][dx] = '!'
                                 signal = random.choice(available)
@@ -1194,6 +1194,11 @@ class GameManager:
         # Single authoritative clock: stress cadence, enemy cooldowns, respawns and
         # the journal all read turn_count, so it advances exactly once per world tick.
         self.turn_count = getattr(self, 'turn_count', 0) + 1
+        try:
+            from jedi_fugitive.game import tomb_lords
+            tomb_lords.tick(self)
+        except Exception:
+            pass
         # per-turn systems (pursuit, stealth, factions, autosave, ambience, events...)
         try:
             if self._local_turn_systems() is False:
@@ -3981,6 +3986,12 @@ class GameManager:
                 self.process_sith_lore_discovery(self.player)
             except Exception:
                 pass
+            # ...and holocron fragments in a Sith Lord's tomb
+            try:
+                from jedi_fugitive.game import tomb_lords
+                tomb_lords.on_step(self)
+            except Exception:
+                pass
             
             # After moving: track biome visits and check for encounters
             try:
@@ -4906,6 +4917,8 @@ class GameManager:
                                 pass
                         
                         self.current_depth = 1
+                        self.current_tomb = None
+                        self.tomb_guardian = None
                         try:
                             if getattr(self.ui, 'messages', None):
                                 self.ui.messages.add("#2#You emerge from the tomb and return to the surface.#0#")
@@ -5933,6 +5946,7 @@ class GameManager:
                 except Exception: pass
                 return False
 
+            self.last_meditation_turn = getattr(self, 'turn_count', 0)
             # Meditation stills your presence in the Force: it lowers your Heat
             try:
                 if getattr(self, 'pursuit_system', None):

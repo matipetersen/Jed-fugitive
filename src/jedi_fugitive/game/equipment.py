@@ -524,6 +524,10 @@ def pick_up(game):
                     try:
                         game.player.add_to_travel_log(f"[ARTIFACT] Recovered a corrupted Jedi relic ({have}/3). Its dark pulse beats against my palm.")
                     except Exception: pass
+                    try:
+                        from jedi_fugitive.game import tomb_lords
+                        tomb_lords.on_relic_recovered(game)
+                    except Exception: pass
             # clear the glyph once nothing else lies on this tile
             try:
                 still = (px, py) in drops or any(it.get('x') == px and it.get('y') == py for it in getattr(game, 'items_on_map', []) or [])

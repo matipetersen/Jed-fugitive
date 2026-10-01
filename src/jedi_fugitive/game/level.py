@@ -3,48 +3,39 @@ from jedi_fugitive.game.enemy import Enemy, EnemyType
 import random
 
 class Display:
-    # Modern Roguelike Symbols (Unicode)
-    WALL = '█'
-    FLOOR = '·'
-    STAIRS_DOWN = '▼'
-    STAIRS_UP = '▲'
-    GOLD = '⛃'
-    FOOD = '🍖'
-    POTION = '🧪'
-    ARTIFACT = '🔮'
-    WRECKAGE = '✖'
-    
-    # Narrative & POI
-    SHIP = '🚀'
-    COMMS = '📡'
-    SITH_ENTRANCE = 'D'  # Tomb entrance (Door)
-    
-    # Landmarks - using ASCII to avoid display issues
-    MONOLITH = 'M'  # Monolith
-    OUTPOST = 'O'  # Outpost
-    ANTENNA = 'A'  # Antenna
-    CRATER = 'C'  # Crater
-    DRONE = 'd'  # Drone
-    WATCHTOWER = 'W'  # Watchtower
-    DUNE = '~'  # Dune
-    ROCK = 'r'  # Rock
-    TREE = 't'  # Tree
-    
-    # New POI types
-    STATUE = 'S'  # Statue
-    SHRINE = 'H'  # Shrine
-    OBELISK = '⚰'
-    ARCHIVE = '📚'
-    FORGE = '⚒'
-    ALTAR = '♜'
-    PILLAR = '║'
-    SARCOPHAGUS = '⚰'
-    GATEWAY = '⛩'
-    NEXUS = '🌀'
-    CACHE = '📦'
-    BEACON = '🔆'
-    RUINS = '🏚'
-    MERCHANT = '⛺'
+    WALL = '#'; FLOOR = '.'; STAIRS_DOWN = '>'; STAIRS_UP = '<'
+    GOLD = '$'; FOOD = ':'; POTION = '!'; ARTIFACT = '&'; WRECKAGE = 'x'
+    # narrative glyphs
+    SHIP = 'S'
+    COMMS = 'C'
+    SITH_ENTRANCE = 'D'  # Tomb/dungeon entrance
+    # additional landmarks / POI glyphs
+    MONOLITH = 'M'
+    OUTPOST = 'O'
+    ANTENNA = 'A'
+    CRATER = 'o'
+    DRONE = 'd'
+    WATCHTOWER = 'W'
+    DUNE = '~'
+    ROCK = 'r'
+    TREE = 'T'  # Trees for forest biome
+    # New POI types for lore and exploration
+    STATUE = 'Y'  # Sith statue
+    SHRINE = 'H'  # Dark shrine
+    OBELISK = 'I'  # Ancient obelisk
+    ARCHIVE = 'V'  # Ruined archive
+    FORGE = 'F'  # Ancient forge
+    ALTAR = 'U'  # Sacrificial altar
+    PILLAR = 'P'  # Collapsed pillar
+    SARCOPHAGUS = 'Q'  # Exposed sarcophagus
+    GATEWAY = 'G'  # Inactive gateway
+    NEXUS = 'N'  # Force nexus
+    CACHE = 'L'  # Hidden cache
+    BEACON = 'B'  # Old beacon
+    RUINS = 'R'  # Scattered ruins
+    MERCHANT = 'X'  # Merchant camp
+    # (one ASCII glyph per meaning: emoji are double-width in terminals and
+    # several unicode glyphs collided with item tokens, e.g. tree 't' = Calming Tea)
 
 # Single source of truth for tiles you cannot walk through (the player's movement
 # rules). Reachability checks, the cordon and escorted NPCs all use this set.

@@ -4,7 +4,7 @@ from jedi_fugitive.game.level import Display
 from jedi_fugitive.game import equipment
 from jedi_fugitive.game import inspection
 from jedi_fugitive.game import logger
-log = getattr(logger, 'log', None)
+log = logger  # the Logger itself (logger.log is a bound method with no .error/.info)
 
 
 def _ranged_roll(weapon):
@@ -2532,35 +2532,34 @@ def perform_player_attack(game, enemy):
             if log:
                 log.exception("Error in _fire_gun outer", exc_info=e)
             pass
-        # Try calling combat function if available
+        # Naga Sadow's tombs are full of phantoms: striking one dispels it
+        try:
+            from jedi_fugitive.game import tomb_lords
+            if tomb_lords.dispel_illusion(game, enemy):
+                return
+        except Exception:
+            pass
+        # Resolve the swing through the combat model. The old code then applied a
+        # second "fallback" hit whenever the enemy survived, so every swing struck
+        # twice and misses still did damage; the fallback now only runs if the
+        # combat module itself is unavailable.
+        resolved = False
         try:
             from jedi_fugitive.game.combat import player_attack
             player_attack(game.player, enemy, messages=getattr(game.ui, "messages", None), game=game)
-        except TypeError:
-            try:
-                from jedi_fugitive.game.combat import player_attack
-                player_attack(game.player, enemy)
-            except Exception:
-                pass
+            resolved = True
         except Exception:
-            pass
+            resolved = False
 
-        # Fallback simple attack if enemy still alive
-        try:
-            if getattr(enemy, "hp", None) is None or getattr(enemy, "hp", 1) > 0:
+        if not resolved:
+            try:
                 atk = int(getattr(game.player, "attack", 1) or 1)
                 defn = int(getattr(enemy, "defense", 0) or 0)
                 dmg = max(1, atk - defn)
-                try:
-                    enemy.hp = getattr(enemy, "hp", 0) - dmg
-                except Exception:
-                    pass
-                try:
-                    game.ui.messages.add(f"You hit {getattr(enemy,'name','enemy')} for {dmg}.")
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                enemy.hp = getattr(enemy, "hp", 0) - dmg
+                game.ui.messages.add(f"You hit {getattr(enemy,'name','enemy')} for {dmg}.")
+            except Exception:
+                pass
 
         # check for death; do NOT award XP for kills. XP is awarded by artifact consumption.
         try:
@@ -2888,7 +2887,7 @@ def perform_player_attack(game, enemy):
 
                 # Check if boss was defeated (victory condition)
                 try:
-                    if getattr(enemy, 'is_boss', False):
+                    if getattr(enemy, 'is_boss', False) and not getattr(enemy, 'tomb_boss', False):
                         try:
                             # The story ends when you escape: defeating the hunter opens the way to the ship.
                             game.ui.messages.add(f"{getattr(enemy, 'name', 'Your nemesis')} falls! Nothing stands between you and your ship now.")

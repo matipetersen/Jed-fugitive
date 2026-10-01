@@ -7,7 +7,7 @@ main enemy processing loop continues to work.
 """
 
 from jedi_fugitive.game import logger
-log = getattr(logger, 'log', None)
+log = logger  # the Logger itself (logger.log is a bound method with no .error/.info)
 from typing import Optional
 import random
 from jedi_fugitive.game.enemy import Enemy

@@ -66,6 +66,28 @@ JediFugitive/
 - **Load on Startup**: Continue your adventure from where you left off
 - See [SAVE_SYSTEM.md](SAVE_SYSTEM.md) for complete documentation
 
+### Being hunted: Heat (Force signature)
+Every Force power and every fight leaves a trace (`game/pursuit.py`). Heat
+decays while you stay quiet (faster underground; meditation lowers it).
+At 30 a patrol is sent to where you were, at 60 patrols come more often with
+a Sith warrior and nearby Sith converge, at 90 a Sith Predator is dispatched.
+
+### Sith tombs with identity (`game/tomb_lords.py`)
+Each tomb belongs to one Dark Lord (Ajunta Pall, Tulak Hord, Marka Ragnos,
+Naga Sadow, Freedon Nadd) with its own trial, garrison and named guardian
+beside the corrupted Jedi relic. One holocron fragment (`◊`) lies on each of
+the first three floors; recover all three to inherit what that Lord knew
+(Protect, Juyo / Vaapad, Force Rage, Force Phantom or Drain, plus a stat).
+
+### Survival: wounds and camping (`game/survival.py`)
+Heavy hits leave wounds (leg, arm, torso, head) that the Force cannot heal.
+Medkits treat one; **K** makes camp for 40 ticks to rest and treat a wound,
+at a risk of being found that grows with Heat, wounds, and inside tombs.
+
+### NPC quests
+Survivors on the surface offer deliver / recover / hunt / escort / scout
+quests; **Q** shows the quest log.
+
 ### Explanation of Structure
 
 1. **src/**: This is the main source directory containing all the game code.

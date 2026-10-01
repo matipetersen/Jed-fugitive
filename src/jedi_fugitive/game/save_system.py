@@ -202,6 +202,10 @@ def serialize_game_state(game) -> Dict[str, Any]:
             'ranged_mastery': getattr(game.player, 'ranged_mastery', 0),
             'shield_mastery': getattr(game.player, 'shield_mastery', 0),
             'dual_wield_mastery': getattr(game.player, 'dual_wield_mastery', 0),
+            # saved accuracy/evasion include wound penalties, so the wounds must travel with them
+            'wounds': dict(getattr(game.player, 'wounds', {}) or {}),
+            'lord_fragments': {k: sorted(v) for k, v in (getattr(game.player, 'lord_fragments', {}) or {}).items()},
+            'lord_masteries': sorted(getattr(game.player, 'lord_masteries', set()) or set()),
         }
         
         # Inventory - serialize each item properly
@@ -335,6 +339,11 @@ def apply_save_data(game, save_data: Dict[str, Any]) -> bool:
             if key not in ['inventory', 'equipped_weapon', 'equipped_armor', 'travel_log', 'facing', 'offhand']:
                 setattr(game.player, key, value)
         
+        game.player.lord_fragments = {k: set(v) for k, v in (player_data.get('lord_fragments') or {}).items()}
+        game.player.lord_masteries = set(player_data.get('lord_masteries') or [])
+        game.player.wounds = dict(player_data.get('wounds') or {})
+        game._last_hp_seen = getattr(game.player, 'hp', None)
+
         # Restore facing tuple
         if 'facing' in player_data:
             facing = player_data['facing']

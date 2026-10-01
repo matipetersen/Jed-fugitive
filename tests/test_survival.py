@@ -130,3 +130,22 @@ def test_no_camp_next_to_enemies():
     t0 = gm.turn_count
     assert not survival.make_camp(gm)
     assert gm.turn_count == t0
+
+
+def test_wounds_and_lord_progress_survive_save_and_load():
+    import json
+    from jedi_fugitive.game import save_system
+    gm = _fresh(29)
+    p = gm.player
+    survival.inflict(gm, 'arm')
+    p.lord_fragments = {'naga_sadow': {0, 2}}
+    p.lord_masteries = {'tulak_hord'}
+    acc = p.accuracy
+    data = json.loads(json.dumps(save_system.serialize_game_state(gm)))
+    gm2 = _fresh(30)
+    assert save_system.apply_save_data(gm2, data)
+    p2 = gm2.player
+    assert 'arm' in survival.wounds(p2) and p2.accuracy == acc
+    assert p2.lord_fragments == {'naga_sadow': {0, 2}} and p2.lord_masteries == {'tulak_hord'}
+    survival.treat(gm2, 'arm')
+    assert p2.accuracy == acc + 8

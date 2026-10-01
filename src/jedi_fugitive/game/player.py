@@ -900,7 +900,11 @@ class Player:
             if old_stress < threshold_95 and new_stress >= threshold_95:
                 self._stress_warning_95 = True
             
-            # cap not enforced here (breaking point handled elsewhere)
+            # stress cannot exceed the maximum: reaching it triggers the breaking point
+            # (it used to grow without bound, e.g. 1140/100)
+            if self.stress > self.max_stress:
+                effective = max(0, effective - (self.stress - self.max_stress))
+                self.stress = self.max_stress
             return effective
         except Exception:
             return 0

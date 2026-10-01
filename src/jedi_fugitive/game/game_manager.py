@@ -5427,7 +5427,9 @@ class GameManager:
             # breaking-point check
             # Only active after first tomb entry
             try:
-                if stress_active and getattr(self.player, 'stress', 0) >= getattr(self.player, 'max_stress', 100) and not getattr(self, '_handled_breaking_point', False):
+                # (no longer gated on the first tomb: stress already builds during the
+                # crash-site chase and used to pile up with no outcome)
+                if getattr(self.player, 'stress', 0) >= getattr(self.player, 'max_stress', 100) and not getattr(self, '_handled_breaking_point', False):
                     # mark handled so we don't repeatedly trigger in same turn
                     try: setattr(self, '_handled_breaking_point', True)
                     except Exception: pass
@@ -5486,6 +5488,8 @@ class GameManager:
                                     pass
                                 # apply reckless debuff placeholder
                                 self.player._reckless_turns = getattr(self.player, '_reckless_turns', 0) + 3
+                                # the rage burns the pressure out (the dark branch never reset stress)
+                                self.player.stress = 60
                             except Exception:
                                 pass
                         else:

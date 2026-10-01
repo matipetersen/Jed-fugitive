@@ -1028,6 +1028,14 @@ class WorldRenderer:
         body, saber = self.player_colors()
         cw, _ = self._chip(screen, f"LV {getattr(p, 'level', 1)}", x, y, (240, 244, 255))
         self._chip(screen, f"CORRUPTION {corr}%", x + cw + 6, y, saber)
+        try:
+            from jedi_fugitive.game import survival
+            wy = y
+            for k in survival.wounds(p):
+                wy += 26
+                self._chip(screen, survival.WOUNDS[k]['name'].upper(), x, wy, (255, 110, 100))
+        except Exception:
+            pass
 
         # top-right: mode + location
         rt = getattr(g, 'realtime', False)

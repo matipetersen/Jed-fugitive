@@ -586,6 +586,14 @@ def draw_stats_panel(game):
                 stats_lines.insert(min(2, len(stats_lines)), f"Heat: {'█' * filled}{'░' * (10 - filled)} {tier_name(lvl)}")
         except Exception:
             pass
+        try:
+            from jedi_fugitive.game import survival
+            w = survival.wounds(game.player)
+            if w:
+                stats_lines = list(stats_lines)
+                stats_lines.insert(min(3, len(stats_lines)), "Wounds: " + ", ".join(survival.WOUNDS[k]['name'] for k in w) + " (K=camp)")
+        except Exception:
+            pass
         for i, line in enumerate(stats_lines[: panel.getmaxyx()[0] - 3]):
             panel.addstr(1 + i, 2, str(line)[: panel.getmaxyx()[1] - 4])
         lower_lines = "\n".join(stats_lines).lower()

@@ -152,7 +152,7 @@ class GameManager:
             "Movement: ↑↓←→ arrows  hjkl cardinal  ybn/7913 diagonal",
             "Actions: g=pickup  e=equip  u=use  d=drop  x=inspect",
             "Combat: Walk into enemy  t=grenade  F=shoot",
-            "Force: f=abilities  c=compass  m=meditate",
+            "Force: f=abilities  c=compass  m=meditate  K=make camp",
             "Info: J=journal  i=inventory  v=codex  @=character",
             "Meta: ?=help  C=craft  q=quit  ESC=cancel",
             "════════════════════════════════════════════════",
@@ -1187,6 +1187,14 @@ class GameManager:
         if not self.running:
             return
         self._world_tick()
+        # stumbling on a wounded leg hands the world a free tick
+        try:
+            from jedi_fugitive.game import survival
+            for _ in range(survival.pop_stumble(self)):
+                if not self._world_tick():
+                    break
+        except Exception:
+            pass
         self._check_resize()
 
     def _world_tick(self) -> bool:
@@ -1197,6 +1205,11 @@ class GameManager:
         try:
             from jedi_fugitive.game import tomb_lords
             tomb_lords.tick(self)
+        except Exception:
+            pass
+        try:
+            from jedi_fugitive.game import survival
+            survival.on_hp_change(self)
         except Exception:
             pass
         # per-turn systems (pursuit, stealth, factions, autosave, ambience, events...)
@@ -1448,7 +1461,13 @@ class GameManager:
                 try: self.ui.messages.add("Input handler error.")
                 except Exception: pass
             # the player acts at most once per world tick: same action economy as turn mode
-            self._rt_ready = time.perf_counter() + self.tick_seconds
+            # (a stumble on a wounded leg costs an extra tick)
+            try:
+                from jedi_fugitive.game import survival
+                lost = survival.pop_stumble(self)
+            except Exception:
+                lost = 0
+            self._rt_ready = time.perf_counter() + self.tick_seconds * (1 + lost)
             self._rt_last = time.perf_counter()
             try:
                 self.compute_visibility()
@@ -3340,7 +3359,7 @@ class GameManager:
             instructions = [
                 "CONTROLS:",
                 "  Move: ↑↓←→ arrows or hjkl    Diagonal: ybn or numpad 7913",
-                "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate  ?=help q=quit",
+                "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate K=camp  ?=help q=quit",
                 "",
                 "OBJECTIVE:",
                 "  1. Break out of the Sith cordon closing around your crash site",
@@ -3990,6 +4009,12 @@ class GameManager:
             try:
                 from jedi_fugitive.game import tomb_lords
                 tomb_lords.on_step(self)
+            except Exception:
+                pass
+            # a wounded leg can give way
+            try:
+                from jedi_fugitive.game import survival
+                survival.on_player_moved(self)
             except Exception:
                 pass
             

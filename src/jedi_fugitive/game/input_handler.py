@@ -895,6 +895,16 @@ def handle_input(game, key):
                 except Exception: pass
             return False  # No turn consumed
             
+        # Make camp (K): rest to treat a wound, at the risk of being found
+        if key == ord('K'):
+            try:
+                from jedi_fugitive.game import survival
+                return bool(survival.make_camp(game))
+            except Exception as e:
+                try: game.ui.messages.add(f"Camp failed: {e}")
+                except Exception: pass
+            return False
+
         # Hide/Stealth (Z key) - NEW SYSTEM
         if key == ord('Z'):
             try:

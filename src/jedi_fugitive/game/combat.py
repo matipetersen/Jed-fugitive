@@ -56,7 +56,12 @@ def attack_bonus(player):
     base = getattr(player, '_base_stats', None) or {}
     atk = base.get('attack', getattr(player, 'attack', 10))
     try:
-        return (int(atk) - 10) // 2
+        from jedi_fugitive.game import survival
+        wound = survival.damage_penalty(player)
+    except Exception:
+        wound = 0
+    try:
+        return (int(atk) - 10) // 2 - wound
     except Exception:
         return 0
 

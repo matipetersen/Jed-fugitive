@@ -85,6 +85,18 @@ COLS = 0
 _app = None
 
 
+
+def _strip_emoji(s):
+    if all(ord(c) < 0x2600 for c in s):
+        return s
+    out = []
+    for c in s:
+        o = ord(c)
+        if o > 0xFFFF or o in (0xFE0F, 0x200D):
+            continue  # astral-plane emoji, variation selector, zero-width joiner
+        out.append(c)
+    return ''.join(out)
+
 class error(Exception):
     pass
 
@@ -200,6 +212,8 @@ class Window:
             y, x = self.cy, self.cx
         attr = int(attr) | self.cur_attr
         s = s.decode('utf-8', 'replace') if isinstance(s, bytes) else str(s)
+        # the bundled monospace font has no colour emoji (they draw as tofu boxes)
+        s = _strip_emoji(s)
         self._put(int(y), int(x), s, attr)
 
     def addnstr(self, *args):

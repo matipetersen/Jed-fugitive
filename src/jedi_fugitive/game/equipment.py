@@ -1223,6 +1223,13 @@ def use_item(game):
                 try: game.ui.messages.add(f"Used {item_obj.get('name','item')}: healed {heal} HP.")
                 except Exception: pass
                 used = True
+                # medkits also dress a wound (the Force cannot)
+                try:
+                    from jedi_fugitive.game import survival
+                    if survival.is_medkit(item_obj):
+                        survival.treat(game)
+                except Exception:
+                    pass
             except Exception:
                 used = False
 

@@ -305,7 +305,10 @@ class Player:
         light_level = getattr(self, 'light_level', 1)
         dark_level = getattr(self, 'dark_level', 1)
         old_level = getattr(self, 'level', 1)
-        self.level = max(old_level, light_level, dark_level)
+        # +1 per level-up, never below the alignment paths. (max(old, light, dark)
+        # alone left the level stuck at 1, so the XP threshold never grew and every
+        # 100 XP re-applied the level-up bonuses.)
+        self.level = max(old_level + 1, light_level, dark_level)
         # Invalidate stats cache when leveling up
         self._invalidate_stats_cache()
         

@@ -1203,17 +1203,9 @@ class GameManager:
             try:
                 if hasattr(self.player, 'regenerate_force'):
                     # Check if player is in combat (has nearby enemies)
-                    in_combat = False
-                    if hasattr(self, 'game_map') and hasattr(self.game_map, 'actors'):
-                        player_x = getattr(self.player, 'x', 0)
-                        player_y = getattr(self.player, 'y', 0)
-                        for actor in self.game_map.actors:
-                            if actor != self.player and hasattr(actor, 'x') and hasattr(actor, 'y'):
-                                dx = abs(actor.x - player_x)
-                                dy = abs(actor.y - player_y)
-                                if dx <= 8 and dy <= 8:  # Enemy within 8 tiles = combat
-                                    in_combat = True
-                                    break
+                    # (this used to look at game_map.actors, which does not exist, so
+                    # the slow in-combat regeneration never applied)
+                    in_combat = self._in_combat()
                     self.player.regenerate_force(in_combat=in_combat, game=self)
             except Exception:
                 pass
@@ -1350,6 +1342,18 @@ class GameManager:
         except Exception:
             pass
         self.notify_being_hunted(duration=40)
+
+    def _in_combat(self, radius: int = 8) -> bool:
+        """True when a living, non-hallucinated enemy that knows about you is close."""
+        px, py = int(getattr(self.player, 'x', 0)), int(getattr(self.player, 'y', 0))
+        vis = getattr(self, 'visible', set()) or set()
+        for e in getattr(self, 'enemies', []) or []:
+            if getattr(e, 'hp', 0) <= 0 or getattr(e, '_is_hallucination', False):
+                continue
+            ex, ey = getattr(e, 'x', -999), getattr(e, 'y', -999)
+            if max(abs(ex - px), abs(ey - py)) <= radius and (getattr(e, '_has_spotted', False) or (ex, ey) in vis):
+                return True
+        return False
 
     def _check_resize(self):
         try:
@@ -2742,6 +2746,28 @@ class GameManager:
         except Exception:
             return
 
+    def _register_codex_discovery(self, player, category, entry_id):
+        """Mark a codex entry discovered; announce it and grant Force insight on echoes."""
+        if not category or not entry_id:
+            return False
+        already = (category, entry_id) in self.sith_codex.discovered_entries
+        msg, is_echo = self.sith_codex.discover_entry(category, entry_id)
+        if msg is None or already:
+            return False
+        try:
+            title = self.sith_codex.categories[category][entry_id]['title']
+            found = len(self.sith_codex.discovered_entries)
+            total = sum(len(v) for v in self.sith_codex.categories.values())
+            self.add_message(f"#7#Codex entry recorded: {title}#0# ({found}/{total}, press v)")
+        except Exception:
+            pass
+        if is_echo and hasattr(player, 'gain_force_insight'):
+            try:
+                player.gain_force_insight(entry_id)
+            except Exception:
+                pass
+        return True
+
     def process_sith_lore_discovery(self, player):
         """Check the player's tile for lore_entry and process discovery.
 
@@ -2812,6 +2838,14 @@ class GameManager:
                         except Exception:
                             pass
                         
+                        # Holocron POIs carry a codex reference: register it (they used to
+                        # show their text but never counted towards the Sith Codex)
+                        try:
+                            sl = lm.get('sith_lore')
+                            if sl and getattr(self, 'sith_codex', None) is not None:
+                                self._register_codex_discovery(player, sl.get('category'), sl.get('entry_id'))
+                        except Exception:
+                            pass
                         # prevent repeated triggering
                         try:
                             if 'lore' in lm:

@@ -49,16 +49,20 @@ class GameManager:
         try:
             from jedi_fugitive.items.weapons import Weapon, WeaponType
             # Starting vibroblade
+            # (damage_range used to be missing, so it rolled (0, 0): the starting blade did 0 damage)
             vibroblade = Weapon(
                 name="Vibroblade",
                 weapon_type=WeaponType.MELEE,
+                damage_range=(8, 12),
                 base_damage=8,
-                accuracy=85
+                accuracy=85,
+                special=["Armor Penetration", "Quick Strikes"],
             )
             # Starting blaster pistol - MUST use BLASTER_PISTOL type for auto-aim to work
             blaster = Weapon(
                 name="Blaster Pistol",
                 weapon_type=WeaponType.BLASTER_PISTOL,
+                damage_range=(6, 11),
                 base_damage=10,
                 accuracy=75,
                 range=5,

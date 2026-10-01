@@ -7,6 +7,15 @@ from jedi_fugitive.game import logger
 log = getattr(logger, 'log', None)
 
 
+def _ranged_roll(weapon):
+    """Shot damage: the weapon's damage roll (plus crafted upgrades), same model as melee."""
+    try:
+        from jedi_fugitive.game.combat import weapon_roll
+        return weapon_roll(weapon)
+    except Exception:
+        return getattr(weapon, 'base_damage', 6) if not isinstance(weapon, dict) else weapon.get('base_damage', 6)
+
+
 def _fire_gun(game, tx, ty):
     """Fire ranged weapon at target coordinates (tx, ty)."""
     try:
@@ -31,13 +40,13 @@ def _fire_gun(game, tx, ty):
         
         if isinstance(weapon, dict):
             weapon_range = weapon.get('range', 5)
-            weapon_damage = weapon.get('base_damage', weapon.get('damage', 10))
+            weapon_damage = _ranged_roll(weapon)
             weapon_accuracy = weapon.get('accuracy', 80)
             weapon_name = weapon.get('name', 'Weapon')
             weapon_ammo = weapon.get('ammo', 0)
         elif hasattr(weapon, 'name'):
             weapon_range = getattr(weapon, 'range', 5)
-            weapon_damage = getattr(weapon, 'base_damage', getattr(weapon, 'damage', 10))
+            weapon_damage = _ranged_roll(weapon)
             weapon_accuracy = getattr(weapon, 'accuracy', 80)
             weapon_name = weapon.name
             weapon_ammo = getattr(weapon, 'ammo', 0)
@@ -2120,7 +2129,7 @@ def handle_input(game, key):
                         # Auto-fire at nearest enemy with descriptive combat log
                         try:
                             from jedi_fugitive.game.projectiles import spawn_blaster
-                            weapon_damage = getattr(active_weapon, 'base_damage', 6) if hasattr(active_weapon, 'base_damage') else 6
+                            weapon_damage = _ranged_roll(active_weapon)
                             
                             # Get weapon name for description
                             weapon_name = ''

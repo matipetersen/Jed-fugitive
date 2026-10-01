@@ -1657,6 +1657,7 @@ def craft_item(game, recipe_name):
             if stat == 'attack':
                 current_damage = getattr(weapon, 'base_damage', 0)
                 weapon.base_damage = current_damage + bonus
+                weapon.upgrade_damage = getattr(weapon, 'upgrade_damage', 0) + bonus  # read by combat.weapon_roll
                 # Note: Player attack will be updated when equipment effects are reapplied
             elif stat == 'accuracy':
                 current_acc = getattr(weapon, 'accuracy_mod', 0)
@@ -1668,6 +1669,7 @@ def craft_item(game, recipe_name):
             elif stat == 'damage':  # Handle 'damage' stat (used by some recipes)
                 current_damage = getattr(weapon, 'base_damage', 0)
                 weapon.base_damage = current_damage + bonus
+                weapon.upgrade_damage = getattr(weapon, 'upgrade_damage', 0) + bonus  # read by combat.weapon_roll
             
             # Handle secondary stat bonuses (e.g., Crystal Focus gives accuracy + attack)
             if 'stat2' in result and 'bonus2' in result:
@@ -1676,6 +1678,7 @@ def craft_item(game, recipe_name):
                 if stat2 == 'attack':
                     current_damage = getattr(weapon, 'base_damage', 0)
                     weapon.base_damage = current_damage + bonus2
+                    weapon.upgrade_damage = getattr(weapon, 'upgrade_damage', 0) + bonus2  # read by combat.weapon_roll
                 elif stat2 == 'accuracy':
                     current_acc = getattr(weapon, 'accuracy_mod', 0)
                     weapon.accuracy_mod = current_acc + bonus2

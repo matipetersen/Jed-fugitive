@@ -16,7 +16,7 @@ import random
 
 from jedi_fugitive.game.level import Display
 
-BLOCKING = frozenset(('#', '~', 'r', 'T'))
+from jedi_fugitive.game.level import BLOCKING_TILES as BLOCKING  # noqa: E402
 
 
 class Cordon:

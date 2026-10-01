@@ -34,7 +34,7 @@ WORLD_SIZES = {
     'huge': (640, 440),
 }
 BIOME_TYPES = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass']
-BLOCKING = frozenset(('#', '~', 'r', 'T'))
+from jedi_fugitive.game.level import BLOCKING_TILES as BLOCKING  # noqa: E402
 
 
 def _value_noise(w, h, cell, rnd):

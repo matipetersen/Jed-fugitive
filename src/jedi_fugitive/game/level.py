@@ -46,6 +46,13 @@ class Display:
     RUINS = '🏚'
     MERCHANT = '⛺'
 
+# Single source of truth for tiles you cannot walk through (the player's movement
+# rules). Reachability checks, the cordon and escorted NPCs all use this set.
+BLOCKING_TILES = frozenset({
+    Display.WALL, '#', '^', '♣', '≈', '≋', '~', 'T', '╬',
+})
+
+
 def place_items(game_map: List[List[str]], rooms: List[Tuple[int,int,int,int]], depth: int):
     # Reduced food spawning - dungeons are more dangerous now
     # Added crafting materials for weapon upgrades

@@ -1016,6 +1016,12 @@ class WorldRenderer:
             st, mst = getattr(p, 'stress', 0), getattr(p, 'max_stress', 100) or 100
             self._bar(screen, x, y, w, h, 'stress', st, mst, theme.BAR_STRESS, f"STRESS  {int(st)}/{int(mst)}")
             y += h + 6
+        ps = getattr(g, 'pursuit_system', None)
+        if ps is not None:
+            from jedi_fugitive.game.pursuit import tier_name
+            heat = int(ps.detection_level)
+            self._bar(screen, x, y, w, h, 'heat', heat, 100, ((150, 110, 255), (255, 60, 90)), f"HEAT  {tier_name(heat)}")
+            y += h + 6
         corr = int(getattr(p, 'dark_corruption', 0) or 0)
         body, saber = self.player_colors()
         cw, _ = self._chip(screen, f"LV {getattr(p, 'level', 1)}", x, y, (240, 244, 255))

@@ -575,6 +575,17 @@ def draw_stats_panel(game):
         elif not isinstance(stats_lines, (list, tuple)):
             try: stats_lines = list(stats_lines)
             except Exception: stats_lines = [str(stats_lines)]
+        # Heat (Force signature) is live state, so it is added here rather than in the cached stats
+        try:
+            ps = getattr(game, 'pursuit_system', None)
+            if ps is not None:
+                from jedi_fugitive.game.pursuit import tier_name
+                lvl = int(ps.detection_level)
+                filled = lvl // 10
+                stats_lines = list(stats_lines)
+                stats_lines.insert(min(2, len(stats_lines)), f"Heat: {'█' * filled}{'░' * (10 - filled)} {tier_name(lvl)}")
+        except Exception:
+            pass
         for i, line in enumerate(stats_lines[: panel.getmaxyx()[0] - 3]):
             panel.addstr(1 + i, 2, str(line)[: panel.getmaxyx()[1] - 4])
         lower_lines = "\n".join(stats_lines).lower()

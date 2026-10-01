@@ -92,7 +92,12 @@ def player_attack(player, enemy, messages=None, game=None):
     try:
         # Update pursuit system if available
         if game and hasattr(game, 'pursuit_system'):
-            game.pursuit_system.update_detection('combat')
+            game.pursuit_system.update_detection('combat', turn=getattr(game, 'turn_count', 0))
+        try:
+            if game is not None and getattr(game, 'combo_tracker', None) is not None:
+                game.combo_tracker.record_action('melee_attack')
+        except Exception:
+            pass
 
         # prefer player's effective accuracy which accounts for stress/equipment
         try:
@@ -122,6 +127,14 @@ def player_attack(player, enemy, messages=None, game=None):
                     logger.exception(f"Exception applying mastery bonuses: {e}")
 
             crit = False
+            # combo finisher bonus (set by combo_system when a sequence completes)
+            bonus = int(getattr(player, 'combo_damage_bonus', 0) or 0)
+            if bonus:
+                dmg += bonus
+                try:
+                    del player.combo_damage_bonus
+                except Exception:
+                    player.combo_damage_bonus = 0
             # Lightsaber form mechanics (stance bonuses, crits, cleave, ...)
             form_notes = []
             try:

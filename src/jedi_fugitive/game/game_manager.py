@@ -168,6 +168,11 @@ class GameManager:
         self.fauna_manager = FaunaManager(self)  # Initialize fauna system for creature encounters
         self.atmospheric_manager = AtmosphericEventManager(self)  # Initialize atmospheric events
         self.npcs_on_map = {}  # (x, y) -> QuestNPC
+        try:
+            from jedi_fugitive.game.combo_system import ComboTracker
+            self.combo_tracker = ComboTracker(self)
+        except Exception:
+            self.combo_tracker = None
         self.active_conversations = {} # (x, y) -> conversation state
         
         # NEW SYSTEMS
@@ -1258,6 +1263,20 @@ class GameManager:
         try:
             from jedi_fugitive.game.cordon import update_cordon
             update_cordon(self)
+        except Exception:
+            pass
+
+        try:
+            if self.quest_manager:
+                self.quest_manager.update_quests(self)
+        except Exception:
+            pass
+
+        try:
+            if getattr(self, 'combo_tracker', None) is None:
+                from jedi_fugitive.game.combo_system import ComboTracker
+                self.combo_tracker = ComboTracker(self)
+            self.combo_tracker.tick_buffs()
         except Exception:
             pass
 
@@ -3060,8 +3079,7 @@ class GameManager:
     def update_pursuit(self):
         """Update pursuit system and check for predator spawn."""
         if hasattr(self, 'pursuit_system'):
-            self.pursuit_system.decay_detection()
-            self.pursuit_system.check_predator_spawn(self)
+            self.pursuit_system.tick(self)
 
     def add_message(self, text: str):
         """Safe helper to add a message to the UI message buffer or fallback to stdout.
@@ -3169,42 +3187,32 @@ class GameManager:
                 pass
 
     def handle_npc_interactions(self):
-        """Check for NPC interactions at player position"""
-        player_pos = (self.player.x, self.player.y)
-        
-        # Check for quest NPCs first
-        if player_pos in self.npcs_on_map:
-            npc = self.npcs_on_map[player_pos]
-            
-            # If we have the quest manager, handle quest interactions
-            if self.quest_manager:
-                self.interact_with_npc(self.player.x, self.player.y)
-                return npc
-            
-            # Fallback to old NPC system
-            return npc
-            
-        return None
-    
+        """Talk to an NPC on your tile or next to you ('t').
+
+        Two kinds of NPC share npcs_on_map: quest givers (npc_quest.QuestNPC) and
+        encounter NPCs (camps, hermits, teachers: npc_encounters.NPC). Both used to
+        go through the quest path, which only knew QuestNPC, so the encounter
+        menus (training, languages, moral choices) were unreachable.
+        """
+        px, py = self.player.x, self.player.y
+        npc = None
+        for (dx, dy) in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+            npc = self.npcs_on_map.get((px + dx, py + dy))
+            if npc is not None:
+                break
+        if npc is None:
+            return None
+        from jedi_fugitive.game.npc_quest import QuestNPC
+        if isinstance(npc, QuestNPC) and self.quest_manager:
+            self.interact_with_npc(npc.x, npc.y)
+        else:
+            try:
+                input_handler._show_npc_interaction_popup(self, npc)
+            except Exception:
+                self.add_message(f"{getattr(npc, 'name', 'The stranger')} watches you silently.")
+        return npc
+
     def handle_input(self, key):
-        # Handle active conversations first
-        if self.active_conversations:
-            # Get the first active conversation (simplified)
-            pos, conv_data = next(iter(self.active_conversations.items()))
-            
-            if conv_data['type'] == 'quest_offer':
-                if key == ord('a'):
-                    # Accept quest
-                    if self.quest_manager.accept_quest(conv_data['quest'], self.player):
-                        self.ui.messages.add(f"Quest accepted: {conv_data['quest'].title}")
-                    else:
-                        self.ui.messages.add("Could not accept quest.")
-                else:
-                    self.ui.messages.add("Quest declined.")
-                
-                # Clear conversation
-                del self.active_conversations[pos]
-                return False
 
         try:
             res = input_handler.handle_input(self, key)
@@ -3865,17 +3873,7 @@ class GameManager:
                 # NON-walkable tiles (only actual walls and major obstacles)
                 # Display.WALL = '█', but some maps use '#'
                 # Natural obstacles: '~' (dunes), 'r' (rocks), 'T' (trees), '^' (mountains)
-                non_walkable = {
-                    '█',  # Display.WALL (primary wall tile)
-                    '#',  # Legacy wall tile
-                    '^',  # Mountains (impassable)
-                    '♣',  # Trees (Display.TREE)
-                    '≈',  # Waves/dunes (Display.DUNE)
-                    '≋',  # Double waves
-                    '~',  # Water/waves
-                    'T',  # Legacy tree symbol
-                    '╬',  # Bone Cathedral walls
-                }
+                from jedi_fugitive.game.level import BLOCKING_TILES as non_walkable
                 
                 # Allow special dungeon floor tiles to be walkable
                 # (◊, ., ▪, ≈, ≋, ▫, ▓, ∞, etc.)
@@ -5934,7 +5932,14 @@ class GameManager:
                 try: self.ui.messages.add("You can't meditate here; it's too dangerous.")
                 except Exception: pass
                 return False
-            
+
+            # Meditation stills your presence in the Force: it lowers your Heat
+            try:
+                if getattr(self, 'pursuit_system', None):
+                    self.pursuit_system.update_detection('stealth', amount=15, turn=getattr(self, 'turn_count', 0))
+            except Exception:
+                pass
+
             # Display meditation mantra based on alignment
             try:
                 corruption = getattr(self.player, 'dark_corruption', 50)
@@ -6324,89 +6329,84 @@ class GameManager:
                 pass
     
     def generate_surface_npcs(self):
-        """Generate NPCs with quests on the surface map."""
-        if not self.quest_manager or not hasattr(self, 'game_map'):
+        """Place quest givers across the surface (reachable, away from the crash site)."""
+        if not self.quest_manager or not getattr(self, 'game_map', None):
             return
-            
-        # Find suitable positions for NPCs (avoid walls, water, etc.)
-        available_positions = []
-        
-        for y in range(len(self.game_map)):
-            for x in range(len(self.game_map[0])):
-                if (self.game_map[y][x] == '.' and 
-                    (x, y) != (self.player.x, self.player.y) and
-                    not any(enemy.x == x and enemy.y == y for enemy in self.enemies)):
-                    available_positions.append((x, y))
-        
-        # Generate 3-6 NPCs on surface based on world size
-        num_npcs = min(6, max(3, len(available_positions) // 50))
-        
-        # Place NPCs
-        for i in range(min(num_npcs, len(available_positions))):
-            if available_positions:
-                pos = random.choice(available_positions)
-                available_positions.remove(pos)
-                
-                # Determine biome for this position
-                biome = 'forest'  # default
-                if hasattr(self, 'map_biomes') and self.map_biomes:
-                    if 0 <= pos[1] < len(self.map_biomes) and 0 <= pos[0] < len(self.map_biomes[0]):
-                        biome = self.map_biomes[pos[1]][pos[0]]
-                
-                # Create NPC with quest
-                npc = self.quest_manager.create_random_npc(
-                    pos[0], pos[1], 
-                    level=1,  # Surface NPCs are level 1
-                    biome=biome
-                )
-                
-                if npc:
-                    self.npcs_on_map[pos] = npc
-                    
-        print(f"✓ Generated {len(self.npcs_on_map)} NPCs with quests on surface")
-    
+        mh = len(self.game_map); mw = len(self.game_map[0]) if mh else 0
+        want = max(4, min(10, (mw * mh) // 12000))
+        placed = []
+        px, py = self.player.x, self.player.y
+        for _ in range(want * 60):
+            if len(placed) >= want:
+                break
+            x, y = random.randint(2, mw - 3), random.randint(2, mh - 3)
+            if self.game_map[y][x] != Display.FLOOR or (x, y) in self.npcs_on_map:
+                continue
+            if abs(x - px) + abs(y - py) < 30 or any(abs(x - a) + abs(y - b) < 25 for a, b in placed):
+                continue
+            if any(getattr(e, 'x', None) == x and getattr(e, 'y', None) == y for e in self.enemies):
+                continue
+            biome = 'plains'
+            try:
+                biome = self.map_biomes[y][x]
+            except Exception:
+                pass
+            npc = self.quest_manager.create_random_npc(x, y, level=getattr(self.player, 'level', 1), biome=biome, game=self)
+            if npc:
+                self.npcs_on_map[(x, y)] = npc
+                placed.append((x, y))
+        try:
+            from jedi_fugitive.game.map_features import ensure_reachable
+            ensure_reachable(self, placed)
+        except Exception:
+            pass
+        print(f"✓ Generated {len(placed)} NPCs with quests on surface")
+
     def interact_with_npc(self, x, y):
-        """Interact with an NPC at the given position."""
+        """Quest conversation: offer / progress / completion."""
         npc = self.npcs_on_map.get((x, y))
         if not npc or not self.quest_manager:
             return False
-            
-        # Start or continue conversation
-        conversation = self.quest_manager.start_conversation(npc, self.player)
-        
-        if conversation:
-            # Display conversation in UI
-            self.ui.messages.add(f"{npc.name}: {conversation['message']}")
-            
-            # Handle quest interactions
-            if conversation.get('quest_offered'):
-                self.ui.messages.add("Press 'a' to accept the quest, or any other key to decline.")
-                self.active_conversations[(x, y)] = {
-                    'npc': npc,
-                    'type': 'quest_offer',
-                    'quest': conversation['quest']
-                }
-            elif conversation.get('quest_complete'):
-                # Complete the quest automatically
-                rewards = self.quest_manager.complete_quest(conversation['quest'], self.player)
-                if rewards:
-                    for reward_type, amount in rewards.items():
-                        if reward_type == 'experience':
-                            self.player.gain_experience(amount)
-                            self.ui.messages.add(f"Gained {amount} experience!")
-                        elif reward_type == 'credits':
-                            self.player.credits += amount
-                            self.ui.messages.add(f"Received {amount} credits!")
-            
-            return True
-        
-        return False
-    
-    def handle_npc_response(self, key, x, y):
-        """Handle player response to NPC conversation."""
-        conversation = self.active_conversations.get((x, y))
-        if not conversation:
+        conv = self.quest_manager.start_conversation(npc, self.player, game=self)
+        if not conv:
             return False
+        self.add_message(conv['message'])
+        quest = conv.get('quest')
+        if conv.get('quest_offered') and quest is not None:
+            choice = None
+            try:
+                choice = self.ui.centered_menu(["Accept", "Decline"], title=f"{quest.title} (+{quest.xp_reward} XP)")
+            except Exception:
+                choice = None
+            if choice == 0:
+                self.accept_npc_quest(quest)
+            else:
+                self.add_message(f"{npc.name}: I understand... if you change your mind, I'll be here.")
+        elif conv.get('quest_complete') and quest is not None:
+            self.quest_manager.finish(quest, self)
+        return True
+
+    def accept_npc_quest(self, quest):
+        if self.quest_manager.accept_quest(quest, self.player, game=self):
+            self.add_message(f"#6#Quest accepted: {quest.title}#0# - {quest.description}. (Q: quest log)")
+            try:
+                self.player.add_to_travel_log(f"[QUEST] {quest.npc.name} asked for help: {quest.description}.")
+            except Exception:
+                pass
+            return True
+        return False
+
+    def quest_log_lines(self):
+        qm = self.quest_manager
+        lines = []
+        for q in (qm.active_quests.values() if qm else []):
+            lines.append("• " + q.status_line(self))
+        if not lines:
+            lines.append("No active quests. Talk to survivors you meet (t).")
+        done = len(qm.completed_quests) if qm else 0
+        lines.append(f"Completed: {done}")
+        return lines
+
             
         if conversation['type'] == 'quest_offer':
             if key == 'a':  # Accept quest

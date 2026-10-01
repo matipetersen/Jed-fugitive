@@ -16,7 +16,20 @@ def _ranged_roll(weapon):
         return getattr(weapon, 'base_damage', 6) if not isinstance(weapon, dict) else weapon.get('base_damage', 6)
 
 
+def _record_combo(game, action):
+    try:
+        if getattr(game, 'combo_tracker', None) is not None:
+            game.combo_tracker.record_action(action)
+    except Exception:
+        pass
+
+
 def _fire_gun(game, tx, ty):
+    _record_combo(game, 'ranged_attack')
+    try:
+        game.pursuit_system.update_detection('ranged', turn=getattr(game, 'turn_count', 0))
+    except Exception:
+        pass
     """Fire ranged weapon at target coordinates (tx, ty)."""
     try:
         px = getattr(game.player, "x", 0)
@@ -159,6 +172,11 @@ def _fire_gun(game, tx, ty):
 
 def _throw_grenade(game, tx, ty):
     """Throw a grenade at target coordinates (tx, ty)."""
+    _record_combo(game, 'grenade')
+    try:
+        game.pursuit_system.update_detection('grenade', turn=getattr(game, 'turn_count', 0))
+    except Exception:
+        pass
     try:
         px = getattr(game.player, "x", 0)
         py = getattr(game.player, "y", 0)
@@ -523,6 +541,15 @@ def handle_input(game, key):
             ord('7'): (-1, -1), ord('9'): (1, -1),
             ord('1'): (-1, 1), ord('3'): (1, 1),
         }
+
+        # Quest log (Q)
+        if key == ord('Q'):
+            try:
+                lines = game.quest_log_lines() if hasattr(game, 'quest_log_lines') else ["No quests."]
+                _show_centered(game, ["═══ QUESTS ═══"] + lines, title="Quest Log")
+            except Exception:
+                pass
+            return False
 
         # Talk to NPC (t key)
         if key == ord('t'):
@@ -1776,8 +1803,8 @@ def handle_input(game, key):
                     if hasattr(game.player, 'suspicion'):
                         game.player.suspicion = max(0, game.player.suspicion - 10)
                 # Pursuit: Equipping a disguise can lower detection
-                if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                    game.player.pursuit_system.update_detection('stealth', disguise_bonus=10)
+                if getattr(game, 'pursuit_system', None):
+                    game.pursuit_system.update_detection('stealth', disguise_bonus=10)
             except Exception as e:
                 try: 
                     import traceback
@@ -1847,8 +1874,8 @@ def handle_input(game, key):
                         game.player.faction_manager.adjust_reputation('Republic', 2)
                         game.player.faction_manager.adjust_reputation('Settlers', 2)
                     # Pursuit: Destroying POI is a visible action
-                    if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                        game.player.pursuit_system.update_detection('combat')
+                    if getattr(game, 'pursuit_system', None):
+                        game.pursuit_system.update_detection('combat')
                     # Check for level up - USE UNIFIED SYSTEM
                     while game.player.light_xp >= game.player.xp_to_next_light:
                         game.player.light_xp -= game.player.xp_to_next_light
@@ -1915,8 +1942,8 @@ def handle_input(game, key):
                         game.player.faction_manager.adjust_reputation('Republic', -2)
                         game.player.faction_manager.adjust_reputation('Settlers', -2)
                     # Pursuit: Absorbing POI is a visible action
-                    if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                        game.player.pursuit_system.update_detection('force')
+                    if getattr(game, 'pursuit_system', None):
+                        game.pursuit_system.update_detection('force')
                     # Check for level up - USE UNIFIED SYSTEM
                     while game.player.dark_xp >= game.player.xp_to_next_dark:
                         game.player.dark_xp -= game.player.xp_to_next_dark
@@ -2190,8 +2217,8 @@ def handle_input(game, key):
             game.target_y = getattr(game.player, "y", 0)
             
             # Pursuit/Detection: Using Force powers
-            if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                game.player.pursuit_system.update_detection('force')
+            if getattr(game, 'pursuit_system', None):
+                game.pursuit_system.update_detection('force')
             
             # Corruption: Using dark side powers increases corruption
             if hasattr(game.player, 'corruption_system') and game.player.corruption_system:
@@ -2420,8 +2447,8 @@ def handle_input(game, key):
                 try:
                     perform_player_attack(game, enemy)
                     # Pursuit/Detection: Combat action
-                    if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                        game.player.pursuit_system.update_detection('combat')
+                    if getattr(game, 'pursuit_system', None):
+                        game.pursuit_system.update_detection('combat')
                     # Faction: Attacking certain enemies may affect reputation
                     if hasattr(game.player, 'faction_manager') and game.player.faction_manager:
                         if hasattr(enemy, 'faction') and enemy.faction:

@@ -2,8 +2,10 @@
 Survival: wounds that the Force cannot mend, and camps that cost exposure.
 
 Wounds
-  A heavy hit (a loss of 20%+ of max HP within one world tick) may leave a
-  wound; a brutal one (35%+) always does. One wound per location:
+  A heavy hit may leave a wound: losing 25% of max HP within one world tick
+  starts the chance, rising to 50% near 60%, and a 60%+ blow always wounds
+  (level 1: trooper ~12%, assassin ~22%, Sith warrior ~42%). One wound per
+  location:
 
     leg    evasion -6, and moving can make you stumble (the world gets a free tick)
     arm    accuracy -8, damage -1
@@ -34,8 +36,9 @@ WOUNDS = {
 }
 WOUND_ORDER = ('torso', 'leg', 'arm', 'head')  # treated first -> last
 
-HEAVY_HIT = 0.20
-BRUTAL_HIT = 0.35
+HEAVY_HIT = 0.25    # below this share of max HP lost in one tick, no wound
+BRUTAL_HIT = 0.60   # at or above it, always a wound
+MAX_WOUND_CHANCE = 0.5
 STUMBLE_CHANCE = 0.30
 CAMP_TICKS = 40
 
@@ -100,6 +103,21 @@ def treat(game, loc=None, source="You"):
     return loc
 
 
+def wound_chance(loss, max_hp):
+    """Chance that losing `loss` HP in one tick leaves a wound.
+
+    Grows linearly from 0 at 25% of max HP to 50% just below 60%, and is
+    certain from 60%. (A flat 20%/35% threshold wounded on nearly every hit
+    at level 1, where a trooper takes a third of your 15 HP.)
+    """
+    frac = loss / max(1, max_hp)
+    if frac >= BRUTAL_HIT:
+        return 1.0
+    if frac < HEAVY_HIT:
+        return 0.0
+    return min(MAX_WOUND_CHANCE, (frac - HEAVY_HIT) * 1.5)
+
+
 def on_hp_change(game):
     """Once per world tick: turn heavy damage into wounds, and let wounds act."""
     p = game.player
@@ -107,8 +125,7 @@ def on_hp_change(game):
     max_hp = max(1, int(getattr(p, 'max_hp', 1) or 1))
     last = getattr(game, '_last_hp_seen', None)
     if last is not None and hp > 0:
-        loss = last - hp
-        if loss >= BRUTAL_HIT * max_hp or (loss >= HEAVY_HIT * max_hp and random.random() < 0.5):
+        if random.random() < wound_chance(last - hp, max_hp):
             inflict(game)
     turn = getattr(game, 'turn_count', 0)
     w = wounds(p)

@@ -20,9 +20,17 @@ def test_brutal_hit_wounds_and_light_hit_does_not():
     p.hp -= int(p.max_hp * 0.10)
     gm._world_tick()
     assert survival.wounds(p) == {}
-    p.hp -= int(p.max_hp * 0.40) + 1
+    p.hp -= int(p.max_hp * 0.60) + 1
     gm._world_tick()
     assert len(survival.wounds(p)) == 1
+
+
+def test_wound_chance_curve():
+    c = survival.wound_chance
+    assert c(2, 15) == 0.0            # a scratch
+    assert 0.0 < c(5, 15) < 0.2       # a trooper's hit at level 1
+    assert 0.35 < c(8, 15) <= 0.5     # a Sith warrior's
+    assert c(9, 15) == 1.0            # 60%: always
 
 
 def test_wound_effects_apply_and_revert():

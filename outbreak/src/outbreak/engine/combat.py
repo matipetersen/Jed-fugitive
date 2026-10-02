@@ -343,7 +343,7 @@ def infect(game, source: str = "bite") -> None:
     p = game.player
     profile = game.profile
     if p.infected:
-        p.infection_timer = max(1, p.infection_timer - 100)
+        p.infection_timer = max(1, p.infection_timer - 40)
         game.msg("Another wound feeds the infection. The clock runs faster.", "bad")
         return
     p.infected = True

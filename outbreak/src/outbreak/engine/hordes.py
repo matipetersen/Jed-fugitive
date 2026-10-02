@@ -117,8 +117,9 @@ def tick(game) -> None:
         d = cheb(h.pos, p.pos)
         if d <= MATERIALIZE_RADIUS:
             materialize(game, h)
-        elif d <= 32 and not h.announced:
+        elif d <= 32 and not h.announced and game.clock.turn - game.last_moan >= 40:
             h.announced = True
+            game.last_moan = game.clock.turn          # one warning at a time, not one per horde
             game.msg(f"You hear a distant moaning to the {compass(h.x - p.x, h.y - p.y)}.", "warn")
     ring = game.ring
     if ring and ring.active and on_world:

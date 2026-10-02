@@ -47,6 +47,7 @@ class Game:
         self.heat = 0.0
         self.stalker: Optional[Zombie] = None
         self.stalker_ready = 0
+        self.last_moan = -999
         self.followers: List[Tuple[int, str, Zombie]] = []
         self.final: Optional[FinalStand] = None
         self.formula_found = False
@@ -121,6 +122,7 @@ class Game:
         d = self.item_def(item.id)
         if d.durability and item.dur is None:
             item.dur = d.durability
+        item.key = d.kind == "component"
         if not self.player.add_item(item, d.stackable):
             self.level.drop(self.player.pos, item)
             self.msg(f"Your pack is full; the {d.name.lower()} falls at your feet.", "warn")

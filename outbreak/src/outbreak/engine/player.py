@@ -118,21 +118,21 @@ class Player(Actor):
         return sum(i.qty for i in self.inventory if i.id == item_id)
 
     def slots_used(self) -> int:
-        return len(self.inventory)
+        return sum(1 for i in self.inventory if not i.key)
 
     def can_hold(self, item: Item, stackable: bool) -> bool:
-        if stackable and any(i.id == item.id for i in self.inventory):
+        if item.key or (stackable and any(i.id == item.id for i in self.inventory)):
             return True
-        return len(self.inventory) < INVENTORY_SLOTS
+        return self.slots_used() < INVENTORY_SLOTS
 
     def add_item(self, item: Item, stackable: bool) -> bool:
-        if stackable:
+        if not self.can_hold(item, stackable):
+            return False
+        if stackable or item.key:
             for have in self.inventory:
                 if have.id == item.id:
                     have.qty += item.qty
                     return True
-        if len(self.inventory) >= INVENTORY_SLOTS:
-            return False
         self.inventory.append(item)
         return True
 

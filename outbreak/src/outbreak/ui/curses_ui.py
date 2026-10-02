@@ -114,8 +114,12 @@ class UI:
                     self.put(y, x, ch, color, bold)
         for y in range(map_h):
             self.put(y, map_w, "|", "grey")
-        for i, (text, color) in enumerate(view.side[:map_h]):
-            self.put(i, map_w + 2, text[:SIDEBAR_W - 2], color)
+        side: List[Tuple[str, str]] = []
+        for text, color in view.side:
+            wrapped = textwrap.wrap(text, SIDEBAR_W - 2, subsequent_indent="    ") or [""]
+            side.extend((line, color) for line in wrapped)
+        for i, (text, color) in enumerate(side[:map_h]):
+            self.put(i, map_w + 2, text, color)
         self.put(map_h, 0, "-" * (w - 1), "grey")
         for i, (text, color) in enumerate(view.log):
             self.put(map_h + 1 + i, 1, text, color)

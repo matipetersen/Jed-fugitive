@@ -13,6 +13,7 @@ class Item:
     id: str
     qty: int = 1
     dur: Optional[int] = None        # remaining durability / fuel / charge
+    key: bool = False                # quest item: takes no pack space and is never lost to a full pack
 
 
 @dataclass

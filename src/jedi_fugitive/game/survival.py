@@ -16,7 +16,7 @@ Wounds
 Camping (K)
   Spend 40 ticks resting. If nothing interrupts you: one wound treated, +35% HP,
   -20 stress, full Force energy. The risk of being found grows with your Heat
-  (Force signature), with every wound you carry, and it is higher in a tomb.
+  (Force signature), with every wound you carry, at night, and in a tomb.
   An ambush or an enemy wandering close ends the camp early with only partial
   rest.
 """
@@ -155,7 +155,12 @@ def camp_risk(game):
     risk = 0.10 + heat / 200.0 + 0.05 * len(wounds(game.player))
     if getattr(game, 'tomb_levels', None) and hasattr(game, 'tomb_floor'):
         risk += 0.15
-    return min(0.85, risk)
+    try:
+        from jedi_fugitive.game import daynight
+        risk += daynight.camp_risk_modifier(game)  # a fire at night is a beacon
+    except Exception:
+        pass
+    return max(0.0, min(0.85, risk))
 
 
 def _ambush(game):

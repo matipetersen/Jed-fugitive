@@ -1225,6 +1225,11 @@ class GameManager:
             survival.on_hp_change(self)
         except Exception:
             pass
+        try:
+            from jedi_fugitive.game import daynight
+            daynight.tick(self)
+        except Exception:
+            pass
         # per-turn systems (pursuit, stealth, factions, autosave, ambience, events...)
         try:
             if self._local_turn_systems() is False:
@@ -6305,6 +6310,12 @@ class GameManager:
             except Exception:
                 pass
             
+            # night shortens sight on the surface
+            try:
+                from jedi_fugitive.game import daynight
+                radius = max(2, radius + daynight.sight_modifier(self))
+            except Exception:
+                pass
             # Apply atmospheric visibility modifiers
             try:
                 if hasattr(self, 'atmospheric_manager'):

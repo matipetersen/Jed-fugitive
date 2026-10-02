@@ -587,6 +587,13 @@ def draw_stats_panel(game):
         except Exception:
             pass
         try:
+            from jedi_fugitive.game import daynight
+            if not daynight.underground(game):
+                stats_lines = list(stats_lines)
+                stats_lines.insert(min(2, len(stats_lines)), f"Time: {daynight.clock_label(game)}")
+        except Exception:
+            pass
+        try:
             from jedi_fugitive.game import survival
             w = survival.wounds(game.player)
             if w:

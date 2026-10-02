@@ -1,3 +1,11 @@
+# Two games live in this repository
+
+* **`outbreak/`** - OUTBREAK, a zombie survival roguelike with selectable era, zombie type and objective.
+  Standalone, standard-library only. See [outbreak/README.md](outbreak/README.md) (`python3 outbreak/play.py`).
+* **`src/jedi_fugitive/`** - the original Jedi Fugitive: Echoes of the Fallen (`python3 launch_game.py`).
+
+---
+
 ### Project Structure
 
 ```

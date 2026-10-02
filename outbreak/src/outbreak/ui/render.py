@@ -2,7 +2,7 @@
 data (rows of coloured cells), so it is easy to test and to print headlessly."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from outbreak.engine import tiles as T

@@ -44,8 +44,8 @@ class GameConfig:
         content.get_origin(self.origin)
         if self.difficulty not in DIFFICULTIES:
             raise KeyError(f"unknown difficulty {self.difficulty!r}; choose one of: {', '.join(DIFFICULTIES)}")
-        if not (60 <= self.map_w <= 400 and 40 <= self.map_h <= 300):
-            raise ValueError("map size out of range")
+        if not (100 <= self.map_w <= 400 and 64 <= self.map_h <= 300):
+            raise ValueError("map size out of range (minimum 100x64: smaller maps cannot hold every building type)")
         return self
 
     @property

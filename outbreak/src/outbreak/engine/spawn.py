@@ -6,7 +6,7 @@ import random
 from typing import Optional
 
 from outbreak.content.zombies import SPECIALS, ZombieProfile
-from outbreak.engine.model import Human, Item, Level, Zombie
+from outbreak.engine.model import Human, Level, Zombie
 from outbreak.util import weighted_choice
 
 

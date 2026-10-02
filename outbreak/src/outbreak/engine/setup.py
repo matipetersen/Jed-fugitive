@@ -37,14 +37,15 @@ def initialize(game) -> None:
     game.levels = {"world": game.world.level}
     game.level = game.world.level
     game.pois = game.world.pois
-    start_hour = 18 if game.profile.sun_burn else 8
+    start_hour = 6 if game.profile.sun_burn else 8       # sun-shy dead: a safe first day to loot
     game.clock = Clock(start_hour * TURNS_PER_HOUR)
 
     _make_player(game)
     _scenario(game)
     _documents(game)
     _populate(game)
-    hordes.start_ring(game)
+    if not game.profile.sun_burn:                           # nothing roams by day, so there is no opening tide
+        hordes.start_ring(game)
     _intro(game)
 
 
@@ -193,4 +194,7 @@ def _intro(game) -> None:
         d = compass(pad.x - p.x, pad.y - p.y)
         game.msg(f"Rumour on {era.radio}: the last way out is {d} of here, roughly {cheb(pad.pos, p.pos)} tiles. "
                  f"It closes on day {sc.deadline_days}.", "lore")
-    game.msg("The dead are closing in from every side but one. Move!", "warn")
+    if game.profile.sun_burn:
+        game.msg("The sun keeps them in the dark places. You have until dusk to find shelter and answers.", "warn")
+    else:
+        game.msg("The dead are closing in from every side but one. Move!", "warn")

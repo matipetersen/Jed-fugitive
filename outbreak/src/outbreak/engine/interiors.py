@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from outbreak.content.eras import EraPack
 from outbreak.content.zombies import ZombieProfile
@@ -146,6 +146,17 @@ def _stock_crates(level: Level, rng: random.Random, ctx: GenContext, kind: str, 
     return placed
 
 
+def _place_loose_docs(level: Level, docs: List[str]) -> None:
+    """Documents that found no crate lie on the floor near the entrance rather than vanish."""
+    stocked = {d for c in level.containers.values() for d in c.docs}
+    for doc_id in docs:
+        if doc_id in stocked:
+            continue
+        spot = level.free_spot_near(level.entry[0], level.entry[1], 5)
+        if spot:
+            level.docs.setdefault(spot, []).append(doc_id)
+
+
 def _scatter_zombies(level: Level, rng: random.Random, ctx: GenContext, rooms: List[Rect], danger: float,
                      per_room: float, skip: Optional[Rect] = None) -> None:
     for room in rooms:
@@ -190,6 +201,7 @@ def generate_house(rng: random.Random, poi: POI, ctx: GenContext, docs: List[str
     level.arrivals["entry"] = level.entry
     sub_rooms = [(2, 2, w, h)]
     _stock_crates(level, rng, ctx, "house", sub_rooms, rng.uniform(1.5, 2.6), {level.entry}, docs)
+    _place_loose_docs(level, docs)
     _scatter_zombies(level, rng, ctx, sub_rooms, poi.danger, 1.1)
     # keep the entry clear
     occ = level.occ.get(level.entry)
@@ -276,8 +288,8 @@ def generate_floor(rng: random.Random, poi: POI, floor: int, ctx: GenContext, do
     # contents
     reserved = {p for p in level.arrivals.values()}
     stock_rooms = [r for r in rooms]
-    placed = _stock_crates(level, rng, ctx, poi.kind, stock_rooms, CRATES_PER_ROOM.get(poi.kind, 0.8),
-                           reserved, docs)
+    _stock_crates(level, rng, ctx, poi.kind, stock_rooms, CRATES_PER_ROOM.get(poi.kind, 0.8), reserved, docs)
+    _place_loose_docs(level, docs)
     hall = max(rooms, key=lambda r: r[2] * r[3])
     _scatter_zombies(level, rng, ctx, rooms, poi.danger * (1.0 + 0.25 * floor), 1.0, skip=up_room if floor == 0 else None)
     if poi.kind == "faith":                                   # a congregation in the main hall

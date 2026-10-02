@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import random
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from outbreak.content.eras import POI_KINDS, EraPack
 from outbreak.engine import tiles as T
@@ -161,6 +162,7 @@ def generate_overworld(rng: random.Random, era: EraPack, w: int, h: int) -> Worl
     _place_houses(rng, canvas, era, world)
     _place_camps(rng, canvas, world)
     _link_roads(rng, level, world, sites)
+    _ensure_connected(level, world)
     return world
 
 
@@ -244,14 +246,14 @@ def _place_special_sites(rng, canvas, era, world) -> List[POI]:
     return [refuge, pad]
 
 
-def _try_poi(rng, canvas, era, world, kind: str, spacing: int, tries: int = 500) -> bool:
+def _try_poi(rng, canvas, era, world, kind: str, spacing: int, tries: int = 500, use_zone: bool = True) -> bool:
     w, h = SIZES.get(kind, DEFAULT_SIZE)
     lv = canvas.level
     for _ in range(tries):
         x = rng.randint(3, lv.w - w - 3)
         y = rng.randint(3, lv.h - h - 4)
         door = (x + w // 2, y + h - 1)
-        if world.zone[y + h // 2][x + w // 2] < POI_ZONE[kind] and rng.random() < 0.85:
+        if use_zone and world.zone[y + h // 2][x + w // 2] < POI_ZONE[kind] and rng.random() < 0.85:
             continue
         if cheb(door, world.start) < 12 or any(cheb(door, p.pos) < spacing for p in world.pois.values()
                                                 if p.kind != "breach"):
@@ -269,15 +271,18 @@ def _try_poi(rng, canvas, era, world, kind: str, spacing: int, tries: int = 500)
 
 
 def _place_pois(rng, canvas, era, world) -> None:
-    kinds = list(POI_KINDS) * 2 + rng.sample(POI_KINDS, 4)        # every kind twice, plus extras
+    lv = canvas.level
+    copies = 2 if lv.w * lv.h >= 8000 else 1                 # small maps get fewer buildings
+    kinds = list(POI_KINDS) * copies + rng.sample(POI_KINDS, 4 if copies == 2 else 2)
     rng.shuffle(kinds)
     for kind in kinds:
         _try_poi(rng, canvas, era, world, kind, 14)
-    # scenarios need at least one of every kind: squeeze it in if the map was crowded
+    # scenarios need at least one of every kind: squeeze it in, relaxing the rules, if the map was crowded
     for kind in POI_KINDS:
         if any(p.kind == kind for p in world.pois.values()):
             continue
-        if not any(_try_poi(rng, canvas, era, world, kind, spacing, 800) for spacing in (10, 6, 3)):
+        attempts = [(10, True), (6, True), (6, False), (3, False), (1, False)]
+        if not any(_try_poi(rng, canvas, era, world, kind, spacing, 1500, zone) for spacing, zone in attempts):
             raise RuntimeError(f"could not place a {kind} building; map too small")
 
 
@@ -348,3 +353,54 @@ def _link_roads(rng, level: Level, world: World, sites: List[POI]) -> None:
     for poi in world.pois.values():
         if poi.kind != "breach":
             level.set_tile(poi.x, poi.y, T.PORTAL)
+
+
+def _reachable_from(level: Level, start: Pos) -> set:
+    seen = {start}
+    queue = deque([start])
+    while queue:
+        x, y = queue.popleft()
+        for dx, dy in DIRS4:
+            n = (x + dx, y + dy)
+            if n not in seen and level.walkable(*n):
+                seen.add(n)
+                queue.append(n)
+    return seen
+
+
+def _ensure_connected(level: Level, world: World) -> None:
+    """Guarantee that every doorway and camp can be walked to from the start.
+
+    Roads are laid as simple L-shapes and can be blocked by buildings, so any
+    pocket still cut off gets a path cut through trees, water or rubble."""
+    targets = [(p.x, p.y + 1) for p in world.pois.values() if p.kind != "breach"]
+    targets += [(c[0], c[1] + 1) for c in world.camps]
+    reach = _reachable_from(level, world.start)
+    solid = (T.WALL, T.PORTAL)
+    for target in targets:
+        if target in reach:
+            continue
+        parent = {target: None}
+        queue = deque([target])
+        hit = None
+        while queue and hit is None:
+            cur = queue.popleft()
+            for dx, dy in DIRS4:
+                n = (cur[0] + dx, cur[1] + dy)
+                if n in parent or not (1 <= n[0] < level.w - 1 and 1 <= n[1] < level.h - 1):
+                    continue
+                if level.tile(*n) in solid:
+                    continue
+                parent[n] = cur
+                if n in reach:
+                    hit = n
+                    break
+                queue.append(n)
+        if hit is None:
+            raise RuntimeError(f"doorway at {target} cannot be connected to the start")
+        node = hit
+        while node is not None:
+            if node not in reach and level.tile(*node) not in (T.CAMPFIRE, T.CRATE):
+                level.set_tile(node[0], node[1], T.ROAD)
+            node = parent[node]
+        reach = _reachable_from(level, world.start)

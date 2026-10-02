@@ -7,7 +7,7 @@ Effects are dicts: ``humanity``, ``panic``, ``hp``, ``coins``, ``xp``, ``words``
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from outbreak.engine.model import Item
 from outbreak.util import weighted_choice

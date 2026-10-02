@@ -9,11 +9,10 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
-from outbreak.content.zombies import SPECIALS
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Hazard, Human, Item, Zombie
-from outbreak.util import cheb, clamp, dist
+from outbreak.util import cheb, clamp
 
 FISTS = ItemDef("fists", "Fists", "weapon", style="unarmed", dmg=(1, 3), noise=2)
 LIMBS = (("arm", 41), ("leg", 41), ("torso", 15), ("neck", 3))
@@ -178,12 +177,13 @@ def player_attack(game, target: Actor) -> bool:
     if d > w.reach or (d > 1 and not has_los(game.level, p.pos, target.pos)):
         return False
     p.stamina = max(0.0, p.stamina - STAMINA_PER_ATTACK)
+    # judge surprise *before* making noise: the blow itself must not give you away
+    sneak = isinstance(target, Zombie) and _sneak_ok(game, target)
     noise = max(1, w.noise + (p.armor and game.item_def(p.armor.id).stealth or 0))
     game.emit_noise(p.pos, noise, "player")
     if isinstance(target, Human):
         return _attack_human(game, target, w, item)
     z: Zombie = target
-    sneak = _sneak_ok(game, z)
     if sneak:
         hit = True
     else:
@@ -205,7 +205,6 @@ def player_attack(game, target: Actor) -> bool:
 
 
 def _attack_human(game, h: Human, w: ItemDef, item: Optional[Item]) -> bool:
-    p = game.player
     if not h.hostile:
         game.make_hostile(h)
     if game.rng.random() * 100 >= _accuracy(game, w, 8):

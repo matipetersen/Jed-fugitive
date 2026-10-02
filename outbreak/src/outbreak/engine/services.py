@@ -121,9 +121,7 @@ def buy_lead(game) -> str:
 
 def sleep(game, max_turns: int = 80) -> int:
     """Sleep in a bed.  Returns the turns slept (the infection clock keeps running)."""
-    p = game.player
-    n = min(max_turns, game.clock.until_hour(6.0))
-    return n
+    return min(max_turns, game.clock.until_hour(6.0))
 
 
 def npc_title(npc: Human) -> str:

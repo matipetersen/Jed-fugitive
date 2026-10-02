@@ -12,15 +12,15 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, loot,
-                             services, setup)
+from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, services,
+                             setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
-from outbreak.engine.model import POI, Hazard, Human, Item, Level, Zombie
+from outbreak.engine.model import POI, Human, Item, Level, Zombie
 from outbreak.engine.pathing import distance_field
 from outbreak.engine.spawn import make_raider, spawn_zombie
 from outbreak.engine.worldgen import UNSET
-from outbreak.util import DIRS4, DIRS8, Pos, cheb, compass, dist
+from outbreak.util import DIRS8, Pos, cheb
 
 LOG_LIMIT = 600
 SCENT_KEEP = 60
@@ -247,7 +247,7 @@ class Game:
                 pass
 
     def _player_conditions(self) -> None:
-        p, prof = self.player, self.profile
+        p = self.player
         t = self.clock.turn
         if p.bleeding:
             if t % 4 == 0:
@@ -339,11 +339,11 @@ class Game:
                 self.add_panic(1.0)
 
     def _heat(self) -> None:
-        self.heat = max(0.0, self.heat - (1.5 if self.level.safe else 0.4))
         prof = self.profile
         if self.heat >= prof.stalker_heat and self.stalker is None and self.clock.turn >= self.stalker_ready \
                 and self.level is self.world.level and not self.final:
             self._spawn_stalker()
+        self.heat = max(0.0, self.heat - (1.5 if self.level.safe else 0.4))
 
     def _spawn_stalker(self) -> None:
         p, lv = self.player, self.level
@@ -810,7 +810,6 @@ class Game:
     def read_document(self, doc_id: str) -> Tuple[str, List[str]]:
         """Reading exposes you to unknown words; returns (text, words learned)."""
         doc = self.docs[doc_id]
-        before = cipher.is_decoded(doc, self.know)
         learned = cipher.expose(doc, self.know, cipher.EXPOSURE_TO_LEARN - (1 if self.player.mod("study_bonus") >= 0.3 else 0))
         if learned:
             self.msg(f"The meaning of '{', '.join(learned)}' sinks in.", "good")

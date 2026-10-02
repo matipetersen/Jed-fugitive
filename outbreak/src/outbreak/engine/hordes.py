@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from outbreak.engine.pathing import greedy_step
 from outbreak.engine.spawn import spawn_zombie

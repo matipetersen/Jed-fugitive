@@ -7,12 +7,9 @@ interesting building.  If even this bot can sometimes win, the game is fair.
 from __future__ import annotations
 
 import random
-from typing import Optional
-
 from outbreak.engine import combat, encounters, services
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
-from outbreak.engine.model import Human, Zombie
 from outbreak.engine.pathing import descend, distance_field
 from outbreak.util import DIRS8, cheb
 
@@ -67,32 +64,26 @@ class Bot:
             g.pending_event = None
 
     def _choose_goal(self):
+        """The nearest building worth entering: anything revealed or seen, components first."""
         g, p = self.g, self.g.player
         lv = g.level
         if lv.kind != "overworld":
             return None
+        if g.requirements_met():
+            return g.pois[g.final_site_id]
         wanted = []
         for poi in g.pois.values():
-            if poi.kind in ("breach",) or poi.done:
+            if poi.kind == "breach" or poi.done or poi.visited:
                 continue
-            if not (poi.revealed or poi.visited):
+            if not (poi.revealed or lv.seen[poi.y][poi.x]):
                 continue
-            weight = 0
-            if poi.kind == "house":
-                weight = 40
-            elif poi.component and p.count(poi.component) == 0:
-                weight = 0
-            if g.requirements_met() and poi.id == g.final_site_id:
-                weight = -1000
-            wanted.append((cheb(poi.pos, p.pos) + weight, poi))
-        if g.requirements_met():
-            site = g.pois[g.final_site_id]
+            bonus = -30 if poi.component and poi.revealed else 0
+            wanted.append((cheb(poi.pos, p.pos) + bonus, poi))
+        if wanted:
+            return min(wanted, key=lambda t: t[0])[1]
+        site = g.pois[g.final_site_id]
+        if site.revealed and not g.requirements_met() and p.count(g.scenario.requirements[0].id):
             return site
-        unvisited = [(d, q) for d, q in wanted if not q.visited]
-        pool = unvisited or wanted
-        if pool:
-            return min(pool, key=lambda t: t[0])[1]
-        # nothing known: wander toward unexplored space
         return None
 
     def _escape_ring(self) -> bool:
@@ -140,8 +131,6 @@ class Bot:
             hostiles.sort(key=lambda a: cheb(a.pos, p.pos))
             near = hostiles[0]
             d = cheb(near.pos, p.pos)
-            ranged = next((i for i, it in enumerate(p.inventory)
-                           if g.item_def(it.id).is_ranged and p.count(g.item_def(it.id).ammo or "") > 0), None)
             if d <= max(1, w.reach) and not (w.is_ranged and d == 1):
                 if g.attack(near):
                     return True
@@ -244,8 +233,15 @@ class Bot:
             if self._walk_to((tx, ty)):
                 return True
             return self._random_move()
-        # inside: loot containers, then leave
-        crates = [pos for pos, c in lv.containers.items() if not c.opened]
+        # inside: loot what can be reached, force the vault, then leave
+        field = distance_field(lv, p.pos, 120)
+        crates = [pos for pos, c in lv.containers.items() if not c.opened and lv.tile(*pos) == T.CRATE
+                  and any((pos[0] + dx, pos[1] + dy) in field for dx, dy in DIRS8)]
+        lock = lv.vault_lock
+        if not crates and lock and lv.tile(*lock) == T.LOCKED and g.requirements_met() is False:
+            if self._walk_to(lock, adjacent=True):
+                return True
+            return g.try_unlock(lock) or self._random_move()
         if crates:
             target = min(crates, key=lambda q: cheb(q, p.pos))
             if self._walk_to(target, adjacent=True):

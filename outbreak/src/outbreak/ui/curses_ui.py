@@ -13,7 +13,7 @@ from outbreak.engine import save as savemod
 from outbreak.engine.game import Game
 from outbreak.engine.model import Human
 from outbreak.ui import render
-from outbreak.util import DIRS8, cheb
+from outbreak.util import cheb
 
 SIDEBAR_W = 34
 LOG_LINES = 6
@@ -461,7 +461,7 @@ class UI:
                 return
 
     def ending_screen(self) -> None:
-        g, e = self.g, self.g.over
+        e = self.g.over
         lines = [e.text, ""] + e.summary + ["", f"Score: {e.score}"]
         self.text_screen(("VICTORY - " if e.victory else "") + e.title, "\n".join(lines), "Any key to leave")
         if self.g.cfg.permadeath or e.victory:

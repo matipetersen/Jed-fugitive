@@ -89,7 +89,7 @@ def _zombie(game, z: Zombie) -> None:
 
 
 def _zombie_step(game, z: Zombie) -> None:
-    p, prof, level = game.player, game.profile, game.level
+    p, prof = game.player, game.profile
     turn = game.clock.turn
     d = cheb(z.pos, p.pos)
     seen = sees_player(game, z)

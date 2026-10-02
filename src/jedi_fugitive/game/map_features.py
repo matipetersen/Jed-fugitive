@@ -1497,7 +1497,8 @@ def enter_tomb(game):
             # place_items() call here used to double them)
             
             # Place corrupted Jedi Artifact on the final level
-            if depth == num_levels and rooms:
+            # (a relic already carried out of this tomb is not there again, e.g. after a reload)
+            if depth == num_levels and rooms and not tomb_rec.get('relic_recovered'):
                 from jedi_fugitive.items.tokens import TOKEN_MAP
                 # Place in the last room (deepest chamber - Sith altar)
                 last_room = rooms[-1]
@@ -1532,8 +1533,10 @@ def enter_tomb(game):
                         'quest': True
                     }
                     level_items.append(artifact_entry)
-                    # the Lord's guardian waits beside the relic
+                    # the Lord's guardian waits beside the relic (unless already slain)
                     try:
+                        if tomb_rec.get('boss_defeated'):
+                            raise StopIteration
                         for gx, gy in ((artifact_x + 2, artifact_y), (artifact_x - 2, artifact_y),
                                        (artifact_x, artifact_y + 1), (artifact_x, artifact_y - 1)):
                             if level_map[gy][gx] == Display.FLOOR:
@@ -1542,6 +1545,8 @@ def enter_tomb(game):
                                 level_enemies.append(guardian)
                                 game.tomb_guardian = guardian
                                 break
+                    except StopIteration:
+                        pass
                     except Exception as e:
                         print(f"  ⚠ Failed to place tomb guardian: {e}")
                     print(f"  ✓ Artifact added to level_items list at ({artifact_x}, {artifact_y})")

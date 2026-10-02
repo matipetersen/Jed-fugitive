@@ -15,6 +15,11 @@ from jedi_fugitive.game.personality import EnemyPersonality
 from jedi_fugitive.game import force_abilities
 
 
+def _floor():
+    from jedi_fugitive.game.level import Display  # local: level imports enemy
+    return Display.FLOOR
+
+
 def _attach_take_turn(e: Enemy, fn):
     # Simply assign a callable that accepts one arg (game). process_enemies will call it.
     try:
@@ -74,7 +79,7 @@ def create_sith_assassin(level: int = 1, x: int = 0, y: int = 0) -> Enemy:
                         # candidate positions around player
                         cand = [(px+1,py),(px-1,py),(px,py+1),(px,py-1)]
                         for nx, ny in cand:
-                            if 0 <= ny < len(game.game_map) and 0 <= nx < len(game.game_map[0]) and game.game_map[ny][nx] == getattr(game.Display, 'FLOOR', '.'):
+                            if 0 <= ny < len(game.game_map) and 0 <= nx < len(game.game_map[0]) and game.game_map[ny][nx] == _floor():
                                 # avoid colliding with player or other enemies
                                 if not any(getattr(o,'x',None)==nx and getattr(o,'y',None)==ny for o in game.enemies):
                                     self.x = nx; self.y = ny
@@ -510,7 +515,7 @@ def create_obsidian_regent(level: int = 7, x: int = 0, y: int = 0) -> Enemy:
                     for dx in (-1,0,1):
                         for dy in (-1,0,1):
                             nx, ny = getattr(self,'x',0)+dx, getattr(self,'y',0)+dy
-                            if 0 <= ny < len(game.game_map) and 0 <= nx < len(game.game_map[0]) and game.game_map[ny][nx] == getattr(game.Display,'FLOOR','.'):
+                            if 0 <= ny < len(game.game_map) and 0 <= nx < len(game.game_map[0]) and game.game_map[ny][nx] == _floor():
                                 minion = create_sith_warrior(level=max(1, int(self.level/2)))
                                 minion.x, minion.y = nx, ny
                                 try: game.enemies.append(minion)

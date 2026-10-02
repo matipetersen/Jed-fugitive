@@ -18,6 +18,8 @@ def _parse_args(argv=None):
                    help="real-time world tick length in milliseconds (default: 200)")
     p.add_argument("--fullscreen", action="store_true", help="start fullscreen (F11 toggles)")
     p.add_argument("--no-intro", action="store_true", help="skip the crash cinematic")
+    p.add_argument("--continue", dest="continue_game", action="store_true",
+                   help="continue from the autosave (graphical UI; the terminal UI asks)")
     p.add_argument("--size", default=None, help="window size, e.g. 1600x960")
     p.add_argument("--world-size", default="large", choices=["small", "normal", "large", "huge"],
                    help="overworld size (default: large, 440x300 tiles)")
@@ -54,17 +56,33 @@ def _main_gui(args):
         from jedi_fugitive.game.game_manager import GameManager
         from jedi_fugitive.game.sith_codex import get_random_loading_message
         GameManager.show_splash_static(100)
-        input("Press Enter to begin your journey...")
+        from jedi_fugitive.game.save_system import latest_save_path
+        if not args.continue_game and latest_save_path() is not None:
+            choice = input("A saved journey awaits. Type C and Enter to continue it, or just Enter to begin anew: ")
+            args.continue_game = str(choice).strip().lower().startswith('c')
+        else:
+            input("Press Enter to begin your journey...")
         print(get_random_loading_message())
         gm = GameManager(app.stdscr)
         gm.world_size = args.world_size
         gm.tick_seconds = max(0.05, args.tick_ms / 1000.0)
+        from jedi_fugitive.game.save_system import latest_save_path, continue_game
+        resume = bool(args.continue_game) and latest_save_path() is not None
         # the crash cinematic plays while the world is generated in the background
         intro = None
-        if not args.no_intro:
+        if not args.no_intro and not resume:
             from jedi_fugitive.gfx.intro import Intro
             intro = Intro(app)
-        app.run_loading(lambda: (gm.initialize(), gm.generate_world()), intro=intro)
+
+        def _start():
+            if resume and continue_game(gm):
+                gm.add_message("Game loaded. Welcome back, wanderer.")
+                return
+            if resume:
+                gm.world_seed = None  # the save was unreadable: start a fresh world
+            gm.initialize()
+            gm.generate_world()
+        app.run_loading(_start, intro=intro)
         if args.realtime:
             gm.set_realtime(True)
         gm.run(skip_init=True)
@@ -90,23 +108,27 @@ def _curses_main(stdscr):
         gm = GameManager(stdscr)
         gm.world_size = _WORLD_SIZE
 
-        # Load save if requested
+        # Load save if requested. (This used to apply the save and then call
+        # gm.run(), whose initialize()/generate_world() threw the loaded state away.)
         global _LOAD_SAVE_FOR_CURSES
+        loaded = False
         if _LOAD_SAVE_FOR_CURSES:
             try:
-                from jedi_fugitive.game.save_system import load_game, apply_save_data, get_autosave_path
-                save_data = load_game(get_autosave_path())
-                if save_data and apply_save_data(gm, save_data):
-                    if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
-                        gm.ui.messages.add("Game loaded! Welcome back, wanderer.")
-                else:
-                    if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
-                        gm.ui.messages.add("Failed to load save. Starting new game...")
-            except Exception as e:
-                if hasattr(gm, 'ui') and hasattr(gm.ui, 'messages'):
-                    gm.ui.messages.add(f"Load error: {e}. Starting new game...")
+                from jedi_fugitive.game.save_system import continue_game
+                loaded = continue_game(gm)
+            except Exception:
+                loaded = False
+            if loaded:
+                gm.add_message("Game loaded! Welcome back, wanderer.")
+            else:
+                gm = GameManager(stdscr)
+                gm.world_size = _WORLD_SIZE
+                gm.initialize()
+                gm.add_message("Failed to load save. Starting a new game...")
+                gm.generate_world()
+            loaded = True
 
-        gm.run()
+        gm.run(skip_init=loaded)
         # Return the game manager so we can check death/victory state
         return gm
     except Exception as e:

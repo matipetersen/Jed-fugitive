@@ -223,7 +223,11 @@ def place_fragments(game, rec, levels, rooms):
     """One holocron fragment on each of the first three floors (or fewer, if shallow)."""
     from jedi_fugitive.game.level import Display
     lord = LORDS[rec['lord']]
+    rec['fragments'] = {}
+    known = _known(game.player, rec['lord'])
     for idx in range(min(len(lord['fragments']), len(levels))):
+        if idx in known:
+            continue  # already recovered (this tomb was regenerated, e.g. after a reload)
         level_map, floor_rooms = levels[idx], rooms[idx]
         candidates = list(floor_rooms[1:] or floor_rooms)
         random.shuffle(candidates)

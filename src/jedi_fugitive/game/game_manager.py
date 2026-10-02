@@ -422,6 +422,12 @@ class GameManager:
 
     def generate_world(self):
         print("⟳ Generating galaxy...")
+        # The surface is a pure function of world_seed: a save stores the seed and the
+        # loader regenerates the same world instead of serializing every tile's metadata.
+        import random as _random
+        if getattr(self, 'world_seed', None) is None:
+            self.world_seed = _random.randrange(1, 2 ** 31)
+        _random.seed(self.world_seed)
         # use global logger from game package
         try:
             map_features.generate_world(self)
@@ -559,6 +565,13 @@ class GameManager:
                 self._realtime_step()
             else:
                 self._turn_step()
+        # permadeath: a fallen Jedi does not get to reload the autosave
+        if getattr(self, 'death', False):
+            try:
+                from jedi_fugitive.game.save_system import get_autosave_path
+                get_autosave_path().unlink(missing_ok=True)
+            except Exception:
+                pass
 
     def _local_turn_systems(self):
         """Per-turn systems layered on the world tick: pursuit, stealth, factions, corruption,

@@ -594,8 +594,8 @@ class Enemy:
                         err_ += dx_
                         y_ += sy_
 
-            wall_ch = getattr(game, "Display", None) and getattr(game.Display, "WALL", "#") or "#"
-            tree_ch = getattr(game, "Display", None) and getattr(game.Display, "TREE", "T") or "T"
+            from jedi_fugitive.game.level import Display as _D
+            wall_ch, tree_ch = _D.WALL, _D.TREE
 
             # find the stopping point: first blocking tile encountered (or player)
             stop_x, stop_y = px, py

@@ -29,7 +29,16 @@ button { font: inherit; color: inherit; }
 .stage { position: relative; min-width: 0; min-height: 0; background: #000; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
 #map { width: 100%; height: 100%; display: block; touch-action: none; }
 .side { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-.controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.group { display: grid; gap: 6px; min-width: 0; }
+.group.grow { flex: 1; }
+.group h3 { margin: 0; font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.move { display: flex; gap: 8px; align-items: center; }
+.stack { display: grid; gap: 6px; }
+.tabs { display: flex; gap: 2px; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 0 8px 4px 0; margin-right: 8px; cursor: pointer; font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.tab[aria-selected="true"] { color: var(--saber); border-bottom-color: var(--saber); }
+.btn.poi.ready { border-color: var(--amber); color: var(--amber); box-shadow: 0 0 0 1px rgba(243, 181, 74, .35), 0 0 14px rgba(243, 181, 74, .25); }
 
 .brand { font-family: var(--font-display); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 15px; color: var(--saber); margin-right: 6px; }
 .bar { display: grid; gap: 2px; min-width: 112px; }
@@ -42,6 +51,8 @@ button { font: inherit; color: inherit; }
 .chip.time { color: var(--amber); }
 
 .banner { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-family: var(--font-display); font-weight: 600; letter-spacing: .05em; font-size: 12px; padding: 5px 12px; border-radius: 999px; color: var(--sith); background: rgba(10, 4, 8, .82); border: 1px solid rgba(255, 77, 94, .5); max-width: 90%; text-align: center; }
+.zoom { position: absolute; right: 10px; top: 10px; display: flex; gap: 4px; }
+.zoom .btn { width: 32px; height: 32px; padding: 0; font-size: 16px; background: rgba(15, 18, 27, .85); }
 .tip { position: absolute; left: 10px; top: 10px; font-size: 11px; color: var(--muted); background: rgba(7, 8, 13, .7); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
 
 .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; min-height: 0; }
@@ -60,7 +71,7 @@ button { font: inherit; color: inherit; }
 .btn:active { background: #1d2538; }
 .btn small { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
 .pad .btn { padding: 0; font-size: 16px; }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+.actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; min-width: 0; max-width: 620px; }
 .btn.force { border-color: color-mix(in srgb, var(--holo) 45%, var(--rule)); }
 .btn.danger { border-color: color-mix(in srgb, var(--sith) 45%, var(--rule)); }
 
@@ -97,7 +108,9 @@ button { font: inherit; color: inherit; }
   .hud { gap: 5px 10px; }
   .chip { font-size: 10px; padding: 2px 7px; }
   .controls { align-items: flex-start; }
-  .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .group.grow { flex-basis: 100%; }
+  .controls { justify-content: flex-start; }
   .actions .btn { padding: 8px 4px; font-size: 11px; }
   .actions .btn small { display: none; }
 }
@@ -122,6 +135,10 @@ button { font: inherit; color: inherit; }
   <main class="stage" id="stage">
     <canvas id="map" aria-label="Mapa"></canvas>
     <div class="tip" id="tip"></div>
+    <div class="zoom" aria-label="Zoom">
+      <button class="btn" id="zoomOut" aria-label="Alejar">−</button>
+      <button class="btn" id="zoomIn" aria-label="Acercar">+</button>
+    </div>
     <div class="banner" id="banner" hidden></div>
   </main>
 
@@ -131,7 +148,8 @@ button { font: inherit; color: inherit; }
       <ol id="log"></ol>
     </section>
     <section class="panel keys" aria-label="Teclado">
-      <kbd>←↑→↓</kbd> <kbd>hjkl</kbd> <kbd>yubn</kbd> moverse y atacar · <kbd>.</kbd> esperar<br>
+      <kbd>←↑→↓</kbd> <kbd>hjkl</kbd> moverse y atacar · diagonales <kbd>7 9 1 3</kbd> o <kbd>y b n</kbd> · <kbd>.</kbd> esperar<br>
+      <kbd>Enter</kbd> interactuar con ruinas, santuarios y reliquias (absorber o destruir)<br>
       <kbd>g</kbd> recoger · <kbd>i</kbd> inventario · <kbd>e</kbd> equipar · <kbd>u</kbd> usar<br>
       <kbd>z</kbd> Fuerza · <kbd>f</kbd> disparar · <kbd>G</kbd> granada · <kbd>m</kbd> meditar<br>
       <kbd>K</kbd> acampar · <kbd>Z</kbd> esconderse · <kbd>t</kbd> hablar · <kbd>T</kbd> comerciar<br>
@@ -141,34 +159,54 @@ button { font: inherit; color: inherit; }
   </aside>
 
   <footer class="controls" aria-label="Controles">
-    <div class="pad" id="pad">
-      <button class="btn" data-k="y" aria-label="Noroeste">↖</button>
-      <button class="btn" data-k="k" aria-label="Norte">↑</button>
-      <button class="btn" data-k="u" aria-label="Noreste">↗</button>
-      <button class="btn" data-k="h" aria-label="Oeste">←</button>
-      <button class="btn" data-k="." aria-label="Esperar un turno">·</button>
-      <button class="btn" data-k="l" aria-label="Este">→</button>
-      <button class="btn" data-k="b" aria-label="Suroeste">↙</button>
-      <button class="btn" data-k="j" aria-label="Sur">↓</button>
-      <button class="btn" data-k="n" aria-label="Sureste">↘</button>
-    </div>
-    <div class="actions">
-      <button class="btn" data-k="g">Recoger<small>g</small></button>
-      <button class="btn" data-k="i">Inventario<small>i</small></button>
-      <button class="btn" data-k="u">Usar<small>u</small></button>
-      <button class="btn" data-k="e">Equipar<small>e</small></button>
-      <button class="btn force" data-k="z">Fuerza<small>z</small></button>
-      <button class="btn danger" data-k="f">Disparar<small>f</small></button>
-      <button class="btn force" data-k="m">Meditar<small>m</small></button>
-      <button class="btn" data-k="K">Acampar<small>K</small></button>
-      <button class="btn" data-k="Z">Esconderse<small>Z</small></button>
-      <button class="btn" data-k="t">Hablar<small>t</small></button>
-      <button class="btn" data-k="&gt;">Entrar / bajar<small>&gt;</small></button>
-      <button class="btn" data-k="&lt;">Subir<small>&lt;</small></button>
-      <button class="btn" data-k="Q">Misiones<small>Q</small></button>
-      <button class="btn" data-k="J">Diario<small>J</small></button>
-      <button class="btn" data-k="S">Guardar<small>S</small></button>
-    </div>
+    <section class="group" aria-labelledby="gMove">
+      <h3 id="gMove">Movimiento</h3>
+      <div class="move">
+        <div class="pad" id="pad">
+          <button class="btn" data-k="7" aria-label="Noroeste">↖</button>
+          <button class="btn" data-code="259" aria-label="Norte">↑</button>
+          <button class="btn" data-k="9" aria-label="Noreste">↗</button>
+          <button class="btn" data-code="260" aria-label="Oeste">←</button>
+          <button class="btn" data-k="." aria-label="Esperar un turno" title="Esperar un turno">·</button>
+          <button class="btn" data-code="261" aria-label="Este">→</button>
+          <button class="btn" data-k="1" aria-label="Suroeste">↙</button>
+          <button class="btn" data-code="258" aria-label="Sur">↓</button>
+          <button class="btn" data-k="3" aria-label="Sureste">↘</button>
+        </div>
+        <div class="stack">
+          <button class="btn" data-k="&gt;">Entrar / bajar<small>&gt;</small></button>
+          <button class="btn" data-k="&lt;">Subir<small>&lt;</small></button>
+        </div>
+      </div>
+    </section>
+    <section class="group grow" aria-label="Acciones y otros">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tabAct" aria-selected="true" aria-controls="grpAct">Acciones</button>
+        <button class="tab" role="tab" id="tabOther" aria-selected="false" aria-controls="grpOther">Otros</button>
+      </div>
+      <div class="actions" id="grpAct" role="tabpanel" aria-labelledby="tabAct">
+        <button class="btn poi" id="interact" data-code="10">Interactuar<small>Enter</small></button>
+        <button class="btn" data-k="g">Recoger<small>g</small></button>
+        <button class="btn" data-k="t">Hablar<small>t</small></button>
+        <button class="btn force" data-k="z">Fuerza<small>z</small></button>
+        <button class="btn danger" data-k="f">Disparar<small>f</small></button>
+        <button class="btn danger" data-k="G">Granada<small>G</small></button>
+        <button class="btn force" data-k="m">Meditar<small>m</small></button>
+        <button class="btn" data-k="Z">Esconderse<small>Z</small></button>
+        <button class="btn" data-k="K">Acampar<small>K</small></button>
+      </div>
+      <div class="actions" id="grpOther" role="tabpanel" aria-labelledby="tabOther" hidden>
+        <button class="btn" data-k="i">Inventario<small>i</small></button>
+        <button class="btn" data-k="u">Usar objeto<small>u</small></button>
+        <button class="btn" data-k="e">Equipar<small>e</small></button>
+        <button class="btn" data-k="T">Comerciar<small>T</small></button>
+        <button class="btn" data-k="C">Taller<small>C</small></button>
+        <button class="btn" data-k="Q">Misiones<small>Q</small></button>
+        <button class="btn" data-k="J">Diario<small>J</small></button>
+        <button class="btn" data-k="v">Códice<small>v</small></button>
+        <button class="btn" data-k="S">Guardar<small>S</small></button>
+      </div>
+    </section>
   </footer>
 </div>
 
@@ -305,9 +343,13 @@ def _call(name, *a):
     ev.preventDefault();
     send(c);
   });
-  document.querySelectorAll('[data-k]').forEach((b) => {
-    b.addEventListener('click', () => send(b.dataset.k.charCodeAt(0)));
+  document.querySelectorAll('[data-k], [data-code]').forEach((b) => {
+    b.addEventListener('click', () => send(b.dataset.code ? +b.dataset.code : b.dataset.k.charCodeAt(0)));
   });
+  const tabs = [['tabAct', 'grpAct'], ['tabOther', 'grpOther']];
+  tabs.forEach(([t, g]) => $(t).addEventListener('click', () => {
+    tabs.forEach(([t2, g2]) => { $(t2).setAttribute('aria-selected', String(t2 === t)); $(g2).hidden = t2 !== t; });
+  }));
   $('newGame').addEventListener('click', () => start(false));
   $('continueGame').addEventListener('click', () => start(true));
   $('again').addEventListener('click', () => { $('endBox').hidden = true; $('titleScreen').hidden = false; });
@@ -348,6 +390,7 @@ def _call(name, *a):
     $('banner').textContent = s.banner || '';
     $('tip').textContent = s.targeting ? 'Apuntando: mover la mira con las flechas, Enter para confirmar, Esc para cancelar' : '';
     $('tip').hidden = !s.targeting;
+    $('interact').classList.toggle('ready', !!s.onPoi);
     log(s.messages);
     drawPrompt(s.prompt);
     draw();
@@ -419,10 +462,12 @@ def _call(name, *a):
       b.addEventListener('click', () => send(code));
       row.appendChild(b);
     };
+    if (p.info) { add('Continuar', 10); return; }
     if (selected >= 0) { add('↑', 259); add('↓', 258); add('Elegir', 10); }
-    [...found].slice(0, 12).forEach((k) => add(k, k.charCodeAt(0)));
-    if (selected < 0) add('Continuar', 10);
-    add('Esc', 27);
+    const LABEL = { D: 'Destruir (D)', A: 'Absorber (A)' };
+    [...found].slice(0, 12).forEach((k) => add(LABEL[k] || k, k.charCodeAt(0)));
+    if (selected < 0 && !found.size) add('Continuar', 10);
+    add('Cerrar (Esc)', 27);
   }
   // tapping a menu line moves the game's own cursor there, then selects it
   function pick(target, selected) {
@@ -448,13 +493,22 @@ def _call(name, *a):
 
   function fitView() {
     const r = $('stage').getBoundingClientRect();
-    const T = r.width < 520 ? 26 : 34;
+    const T = Math.round((r.width < 520 ? 26 : 34) * zoom);
     let w = Math.floor(r.width / T), h = Math.floor(r.height / T);
     w = Math.max(15, Math.min(61, w | 1));
     h = Math.max(11, Math.min(41, h | 1));
     if (bridge) { try { const s2 = bridge('set_view', w, h); if (S) { S = Object.assign(s2, { messages: [], prompt: S.prompt }); } } catch (e) {} }
   }
   addEventListener('resize', () => { fitView(); draw(); });
+  let zoom = 1;
+  try { zoom = +localStorage.getItem('jf-zoom') || 1; } catch (e) { zoom = 1; }
+  const setZoom = (z) => {
+    zoom = Math.max(0.5, Math.min(1.5, z));
+    try { localStorage.setItem('jf-zoom', String(zoom)); } catch (e) { /* not stored */ }
+    fitView(); draw();
+  };
+  $('zoomIn').addEventListener('click', () => setZoom(zoom + 0.25));
+  $('zoomOut').addEventListener('click', () => setZoom(zoom - 0.25));
 
   function draw() {
     const r = $('stage').getBoundingClientRect();
@@ -563,6 +617,38 @@ def _call(name, *a):
       const g = ctx.createRadialGradient(cx, cy, T * 1.5, cx, cy, T * 6);
       g.addColorStop(0, 'rgba(6,10,34,0)'); g.addColorStop(1, `rgba(6,10,34,${0.9 * dark})`);
       ctx.fillStyle = g; ctx.fillRect(0, 0, r.width, r.height);
+    }
+    // the cordon: the ring they are tightening, and the line you must cross
+    if (S.ring) {
+      const cx = ox + S.ring.x * T + T / 2, cy = oy + S.ring.y * T + T / 2;
+      ctx.save();
+      ctx.setLineDash([T * 0.5, T * 0.35]);
+      ctx.lineWidth = 2; ctx.strokeStyle = `rgba(255,77,94,${0.55 + 0.25 * Math.sin(now * 2.5)})`;
+      ctx.beginPath(); ctx.arc(cx, cy, S.ring.r * T, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([2, T * 0.4]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(126,224,160,0.55)';
+      ctx.beginPath(); ctx.arc(cx, cy, S.ring.escape * T, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    // presences sensed through the Force, beyond sight
+    const pcx = ox + S.player.x * T + T / 2, pcy = oy + S.player.y * T + T / 2;
+    for (const e of S.sensed || []) {
+      const cx = ox + e.x * T + T / 2, cy = oy + e.y * T + T / 2;
+      const a = (e.far ? 0.25 : 0.4) + 0.2 * Math.sin(now * 3 + e.x);
+      ctx.fillStyle = e.boss ? `rgba(255,92,240,${a + 0.15})` : `rgba(255,77,94,${a})`;
+      const inside = e.x >= 0 && e.y >= 0 && e.x < cols && e.y < rows;
+      if (inside) {
+        ctx.beginPath(); ctx.arc(cx, cy, T * (e.boss ? 0.22 : 0.15), 0, Math.PI * 2); ctx.fill();
+      } else {
+        // off the map view: a small arrow on the edge, pointing at it
+        const ang = Math.atan2(cy - pcy, cx - pcx);
+        const m = 10, w = r.width, h = r.height;
+        const tx = Math.cos(ang), ty = Math.sin(ang);
+        const k = Math.min(Math.abs((tx > 0 ? w - m - pcx : pcx - m) / (tx || 1e-9)), Math.abs((ty > 0 ? h - m - pcy : pcy - m) / (ty || 1e-9)));
+        const ex = pcx + tx * k, ey = pcy + ty * k;
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+        ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-5, -5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
     }
     if (S.reticle) {
       const px = ox + S.reticle.x * T, py = oy + S.reticle.y * T;

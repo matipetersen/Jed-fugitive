@@ -1147,7 +1147,7 @@ def draw_commands_panel(game):
         
         # Compact, organized command layout
         cmds = [
-            "Move: ↑↓←→ hjkl  Diag: yubn │ g:Get  e:Equip  u:Use  d:Drop  i:Inventory",
+            "Move: ↑↓←→ hjkl  Diag: y b n 9 │ g:Get  e:Equip  u:Use  d:Drop  i:Inventory",
             "Combat: Walk=melee  F:Shoot(2-7 tiles)  t:Grenade │ f:Force  m:Meditate  C:Craft",
             "Info: x:Inspect  J:Journal  K:Codex  S:Stats  N:Lexicon  O:Skills  I:Tech │ ?:Help  Q:Quit"
         ]

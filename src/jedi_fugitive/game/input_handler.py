@@ -532,7 +532,7 @@ def handle_input(game, key):
             # Vi keys (hjkl)
             ord('k'): (0, -1), ord('j'): (0, 1),
             ord('h'): (-1, 0), ord('l'): (1, 0),
-            # Vi diagonal keys (ybu) - using 'u' for up-right since use item moved to different key
+            # Vi diagonal keys. NOTE: 'u' is caught earlier by Use item, so up-right is '9' (numpad)
             ord('y'): (-1, -1),  # up-left
             ord('u'): (1, -1),   # up-right
             ord('b'): (-1, 1),   # down-left
@@ -541,6 +541,20 @@ def handle_input(game, key):
             ord('7'): (-1, -1), ord('9'): (1, -1),
             ord('1'): (-1, 1), ord('3'): (1, 1),
         }
+
+        # Enter on a point of interest: (re)open its Absorb / Destroy choice
+        if key in (10, 13) and not getattr(game, 'pending_force_ability', None) \
+                and not getattr(game, 'pending_gun_shot', False) and not getattr(game, 'pending_grenade_throw', False):
+            pos = (game.player.x, game.player.y)
+            lm = (getattr(game, 'map_landmarks', None) or {}).get(pos)
+            if lm and not any(w in lm.get('name', '') for w in ('Ship', 'Comms', 'Terminal')):
+                if lm.get('destroyed') or lm.get('absorbed') or lm.get('used'):
+                    game.ui.messages.add(f"{lm.get('name', 'This place')} has nothing more to give.")
+                else:
+                    game._show_poi_interaction_popup(lm, pos[0], pos[1])
+                return False
+            game.ui.messages.add("Nothing to interact with here. (Stand on a ruin, shrine or relic and press Enter.)")
+            return False
 
         # Quest log (Q)
         if key == ord('Q'):
@@ -997,7 +1011,7 @@ def handle_input(game, key):
                     "MOVEMENT:",
                     "  Arrow Keys = Standard directional (↑↓←→)",
                     "  hjkl       = Vi-style cardinal movement",
-                    "  yubn       = Vi-style diagonal (y=↖ u=↗ b=↙ n=↘)",
+                    "  y b n      = Vi-style diagonal (y=↖ b=↙ n=↘; u is Use, so ↗ is 9)",
                     "  Numpad 1379 = Numpad diagonal (7=↖ 9=↗ 1=↙ 3=↘)",
                     "",
                     "INVENTORY & ITEMS:",

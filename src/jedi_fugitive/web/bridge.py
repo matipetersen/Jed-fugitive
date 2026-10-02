@@ -30,9 +30,11 @@ _time.sleep = lambda *_a, **_k: None   # animations must not stall the page
 
 _game = None
 _outbox = []
-_pending = None   # (key, answers, rng_state, messages_len)
+_pending = None   # (action, answers, rng_state) of the menu being answered
+_info = None      # an information screen the last turn showed
 _KEY_ESC = 27
 _view = [41, 27]
+SENSE_RADIUS = 30
 
 
 def set_view(w, h):
@@ -70,7 +72,10 @@ def start(size='small', seed=None, resume=False):
     _pending = None
     cursesstub.keys.mode = 'cancel'
     cursesstub.keys.queue = []
+    global _info
+    _info = None
     gm = _new_manager()
+    gm.defer_modals = True
     gm.world_size = size
     loaded = False
     if resume:
@@ -81,6 +86,7 @@ def start(size='small', seed=None, resume=False):
             loaded = False
         if not loaded:
             gm = _new_manager()
+            gm.defer_modals = True
             gm.world_size = size
     if not loaded:
         if seed is not None:
@@ -109,7 +115,20 @@ def has_save():
     return json.dumps(save_system.latest_save_path() is not None)
 
 
-def _run(key, answers, rng):
+def _perform(action):
+    """Run an action: a key press, or opening a point of interest the world tick found."""
+    gm = _game
+    kind, arg = action
+    if kind == 'key':
+        from jedi_fugitive.game import input_handler
+        input_handler.handle_input(gm, arg)
+    elif kind == 'poi':
+        lm = (getattr(gm, 'map_landmarks', None) or {}).get(arg)
+        if lm:
+            gm._show_poi_interaction_popup(lm, arg[0], arg[1])
+
+
+def _run(action, answers, rng):
     """Run one action. Returns a prompt (lines, runs) if the game needs a key."""
     gm = _game
     k = cursesstub.keys
@@ -118,10 +137,9 @@ def _run(key, answers, rng):
     random.setstate(rng)
     msgs_before = len(gm.ui.messages.messages)
     outbox_before = len(_outbox)
-    from jedi_fugitive.game import input_handler
     stopped = False
     try:
-        input_handler.handle_input(gm, key)
+        _perform(action)
     except cursesstub.NeedKey:
         stopped = True
     stopped = stopped or k.asked
@@ -136,49 +154,80 @@ def _run(key, answers, rng):
     return None
 
 
+def _begin(action):
+    """Start an action; returns the state (with a prompt if it opened a menu)."""
+    global _pending
+    rng = random.getstate()
+    prompt = _run(action, [], rng)
+    if prompt is not None:
+        _pending = (action, [], rng)
+        return state(prompt=prompt)
+    return _finish(action, ticks=True)
+
+
+def _finish(action, ticks):
+    """After an action: let the world move, then show what that turn opened."""
+    global _info
+    gm = _game
+    if ticks and action[0] == 'key':
+        cursesstub.reset_capture()
+        _after_action(action[1])
+        # a point of interest under your feet opens its own choice
+        poi = getattr(gm, 'pending_poi', None)
+        if poi is not None:
+            gm.pending_poi = None
+            return _begin(('poi', poi))
+        # anything else the world tick showed (encounters, visions, dialogs) is shown to read
+        screen = cursesstub.capture()
+        if screen and any(ln.strip() for ln in screen[0]):
+            _info = screen
+            return state(prompt=screen, info=True)
+    return state()
+
+
 def press(key):
     """The player pressed `key` (a curses key code) outside any prompt."""
-    global _pending
+    global _info
     if _game is None:
+        return state()
+    if _info is not None:     # an information screen: any key closes it
+        _info = None
         return state()
     if _pending is not None:
         return answer(key)
-    rng = random.getstate()
-    prompt = _run(int(key), [], rng)
-    if prompt is not None:
-        _pending = (int(key), [], rng)
-        return state(prompt=prompt)
-    _after_action(int(key))
-    return state()
+    return _begin(('key', int(key)))
 
 
 def answer(key):
     """The player answered the open prompt with `key`."""
-    global _pending
+    global _pending, _info
+    if _info is not None:
+        _info = None
+        return state()
     if _pending is None:
         return press(key)
-    first, answers, rng = _pending
+    action, answers, rng = _pending
     answers = answers + [int(key)]
     if len(answers) > 60:  # a menu that never closes: give up on it
         _pending = None
         return state()
-    prompt = _run(first, answers, rng)
+    prompt = _run(action, answers, rng)
     if prompt is not None:
-        _pending = (first, answers, rng)
+        _pending = (action, answers, rng)
         return state(prompt=prompt)
     _pending = None
-    if answers[-1] != _KEY_ESC:   # a menu closed with Esc costs no time
-        _after_action(first)
-    return state()
+    # a menu closed with Esc costs no time
+    return _finish(action, ticks=answers[-1] != _KEY_ESC)
 
 
 def cancel():
     """Close the open prompt (Esc, a few times if the menu nests)."""
-    global _pending
+    global _pending, _info
+    _info = None
     for _ in range(4):
         if _pending is None:
             break
-        out = answer(_KEY_ESC)
+        answer(_KEY_ESC)
     _pending = None
     return state()
 
@@ -213,7 +262,7 @@ _BIOME_CODE = {'forest': 'f', 'plains': 'p', 'desert': 'd', 'rocky': 'r', 'mount
                'swamp': 's', 'river': 'w', 'crash_site': 'c', 'mountain_pass': 'm', 'ruins': 'u'}
 
 
-def state(view_w=None, view_h=None, prompt=None):
+def state(view_w=None, view_h=None, prompt=None, info=False):
     view_w = view_w or _view[0]
     view_h = view_h or _view[1]
     gm = _game
@@ -249,6 +298,18 @@ def state(view_w=None, view_h=None, prompt=None):
                          'max': int(getattr(e, 'max_hp', 1) or 1), 'boss': bool(getattr(e, 'is_boss', False)),
                          'beast': bool(getattr(e, 'is_fauna', False) or getattr(e, 'faction', '') == 'Wildlife'),
                          'illusion': bool(getattr(e, 'illusion', False))})
+    # beyond sight, a Jedi still senses hostile presences nearby (shown as faint marks)
+    # (relative to the view; off-view ones are drawn as markers on the edge of the map)
+    sensed = []
+    for e in getattr(gm, 'enemies', []) or []:
+        ex, ey = getattr(e, 'x', -1), getattr(e, 'y', -1)
+        if (ex, ey) in vis or getattr(e, 'hp', 0) <= 0:
+            continue
+        d = max(abs(ex - p.x), abs(ey - p.y))
+        if d <= SENSE_RADIUS:
+            sensed.append({'x': ex - x0, 'y': ey - y0, 'far': d > SENSE_RADIUS // 2,
+                           'boss': bool(getattr(e, 'is_boss', False) or getattr(e, 'is_hunter', False))})
+    sensed = sorted(sensed, key=lambda t: abs(t['x'] - (p.x - x0)) + abs(t['y'] - (p.y - y0)))[:24]
     npcs = []
     for (nx, ny), npc in (getattr(gm, 'npcs_on_map', {}) or {}).items():
         if (nx, ny) in vis and x0 <= nx < x0 + view_w and y0 <= ny < y0 + view_h:
@@ -279,6 +340,10 @@ def state(view_w=None, view_h=None, prompt=None):
         banner = f"Escape the cordon: ring {cordon.radius:.0f} m, you are {d:.0f}/{cordon.escape_radius:.0f} m out"
     targeting = (getattr(gm, 'pending_force_ability', None) is not None or getattr(gm, 'pending_gun_shot', False)
                  or getattr(gm, 'pending_grenade_throw', False))
+    ring = None
+    if cordon is not None and getattr(cordon, 'active', False) and not in_tomb:
+        ring = {'x': cordon.center[0] - x0, 'y': cordon.center[1] - y0, 'r': float(cordon.radius),
+                'escape': float(getattr(cordon, 'escape_radius', cordon.radius + 6))}
     reticle = None
     if targeting:
         reticle = {'x': int(getattr(gm, 'target_x', p.x)) - x0, 'y': int(getattr(gm, 'target_y', p.y)) - y0}
@@ -286,7 +351,8 @@ def state(view_w=None, view_h=None, prompt=None):
         'ready': True,
         'map': rows, 'seen': seen, 'biome': bio, 'tomb': in_tomb,
         'player': {'x': p.x - x0, 'y': p.y - y0},
-        'enemies': ents, 'npcs': npcs, 'reticle': reticle,
+        'enemies': ents, 'sensed': sensed, 'npcs': npcs, 'reticle': reticle, 'ring': ring,
+        'onPoi': bool((p.x, p.y) in (getattr(gm, 'map_landmarks', None) or {})),
         'hud': {
             'hp': int(getattr(p, 'hp', 0)), 'maxHp': int(getattr(p, 'max_hp', 1)),
             'force': int(getattr(p, 'force_energy', 0)), 'maxForce': int(getattr(p, 'max_force_energy', 100)),
@@ -303,7 +369,7 @@ def state(view_w=None, view_h=None, prompt=None):
         },
         'banner': banner, 'targeting': bool(targeting),
         'messages': list(_outbox),
-        'prompt': {'lines': prompt[0], 'runs': prompt[1]} if prompt else None,
+        'prompt': {'lines': prompt[0], 'runs': prompt[1], 'info': bool(info)} if prompt else None,
         'dead': bool(getattr(gm, 'death', False) or getattr(p, 'hp', 1) <= 0),
         'victory': bool(getattr(gm, 'victory', False)),
     }

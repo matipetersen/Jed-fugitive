@@ -777,7 +777,11 @@ class GameManager:
                     poi_key = (px, py)
                     if poi_key not in self._poi_popup_shown:
                         self._poi_popup_shown.add(poi_key)
-                        self._show_poi_interaction_popup(landmark, px, py)
+                        if getattr(self, 'defer_modals', False):
+                            # front-ends that cannot block mid-tick (the browser) open it as its own action
+                            self.pending_poi = poi_key
+                        else:
+                            self._show_poi_interaction_popup(landmark, px, py)
         except Exception:
             pass
         

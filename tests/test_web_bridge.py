@@ -25,6 +25,17 @@ with contextlib.redirect_stdout(io.StringIO()):
     s = json.loads(bridge.press(ord('J')))                  # the journal opens too
     out['journal_prompt'] = bool(s['prompt'])
     s = json.loads(bridge.cancel())
+    s = json.loads(bridge.press(ord('9')))                  # the D-pad's up-right moves, never opens Use
+    out['diagonal_moves'] = s['prompt'] is None
+    gm = bridge._game; p = gm.player                          # step onto a point of interest
+    pois = [q for q, lm in gm.map_landmarks.items() if not any(w in lm.get('name', '') for w in ('Ship', 'Comms', 'Terminal'))]
+    q = min(pois, key=lambda t: abs(t[0] - p.x) + abs(t[1] - p.y))
+    p.x, p.y = q[0] - 1, q[1]
+    s = json.loads(bridge.press(c.KEY_RIGHT))
+    out['poi_prompt'] = bool(s['prompt']) and any('[D] Destroy' in l for l in s['prompt']['lines'])
+    s = json.loads(bridge.answer(ord('D')))
+    out['poi_destroyed'] = s['prompt'] is None and q not in gm.map_landmarks
+    out['ring'] = s['ring'] is not None and s['ring']['r'] > 0
     s = json.loads(bridge.set_view(21, 15))
     out['view'] = len(s['map']) == 15 and len(s['map'][0]) == 21
 print(json.dumps(out))

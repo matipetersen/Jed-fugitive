@@ -1,0 +1,196 @@
+"""Building a new game: world, player, scenario, documents, population."""
+from __future__ import annotations
+
+import random
+from typing import List
+
+from outbreak import content
+from outbreak.content.items import ItemDef
+from outbreak.engine import cipher, hordes
+from outbreak.engine import tiles as T
+from outbreak.engine.clock import TURNS_PER_HOUR, Clock
+from outbreak.engine.model import Container, Item, POI
+from outbreak.engine.player import Player
+from outbreak.engine.spawn import make_raider, spawn_zombie
+from outbreak.engine.worldgen import generate_overworld
+from outbreak.engine import loot
+from outbreak.util import cheb, compass
+
+BASE_HP = 80
+SPECIAL_KINDS = ("breach", "refuge", "pad")
+ZONE_DENSITY = (0.004, 0.015, 0.03)       # zombies per land tile: rural, suburb, city
+
+
+def initialize(game) -> None:
+    cfg = game.cfg
+    seed = cfg.seed if cfg.seed is not None else random.SystemRandom().randrange(1 << 30)
+    game.seed = seed
+    game.rng = random.Random(seed ^ 0x5EED)
+    game.era = content.get_era(cfg.era)
+    game.profile = content.get_preset(cfg.zombies)
+    game.scenario = content.get_scenario(cfg.scenario)
+    game.diff = cfg.diff
+    game.items = dict(game.era.items)
+    game.know = cipher.Knowledge(game.era.vocabulary(), game.era.glyphs)
+
+    game.world = generate_overworld(random.Random(seed), game.era, cfg.map_w, cfg.map_h)
+    game.levels = {"world": game.world.level}
+    game.level = game.world.level
+    game.pois = game.world.pois
+    start_hour = 18 if game.profile.sun_burn else 8
+    game.clock = Clock(start_hour * TURNS_PER_HOUR)
+
+    _make_player(game)
+    _scenario(game)
+    _documents(game)
+    _populate(game)
+    hordes.start_ring(game)
+    _intro(game)
+
+
+# ------------------------------------------------------------------ player
+def _resolve(game, token: str) -> str:
+    d = game.era.defaults
+    if token == "@ammo":
+        return game.era.items[d["ranged"]].ammo
+    return d[token[1:]] if token.startswith("@") else token
+
+
+def _make_player(game) -> None:
+    origin = content.get_origin(game.cfg.origin)
+    sx, sy = game.world.start
+    hp = BASE_HP + origin.hp_bonus
+    p = Player(uid=game.next_uid(), name="You", glyph="@", x=sx, y=sy, hp=hp, max_hp=hp, coins=origin.coins)
+    p.humanity = 70
+    game.player = p
+    game.level.occ[p.pos] = p
+    for perk_id, ranks in origin.perks.items():
+        p.grant_perk(perk_id, ranks)
+    game.know.learn_random(game.rng, origin.words)
+    for token, qty in origin.kit:
+        item_id = _resolve(game, token)
+        if not item_id:
+            continue
+        d = game.item_def(item_id)
+        item = Item(item_id, qty if d.stackable else 1, d.durability or None)
+        if token == "@ammo":
+            item.qty = qty
+        slot = {"weapon": "weapon", "armor": "armor", "light": "light"}.get(d.kind)
+        if slot and getattr(p, slot) is None and not (slot == "weapon" and token == "@ranged"):
+            setattr(p, slot, item)
+        else:
+            p.add_item(item, d.stackable)
+
+
+# ------------------------------------------------------------------ scenario
+def _scenario(game) -> None:
+    sc, era, rng = game.scenario, game.era, game.rng
+    start = game.world.start
+    p = game.player
+    if sc.start_infected:
+        p.infected = True
+        p.infection_timer = int(sc.timer_turns * game.diff.timer)
+        p.bite_limb = "torso"
+    for req in sc.requirements:
+        name = req.names[era.id]
+        game.items[req.id] = ItemDef(req.id, name, "component", req.desc, value=0)
+        pool = [q for q in game.pois.values() if q.kind == req.poi_kind and not q.component]
+        near = [q for q in pool if 18 <= cheb(q.pos, start) <= 85] or pool
+        host = rng.choice(near)
+        host.component = req.id
+        host.danger = round(host.danger * 1.15, 2)
+    refuge = next(q for q in game.pois.values() if q.kind == "refuge")
+    pad = next(q for q in game.pois.values() if q.kind == "pad")
+    game.refuge_id, game.pad_id = refuge.id, pad.id
+    site = refuge if sc.final_site == "refuge" else pad
+    game.final_site_id = site.id
+    site.revealed = True if sc.final_site == "refuge" else site.revealed
+    game.rep = {"military": 0, "enclave": 10, "raiders": -20, "cult": 0, "science": 0}
+
+
+# ------------------------------------------------------------------ documents
+def _documents(game) -> None:
+    rng, era, sc = game.rng, game.era, game.scenario
+    start = game.world.start
+    hosts: List[POI] = [q for q in game.pois.values() if q.kind not in SPECIAL_KINDS]
+    ranked = sorted(hosts, key=lambda q: cheb(q.pos, start) + rng.random() * 10)
+    near = ranked[:max(12, len(ranked) // 3)]
+    game.docs = {}
+
+    def add(kind, payload, host: POI, poi_name="", pad_name=""):
+        doc_id = f"doc{len(game.docs)}"
+        game.docs[doc_id] = cipher.make_document(rng, era, doc_id, kind, poi_name, pad_name, payload)
+        host.docs.append(doc_id)
+
+    def host_for(pool, avoid: POI = None) -> POI:
+        options = [q for q in pool if q is not avoid] or pool
+        return rng.choice(options)
+
+    for req in sc.requirements:
+        target = next(q for q in game.pois.values() if q.component == req.id)
+        add("research", {"reveal": target.id}, host_for(near, target), target.name)
+        add("code", {"code": target.id}, host_for(hosts, target), target.name)
+    if sc.needs_formula:
+        labs = [q for q in near if q.kind == "lab"] or near
+        add("formula", {"formula": "1"}, host_for(labs))
+    pad = game.pois[game.pad_id]
+    if sc.final_site == "pad":
+        add("evac", {"reveal": pad.id}, host_for(near), pad_name=pad.name)
+        add("evac", {"reveal": pad.id}, host_for(hosts), pad_name=pad.name)
+    for _ in range(9):
+        add("diary", {}, host_for(hosts), rng.choice(hosts).name)
+
+
+# ------------------------------------------------------------------ population
+def _populate(game) -> None:
+    lv, rng, prof = game.world.level, game.rng, game.profile
+    zone, start = game.world.zone, game.world.start
+    scale = prof.density * game.diff.zombies
+    if not prof.sun_burn:                                  # nightstalkers only come out at dusk
+        for y in range(2, lv.h - 2):
+            for x in range(2, lv.w - 2):
+                if lv.tiles[y][x] not in (T.GRASS, T.ROAD, T.BRUSH) or cheb((x, y), start) < 14:
+                    continue
+                if rng.random() < ZONE_DENSITY[zone[y][x]] * scale and (x, y) not in lv.occ:
+                    spawn_zombie(game, lv, (x, y), dormant=False)
+        for poi in game.pois.values():
+            if poi.kind in SPECIAL_KINDS or poi.kind == "house":
+                continue
+            for _ in range(rng.randint(0, 2)):
+                spot = lv.free_spot_near(poi.x + rng.randint(-3, 3), poi.y + 2, 3)
+                if spot and cheb(spot, start) > 12:
+                    spawn_zombie(game, lv, spot, dormant=False)
+    for cx, cy in game.world.camps:
+        for _ in range(rng.randint(2, 4)):
+            spot = lv.free_spot_near(cx + rng.randint(-2, 2), cy + rng.randint(-1, 1), 3)
+            if spot:
+                r = make_raider(game, *spot)
+                r.state = "idle"
+                lv.add_actor(r)
+        crate = (cx + 2, cy - 1)
+        lv.containers[crate] = Container(loot=loot.roll_items(rng, game.era, "camp", 3.0, game.diff.loot),
+                                         coins=rng.randint(2, 8))
+    for _ in range(3 + (lv.w * lv.h) // 3500):
+        for _try in range(30):
+            pos = (rng.randint(4, lv.w - 5), rng.randint(4, lv.h - 5))
+            if cheb(pos, start) > 34 and lv.free(*pos):
+                hordes.spawn_horde(game, pos)
+                break
+
+
+def _intro(game) -> None:
+    era, sc, p = game.era, game.scenario, game.player
+    game.msg(era.intro, "lore")
+    refuge = game.pois[game.refuge_id]
+    if sc.final_site == "refuge":
+        d = compass(refuge.x - p.x, refuge.y - p.y)
+        game.msg(f"Rumour on {era.radio}: {era.refuge} still stands, {d} of here, about {cheb(refuge.pos, p.pos)} "
+                 f"tiles away. They may have a way to make a cure.", "lore")
+        game.msg("You are bitten. The infection is slow, but it is in you. Find the three components "
+                 "and the formula before it takes you.", "warn")
+    else:
+        pad = game.pois[game.pad_id]
+        d = compass(pad.x - p.x, pad.y - p.y)
+        game.msg(f"Rumour on {era.radio}: the last way out is {d} of here, roughly {cheb(pad.pos, p.pos)} tiles. "
+                 f"It closes on day {sc.deadline_days}.", "lore")
+    game.msg("The dead are closing in from every side but one. Move!", "warn")

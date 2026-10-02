@@ -1,0 +1,130 @@
+"""Safe-haven services: trading, medical care, teaching, sleeping."""
+from __future__ import annotations
+
+from typing import List, Tuple
+
+from outbreak.engine.model import Human, Item
+
+HEAL_COST = 6
+TEACH_COST = 5
+TEACH_WORDS = 3
+LEAD_COST = 15
+STOCK = ("bandage", "painkiller", "food", "medkit", "filter", "repair_kit", "molotov", "suppressant")
+
+
+def refuses(game) -> str:
+    """Why the haven will not deal with you, or an empty string."""
+    if game.player.humanity < 20:
+        return "They see what you have become and turn their backs."
+    if game.rep.get("enclave", 0) < -30:
+        return "Word of what you did has reached them. They will not serve you."
+    return ""
+
+
+def price_mult(game) -> float:
+    rep = game.rep.get("enclave", 0)
+    return max(0.7, 1.5 - rep / 200 - (0.15 if game.player.humanity >= 75 else 0.0))
+
+
+def stock(game) -> List[Tuple[str, int]]:
+    out = []
+    ammo = game.item_def(game.era.defaults["ranged"]).ammo
+    ids = list(STOCK) + ([ammo] if ammo else [])
+    for item_id in ids:
+        if item_id in game.items:
+            d = game.item_def(item_id)
+            out.append((item_id, max(1, int(round(d.value * price_mult(game))))))
+    return out
+
+
+def buy(game, item_id: str) -> str:
+    r = refuses(game)
+    if r:
+        return r
+    price = dict(stock(game)).get(item_id)
+    d = game.item_def(item_id)
+    if price is None:
+        return "Not for sale."
+    if game.player.coins < price:
+        return f"You need {price} {game.era.coin}."
+    if not game.player.can_hold(Item(item_id), d.stackable):
+        return "Your pack is full."
+    game.player.coins -= price
+    game.player.add_item(Item(item_id, 1), d.stackable)
+    return f"Bought {d.name.lower()} for {price}."
+
+
+def sell_price(game, item: Item) -> int:
+    d = game.item_def(item.id)
+    base = d.value if d.kind != "component" else 0
+    return max(0, int(base * 0.5 * item.qty))
+
+
+def sell(game, index: int) -> str:
+    r = refuses(game)
+    if r:
+        return r
+    p = game.player
+    if not 0 <= index < len(p.inventory):
+        return "Nothing there."
+    item = p.inventory[index]
+    d = game.item_def(item.id)
+    if d.kind == "component":
+        return "You are not selling that."
+    price = sell_price(game, item)
+    if price <= 0:
+        return "They are not interested."
+    p.coins += price
+    p.inventory.pop(index)
+    return f"Sold {d.name.lower()} for {price}."
+
+
+def heal(game) -> str:
+    r = refuses(game)
+    if r:
+        return r
+    p = game.player
+    if p.coins < HEAL_COST:
+        return f"The healer wants {HEAL_COST} {game.era.coin}."
+    p.coins -= HEAL_COST
+    p.hp = p.max_hp
+    p.bleeding = 0
+    p.fracture = False
+    return "The healer patches you up."
+
+
+def teach(game) -> str:
+    r = refuses(game)
+    if r:
+        return r
+    p = game.player
+    if p.coins < TEACH_COST:
+        return f"The {game.era.cipher_name.lower()} lessons cost {TEACH_COST} {game.era.coin}."
+    learned = game.know.learn_random(game.rng, TEACH_WORDS)
+    if not learned:
+        return "There is nothing left they can teach you."
+    p.coins -= TEACH_COST
+    return f"You learn: {', '.join(learned)}."
+
+
+def buy_lead(game) -> str:
+    r = refuses(game)
+    if r:
+        return r
+    if game.player.coins < LEAD_COST:
+        return f"A lead costs {LEAD_COST} {game.era.coin}."
+    if not game.reveal_random_lead():
+        return "They have nothing new to tell you."
+    game.player.coins -= LEAD_COST
+    return "They tell you where to look."
+
+
+def sleep(game, max_turns: int = 80) -> int:
+    """Sleep in a bed.  Returns the turns slept (the infection clock keeps running)."""
+    p = game.player
+    n = min(max_turns, game.clock.until_hour(6.0))
+    return n
+
+
+def npc_title(npc: Human) -> str:
+    return {"trader": "Trader", "healer": "Healer", "scholar": "Archivist"}.get(npc.role, "Survivor")

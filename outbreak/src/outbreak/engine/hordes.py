@@ -13,6 +13,7 @@ from outbreak.util import Pos, cheb, compass, dist
 MATERIALIZE_RADIUS = 15
 MAX_ON_SCREEN = 24
 RING_RADIUS = 26
+RING_SPEED_CAP = 0.8
 
 
 @dataclass
@@ -104,6 +105,8 @@ def tick(game) -> None:
         return                                                # they shelter from the sun
     speed = max(0.3, prof.speed * (prof.night_speed if game.clock.is_night else 1.0)
                 * prof.phase(game.clock.day).speed)
+    if game.ring and game.ring.active:
+        speed = min(speed, RING_SPEED_CAP)          # the opening must be escapable by a runner
     for h in list(game.hordes):
         h.energy += speed
         while h.energy >= 1.0:

@@ -52,7 +52,7 @@ def make_raider(game, x: int, y: int) -> Human:
     reach = 6 if (era.firearms or era.tech == 0) else 1          # guns, or bows in the old world
     hp = int(18 * (1.0 + 0.04 * game.player.level))
     h = Human(uid=game.next_uid(), name="Raider", glyph="R", x=x, y=y, hp=hp, max_hp=hp, role="raider",
-              faction="raiders", hostile=True, dmg=(3, 7), acc=52, reach=reach)
+              faction="raiders", hostile=True, dmg=(3, 6), acc=48, reach=reach)
     if game.rng.random() < 0.7:
         from outbreak.engine import loot
         h.loot = loot.roll_items(game.rng, era, "camp", 1.6, game.diff.loot)

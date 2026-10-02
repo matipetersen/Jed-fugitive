@@ -40,7 +40,7 @@ class Player(Actor):
     infection_timer: int = 0
     bite_limb: str = ""              # arm | leg | torso | neck: where the infecting bite landed
     bite_window: int = 0             # turns left in which amputation can still save you
-    amputated: str = ""              # "" | arm | leg
+    lost: List[str] = field(default_factory=list)    # limbs amputated: "arm", "leg"
     bleeding: int = 0
     fracture: bool = False
     filter_turns: int = 0
@@ -67,7 +67,7 @@ class Player(Actor):
 
     @property
     def evade(self) -> float:
-        return 5 + self.mod("evade") - (6 if self.fracture else 0) - (4 if self.amputated == "leg" else 0)
+        return 5 + self.mod("evade") - (6 if self.fracture else 0) - (4 if "leg" in self.lost else 0)
 
     # ------------------------------------------------------------ progression
     def style_rank(self, style: str) -> int:

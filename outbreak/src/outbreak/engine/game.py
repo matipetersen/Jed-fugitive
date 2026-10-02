@@ -629,7 +629,7 @@ class Game:
         if p.fracture:
             self._step_parity ^= 1
             cost += self._step_parity
-        if p.amputated == "leg":
+        if "leg" in p.lost:
             cost += 0 if self.clock.turn % 3 else 1
         stack = lv.items.get(p.pos)
         if stack:

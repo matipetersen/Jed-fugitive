@@ -16,7 +16,7 @@ from outbreak.engine.model import Actor, Hazard, Human, Item, Zombie
 from outbreak.util import cheb, clamp, dist
 
 FISTS = ItemDef("fists", "Fists", "weapon", style="unarmed", dmg=(1, 3), noise=2)
-LIMBS = (("arm", 35), ("leg", 35), ("torso", 25), ("neck", 5))
+LIMBS = (("arm", 41), ("leg", 41), ("torso", 15), ("neck", 3))
 STAMINA_PER_ATTACK = 4
 
 
@@ -48,7 +48,7 @@ def _accuracy(game, w: ItemDef, evade: float, distance: int = 1) -> float:
         acc -= 8
     if p.stamina < STAMINA_PER_ATTACK + 1:
         acc -= 12
-    if p.amputated == "arm":
+    if "arm" in p.lost:
         acc -= 8
     if game.is_dark() and not player_lit(game):
         acc -= 8
@@ -349,7 +349,8 @@ def infect(game, source: str = "bite") -> None:
         return
     p.infected = True
     p.infection_timer = max(10, int(profile.incubation * game.diff.timer))
-    p.bite_limb = "lungs" if source == "spore" else pick_limb(game.rng)
+    limb = pick_limb(game.rng)
+    p.bite_limb = "lungs" if source == "spore" else ("torso" if limb in p.lost else limb)
     window = max(8, min(30, profile.incubation // 3)) + int(p.mod("surgeon"))
     p.bite_window = window if p.bite_limb in ("arm", "leg") else 0
     if source == "spore":
@@ -420,6 +421,8 @@ def can_amputate(game) -> Optional[str]:
         return "The infection is not in a limb you can remove."
     if p.bite_window <= 0:
         return "Too late: it has already spread."
+    if p.bite_limb in p.lost:
+        return "That limb is already gone."
     carried = ([p.weapon] if p.weapon else []) + p.inventory
     has_blade = any(game.item_def(i.id).kind == "weapon" and game.item_def(i.id).style == "blade" for i in carried)
     if not has_blade:
@@ -437,7 +440,7 @@ def amputate(game) -> bool:
     p.infected = False
     p.infection_timer = 0
     p.bite_window = 0
-    p.amputated = limb
+    p.lost.append(limb)
     p.bleeding = 2
     p.hp = max(1, p.hp - 8)
     game.add_panic(max(5.0, 30.0 - 4.0 * p.mod("surgeon") / 8))

@@ -53,9 +53,11 @@ def test_bleeding_never_kills():
     p = gm.player
     survival.inflict(gm, 'torso')
     p.hp = 3
+    gm._last_hp_seen = p.hp
+    # only the wound acts (a full world tick would let the cordon hit you too)
     for _ in range(100):
-        gm._world_tick()
-        gm.running = True
+        gm.turn_count += 1
+        survival.on_hp_change(gm)
     assert p.hp == 1
 
 

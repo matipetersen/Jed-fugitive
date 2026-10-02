@@ -69,6 +69,16 @@ JediFugitive/
 - **Permadeath**: dying deletes the autosave.
 - `JEDI_FUGITIVE_SAVE_DIR` overrides the save folder.
 
+### Play in the browser (`web/`)
+The whole Python game runs in the browser on Pyodide (CPython compiled to
+WebAssembly); `web/index.html` draws the map and HUD on a canvas and adds touch
+controls. `src/jedi_fugitive/web/bridge.py` drives the game one key at a time: when
+the game opens one of its own menus, the page shows that screen and replays the
+action with the player's answer, so every existing menu works unchanged.
+
+    ./web/build.sh                       # page + game source + Pyodide into web/dist
+    python3 -m http.server -d web/dist 8000
+
 ### Being hunted: Heat (Force signature)
 Every Force power and every fight leaves a trace (`game/pursuit.py`). Heat
 decays while you stay quiet (faster underground; meditation lowers it).

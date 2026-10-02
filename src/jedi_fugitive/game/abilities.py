@@ -107,7 +107,18 @@ def use_force_ability(game, ability, tx, ty):
     
     # Update pursuit system if ability was used successfully
     if used and hasattr(game, 'pursuit_system'):
-        game.pursuit_system.update_detection('force')
+        # Heat from the Force signature: half the energy spent, dark powers ring louder
+        try:
+            energy = getattr(ability, 'energy_cost', None)
+            if energy is None:
+                base = getattr(ability, 'base_cost', 1) or 1
+                energy = base * 50 if base < 5 else base
+            heat = float(energy) / 2.0
+            if getattr(ability, 'alignment', 'neutral') == 'dark':
+                heat *= 1.5
+            game.pursuit_system.update_detection('force', amount=int(round(heat)), turn=getattr(game, 'turn_count', 0))
+        except Exception:
+            game.pursuit_system.update_detection('force')
 
     # restore equipment if cleared
     try:
@@ -131,6 +142,27 @@ def use_force_ability(game, ability, tx, ty):
     if used:
         try: game.ui.messages.add(f"Used {getattr(ability,'name',str(ability))}.") 
         except Exception: pass
+        # feed the combo tracker (e.g. Push then a blade strike = Force-enhanced strike)
+        try:
+            tracker = getattr(game, 'combo_tracker', None)
+            if tracker is not None:
+                aname = str(getattr(ability, 'name', '')).lower()
+                mode = getattr(ability, 'mode', None)
+                if mode in ('push', 'pull'):
+                    action = 'force_' + mode
+                elif 'push' in aname:
+                    action = 'force_push'
+                elif 'lightning' in aname:
+                    action = 'force_lightning'
+                elif 'heal' in aname:
+                    action = 'force_heal'
+                elif 'reveal' in aname or 'sight' in aname:
+                    action = 'force_sense'
+                else:
+                    action = 'force_' + aname.replace(' ', '_')
+                tracker.record_action(action)
+        except Exception:
+            pass
 
         # if ability wrapper specified a mode, apply push/pull physics to the actor on (tx,ty)
         mode = getattr(ability, "mode", None)

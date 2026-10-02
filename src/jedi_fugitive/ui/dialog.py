@@ -1,6 +1,29 @@
 from time import strftime
 import curses
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
+import re
+
+_COLOR_CODE = re.compile(r'#(\d{1,2})#')
+
+
+def parse_color_codes(text: str, default: int = 3) -> List[Tuple[str, int]]:
+    """Split "#N#text#0#" markup into (segment, colour_pair) runs. #0# restores the default."""
+    out = []
+    pair = default
+    pos = 0
+    for m in _COLOR_CODE.finditer(text):
+        if m.start() > pos:
+            out.append((text[pos:m.start()], pair))
+        n = int(m.group(1))
+        pair = default if n == 0 else n
+        pos = m.end()
+    if pos < len(text):
+        out.append((text[pos:], pair))
+    return out
+
+
+def strip_color_codes(text: str) -> str:
+    return _COLOR_CODE.sub('', str(text))
 
 class DialogueSystem:
     def __init__(self):

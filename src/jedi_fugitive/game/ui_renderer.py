@@ -575,6 +575,32 @@ def draw_stats_panel(game):
         elif not isinstance(stats_lines, (list, tuple)):
             try: stats_lines = list(stats_lines)
             except Exception: stats_lines = [str(stats_lines)]
+        # Heat (Force signature) is live state, so it is added here rather than in the cached stats
+        try:
+            ps = getattr(game, 'pursuit_system', None)
+            if ps is not None:
+                from jedi_fugitive.game.pursuit import tier_name
+                lvl = int(ps.detection_level)
+                filled = lvl // 10
+                stats_lines = list(stats_lines)
+                stats_lines.insert(min(2, len(stats_lines)), f"Heat: {'█' * filled}{'░' * (10 - filled)} {tier_name(lvl)}")
+        except Exception:
+            pass
+        try:
+            from jedi_fugitive.game import daynight
+            if not daynight.underground(game):
+                stats_lines = list(stats_lines)
+                stats_lines.insert(min(2, len(stats_lines)), f"Time: {daynight.clock_label(game)}")
+        except Exception:
+            pass
+        try:
+            from jedi_fugitive.game import survival
+            w = survival.wounds(game.player)
+            if w:
+                stats_lines = list(stats_lines)
+                stats_lines.insert(min(3, len(stats_lines)), "Wounds: " + ", ".join(survival.WOUNDS[k]['name'] for k in w) + " (K=camp)")
+        except Exception:
+            pass
         for i, line in enumerate(stats_lines[: panel.getmaxyx()[0] - 3]):
             panel.addstr(1 + i, 2, str(line)[: panel.getmaxyx()[1] - 4])
         lower_lines = "\n".join(stats_lines).lower()
@@ -1121,7 +1147,7 @@ def draw_commands_panel(game):
         
         # Compact, organized command layout
         cmds = [
-            "Move: ↑↓←→ hjkl  Diag: yubn │ g:Get  e:Equip  u:Use  d:Drop  i:Inventory",
+            "Move: ↑↓←→ hjkl  Diag: y b n 9 │ g:Get  e:Equip  u:Use  d:Drop  i:Inventory",
             "Combat: Walk=melee  F:Shoot(2-7 tiles)  t:Grenade │ f:Force  m:Meditate  C:Craft",
             "Info: x:Inspect  J:Journal  K:Codex  S:Stats  N:Lexicon  O:Skills  I:Tech │ ?:Help  Q:Quit"
         ]

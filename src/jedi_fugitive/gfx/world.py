@@ -151,6 +151,8 @@ class WorldRenderer:
             return 'wall'
         if ch in self.ITEM_ICONS or (in_tomb and ch == 'Q'):
             return 'item'
+        if ch == '◊':  # a Sith Lord's holocron fragment (tomb_lords)
+            return 'lore'
         if in_tomb:
             if ch in ('>', '<'):
                 return 'stairs'
@@ -574,6 +576,7 @@ class WorldRenderer:
         self._draw_tracers(screen, dt)
         self._draw_particles(screen, dt)
         self._draw_lighting(screen, rect, ppos, in_tomb)
+        self._draw_night(screen, rect, ppos)
         self._draw_floaters(screen, dt)
         self._draw_compass(screen, rect, in_tomb)
         if self.hurt > 0:
@@ -582,6 +585,40 @@ class WorldRenderer:
         screen.set_clip(prev_clip)
         self._draw_hud(screen, rect, in_tomb)
         self._draw_minimap(screen, rect, vis, explored, fog, in_tomb)
+
+    def _draw_night(self, screen, rect, ppos):
+        """Blue-black dusk/night tint over the surface, with a pool of sight around you."""
+        try:
+            from jedi_fugitive.game import daynight
+            dark = daynight.darkness(self.game)
+        except Exception:
+            dark = 0.0
+        # ease towards the target so phase changes fade instead of snapping
+        self._night = getattr(self, '_night', dark)
+        self._night += (dark - self._night) * 0.05
+        if self._night < 0.02:
+            return
+        A = int(235 * self._night)
+        key = (rect.w, rect.h, A // 6, self.tile)
+        if getattr(self, '_night_key', None) != key:
+            self._night_key = key
+            self._night_ov = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+            self._night_ov.fill((6, 10, 34, A))
+            r = int(self.tile * 4.5)
+            hole = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            hole.fill((6, 10, 34, A))
+            step = max(1, r // 24)
+            for rad in range(r, 0, -step):  # alpha falls off towards the centre
+                pygame.draw.circle(hole, (6, 10, 34, int(A * (rad / r) ** 2)), (r, r), rad)
+            self._night_hole = hole
+        ov = self._night_ov.copy()
+        try:
+            px, py = self.to_px(ppos[0], ppos[1])
+            r = self._night_hole.get_width() // 2
+            ov.blit(self._night_hole, (px - rect.x - r, py - rect.y - r), special_flags=pygame.BLEND_RGBA_MIN)
+        except Exception:
+            pass
+        screen.blit(ov, rect.topleft)
 
     def to_px(self, x, y):
         ox, oy = self._origin
@@ -1016,10 +1053,24 @@ class WorldRenderer:
             st, mst = getattr(p, 'stress', 0), getattr(p, 'max_stress', 100) or 100
             self._bar(screen, x, y, w, h, 'stress', st, mst, theme.BAR_STRESS, f"STRESS  {int(st)}/{int(mst)}")
             y += h + 6
+        ps = getattr(g, 'pursuit_system', None)
+        if ps is not None:
+            from jedi_fugitive.game.pursuit import tier_name
+            heat = int(ps.detection_level)
+            self._bar(screen, x, y, w, h, 'heat', heat, 100, ((150, 110, 255), (255, 60, 90)), f"HEAT  {tier_name(heat)}")
+            y += h + 6
         corr = int(getattr(p, 'dark_corruption', 0) or 0)
         body, saber = self.player_colors()
         cw, _ = self._chip(screen, f"LV {getattr(p, 'level', 1)}", x, y, (240, 244, 255))
         self._chip(screen, f"CORRUPTION {corr}%", x + cw + 6, y, saber)
+        try:
+            from jedi_fugitive.game import survival
+            wy = y
+            for k in survival.wounds(p):
+                wy += 26
+                self._chip(screen, survival.WOUNDS[k]['name'].upper(), x, wy, (255, 110, 100))
+        except Exception:
+            pass
 
         # top-right: mode + location
         rt = getattr(g, 'realtime', False)
@@ -1036,6 +1087,13 @@ class WorldRenderer:
             biome = str(getattr(g, 'current_biome', '') or getattr(g, 'current_location', 'Surface'))
             loc = biome.upper()
             lcol = (220, 200, 150)
+            try:
+                from jedi_fugitive.game import daynight
+                loc = f"{loc} · {daynight.clock_label(g).upper()}"
+                if daynight.phase(g) == 'night':
+                    lcol = (150, 170, 255)
+            except Exception:
+                pass
         wl = f.size(loc)[0] + 16
         self._chip(screen, loc, rect.right - wl - 12, rect.y + 16 + h, lcol)
         # objective banner for the opening escape

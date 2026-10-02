@@ -57,6 +57,13 @@ class StealthSystem:
         if getattr(player, 'disguise', None):
             hide_chance += 15
         
+        # darkness hides you
+        try:
+            from jedi_fugitive.game import daynight
+            hide_chance += daynight.hide_bonus(game)
+        except Exception:
+            pass
+
         # Penalti for nearby enemies
         nearby_enemies = self._count_nearby_enemies(player, game, radius=5)
         hide_chance -= nearby_enemies * 10

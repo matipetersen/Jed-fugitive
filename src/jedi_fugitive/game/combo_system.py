@@ -171,8 +171,12 @@ class ComboTracker:
                     self.game.player.force_energy + combo_data['bonus_force_regen']
                 )
         
-        # Apply duration buffs
+        # Apply duration buffs (their stat bonuses used to be display-only)
         if 'duration' in combo_data:
+            p = self.game.player
+            p.defense = getattr(p, 'defense', 0) + int(combo_data.get('bonus_defense', 0))
+            p.evasion = getattr(p, 'evasion', 0) + int(combo_data.get('bonus_evasion', 0))
+            p.crit_chance_bonus = getattr(p, 'crit_chance_bonus', 0) + int(combo_data.get('critical_chance', 0))
             buff = {
                 'name': combo_name,
                 'data': combo_data,
@@ -227,6 +231,11 @@ class ComboTracker:
             
             if buff['turns_remaining'] <= 0:
                 buffs_to_remove.append(buff)
+                d = buff['data']
+                p = self.game.player
+                p.defense = getattr(p, 'defense', 0) - int(d.get('bonus_defense', 0))
+                p.evasion = getattr(p, 'evasion', 0) - int(d.get('bonus_evasion', 0))
+                p.crit_chance_bonus = getattr(p, 'crit_chance_bonus', 0) - int(d.get('critical_chance', 0))
                 try:
                     self.game.ui.messages.add(f"[{buff['name']} combo effect fades]")
                 except:

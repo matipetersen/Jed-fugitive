@@ -4,10 +4,32 @@ from jedi_fugitive.game.level import Display
 from jedi_fugitive.game import equipment
 from jedi_fugitive.game import inspection
 from jedi_fugitive.game import logger
-log = getattr(logger, 'log', None)
+log = logger  # the Logger itself (logger.log is a bound method with no .error/.info)
+
+
+def _ranged_roll(weapon):
+    """Shot damage: the weapon's damage roll (plus crafted upgrades), same model as melee."""
+    try:
+        from jedi_fugitive.game.combat import weapon_roll
+        return weapon_roll(weapon)
+    except Exception:
+        return getattr(weapon, 'base_damage', 6) if not isinstance(weapon, dict) else weapon.get('base_damage', 6)
+
+
+def _record_combo(game, action):
+    try:
+        if getattr(game, 'combo_tracker', None) is not None:
+            game.combo_tracker.record_action(action)
+    except Exception:
+        pass
 
 
 def _fire_gun(game, tx, ty):
+    _record_combo(game, 'ranged_attack')
+    try:
+        game.pursuit_system.update_detection('ranged', turn=getattr(game, 'turn_count', 0))
+    except Exception:
+        pass
     """Fire ranged weapon at target coordinates (tx, ty)."""
     try:
         px = getattr(game.player, "x", 0)
@@ -31,13 +53,13 @@ def _fire_gun(game, tx, ty):
         
         if isinstance(weapon, dict):
             weapon_range = weapon.get('range', 5)
-            weapon_damage = weapon.get('base_damage', weapon.get('damage', 10))
+            weapon_damage = _ranged_roll(weapon)
             weapon_accuracy = weapon.get('accuracy', 80)
             weapon_name = weapon.get('name', 'Weapon')
             weapon_ammo = weapon.get('ammo', 0)
         elif hasattr(weapon, 'name'):
             weapon_range = getattr(weapon, 'range', 5)
-            weapon_damage = getattr(weapon, 'base_damage', getattr(weapon, 'damage', 10))
+            weapon_damage = _ranged_roll(weapon)
             weapon_accuracy = getattr(weapon, 'accuracy', 80)
             weapon_name = weapon.name
             weapon_ammo = getattr(weapon, 'ammo', 0)
@@ -150,6 +172,11 @@ def _fire_gun(game, tx, ty):
 
 def _throw_grenade(game, tx, ty):
     """Throw a grenade at target coordinates (tx, ty)."""
+    _record_combo(game, 'grenade')
+    try:
+        game.pursuit_system.update_detection('grenade', turn=getattr(game, 'turn_count', 0))
+    except Exception:
+        pass
     try:
         px = getattr(game.player, "x", 0)
         py = getattr(game.player, "y", 0)
@@ -505,7 +532,7 @@ def handle_input(game, key):
             # Vi keys (hjkl)
             ord('k'): (0, -1), ord('j'): (0, 1),
             ord('h'): (-1, 0), ord('l'): (1, 0),
-            # Vi diagonal keys (ybu) - using 'u' for up-right since use item moved to different key
+            # Vi diagonal keys. NOTE: 'u' is caught earlier by Use item, so up-right is '9' (numpad)
             ord('y'): (-1, -1),  # up-left
             ord('u'): (1, -1),   # up-right
             ord('b'): (-1, 1),   # down-left
@@ -514,6 +541,29 @@ def handle_input(game, key):
             ord('7'): (-1, -1), ord('9'): (1, -1),
             ord('1'): (-1, 1), ord('3'): (1, 1),
         }
+
+        # Enter on a point of interest: (re)open its Absorb / Destroy choice
+        if key in (10, 13) and not getattr(game, 'pending_force_ability', None) \
+                and not getattr(game, 'pending_gun_shot', False) and not getattr(game, 'pending_grenade_throw', False):
+            pos = (game.player.x, game.player.y)
+            lm = (getattr(game, 'map_landmarks', None) or {}).get(pos)
+            if lm and not any(w in lm.get('name', '') for w in ('Ship', 'Comms', 'Terminal')):
+                if lm.get('destroyed') or lm.get('absorbed') or lm.get('used'):
+                    game.ui.messages.add(f"{lm.get('name', 'This place')} has nothing more to give.")
+                else:
+                    game._show_poi_interaction_popup(lm, pos[0], pos[1])
+                return False
+            game.ui.messages.add("Nothing to interact with here. (Stand on a ruin, shrine or relic and press Enter.)")
+            return False
+
+        # Quest log (Q)
+        if key == ord('Q'):
+            try:
+                lines = game.quest_log_lines() if hasattr(game, 'quest_log_lines') else ["No quests."]
+                _show_centered(game, ["═══ QUESTS ═══"] + lines, title="Quest Log")
+            except Exception:
+                pass
+            return False
 
         # Talk to NPC (t key)
         if key == ord('t'):
@@ -859,6 +909,16 @@ def handle_input(game, key):
                 except Exception: pass
             return False  # No turn consumed
             
+        # Make camp (K): rest to treat a wound, at the risk of being found
+        if key == ord('K'):
+            try:
+                from jedi_fugitive.game import survival
+                return bool(survival.make_camp(game))
+            except Exception as e:
+                try: game.ui.messages.add(f"Camp failed: {e}")
+                except Exception: pass
+            return False
+
         # Hide/Stealth (Z key) - NEW SYSTEM
         if key == ord('Z'):
             try:
@@ -951,7 +1011,7 @@ def handle_input(game, key):
                     "MOVEMENT:",
                     "  Arrow Keys = Standard directional (↑↓←→)",
                     "  hjkl       = Vi-style cardinal movement",
-                    "  yubn       = Vi-style diagonal (y=↖ u=↗ b=↙ n=↘)",
+                    "  y b n      = Vi-style diagonal (y=↖ b=↙ n=↘; u is Use, so ↗ is 9)",
                     "  Numpad 1379 = Numpad diagonal (7=↖ 9=↗ 1=↙ 3=↘)",
                     "",
                     "INVENTORY & ITEMS:",
@@ -1767,8 +1827,8 @@ def handle_input(game, key):
                     if hasattr(game.player, 'suspicion'):
                         game.player.suspicion = max(0, game.player.suspicion - 10)
                 # Pursuit: Equipping a disguise can lower detection
-                if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                    game.player.pursuit_system.update_detection('stealth', disguise_bonus=10)
+                if getattr(game, 'pursuit_system', None):
+                    game.pursuit_system.update_detection('stealth', disguise_bonus=10)
             except Exception as e:
                 try: 
                     import traceback
@@ -1838,8 +1898,8 @@ def handle_input(game, key):
                         game.player.faction_manager.adjust_reputation('Republic', 2)
                         game.player.faction_manager.adjust_reputation('Settlers', 2)
                     # Pursuit: Destroying POI is a visible action
-                    if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                        game.player.pursuit_system.update_detection('combat')
+                    if getattr(game, 'pursuit_system', None):
+                        game.pursuit_system.update_detection('combat')
                     # Check for level up - USE UNIFIED SYSTEM
                     while game.player.light_xp >= game.player.xp_to_next_light:
                         game.player.light_xp -= game.player.xp_to_next_light
@@ -1906,8 +1966,8 @@ def handle_input(game, key):
                         game.player.faction_manager.adjust_reputation('Republic', -2)
                         game.player.faction_manager.adjust_reputation('Settlers', -2)
                     # Pursuit: Absorbing POI is a visible action
-                    if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                        game.player.pursuit_system.update_detection('force')
+                    if getattr(game, 'pursuit_system', None):
+                        game.pursuit_system.update_detection('force')
                     # Check for level up - USE UNIFIED SYSTEM
                     while game.player.dark_xp >= game.player.xp_to_next_dark:
                         game.player.dark_xp -= game.player.xp_to_next_dark
@@ -2120,7 +2180,7 @@ def handle_input(game, key):
                         # Auto-fire at nearest enemy with descriptive combat log
                         try:
                             from jedi_fugitive.game.projectiles import spawn_blaster
-                            weapon_damage = getattr(active_weapon, 'base_damage', 6) if hasattr(active_weapon, 'base_damage') else 6
+                            weapon_damage = _ranged_roll(active_weapon)
                             
                             # Get weapon name for description
                             weapon_name = ''
@@ -2181,8 +2241,8 @@ def handle_input(game, key):
             game.target_y = getattr(game.player, "y", 0)
             
             # Pursuit/Detection: Using Force powers
-            if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                game.player.pursuit_system.update_detection('force')
+            if getattr(game, 'pursuit_system', None):
+                game.pursuit_system.update_detection('force')
             
             # Corruption: Using dark side powers increases corruption
             if hasattr(game.player, 'corruption_system') and game.player.corruption_system:
@@ -2411,8 +2471,8 @@ def handle_input(game, key):
                 try:
                     perform_player_attack(game, enemy)
                     # Pursuit/Detection: Combat action
-                    if hasattr(game.player, 'pursuit_system') and game.player.pursuit_system:
-                        game.player.pursuit_system.update_detection('combat')
+                    if getattr(game, 'pursuit_system', None):
+                        game.pursuit_system.update_detection('combat')
                     # Faction: Attacking certain enemies may affect reputation
                     if hasattr(game.player, 'faction_manager') and game.player.faction_manager:
                         if hasattr(enemy, 'faction') and enemy.faction:
@@ -2496,35 +2556,34 @@ def perform_player_attack(game, enemy):
             if log:
                 log.exception("Error in _fire_gun outer", exc_info=e)
             pass
-        # Try calling combat function if available
+        # Naga Sadow's tombs are full of phantoms: striking one dispels it
+        try:
+            from jedi_fugitive.game import tomb_lords
+            if tomb_lords.dispel_illusion(game, enemy):
+                return
+        except Exception:
+            pass
+        # Resolve the swing through the combat model. The old code then applied a
+        # second "fallback" hit whenever the enemy survived, so every swing struck
+        # twice and misses still did damage; the fallback now only runs if the
+        # combat module itself is unavailable.
+        resolved = False
         try:
             from jedi_fugitive.game.combat import player_attack
             player_attack(game.player, enemy, messages=getattr(game.ui, "messages", None), game=game)
-        except TypeError:
-            try:
-                from jedi_fugitive.game.combat import player_attack
-                player_attack(game.player, enemy)
-            except Exception:
-                pass
+            resolved = True
         except Exception:
-            pass
+            resolved = False
 
-        # Fallback simple attack if enemy still alive
-        try:
-            if getattr(enemy, "hp", None) is None or getattr(enemy, "hp", 1) > 0:
+        if not resolved:
+            try:
                 atk = int(getattr(game.player, "attack", 1) or 1)
                 defn = int(getattr(enemy, "defense", 0) or 0)
                 dmg = max(1, atk - defn)
-                try:
-                    enemy.hp = getattr(enemy, "hp", 0) - dmg
-                except Exception:
-                    pass
-                try:
-                    game.ui.messages.add(f"You hit {getattr(enemy,'name','enemy')} for {dmg}.")
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                enemy.hp = getattr(enemy, "hp", 0) - dmg
+                game.ui.messages.add(f"You hit {getattr(enemy,'name','enemy')} for {dmg}.")
+            except Exception:
+                pass
 
         # check for death; do NOT award XP for kills. XP is awarded by artifact consumption.
         try:
@@ -2852,7 +2911,7 @@ def perform_player_attack(game, enemy):
 
                 # Check if boss was defeated (victory condition)
                 try:
-                    if getattr(enemy, 'is_boss', False):
+                    if getattr(enemy, 'is_boss', False) and not getattr(enemy, 'tomb_boss', False):
                         try:
                             # The story ends when you escape: defeating the hunter opens the way to the ship.
                             game.ui.messages.add(f"{getattr(enemy, 'name', 'Your nemesis')} falls! Nothing stands between you and your ship now.")

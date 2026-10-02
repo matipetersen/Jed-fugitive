@@ -13,7 +13,7 @@ from jedi_fugitive.utils.crash_logger import log_error, log_info, log_game_event
 from jedi_fugitive.game import logger
 
 # Use the global logger for this module
-log = getattr(logger, 'log', None)
+log = logger  # the Logger itself (logger.log is a bound method with no .error/.info)
 from jedi_fugitive.game.player import Player
 from jedi_fugitive.game import projectiles, force_abilities, map_features, input_handler, ui_renderer, equipment
 from jedi_fugitive.game.enemy import Enemy, EnemyType, process_enemies as enemy_process_enemies
@@ -49,16 +49,20 @@ class GameManager:
         try:
             from jedi_fugitive.items.weapons import Weapon, WeaponType
             # Starting vibroblade
+            # (damage_range used to be missing, so it rolled (0, 0): the starting blade did 0 damage)
             vibroblade = Weapon(
                 name="Vibroblade",
                 weapon_type=WeaponType.MELEE,
+                damage_range=(8, 12),
                 base_damage=8,
-                accuracy=85
+                accuracy=85,
+                special=["Armor Penetration", "Quick Strikes"],
             )
             # Starting blaster pistol - MUST use BLASTER_PISTOL type for auto-aim to work
             blaster = Weapon(
                 name="Blaster Pistol",
                 weapon_type=WeaponType.BLASTER_PISTOL,
+                damage_range=(6, 11),
                 base_damage=10,
                 accuracy=75,
                 range=5,
@@ -148,7 +152,7 @@ class GameManager:
             "Movement: ↑↓←→ arrows  hjkl cardinal  ybn/7913 diagonal",
             "Actions: g=pickup  e=equip  u=use  d=drop  x=inspect",
             "Combat: Walk into enemy  t=grenade  F=shoot",
-            "Force: f=abilities  c=compass  m=meditate",
+            "Force: f=abilities  c=compass  m=meditate  K=make camp",
             "Info: J=journal  i=inventory  v=codex  @=character",
             "Meta: ?=help  C=craft  q=quit  ESC=cancel",
             "════════════════════════════════════════════════",
@@ -164,6 +168,11 @@ class GameManager:
         self.fauna_manager = FaunaManager(self)  # Initialize fauna system for creature encounters
         self.atmospheric_manager = AtmosphericEventManager(self)  # Initialize atmospheric events
         self.npcs_on_map = {}  # (x, y) -> QuestNPC
+        try:
+            from jedi_fugitive.game.combo_system import ComboTracker
+            self.combo_tracker = ComboTracker(self)
+        except Exception:
+            self.combo_tracker = None
         self.active_conversations = {} # (x, y) -> conversation state
         
         # NEW SYSTEMS
@@ -219,7 +228,7 @@ class GameManager:
         # Move object if movable
         if action == "move" and tags.get("movable"):
             if (0 <= new_y < len(self.game_map) and 0 <= new_x < len(self.game_map[0])
-                    and self.game_map[new_y][new_x] == '.'):
+                    and self.game_map[new_y][new_x] == Display.FLOOR):
                 self.game_map[new_y][new_x] = obj
                 self.game_map[y][x] = '.'
                 # Optionally trigger environmental effects here
@@ -413,6 +422,12 @@ class GameManager:
 
     def generate_world(self):
         print("⟳ Generating galaxy...")
+        # The surface is a pure function of world_seed: a save stores the seed and the
+        # loader regenerates the same world instead of serializing every tile's metadata.
+        import random as _random
+        if getattr(self, 'world_seed', None) is None:
+            self.world_seed = _random.randrange(1, 2 ** 31)
+        _random.seed(self.world_seed)
         # use global logger from game package
         try:
             map_features.generate_world(self)
@@ -550,6 +565,13 @@ class GameManager:
                 self._realtime_step()
             else:
                 self._turn_step()
+        # permadeath: a fallen Jedi does not get to reload the autosave
+        if getattr(self, 'death', False):
+            try:
+                from jedi_fugitive.game.save_system import get_autosave_path
+                get_autosave_path().unlink(missing_ok=True)
+            except Exception:
+                pass
 
     def _local_turn_systems(self):
         """Per-turn systems layered on the world tick: pursuit, stealth, factions, corruption,
@@ -755,7 +777,11 @@ class GameManager:
                     poi_key = (px, py)
                     if poi_key not in self._poi_popup_shown:
                         self._poi_popup_shown.add(poi_key)
-                        self._show_poi_interaction_popup(landmark, px, py)
+                        if getattr(self, 'defer_modals', False):
+                            # front-ends that cannot block mid-tick (the browser) open it as its own action
+                            self.pending_poi = poi_key
+                        else:
+                            self._show_poi_interaction_popup(landmark, px, py)
         except Exception:
             pass
         
@@ -882,7 +908,7 @@ class GameManager:
                         for _ in range(100):  # Try 100 times to find valid spot
                             jx = random.randint(1, len(self.game_map[0]) - 2)
                             jy = random.randint(1, len(self.game_map) - 2)
-                            if self.game_map[jy][jx] == '.' and (jx, jy) not in self.map_landmarks:
+                            if self.game_map[jy][jx] == Display.FLOOR and (jx, jy) not in self.map_landmarks:
                                 # Place journal marker
                                 self.game_map[jy][jx] = '?'
                                 journal = random.choice(available)
@@ -915,7 +941,7 @@ class GameManager:
                         for _ in range(100):
                             hx = random.randint(1, len(self.game_map[0]) - 2)
                             hy = random.randint(1, len(self.game_map) - 2)
-                            if self.game_map[hy][hx] == '.' and (hx, hy) not in self.map_landmarks:
+                            if self.game_map[hy][hx] == Display.FLOOR and (hx, hy) not in self.map_landmarks:
                                 # Place holocron marker
                                 self.game_map[hy][hx] = '?'
                                 holocron = random.choice(available)
@@ -945,7 +971,7 @@ class GameManager:
                         for _ in range(100):
                             dx = random.randint(1, len(self.game_map[0]) - 2)
                             dy = random.randint(1, len(self.game_map) - 2)
-                            if self.game_map[dy][dx] == '.' and (dx, dy) not in self.map_landmarks:
+                            if self.game_map[dy][dx] == Display.FLOOR and (dx, dy) not in self.map_landmarks:
                                 # Place distress signal marker
                                 self.game_map[dy][dx] = '!'
                                 signal = random.choice(available)
@@ -1178,6 +1204,14 @@ class GameManager:
         if not self.running:
             return
         self._world_tick()
+        # stumbling on a wounded leg hands the world a free tick
+        try:
+            from jedi_fugitive.game import survival
+            for _ in range(survival.pop_stumble(self)):
+                if not self._world_tick():
+                    break
+        except Exception:
+            pass
         self._check_resize()
 
     def _world_tick(self) -> bool:
@@ -1185,6 +1219,21 @@ class GameManager:
         # Single authoritative clock: stress cadence, enemy cooldowns, respawns and
         # the journal all read turn_count, so it advances exactly once per world tick.
         self.turn_count = getattr(self, 'turn_count', 0) + 1
+        try:
+            from jedi_fugitive.game import tomb_lords
+            tomb_lords.tick(self)
+        except Exception:
+            pass
+        try:
+            from jedi_fugitive.game import survival
+            survival.on_hp_change(self)
+        except Exception:
+            pass
+        try:
+            from jedi_fugitive.game import daynight
+            daynight.tick(self)
+        except Exception:
+            pass
         # per-turn systems (pursuit, stealth, factions, autosave, ambience, events...)
         try:
             if self._local_turn_systems() is False:
@@ -1199,17 +1248,9 @@ class GameManager:
             try:
                 if hasattr(self.player, 'regenerate_force'):
                     # Check if player is in combat (has nearby enemies)
-                    in_combat = False
-                    if hasattr(self, 'game_map') and hasattr(self.game_map, 'actors'):
-                        player_x = getattr(self.player, 'x', 0)
-                        player_y = getattr(self.player, 'y', 0)
-                        for actor in self.game_map.actors:
-                            if actor != self.player and hasattr(actor, 'x') and hasattr(actor, 'y'):
-                                dx = abs(actor.x - player_x)
-                                dy = abs(actor.y - player_y)
-                                if dx <= 8 and dy <= 8:  # Enemy within 8 tiles = combat
-                                    in_combat = True
-                                    break
+                    # (this used to look at game_map.actors, which does not exist, so
+                    # the slow in-combat regeneration never applied)
+                    in_combat = self._in_combat()
                     self.player.regenerate_force(in_combat=in_combat, game=self)
             except Exception:
                 pass
@@ -1262,6 +1303,20 @@ class GameManager:
         try:
             from jedi_fugitive.game.cordon import update_cordon
             update_cordon(self)
+        except Exception:
+            pass
+
+        try:
+            if self.quest_manager:
+                self.quest_manager.update_quests(self)
+        except Exception:
+            pass
+
+        try:
+            if getattr(self, 'combo_tracker', None) is None:
+                from jedi_fugitive.game.combo_system import ComboTracker
+                self.combo_tracker = ComboTracker(self)
+            self.combo_tracker.tick_buffs()
         except Exception:
             pass
 
@@ -1347,6 +1402,18 @@ class GameManager:
             pass
         self.notify_being_hunted(duration=40)
 
+    def _in_combat(self, radius: int = 8) -> bool:
+        """True when a living, non-hallucinated enemy that knows about you is close."""
+        px, py = int(getattr(self.player, 'x', 0)), int(getattr(self.player, 'y', 0))
+        vis = getattr(self, 'visible', set()) or set()
+        for e in getattr(self, 'enemies', []) or []:
+            if getattr(e, 'hp', 0) <= 0 or getattr(e, '_is_hallucination', False):
+                continue
+            ex, ey = getattr(e, 'x', -999), getattr(e, 'y', -999)
+            if max(abs(ex - px), abs(ey - py)) <= radius and (getattr(e, '_has_spotted', False) or (ex, ey) in vis):
+                return True
+        return False
+
     def _check_resize(self):
         try:
             current_size = self.stdscr.getmaxyx()
@@ -1416,7 +1483,13 @@ class GameManager:
                 try: self.ui.messages.add("Input handler error.")
                 except Exception: pass
             # the player acts at most once per world tick: same action economy as turn mode
-            self._rt_ready = time.perf_counter() + self.tick_seconds
+            # (a stumble on a wounded leg costs an extra tick)
+            try:
+                from jedi_fugitive.game import survival
+                lost = survival.pop_stumble(self)
+            except Exception:
+                lost = 0
+            self._rt_ready = time.perf_counter() + self.tick_seconds * (1 + lost)
             self._rt_last = time.perf_counter()
             try:
                 self.compute_visibility()
@@ -2738,6 +2811,28 @@ class GameManager:
         except Exception:
             return
 
+    def _register_codex_discovery(self, player, category, entry_id):
+        """Mark a codex entry discovered; announce it and grant Force insight on echoes."""
+        if not category or not entry_id:
+            return False
+        already = (category, entry_id) in self.sith_codex.discovered_entries
+        msg, is_echo = self.sith_codex.discover_entry(category, entry_id)
+        if msg is None or already:
+            return False
+        try:
+            title = self.sith_codex.categories[category][entry_id]['title']
+            found = len(self.sith_codex.discovered_entries)
+            total = sum(len(v) for v in self.sith_codex.categories.values())
+            self.add_message(f"#7#Codex entry recorded: {title}#0# ({found}/{total}, press v)")
+        except Exception:
+            pass
+        if is_echo and hasattr(player, 'gain_force_insight'):
+            try:
+                player.gain_force_insight(entry_id)
+            except Exception:
+                pass
+        return True
+
     def process_sith_lore_discovery(self, player):
         """Check the player's tile for lore_entry and process discovery.
 
@@ -2808,6 +2903,14 @@ class GameManager:
                         except Exception:
                             pass
                         
+                        # Holocron POIs carry a codex reference: register it (they used to
+                        # show their text but never counted towards the Sith Codex)
+                        try:
+                            sl = lm.get('sith_lore')
+                            if sl and getattr(self, 'sith_codex', None) is not None:
+                                self._register_codex_discovery(player, sl.get('category'), sl.get('entry_id'))
+                        except Exception:
+                            pass
                         # prevent repeated triggering
                         try:
                             if 'lore' in lm:
@@ -3022,8 +3125,7 @@ class GameManager:
     def update_pursuit(self):
         """Update pursuit system and check for predator spawn."""
         if hasattr(self, 'pursuit_system'):
-            self.pursuit_system.decay_detection()
-            self.pursuit_system.check_predator_spawn(self)
+            self.pursuit_system.tick(self)
 
     def add_message(self, text: str):
         """Safe helper to add a message to the UI message buffer or fallback to stdout.
@@ -3131,42 +3233,32 @@ class GameManager:
                 pass
 
     def handle_npc_interactions(self):
-        """Check for NPC interactions at player position"""
-        player_pos = (self.player.x, self.player.y)
-        
-        # Check for quest NPCs first
-        if player_pos in self.npcs_on_map:
-            npc = self.npcs_on_map[player_pos]
-            
-            # If we have the quest manager, handle quest interactions
-            if self.quest_manager:
-                self.interact_with_npc(self.player.x, self.player.y)
-                return npc
-            
-            # Fallback to old NPC system
-            return npc
-            
-        return None
-    
+        """Talk to an NPC on your tile or next to you ('t').
+
+        Two kinds of NPC share npcs_on_map: quest givers (npc_quest.QuestNPC) and
+        encounter NPCs (camps, hermits, teachers: npc_encounters.NPC). Both used to
+        go through the quest path, which only knew QuestNPC, so the encounter
+        menus (training, languages, moral choices) were unreachable.
+        """
+        px, py = self.player.x, self.player.y
+        npc = None
+        for (dx, dy) in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+            npc = self.npcs_on_map.get((px + dx, py + dy))
+            if npc is not None:
+                break
+        if npc is None:
+            return None
+        from jedi_fugitive.game.npc_quest import QuestNPC
+        if isinstance(npc, QuestNPC) and self.quest_manager:
+            self.interact_with_npc(npc.x, npc.y)
+        else:
+            try:
+                input_handler._show_npc_interaction_popup(self, npc)
+            except Exception:
+                self.add_message(f"{getattr(npc, 'name', 'The stranger')} watches you silently.")
+        return npc
+
     def handle_input(self, key):
-        # Handle active conversations first
-        if self.active_conversations:
-            # Get the first active conversation (simplified)
-            pos, conv_data = next(iter(self.active_conversations.items()))
-            
-            if conv_data['type'] == 'quest_offer':
-                if key == ord('a'):
-                    # Accept quest
-                    if self.quest_manager.accept_quest(conv_data['quest'], self.player):
-                        self.ui.messages.add(f"Quest accepted: {conv_data['quest'].title}")
-                    else:
-                        self.ui.messages.add("Could not accept quest.")
-                else:
-                    self.ui.messages.add("Quest declined.")
-                
-                # Clear conversation
-                del self.active_conversations[pos]
-                return False
 
         try:
             res = input_handler.handle_input(self, key)
@@ -3289,7 +3381,7 @@ class GameManager:
             instructions = [
                 "CONTROLS:",
                 "  Move: ↑↓←→ arrows or hjkl    Diagonal: ybn or numpad 7913",
-                "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate  ?=help q=quit",
+                "  g=pickup e=equip u=use d=drop  x=inspect J=journal f=force c=compass m=meditate K=camp  ?=help q=quit",
                 "",
                 "OBJECTIVE:",
                 "  1. Break out of the Sith cordon closing around your crash site",
@@ -3827,17 +3919,7 @@ class GameManager:
                 # NON-walkable tiles (only actual walls and major obstacles)
                 # Display.WALL = '█', but some maps use '#'
                 # Natural obstacles: '~' (dunes), 'r' (rocks), 'T' (trees), '^' (mountains)
-                non_walkable = {
-                    '█',  # Display.WALL (primary wall tile)
-                    '#',  # Legacy wall tile
-                    '^',  # Mountains (impassable)
-                    '♣',  # Trees (Display.TREE)
-                    '≈',  # Waves/dunes (Display.DUNE)
-                    '≋',  # Double waves
-                    '~',  # Water/waves
-                    'T',  # Legacy tree symbol
-                    '╬',  # Bone Cathedral walls
-                }
+                from jedi_fugitive.game.level import BLOCKING_TILES as non_walkable
                 
                 # Allow special dungeon floor tiles to be walkable
                 # (◊, ., ▪, ≈, ≋, ▫, ▓, ∞, etc.)
@@ -3943,6 +4025,18 @@ class GameManager:
             # After moving: process Sith lore discovery
             try:
                 self.process_sith_lore_discovery(self.player)
+            except Exception:
+                pass
+            # ...and holocron fragments in a Sith Lord's tomb
+            try:
+                from jedi_fugitive.game import tomb_lords
+                tomb_lords.on_step(self)
+            except Exception:
+                pass
+            # a wounded leg can give way
+            try:
+                from jedi_fugitive.game import survival
+                survival.on_player_moved(self)
             except Exception:
                 pass
             
@@ -4870,6 +4964,8 @@ class GameManager:
                                 pass
                         
                         self.current_depth = 1
+                        self.current_tomb = None
+                        self.tomb_guardian = None
                         try:
                             if getattr(self.ui, 'messages', None):
                                 self.ui.messages.add("#2#You emerge from the tomb and return to the surface.#0#")
@@ -5389,7 +5485,9 @@ class GameManager:
             # breaking-point check
             # Only active after first tomb entry
             try:
-                if stress_active and getattr(self.player, 'stress', 0) >= getattr(self.player, 'max_stress', 100) and not getattr(self, '_handled_breaking_point', False):
+                # (no longer gated on the first tomb: stress already builds during the
+                # crash-site chase and used to pile up with no outcome)
+                if getattr(self.player, 'stress', 0) >= getattr(self.player, 'max_stress', 100) and not getattr(self, '_handled_breaking_point', False):
                     # mark handled so we don't repeatedly trigger in same turn
                     try: setattr(self, '_handled_breaking_point', True)
                     except Exception: pass
@@ -5448,6 +5546,8 @@ class GameManager:
                                     pass
                                 # apply reckless debuff placeholder
                                 self.player._reckless_turns = getattr(self.player, '_reckless_turns', 0) + 3
+                                # the rage burns the pressure out (the dark branch never reset stress)
+                                self.player.stress = 60
                             except Exception:
                                 pass
                         else:
@@ -5892,7 +5992,15 @@ class GameManager:
                 try: self.ui.messages.add("You can't meditate here; it's too dangerous.")
                 except Exception: pass
                 return False
-            
+
+            self.last_meditation_turn = getattr(self, 'turn_count', 0)
+            # Meditation stills your presence in the Force: it lowers your Heat
+            try:
+                if getattr(self, 'pursuit_system', None):
+                    self.pursuit_system.update_detection('stealth', amount=15, turn=getattr(self, 'turn_count', 0))
+            except Exception:
+                pass
+
             # Display meditation mantra based on alignment
             try:
                 corruption = getattr(self.player, 'dark_corruption', 50)
@@ -6206,6 +6314,12 @@ class GameManager:
             except Exception:
                 pass
             
+            # night shortens sight on the surface
+            try:
+                from jedi_fugitive.game import daynight
+                radius = max(2, radius + daynight.sight_modifier(self))
+            except Exception:
+                pass
             # Apply atmospheric visibility modifiers
             try:
                 if hasattr(self, 'atmospheric_manager'):
@@ -6282,89 +6396,84 @@ class GameManager:
                 pass
     
     def generate_surface_npcs(self):
-        """Generate NPCs with quests on the surface map."""
-        if not self.quest_manager or not hasattr(self, 'game_map'):
+        """Place quest givers across the surface (reachable, away from the crash site)."""
+        if not self.quest_manager or not getattr(self, 'game_map', None):
             return
-            
-        # Find suitable positions for NPCs (avoid walls, water, etc.)
-        available_positions = []
-        
-        for y in range(len(self.game_map)):
-            for x in range(len(self.game_map[0])):
-                if (self.game_map[y][x] == '.' and 
-                    (x, y) != (self.player.x, self.player.y) and
-                    not any(enemy.x == x and enemy.y == y for enemy in self.enemies)):
-                    available_positions.append((x, y))
-        
-        # Generate 3-6 NPCs on surface based on world size
-        num_npcs = min(6, max(3, len(available_positions) // 50))
-        
-        # Place NPCs
-        for i in range(min(num_npcs, len(available_positions))):
-            if available_positions:
-                pos = random.choice(available_positions)
-                available_positions.remove(pos)
-                
-                # Determine biome for this position
-                biome = 'forest'  # default
-                if hasattr(self, 'map_biomes') and self.map_biomes:
-                    if 0 <= pos[1] < len(self.map_biomes) and 0 <= pos[0] < len(self.map_biomes[0]):
-                        biome = self.map_biomes[pos[1]][pos[0]]
-                
-                # Create NPC with quest
-                npc = self.quest_manager.create_random_npc(
-                    pos[0], pos[1], 
-                    level=1,  # Surface NPCs are level 1
-                    biome=biome
-                )
-                
-                if npc:
-                    self.npcs_on_map[pos] = npc
-                    
-        print(f"✓ Generated {len(self.npcs_on_map)} NPCs with quests on surface")
-    
+        mh = len(self.game_map); mw = len(self.game_map[0]) if mh else 0
+        want = max(4, min(10, (mw * mh) // 12000))
+        placed = []
+        px, py = self.player.x, self.player.y
+        for _ in range(want * 60):
+            if len(placed) >= want:
+                break
+            x, y = random.randint(2, mw - 3), random.randint(2, mh - 3)
+            if self.game_map[y][x] != Display.FLOOR or (x, y) in self.npcs_on_map:
+                continue
+            if abs(x - px) + abs(y - py) < 30 or any(abs(x - a) + abs(y - b) < 25 for a, b in placed):
+                continue
+            if any(getattr(e, 'x', None) == x and getattr(e, 'y', None) == y for e in self.enemies):
+                continue
+            biome = 'plains'
+            try:
+                biome = self.map_biomes[y][x]
+            except Exception:
+                pass
+            npc = self.quest_manager.create_random_npc(x, y, level=getattr(self.player, 'level', 1), biome=biome, game=self)
+            if npc:
+                self.npcs_on_map[(x, y)] = npc
+                placed.append((x, y))
+        try:
+            from jedi_fugitive.game.map_features import ensure_reachable
+            ensure_reachable(self, placed)
+        except Exception:
+            pass
+        print(f"✓ Generated {len(placed)} NPCs with quests on surface")
+
     def interact_with_npc(self, x, y):
-        """Interact with an NPC at the given position."""
+        """Quest conversation: offer / progress / completion."""
         npc = self.npcs_on_map.get((x, y))
         if not npc or not self.quest_manager:
             return False
-            
-        # Start or continue conversation
-        conversation = self.quest_manager.start_conversation(npc, self.player)
-        
-        if conversation:
-            # Display conversation in UI
-            self.ui.messages.add(f"{npc.name}: {conversation['message']}")
-            
-            # Handle quest interactions
-            if conversation.get('quest_offered'):
-                self.ui.messages.add("Press 'a' to accept the quest, or any other key to decline.")
-                self.active_conversations[(x, y)] = {
-                    'npc': npc,
-                    'type': 'quest_offer',
-                    'quest': conversation['quest']
-                }
-            elif conversation.get('quest_complete'):
-                # Complete the quest automatically
-                rewards = self.quest_manager.complete_quest(conversation['quest'], self.player)
-                if rewards:
-                    for reward_type, amount in rewards.items():
-                        if reward_type == 'experience':
-                            self.player.gain_experience(amount)
-                            self.ui.messages.add(f"Gained {amount} experience!")
-                        elif reward_type == 'credits':
-                            self.player.credits += amount
-                            self.ui.messages.add(f"Received {amount} credits!")
-            
-            return True
-        
-        return False
-    
-    def handle_npc_response(self, key, x, y):
-        """Handle player response to NPC conversation."""
-        conversation = self.active_conversations.get((x, y))
-        if not conversation:
+        conv = self.quest_manager.start_conversation(npc, self.player, game=self)
+        if not conv:
             return False
+        self.add_message(conv['message'])
+        quest = conv.get('quest')
+        if conv.get('quest_offered') and quest is not None:
+            choice = None
+            try:
+                choice = self.ui.centered_menu(["Accept", "Decline"], title=f"{quest.title} (+{quest.xp_reward} XP)")
+            except Exception:
+                choice = None
+            if choice == 0:
+                self.accept_npc_quest(quest)
+            else:
+                self.add_message(f"{npc.name}: I understand... if you change your mind, I'll be here.")
+        elif conv.get('quest_complete') and quest is not None:
+            self.quest_manager.finish(quest, self)
+        return True
+
+    def accept_npc_quest(self, quest):
+        if self.quest_manager.accept_quest(quest, self.player, game=self):
+            self.add_message(f"#6#Quest accepted: {quest.title}#0# - {quest.description}. (Q: quest log)")
+            try:
+                self.player.add_to_travel_log(f"[QUEST] {quest.npc.name} asked for help: {quest.description}.")
+            except Exception:
+                pass
+            return True
+        return False
+
+    def quest_log_lines(self):
+        qm = self.quest_manager
+        lines = []
+        for q in (qm.active_quests.values() if qm else []):
+            lines.append("• " + q.status_line(self))
+        if not lines:
+            lines.append("No active quests. Talk to survivors you meet (t).")
+        done = len(qm.completed_quests) if qm else 0
+        lines.append(f"Completed: {done}")
+        return lines
+
             
         if conversation['type'] == 'quest_offer':
             if key == 'a':  # Accept quest

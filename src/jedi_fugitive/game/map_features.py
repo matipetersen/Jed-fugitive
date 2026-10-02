@@ -34,7 +34,7 @@ WORLD_SIZES = {
     'huge': (640, 440),
 }
 BIOME_TYPES = ['forest', 'desert', 'rocky', 'plains', 'river', 'mountain_pass']
-BLOCKING = frozenset(('#', '~', 'r', 'T'))
+from jedi_fugitive.game.level import BLOCKING_TILES as BLOCKING  # noqa: E402
 
 
 def _value_noise(w, h, cell, rnd):
@@ -1352,6 +1352,13 @@ def enter_tomb(game):
         # CRITICAL: Save tomb entrances set for re-entry after exiting
         game.surface_tomb_entrances = set(tomb_entrances)
 
+        # Every tomb belongs to one Sith Lord (see tomb_lords): trial, garrison, guardian, lore
+        from jedi_fugitive.game import tomb_lords
+        tomb_rec = tomb_lords.lord_for(game, (px, py))
+        lord_id = tomb_rec['lord']
+        game.current_tomb = (px, py)
+        game.tomb_guardian = None
+
         # Check if this tomb has been entered before (persistence)
         if hasattr(game, 'completed_tombs') and (px, py) in game.completed_tombs:
             print("⟳ Restoring previously explored tomb...")
@@ -1386,11 +1393,13 @@ def enter_tomb(game):
             
             try:
                 if getattr(game, 'ui', None) and getattr(game.ui, 'messages', None):
-                    game.ui.messages.add("#3#You return to the familiar tomb...#0#")
                     game.ui.messages.add("(Your previous progress has been preserved)")
             except Exception:
                 pass
             
+            game.tomb_guardian = next((e for fl in game.tomb_enemies for e in (fl or [])
+                                       if getattr(e, 'tomb_boss', False) and getattr(e, 'hp', 0) > 0), None)
+            tomb_lords.announce_entry(game, tomb_rec, first_time=False)
             print("✓ Tomb state restored successfully")
             return True
         
@@ -1471,13 +1480,8 @@ def enter_tomb(game):
                     if valid_position and ex > 0 and ey > 0:
                         # Create appropriate enemy for depth
                         try:
-                            if depth == 1:
-                                enemy = sith.create_sith_trooper(level=max(1, getattr(game.player, 'level', 1)))
-                            elif depth == 2:
-                                enemy = sith.create_sith_acolyte(level=max(1, getattr(game.player, 'level', 1) + 1))
-                            else:
-                                # Reduced scaling: depth 3 = player+1, depth 4 = player+2, etc.
-                                enemy = sith.create_sith_warrior(level=max(1, getattr(game.player, 'level', 1) + max(0, depth - 2)))
+                            # the Lord's garrison (scaling: depth 3 = player+1, depth 4 = player+2, ...)
+                            enemy = tomb_lords.garrison_enemy(lord_id, depth, max(1, int(getattr(game.player, 'level', 1) or 1)))
                             enemy.x, enemy.y = ex, ey
                             level_enemies.append(enemy)
                             enemies_spawned += 1
@@ -1493,7 +1497,8 @@ def enter_tomb(game):
             # place_items() call here used to double them)
             
             # Place corrupted Jedi Artifact on the final level
-            if depth == num_levels and rooms:
+            # (a relic already carried out of this tomb is not there again, e.g. after a reload)
+            if depth == num_levels and rooms and not tomb_rec.get('relic_recovered'):
                 from jedi_fugitive.items.tokens import TOKEN_MAP
                 # Place in the last room (deepest chamber - Sith altar)
                 last_room = rooms[-1]
@@ -1528,6 +1533,22 @@ def enter_tomb(game):
                         'quest': True
                     }
                     level_items.append(artifact_entry)
+                    # the Lord's guardian waits beside the relic (unless already slain)
+                    try:
+                        if tomb_rec.get('boss_defeated'):
+                            raise StopIteration
+                        for gx, gy in ((artifact_x + 2, artifact_y), (artifact_x - 2, artifact_y),
+                                       (artifact_x, artifact_y + 1), (artifact_x, artifact_y - 1)):
+                            if level_map[gy][gx] == Display.FLOOR:
+                                guardian = tomb_lords.spawn_guardian(game, lord_id, gx, gy,
+                                                                     max(1, int(getattr(game.player, 'level', 1) or 1)))
+                                level_enemies.append(guardian)
+                                game.tomb_guardian = guardian
+                                break
+                    except StopIteration:
+                        pass
+                    except Exception as e:
+                        print(f"  ⚠ Failed to place tomb guardian: {e}")
                     print(f"  ✓ Artifact added to level_items list at ({artifact_x}, {artifact_y})")
                     print(f"  ✓ Artifact 'Q' token placed on map at ({artifact_x}, {artifact_y})")
                     print(f"  ✓ Map tile at artifact location: '{level_map[artifact_y][artifact_x]}'")
@@ -1554,6 +1575,9 @@ def enter_tomb(game):
                         }
                         level_items.append(item_entry)
             game.tomb_items.append(level_items)
+
+        tomb_lords.place_fragments(game, tomb_rec, game.tomb_levels, game.tomb_rooms)
+        tomb_lords.announce_entry(game, tomb_rec, first_time=True)
 
         # Set initial tomb state
         game.tomb_floor = 0

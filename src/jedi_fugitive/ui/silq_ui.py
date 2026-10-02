@@ -1,6 +1,6 @@
 import curses
 from typing import Tuple, Optional, List, Dict, Any
-from jedi_fugitive.ui.dialog import UIMessageBuffer
+from jedi_fugitive.ui.dialog import UIMessageBuffer, parse_color_codes
 
 class SILQUI:
     def __init__(self, stdscr):
@@ -428,10 +428,21 @@ class SILQUI:
         lines = self.messages.messages[-(h-2):]
         for i, m in enumerate(lines):
             text = f"{m.get('timestamp','')} {m.get('text','')}".strip()
-            try:
-                panel.addstr(1+i, 2, text[:w-4], curses.color_pair(3))
-            except curses.error:
-                pass
+            # inline colour codes: "#N#text#0#" switches to colour pair N (0 = default)
+            x = 2
+            limit = w - 2
+            for seg_text, pair in parse_color_codes(text, default=3):
+                if x >= limit:
+                    break
+                seg_text = seg_text[: max(0, limit - x)]
+                if not seg_text:
+                    continue
+                attr = curses.color_pair(pair) | (curses.A_BOLD if pair != 3 else 0)
+                try:
+                    panel.addstr(1 + i, x, seg_text, attr)
+                except curses.error:
+                    pass
+                x += len(seg_text)
         try:
             panel.refresh()
         except curses.error:

@@ -4,6 +4,7 @@ Creates dynamic, contextual events that respond to player actions and game state
 """
 
 import random
+from jedi_fugitive.game.level import Display
 from typing import List, Dict, Any, Tuple
 
 
@@ -149,7 +150,7 @@ def effect_enemy_ambush(game) -> str:
                 # Check bounds and floor
                 if (0 <= spawn_x < len(game.game_map[0]) and 
                     0 <= spawn_y < len(game.game_map) and
-                    game.game_map[spawn_y][spawn_x] == '.'):
+                    game.game_map[spawn_y][spawn_x] == Display.FLOOR):
                     
                     enemy_level = max(1, getattr(game.player, 'level', 1) + random.randint(-1, 1))
                     enemy = sith.create_sith_warrior(level=enemy_level, x=spawn_x, y=spawn_y)

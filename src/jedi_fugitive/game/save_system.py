@@ -11,7 +11,11 @@ from datetime import datetime
 def get_save_directory() -> Path:
     """Get the save directory path, creating it if needed."""
     # Use user's home directory for cross-platform compatibility
-    if os.name == 'nt':  # Windows
+    # (JEDI_FUGITIVE_SAVE_DIR overrides it: tests, portable installs, the web build's
+    # persistent storage mount)
+    if os.environ.get('JEDI_FUGITIVE_SAVE_DIR'):
+        save_dir = Path(os.environ['JEDI_FUGITIVE_SAVE_DIR'])
+    elif os.name == 'nt':  # Windows
         save_dir = Path(os.environ.get('APPDATA', '~')) / 'DarkMeridian' / 'saves'
     else:  # Mac/Linux
         save_dir = Path.home() / '.dark_meridian' / 'saves'
@@ -165,8 +169,8 @@ def _mastery_from_dict(player, data):
     tech.mark_applied(player)
 
 
-def serialize_game_state(game) -> Dict[str, Any]:
-    """Convert game state to a serializable dictionary."""
+def _serialize_game_state_v1(game) -> Dict[str, Any]:
+    """Legacy (v1) save: a hand-picked subset of player fields. Kept to read old saves."""
     try:
         # Player state
         player_data = {
@@ -202,6 +206,10 @@ def serialize_game_state(game) -> Dict[str, Any]:
             'ranged_mastery': getattr(game.player, 'ranged_mastery', 0),
             'shield_mastery': getattr(game.player, 'shield_mastery', 0),
             'dual_wield_mastery': getattr(game.player, 'dual_wield_mastery', 0),
+            # saved accuracy/evasion include wound penalties, so the wounds must travel with them
+            'wounds': dict(getattr(game.player, 'wounds', {}) or {}),
+            'lord_fragments': {k: sorted(v) for k, v in (getattr(game.player, 'lord_fragments', {}) or {}).items()},
+            'lord_masteries': sorted(getattr(game.player, 'lord_masteries', set()) or set()),
         }
         
         # Inventory - serialize each item properly
@@ -321,8 +329,8 @@ def load_game(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
         return None
 
 
-def apply_save_data(game, save_data: Dict[str, Any]) -> bool:
-    """Apply loaded save data to the game state."""
+def _apply_save_data_v1(game, save_data: Dict[str, Any]) -> bool:
+    """Apply a legacy (v1) save: player fields only."""
     try:
         if not save_data:
             return False
@@ -335,6 +343,11 @@ def apply_save_data(game, save_data: Dict[str, Any]) -> bool:
             if key not in ['inventory', 'equipped_weapon', 'equipped_armor', 'travel_log', 'facing', 'offhand']:
                 setattr(game.player, key, value)
         
+        game.player.lord_fragments = {k: set(v) for k, v in (player_data.get('lord_fragments') or {}).items()}
+        game.player.lord_masteries = set(player_data.get('lord_masteries') or [])
+        game.player.wounds = dict(player_data.get('wounds') or {})
+        game._last_hp_seen = getattr(game.player, 'hp', None)
+
         # Restore facing tuple
         if 'facing' in player_data:
             facing = player_data['facing']
@@ -411,3 +424,212 @@ def list_saves() -> list:
     except Exception as e:
         print(f"Error listing saves: {e}")
         return []
+
+
+# --------------------------------------------------------------------------- v2
+# A v2 save holds the world seed (the surface is regenerated identically from
+# it), the current surface map, and the whole object graph of the player and
+# of every system that carries progress, encoded by save_codec in one pass so
+# shared references (quest <-> NPC <-> player, faction manager) survive.
+
+SAVE_VERSION = '2.0'
+
+# GameManager attributes that carry progress (everything else is regenerated)
+GAME_STATE_ATTRS = (
+    'turn_count', 'turns', 'artifacts_collected', 'artifacts_needed', 'comms_established',
+    'explored', 'items_on_map', 'map_landmarks', 'map_lore', 'merchants', 'npcs_on_map',
+    'quest_manager', 'faction_manager', 'pursuit_system', 'tomb_records', 'loot_caches',
+    'current_biome', 'last_respawn_turn', 'used_holocrons', 'last_holocron_turn',
+    '_handled_breaking_point', 'final_boss_spawned', 'completed_special_dungeons',
+)
+# links into the running session or into enemies that are regenerated on load
+_SKIP = {'game', 'ui', 'stdscr', 'gfx', 'messages', '_cached_stats',
+         'last_attacking_enemy', 'predator', 'stealth_system'}
+
+
+def _surface_view(game):
+    """(map, items, player position) of the surface, even when saved inside a tomb."""
+    in_tomb = bool(getattr(game, 'tomb_levels', None)) and getattr(game, 'surface_map', None) is not None
+    if in_tomb:
+        return (game.surface_map, list(getattr(game, 'surface_items_on_map', []) or []),
+                tuple(getattr(game, 'surface_player_pos', (game.player.x, game.player.y))), True)
+    return game.game_map, list(getattr(game, 'items_on_map', []) or []), (game.player.x, game.player.y), False
+
+
+def serialize_game_state(game) -> Dict[str, Any]:
+    """Everything needed to continue this run (see GAME_STATE_ATTRS)."""
+    from jedi_fugitive.game import save_codec
+    try:
+        from jedi_fugitive.game.game_manager import GameManager
+        stop = (GameManager,)
+    except Exception:
+        stop = ()
+    try:
+        surface_map, surface_items, pos, in_tomb = _surface_view(game)
+        state = {k: getattr(game, k) for k in GAME_STATE_ATTRS if hasattr(game, k)}
+        state['items_on_map'] = surface_items
+        state['codex_discovered'] = set(getattr(getattr(game, 'sith_codex', None), 'discovered_entries', set()) or set())
+        cordon = getattr(game, 'cordon', None)
+        state['cordon'] = {'active': bool(getattr(cordon, 'active', False)),
+                           'escaped': bool(getattr(cordon, 'escaped', False))} if cordon is not None else None
+        blob = save_codec.encode({'player': game.player, 'game': state}, skip=_SKIP, stop_types=stop)
+        player = game.player
+        return {
+            'version': SAVE_VERSION,
+            'timestamp': datetime.now().isoformat(),
+            'world_seed': getattr(game, 'world_seed', None),
+            'world_size': getattr(game, 'world_size', 'normal'),
+            'position': list(pos),
+            'saved_in_tomb': in_tomb,
+            'map': [''.join(row) for row in surface_map],
+            'state': blob,
+            # summary for the load menu
+            'summary': {'level': getattr(player, 'level', 1), 'turn': getattr(game, 'turn_count', 0),
+                        'hp': getattr(player, 'hp', 0), 'max_hp': getattr(player, 'max_hp', 0)},
+            # kept so list_saves() and old tools keep working
+            'player': {'level': getattr(player, 'level', 1)},
+            'game': {'turn_count': getattr(game, 'turn_count', 0)},
+        }
+    except Exception as e:
+        print(f"Error serializing game state: {e}")
+        return {}
+
+
+def apply_save_data(game, save_data: Dict[str, Any]) -> bool:
+    """Restore a save into `game`, regenerating its world from the saved seed if needed."""
+    if not save_data:
+        return False
+    if save_data.get('version') != SAVE_VERSION:
+        return _apply_save_data_v1(game, save_data)
+    from jedi_fugitive.game import save_codec
+    try:
+        seed = save_data.get('world_seed')
+        if seed is not None and (getattr(game, 'world_seed', None) != seed or not getattr(game, 'game_map', None)):
+            game.world_seed = seed
+            game.world_size = save_data.get('world_size', getattr(game, 'world_size', 'normal'))
+            game.generate_world()
+        blob = save_codec.decode(save_data['state'])
+        fresh, player = game.player, blob['player']
+        # re-attach the session links the codec dropped
+        for k in _SKIP:
+            if hasattr(fresh, k) and k not in vars(player):
+                try:
+                    object.__setattr__(player, k, getattr(fresh, k))
+                except Exception:
+                    pass
+        if getattr(game, 'stealth_system', None) is not None:
+            player.stealth_system = game.stealth_system
+        game.player = player
+        for k, v in blob['game'].items():
+            if k in ('codex_discovered', 'cordon'):
+                continue
+            setattr(game, k, v)
+        # systems that point at the player now point at the restored one
+        for obj in list(vars(game).values()):
+            try:
+                if getattr(obj, 'player', None) is fresh:
+                    obj.player = player
+            except Exception:
+                pass
+        ps = getattr(game, 'pursuit_system', None)
+        if ps is not None:
+            ps.predator = None
+            ps.sith_predator_active = False
+        try:
+            if getattr(player, 'faction_manager', None) is not None:
+                game.faction_manager = player.faction_manager
+        except Exception:
+            pass
+        codex = getattr(game, 'sith_codex', None)
+        if codex is not None:
+            try:
+                from jedi_fugitive.game import tomb_lords
+                tomb_lords._ensure_codex(game)
+            except Exception:
+                pass
+            codex.discovered_entries = set(blob['game'].get('codex_discovered') or set())
+        # the surface as it was
+        if save_data.get('map'):
+            game.game_map = [list(row) for row in save_data['map']]
+        for attr in ('tomb_levels', 'tomb_rooms', 'tomb_enemies', 'tomb_items', 'tomb_stairs',
+                     'tomb_floor', 'surface_map', 'surface_items_on_map'):
+            if hasattr(game, attr):
+                try:
+                    delattr(game, attr)
+                except Exception:
+                    pass
+        game.current_tomb = None
+        game.tomb_guardian = None
+        game.current_depth = 1
+        x, y = save_data.get('position') or (player.x, player.y)
+        player.x, player.y = int(x), int(y)
+        if save_data.get('saved_in_tomb'):
+            player.los_radius = max(6, int(getattr(player, 'los_radius', 6) or 6))
+        # the cordon does not come back once you broke out of it
+        cordon_state = blob['game'].get('cordon') or {}
+        cordon = getattr(game, 'cordon', None)
+        if cordon is not None and (cordon_state.get('escaped') or not cordon_state.get('active', True)):
+            units = set(id(u) for u in getattr(cordon, 'units', []) or [])
+            game.enemies = [e for e in game.enemies if id(e) not in units]
+            cordon.active = False
+            cordon.escaped = bool(cordon_state.get('escaped'))
+            cordon.units = []
+        # quest hunt targets live in the quest: put them back into the world
+        try:
+            for q in (getattr(game.quest_manager, 'active_quests', {}) or {}).values():
+                e = getattr(q, 'target_enemy', None)
+                if e is not None and getattr(e, 'hp', 0) > 0 and e not in game.enemies:
+                    game.enemies.append(e)
+        except Exception:
+            pass
+        # nothing regenerated gets to stand on top of you
+        game.enemies = [e for e in game.enemies
+                        if abs(getattr(e, 'x', 0) - player.x) + abs(getattr(e, 'y', 0) - player.y) > 14
+                        or getattr(e, 'is_boss', False) or getattr(e, 'quest_target', False)]
+        game._last_hp_seen = getattr(player, 'hp', None)
+        game.death = False
+        game.running = True
+        try:
+            player._stats_cache_dirty = True
+        except Exception:
+            pass
+        try:
+            game.compute_visibility()
+        except Exception:
+            pass
+        if save_data.get('saved_in_tomb'):
+            try:
+                game.add_message("You wake at the tomb's entrance; the halls below have shifted in the dark.")
+            except Exception:
+                pass
+        return True
+    except Exception as e:
+        import traceback
+        print(f"Error applying save data: {e}")
+        traceback.print_exc()
+        return False
+
+
+def latest_save_path() -> Optional[Path]:
+    """The most recently written save (autosave or a manual slot), or None."""
+    paths = [get_autosave_path()] + [get_manual_save_path(i) for i in range(1, 4)]
+    existing = [p for p in paths if p.exists()]
+    return max(existing, key=lambda p: p.stat().st_mtime) if existing else None
+
+
+def continue_game(game, path: Optional[Path] = None) -> bool:
+    """Initialize `game` from a save file (instead of initialize() + generate_world())."""
+    path = path or latest_save_path()
+    if path is None:
+        return False
+    data = load_game(path)
+    if not data:
+        return False
+    game.initialize()
+    if data.get('version') == SAVE_VERSION:
+        game.world_seed = data.get('world_seed')
+        game.world_size = data.get('world_size', getattr(game, 'world_size', 'normal'))
+        game.generate_world()
+    else:
+        game.generate_world()
+    return apply_save_data(game, data)

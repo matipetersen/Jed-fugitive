@@ -151,7 +151,7 @@ def _medieval() -> EraPack:
         origin_names={"medic": "Barber-surgeon", "soldier": "Man-at-arms", "scholar": "Scribe",
                       "outlaw": "Poacher", "guard": "Town watchman"},
         refuge="St. Alban's Abbey", pad="the harbour at Dunmere", breach="the broken gate",
-        intro="The bells stopped ringing three days ago. Dunmere's gate fell and the dead are in the streets.",
+        intro="The bells have stopped ringing. Dunmere's gate fell at dawn and the dead are in the streets.",
         radio="travelling friars and carrier pigeons",
     )
 
@@ -220,7 +220,7 @@ def _eighties() -> EraPack:
         origin_names={"medic": "Paramedic", "soldier": "Guardsman", "scholar": "Grad student",
                       "outlaw": "Drifter", "guard": "Deputy"},
         refuge="Fort Halsey", pad="the Halsey airfield", breach="the collapsed roadblock",
-        intro="The roadblock was overrun at dusk. The radio says hold position, but there is nobody left to hold it.",
+        intro="The roadblock was overrun at first light. The radio says hold position, but there is nobody left to hold it.",
         radio="CB radio and a dying AM station",
     )
 

@@ -110,7 +110,7 @@ class Zombie(Actor):
 
 @dataclass(eq=False)
 class Human(Actor):
-    role: str = "survivor"           # raider | trader | healer | scholar | survivor
+    role: str = "survivor"           # raider | scout | soldier | trader | healer | scholar | survivor
     faction: str = ""
     hostile: bool = False
     dmg: Tuple[int, int] = (3, 7)
@@ -121,6 +121,8 @@ class Human(Actor):
     target: Optional[Pos] = None
     loot: List[Item] = field(default_factory=list)
     talked: bool = False
+    group: int = 0                   # patrol group id (0 = none)
+    stuck: int = 0
 
 
 class Level:
@@ -138,7 +140,7 @@ class Level:
         self.items: Dict[Pos, List[Item]] = {}
         self.containers: Dict[Pos, Container] = {}
         self.portals: Dict[Pos, Portal] = {}
-        self.corpses: Dict[Pos, Tuple[int, bool]] = {}      # pos -> (turn of death, was human)
+        self.corpses: Dict[Pos, Tuple[int, int]] = {}      # pos -> (turn of death, 0/False | True human | 2 killed by the dead: always rises)
         self.hazards: Dict[Pos, Hazard] = {}
         self.door_hp: Dict[Pos, int] = {}
         self.docs: Dict[Pos, List[str]] = {}                # document ids lying on the floor

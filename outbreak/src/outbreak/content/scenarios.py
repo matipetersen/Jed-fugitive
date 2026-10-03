@@ -28,6 +28,7 @@ class ScenarioDef:
     formula_fluency: float
     goal: str                      # one-line objective shown in the HUD
     final_verb: str                # what you do at the final site
+    premise: str = ""              # story page shown after the opening scene (may use {refuge}/{pad}/{radio}/{days})
 
 
 CURE = ScenarioDef(
@@ -52,6 +53,10 @@ CURE = ScenarioDef(
     final_site="refuge", final_turns=40, needs_formula=True, formula_fluency=0.30,
     goal="Gather the components and the formula, then synthesise the cure at the refuge.",
     final_verb="synthesise",
+    premise="In the crush at the gate something got you. The wound is clean and shallow, but you can feel it: "
+            "the strain in you is slow, not gentle. A few days, no more. They say {refuge} still stands, and that "
+            "someone there once made a cure. They need three things, and a formula that nobody has been able to read. "
+            "You have what you are carrying, and the rest of the world to search.",
 )
 
 EXTRACTION = ScenarioDef(
@@ -76,6 +81,9 @@ EXTRACTION = ScenarioDef(
     final_site="pad", final_turns=45, needs_formula=False, formula_fluency=0.0,
     goal="Gather the three parts and reach the extraction point before the deadline.",
     final_verb="call the pickup",
+    premise="You are not hurt, and that is the only luck you have. The word on {radio} is that one way out is left: "
+            "{pad}. A pickup will come once, for anyone who can bring it power, a signal and the right papers, "
+            "and it will not come after day {days}. You have to find all three, and you have to get there.",
 )
 
 SCENARIOS: Dict[str, ScenarioDef] = {s.id: s for s in (CURE, EXTRACTION)}

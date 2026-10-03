@@ -100,8 +100,8 @@ def _train(game, w: ItemDef, amount: int = 1) -> None:
 
 
 # ------------------------------------------------------------------ player attacks
-def hurt_zombie(game, z: Zombie, raw: float, head: bool, style: str = "", fire: bool = False) -> int:
-    """Apply damage honouring the preset's kill rule.  Returns the damage dealt."""
+def zombie_damage(game, z: Zombie, raw: float, head: bool, style: str = "", fire: bool = False) -> int:
+    """Damage a blow does to a zombie, honouring the preset's kill rule."""
     profile = game.profile
     dmg = raw
     if head:
@@ -115,7 +115,12 @@ def hurt_zombie(game, z: Zombie, raw: float, head: bool, style: str = "", fire: 
         dmg *= 2.0
     elif style == "energy" and profile.weakness == "light":
         dmg *= 1.3
-    dealt = max(1, int(round(dmg)))
+    return max(1, int(round(dmg)))
+
+
+def hurt_zombie(game, z: Zombie, raw: float, head: bool, style: str = "", fire: bool = False) -> int:
+    """The player hurts a zombie.  Returns the damage dealt."""
+    dealt = zombie_damage(game, z, raw, head, style, fire)
     z.hp -= dealt
     if z.hp <= 0:
         kill_zombie(game, z, head=head)
@@ -144,7 +149,8 @@ def kill_zombie(game, z: Zombie, head: bool = False, by_player: bool = True) -> 
         burst(game, z.pos)
     if "boss" in z.flags and z.special == "stalker":
         game.on_stalker_killed()
-    game.msg(f"The {z.name.lower()} {'collapses' if head else 'goes down'}.", "combat")
+    if by_player or z.pos in game.visible:
+        game.msg(f"The {z.name.lower()} {'collapses' if head else 'goes down'}.", "combat")
 
 
 def burst(game, pos) -> None:
@@ -408,6 +414,58 @@ def human_attack(game, h: Human) -> None:
     dmg = max(1, int(round(game.rng.randint(*h.dmg) * game.diff.damage - (armor.defense if armor else 0))))
     game.msg(f"The {h.name.lower()} hits you for {dmg}.", "bad")
     damage_player(game, dmg, f"killed by {article(h.name)} {h.name.lower()}")
+
+
+# ------------------------------------------------------------------ everyone else's fights
+def _seen(game, *actors) -> bool:
+    return any(a.pos in game.visible for a in actors)
+
+
+def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -> None:
+    """One actor (zombie or human) strikes another that is not the player."""
+    d = cheb(attacker.pos, defender.pos)
+    if ranged and d > 1:
+        game.emit_noise(attacker.pos, 18 if game.era.firearms else 4, "fight")
+    noun = attacker.name.lower()
+    victim = defender.name.lower()
+    if game.rng.random() * 100 >= clamp(attacker.acc - 8 - max(0, d - 1) * 2, 12, 90):
+        if _seen(game, attacker, defender):
+            game.msg(f"The {noun} {'shoots' if ranged and d > 1 else 'strikes'} at the {victim} and misses.", "combat")
+        return
+    raw = game.rng.randint(*attacker.dmg)
+    if isinstance(defender, Zombie):
+        head = game.rng.random() < (0.25 if ranged else 0.2)
+        dealt = zombie_damage(game, defender, raw, head)
+        defender.hp -= dealt
+        if defender.hp <= 0:
+            kill_zombie(game, defender, head=head, by_player=False)
+            return
+        defender.state, defender.target, defender.stimulus_turn = "hunt", attacker.pos, game.clock.turn
+        if _seen(game, attacker, defender):
+            game.msg(f"The {noun} hits the {victim}.", "combat")
+        return
+    defender.hp -= raw
+    if defender.hp <= 0:
+        kill_human_other(game, defender, attacker)
+        return
+    if isinstance(defender, Human):
+        defender.state, defender.target = "hunt", attacker.pos
+    if _seen(game, attacker, defender):
+        game.msg(f"The {noun} {'bites' if isinstance(attacker, Zombie) else 'hits'} the {victim}.", "combat")
+
+
+def kill_human_other(game, h: Human, killer: Actor) -> None:
+    """A human dies to something other than the player.  Zombie victims rise again."""
+    level = game.level
+    level.remove_actor(h)
+    level.corpses[h.pos] = (game.clock.turn, 2 if isinstance(killer, Zombie) else True)
+    for item in h.loot:
+        level.drop(h.pos, item)
+    if _seen(game, h, killer):
+        if isinstance(killer, Zombie):
+            game.msg(f"The {killer.name.lower()} drags the {h.name.lower()} down.", "bad")
+        else:
+            game.msg(f"The {h.name.lower()} falls to the {killer.name.lower()}.", "combat")
 
 
 # ------------------------------------------------------------------ surgery

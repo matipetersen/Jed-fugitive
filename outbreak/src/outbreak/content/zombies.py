@@ -87,6 +87,7 @@ class ZombieProfile:
     specials: Tuple[Tuple[str, float, int], ...] = ()     # (special id, weight, first day)
     phases: Tuple[Phase, ...] = ()
     names: Dict[str, str] = field(default_factory=dict)   # special id -> display name
+    lore: str = ""                    # what people believe is happening (shown in the opening briefing)
 
     def phase(self, day: int) -> Phase:
         current = Phase(1, "Outbreak")
@@ -110,6 +111,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         phases=(Phase(1, "The Fall", spawn=1.4, blurb="Streets are still full of the newly dead."),
                 Phase(3, "The Long Dead", blurb="The hordes thin out, the stragglers do not.")),
         names={"walker": "Shambler"},
+        lore="Nobody knows why. The dead simply got up, slowly, hungrily, and they do not stop. Whoever dies rises again, so every body matters. Only a destroyed brain ends one.",
     ),
     ZombieProfile(
         id="rot", name="Slow rot - the long apocalypse",
@@ -122,6 +124,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
                 Phase(4, "Rotting", hp=0.8, blurb="Flesh is giving way."),
                 Phase(8, "Husks", hp=0.6, speed=0.85, blurb="Barely holding together, but still coming.")),
         names={"walker": "Walker"},
+        lore="They walk, and they smell the living from far off. They rot as the weeks pass, but the weeks are long, and the living are the worse danger now: everyone left is hungry and armed.",
     ),
     ZombieProfile(
         id="rage", name="Rage - fast and furious",
@@ -134,6 +137,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
                 Phase(4, "Starvation", hp=0.7, speed=0.9, spawn=0.8, blurb="They are wasting away."),
                 Phase(8, "Burnout", hp=0.45, speed=0.7, spawn=0.4, blurb="Most of them have collapsed.")),
         names={"walker": "Infected"},
+        lore="It is not the dead. It is the living, infected, and mad with rage. They run, they scream, and within a minute of a bite you are one of them. The rumour is they will starve in a few weeks, if you can last.",
     ),
     ZombieProfile(
         id="spore", name="Spore bloom - the fungal plague",
@@ -144,6 +148,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         specials=(("clicker", 4, 1), ("bloater", 2, 2), ("crawler", 2, 1)),
         phases=(Phase(1, "Early bloom"), Phase(5, "Deep bloom", special=1.5, blurb="The fungus matures.")),
         names={"walker": "Runner", "crawler": "Stalker spawn"},
+        lore="A fungus has taken the dead. Where it grows in closed rooms the air itself is poison, and the blind ones hunt by sound. Filters matter. Silence matters more.",
     ),
     ZombieProfile(
         id="bio", name="Biohazard - the engineered plague",
@@ -156,6 +161,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
                 Phase(4, "Mutation", special=1.6, blurb="The strain is changing."),
                 Phase(8, "Cascade", special=2.4, hp=1.15, blurb="Everything is mutating.")),
         names={"walker": "Infected", "brute": "Tyrant spawn", "leaper": "Hunter"},
+        lore="It was made, not found. A weaponised pathogen escaped containment and it is still changing. The longer it spreads the worse the things it makes, and something has started to hunt survivors by name.",
     ),
     ZombieProfile(
         id="swarm", name="Swarm - the tide",
@@ -166,6 +172,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         specials=(("brute", 1, 4),),
         phases=(Phase(1, "The tide"),),
         names={"walker": "Swarmer"},
+        lore="They come in tides. Frail, fast, and endless, they climb fences and pile over doors. Alone, they are nothing; together, they are the end of cities. Go quiet or die.",
     ),
     ZombieProfile(
         id="night", name="Nightstalkers - the vampiric dead",
@@ -177,5 +184,6 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         specials=(("leaper", 3, 1), ("brute", 1, 4), ("screamer", 1, 2)),
         phases=(Phase(1, "Dusk of man"),),
         names={"walker": "Nightstalker", "brute": "Elder", "screamer": "Caller"},
+        lore="The sun keeps them down. Anything out in the light burns, so the world belongs to the living by day and to something clever and hungry after dark. Be inside, with the door shut, before dusk.",
     ),
 )}

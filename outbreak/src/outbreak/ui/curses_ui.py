@@ -37,6 +37,7 @@ THROW       t (pick an item, then a spot)     AMPUTATE   x  (only right after a 
 INTERACT    e (crates, bench, people, beds)   PICK UP   g
 INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m
 SNEAK       s   RUN   R   LIGHT   L   SMEAR WITH GORE   v
+BRIEFING    B   (re-read the story so far)
 SAVE & QUIT Q            HELP  ?
 
 Noise draws the dead. Guns are loud; sneaking and blades are quiet.
@@ -192,6 +193,14 @@ class UI:
     def message(self, text: str) -> None:
         self.text_screen("", text)
 
+    def briefing(self) -> None:
+        """The story pages: the scene you started in, the world, and what you must do."""
+        pages = getattr(self.g, "intro_pages", None) or []
+        for i, (title, text) in enumerate(pages):
+            footer = f"{i + 1}/{len(pages)}   any key: continue   Esc: skip"
+            if self.text_screen(title, text, footer) == ESC:
+                return
+
     # ------------------------------------------------------------ main loop
     def run(self) -> None:
         g = self.g
@@ -254,6 +263,8 @@ class UI:
             g.smear()
         elif key == ord("?"):
             self.text_screen("Help", HELP)
+        elif key == ord("B"):
+            self.briefing()
         elif key == ord("Q"):
             self.quit = True
 
@@ -269,6 +280,9 @@ class UI:
 
     def npc_screen(self, npc: Human) -> None:
         g = self.g
+        if npc.role in ("scout", "soldier"):
+            self.message(services.talk_patrol(g, npc))
+            return
         reason = services.refuses(g)
         if reason:
             self.message(f"{npc.name}: {reason}")

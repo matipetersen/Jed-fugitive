@@ -124,5 +124,29 @@ def sleep(game, max_turns: int = 80) -> int:
     return min(max_turns, game.clock.until_hour(6.0))
 
 
+PATROL_LINES = {
+    "scout": ("\"Keep to the roads and off the high ground. They see you up there.\"",
+              "\"We bring the stragglers in when we can. Not every day we can.\"",
+              "\"Camps to the east are not friendly. Do not go knocking.\""),
+    "soldier": ("\"Move along, civilian. This sector is not clear.\"",
+                "\"We hold the roads. Beyond that you are on your own.\"",
+                "\"Noise draws them. Noise draws the other kind too.\""),
+}
+
+
+def talk_patrol(game, npc: Human) -> str:
+    """A passing patrol: wary, but willing to share one tip with someone who still looks human."""
+    if game.player.humanity < 20:
+        return f"The {npc.name.lower()} looks at what you have become, and does not lower their weapon."
+    if not npc.talked:
+        npc.talked = True
+        game.rep[npc.faction] = game.rep.get(npc.faction, 0) + 2
+        if game.reveal_random_lead():
+            return f"The {npc.name.lower()} lowers their weapon and tells you where they have seen something worth finding."
+        return f"The {npc.name.lower()} has no news, but nods and wishes you luck."
+    lines = PATROL_LINES.get(npc.role, PATROL_LINES["scout"])
+    return lines[(npc.uid + game.clock.turn // 60) % len(lines)]
+
+
 def npc_title(npc: Human) -> str:
-    return {"trader": "Trader", "healer": "Healer", "scholar": "Archivist"}.get(npc.role, "Survivor")
+    return {"trader": "Trader", "healer": "Healer", "scholar": "Archivist"}.get(npc.role, npc.name)

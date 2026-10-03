@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from outbreak.content.eras import ERAS, EraPack
+from outbreak.content.openings import OPENINGS, OpeningDef, get_opening
 from outbreak.content.perks import BRANCHES, ORIGINS, PERKS, OriginDef, PerkDef
 from outbreak.content.recipes import RECIPES, Recipe
 from outbreak.content.scenarios import SCENARIOS, ScenarioDef
@@ -32,7 +33,7 @@ def get_origin(origin_id: str) -> OriginDef:
 
 
 __all__ = [
-    "ERAS", "PRESETS", "SCENARIOS", "ORIGINS", "PERKS", "BRANCHES", "SPECIALS", "RECIPES",
+    "OPENINGS", "OpeningDef", "get_opening", "ERAS", "PRESETS", "SCENARIOS", "ORIGINS", "PERKS", "BRANCHES", "SPECIALS", "RECIPES",
     "EraPack", "ZombieProfile", "ScenarioDef", "OriginDef", "PerkDef", "Recipe",
     "get_era", "get_preset", "get_scenario", "get_origin",
 ]

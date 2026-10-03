@@ -15,6 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--zombies", choices=sorted(content.PRESETS), help="what kind of dead")
     p.add_argument("--scenario", choices=sorted(content.SCENARIOS), help="your objective")
     p.add_argument("--origin", choices=sorted(content.ORIGINS), help="who you are")
+    p.add_argument("--opening", choices=["random"] + sorted(content.OPENINGS), help="how the story starts")
     p.add_argument("--difficulty", choices=sorted(DIFFICULTIES))
     p.add_argument("--seed", type=int, help="world seed (same seed, same world)")
     p.add_argument("--needs", action="store_true", help="enable hunger")
@@ -36,12 +37,14 @@ def describe_options() -> str:
     lines += [f"  {s.id:<11} {s.name}" for s in content.SCENARIOS.values()]
     lines += ["", "ORIGINS (--origin)"]
     lines += [f"  {o.id:<8} {o.blurb}" for o in content.ORIGINS.values()]
+    lines += ["", "OPENINGS (--opening)"]
+    lines += [f"  {o.id:<8} {o.name}: {o.perk}" for o in content.OPENINGS.values()]
     return "\n".join(lines)
 
 
 def config_from_args(args) -> GameConfig:
     cfg = GameConfig()
-    for field in ("era", "zombies", "scenario", "origin", "difficulty", "seed"):
+    for field in ("era", "zombies", "scenario", "origin", "opening", "difficulty", "seed"):
         value = getattr(args, field)
         if value is not None:
             setattr(cfg, field, value)

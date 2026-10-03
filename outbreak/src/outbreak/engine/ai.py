@@ -14,6 +14,9 @@ from outbreak.engine.pathing import descend, greedy_step
 from outbreak.util import DIRS8, cheb, dist
 
 ACTIVE_RADIUS = 45
+FOE_SIGHT = 5                 # how far a zombie notices a living person that is not the player
+HUMAN_SIGHT = 8
+FIGHTERS = ("raider", "scout", "soldier")
 FIELD_RADIUS = 28
 NO_ENTRY = (T.PORTAL, T.STAIRS_UP, T.STAIRS_DOWN)
 DOOR_HP = 8
@@ -62,16 +65,17 @@ def speed_now(game, z: Zombie) -> float:
 # ------------------------------------------------------------------ main loop
 def run(game) -> None:
     level, p = game.level, game.player
+    humans = [a for a in level.actors if isinstance(a, Human) and a.hp > 0 and a.role in FIGHTERS]
     for a in list(level.actors):
         if a.hp <= 0 or level.occ.get(a.pos) is not a or cheb(a.pos, p.pos) > ACTIVE_RADIUS:
             continue
         if isinstance(a, Zombie):
-            _zombie(game, a)
+            _zombie(game, a, humans)
         elif isinstance(a, Human):
-            _human(game, a)
+            _human(game, a, humans)
 
 
-def _zombie(game, z: Zombie) -> None:
+def _zombie(game, z: Zombie, humans) -> None:
     prof, level = game.profile, game.level
     if z.cooldown > 0:
         z.cooldown -= 1
@@ -85,14 +89,41 @@ def _zombie(game, z: Zombie) -> None:
     while z.energy >= 1.0 and steps < 3 and z.hp > 0 and level.occ.get(z.pos) is z:
         z.energy -= 1.0
         steps += 1
-        _zombie_step(game, z)
+        _zombie_step(game, z, humans)
 
 
-def _zombie_step(game, z: Zombie) -> None:
+def nearest_foe(game, a, foes, limit: float):
+    """The closest living foe of ``a`` within ``limit`` that it can see, or None."""
+    level, best, best_d = game.level, None, limit + 1
+    for f in foes:
+        if f is a or f.hp <= 0:
+            continue
+        d = cheb(a.pos, f.pos)
+        if d < best_d and has_los(level, a.pos, f.pos):
+            best, best_d = f, d
+    return best
+
+
+def _zombie_fight(game, z: Zombie, foe: Human) -> None:
+    z.state, z.target, z.stimulus_turn = "hunt", foe.pos, game.clock.turn
+    if cheb(z.pos, foe.pos) == 1:
+        combat.attack_actor(game, z, foe)
+        return
+    nxt = greedy_step(game.level, z.pos, foe.pos, game.rng, can_pass=lambda n: _passable(game, z, n))
+    if nxt is not None:
+        _move_or_bash(game, z, nxt)
+
+
+def _zombie_step(game, z: Zombie, humans=()) -> None:
     p, prof = game.player, game.profile
     turn = game.clock.turn
     d = cheb(z.pos, p.pos)
     seen = sees_player(game, z)
+    if humans and z.state != "dormant":
+        foe = nearest_foe(game, z, humans, FOE_SIGHT)
+        if foe is not None and (not seen or cheb(z.pos, foe.pos) < d):
+            _zombie_fight(game, z, foe)
+            return
     if z.state == "dormant":
         if seen and d <= max(2.0, sight_range(game, z) * 0.5):
             z.state = "hunt"
@@ -222,18 +253,33 @@ def _wander(game, z: Zombie) -> None:
 
 
 # ------------------------------------------------------------------ humans
-def _human(game, h: Human) -> None:
-    if not h.hostile:
-        return
+def _foes_of(h: Human, game, humans):
+    """Everything this human will shoot at that is not the player: the dead, and the other side."""
+    out = list(z for z in game.level.actors if isinstance(z, Zombie) and z.hp > 0)
+    mine = h.faction == "raiders"
+    out += [o for o in humans if o is not h and (o.faction == "raiders") != mine]
+    return out
+
+
+def _human(game, h: Human, humans) -> None:
+    if h.role not in FIGHTERS:
+        return                                                    # shopkeepers and healers keep out of it
     p, level = game.player, game.level
     d = cheb(h.pos, p.pos)
-    seen = d <= 11 and has_los(level, h.pos, p.pos)
+    seen = h.hostile and d <= 11 and has_los(level, h.pos, p.pos)
+    foe = nearest_foe(game, h, _foes_of(h, game, humans), HUMAN_SIGHT if h.reach > 1 else FOE_SIGHT)
+    if foe is not None and not (seen and d < cheb(h.pos, foe.pos)):
+        _human_fight(game, h, foe)
+        return
     if seen:
         h.state, h.target = "hunt", p.pos
-    if h.state != "hunt":
+    if h.state == "patrol":
+        _patrol_step(game, h)
+        return
+    if h.state != "hunt" or not h.hostile:
         return
     if h.hp < h.max_hp * 0.3 and seen:
-        _flee(game, h)
+        _flee(game, h, p.pos)
         return
     if h.reach > 1 and seen and 2 <= d <= h.reach:
         combat.human_attack(game, h)
@@ -245,19 +291,60 @@ def _human(game, h: Human) -> None:
     nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
     if nxt is None:
         nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+    _human_move(game, h, nxt)
+
+
+def _human_move(game, h: Human, nxt) -> bool:
+    level = game.level
     if nxt and nxt not in level.occ and level.tile(*nxt) not in NO_ENTRY:
         if level.tile(*nxt) == T.DOOR:
             level.set_tile(nxt[0], nxt[1], T.DOOR_OPEN)
         else:
             level.move_actor(h, *nxt)
+        return True
+    return False
 
 
-def _flee(game, h: Human) -> None:
-    p, level = game.player, game.level
-    best, best_d = None, cheb(h.pos, p.pos)
+def _human_fight(game, h: Human, foe) -> None:
+    level = game.level
+    d = cheb(h.pos, foe.pos)
+    if h.hp < h.max_hp * 0.3 and isinstance(foe, Zombie) and d <= 2:
+        _flee(game, h, foe.pos)
+        return
+    ranged = h.reach > 1
+    if ranged and 2 <= d <= h.reach:
+        combat.attack_actor(game, h, foe, ranged=True)
+    elif d == 1:
+        combat.attack_actor(game, h, foe)
+    else:                                                         # close the distance
+        nxt = greedy_step(level, h.pos, foe.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+        _human_move(game, h, nxt)
+
+
+def _patrol_step(game, h: Human) -> None:
+    """Walk to the group's current waypoint, every other tick; pick a new one on arrival."""
+    if game.clock.turn % 2:
+        return
+    goals = game.patrol_goals
+    goal = goals.get(h.group)
+    if goal is None or cheb(h.pos, goal) <= 2 or h.stuck > 8:
+        nodes = game.patrol_nodes
+        if not nodes:
+            return
+        goal = game.rng.choice(nodes)
+        goals[h.group] = goal
+        h.stuck = 0
+    nxt = greedy_step(game.level, h.pos, goal, game.rng, can_pass=lambda n: game.level.tile(*n) not in NO_ENTRY)
+    if nxt is None or not _human_move(game, h, nxt):
+        h.stuck += 1
+
+
+def _flee(game, h: Human, away_from) -> None:
+    level = game.level
+    best, best_d = None, cheb(h.pos, away_from)
     for dx, dy in DIRS8:
         n = (h.x + dx, h.y + dy)
-        if level.free(*n) and level.tile(*n) not in NO_ENTRY and cheb(n, p.pos) > best_d:
-            best, best_d = n, cheb(n, p.pos)
+        if level.free(*n) and level.tile(*n) not in NO_ENTRY and cheb(n, away_from) > best_d:
+            best, best_d = n, cheb(n, away_from)
     if best:
         level.move_actor(h, *best)

@@ -57,3 +57,19 @@ def make_raider(game, x: int, y: int) -> Human:
         from outbreak.engine import loot
         h.loot = loot.roll_items(game.rng, era, "camp", 1.6, game.diff.loot)
     return h
+
+
+PATROL_NAMES = {
+    "scout": {"medieval": "Abbey scout", "eighties": "Fort scout", "modern": "Survivor scout", "scifi": "Dome scout"},
+    "soldier": {"medieval": "Man-at-arms", "eighties": "Soldier", "modern": "Soldier", "scifi": "Marine"},
+}
+
+
+def make_patrol(game, role: str, x: int, y: int, group: int) -> Human:
+    """A friendly-ish armed walker: an enclave scout or a military soldier."""
+    era = game.era
+    reach = 6 if (era.firearms or era.tech == 0) else 1
+    hp, dmg, acc, faction = (24, (3, 6), 52, "enclave") if role == "scout" else (32, (4, 8), 60, "military")
+    return Human(uid=game.next_uid(), name=PATROL_NAMES[role][era.id], glyph="f", x=x, y=y, hp=hp, max_hp=hp,
+                 role=role, faction=faction, hostile=False, dmg=dmg, acc=acc, reach=reach, state="patrol",
+                 group=group)

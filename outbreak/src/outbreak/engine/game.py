@@ -48,6 +48,8 @@ class Game:
         self.stalker: Optional[Zombie] = None
         self.stalker_ready = 0
         self.last_moan = -999
+        self.patrol_goals: Dict[int, Pos] = {}
+        self.patrol_nodes: List[Pos] = []
         self.followers: List[Tuple[int, str, Zombie]] = []
         self.final: Optional[FinalStand] = None
         self.formula_found = False
@@ -392,7 +394,7 @@ class Game:
         for pos, (died, human) in list(lv.corpses.items()):
             if t - died > 800:
                 del lv.corpses[pos]
-            elif human and self.profile.turn_on_death and t - died > 55 and lv.free(*pos) \
+            elif human and (human == 2 or self.profile.turn_on_death) and t - died > 55 and lv.free(*pos) \
                     and cheb(pos, self.player.pos) > 1 and not lv.safe:
                 del lv.corpses[pos]
                 z = spawn_zombie(self, lv, pos, "walker", dormant=False, fresh=True)

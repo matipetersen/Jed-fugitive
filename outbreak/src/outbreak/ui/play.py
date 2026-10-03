@@ -14,10 +14,12 @@ def play(cfg: GameConfig, args) -> int:
     def main(stdscr) -> None:
         ui = UI(stdscr, None)
         game = None
+        fresh = False
         if args.resume:
             game = _try_load(ui)
         elif args.new:
             game = Game(cfg)
+            fresh = True
         while game is None:
             choice = title_screen(ui)
             if choice == "quit":
@@ -28,7 +30,10 @@ def play(cfg: GameConfig, args) -> int:
                 chosen = new_game_menu(ui, cfg)
                 if chosen is not None:
                     game = Game(chosen)
+                    fresh = True
         ui.g = game
+        if fresh:
+            ui.briefing()
         game.autosave_path = savemod.default_path()
         ui.run()
 

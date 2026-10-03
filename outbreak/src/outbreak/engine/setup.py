@@ -11,10 +11,10 @@ from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
 from outbreak.engine.player import Player
-from outbreak.engine.spawn import make_raider, spawn_zombie
+from outbreak.engine.spawn import make_patrol, make_raider, spawn_zombie
 from outbreak.engine.worldgen import generate_overworld
 from outbreak.engine import loot
-from outbreak.util import cheb, compass
+from outbreak.util import cheb, compass, weighted_choice
 
 BASE_HP = 80
 SPECIAL_KINDS = ("breach", "refuge", "pad")
@@ -37,10 +37,15 @@ def initialize(game) -> None:
     game.levels = {"world": game.world.level}
     game.level = game.world.level
     game.pois = game.world.pois
-    start_hour = 6 if game.profile.sun_burn else 8       # sun-shy dead: a safe first day to loot
+    opening = _pick_opening(game)
+    game.opening_id = opening.id
+    start_hour = opening.hour
+    if game.profile.sun_burn:
+        start_hour = min(start_hour, 10)                  # sun-shy dead: keep a whole safe day to loot
     game.clock = Clock(start_hour * TURNS_PER_HOUR)
 
     _make_player(game)
+    _apply_opening(game, opening)
     _scenario(game)
     _documents(game)
     _populate(game)
@@ -81,6 +86,81 @@ def _make_player(game) -> None:
             setattr(p, slot, item)
         else:
             p.add_item(item, d.stackable)
+
+
+# ------------------------------------------------------------------ opening
+def _pick_opening(game):
+    cfg = game.cfg
+    if cfg.opening != "random":
+        return content.get_opening(cfg.opening)
+    # a separate stream, so choosing an opening never shifts the world's randomness
+    rng = random.Random(game.seed ^ 0x0BE17)
+    pairs = [(o, o.affinity.get(cfg.origin, content.openings.DEFAULT_AFFINITY)) for o in content.OPENINGS.values()]
+    return weighted_choice(rng, pairs)
+
+
+def _apply_opening(game, opening) -> None:
+    p = game.player
+    p.coins += opening.coins
+    p.panic = min(p.max_panic, p.panic + opening.panic)
+    p.humanity = min(100, p.humanity + opening.humanity)
+    if opening.words:
+        game.know.learn_random(game.rng, opening.words)
+    for token, qty in opening.items:
+        item_id = _resolve(game, token)
+        if not item_id:
+            continue
+        d = game.item_def(item_id)
+        owned = [p.weapon, p.armor] + p.inventory
+        if d.kind in ("weapon", "armor") and any(i is not None and i.id == item_id for i in owned):
+            continue                                         # the origin already carries one
+        item = Item(item_id, qty if d.stackable else 1, d.durability or None)
+        if d.kind == "armor" and p.armor is None:
+            p.armor = item
+        elif d.kind == "weapon" and not d.is_ranged and p.weapon is None:
+            p.weapon = item
+        else:
+            p.add_item(item, d.stackable)
+
+
+def _patrols(game) -> None:
+    """Enclave scouts and military soldiers walk the roads between buildings and the raider camps."""
+    lv, rng, start = game.world.level, game.rng, game.world.start
+    nodes = []
+    for poi in game.pois.values():
+        if poi.kind in SPECIAL_KINDS:
+            continue
+        spot = lv.free_spot_near(poi.x, poi.y + 2, 3)
+        if spot:
+            nodes.append(spot)
+    nodes += [c for c in (lv.free_spot_near(cx, cy, 3) for cx, cy in game.world.camps) if c]
+    game.patrol_nodes = nodes
+    roads = [(x, y) for y in range(2, lv.h - 2) for x in range(2, lv.w - 2)
+             if lv.tiles[y][x] == T.ROAD and cheb((x, y), start) >= 30]
+    if not roads or not nodes:
+        return
+    groups = 1 + (lv.w * lv.h) // 7000
+    group = 0
+    for role in ("scout", "soldier"):
+        for _ in range(groups):
+            group += 1
+            base = rng.choice(roads)
+            for _m in range(rng.randint(2, 3)):
+                spot = lv.free_spot_near(base[0], base[1], 3)
+                if spot:
+                    lv.add_actor(make_patrol(game, role, spot[0], spot[1], group))
+            game.patrol_goals[group] = rng.choice(nodes)
+
+
+def intro_pages(game) -> list:
+    """The briefing: the world, the scene you start in, and what you have to do."""
+    era, sc, prof = game.era, game.scenario, game.profile
+    opening = content.get_opening(game.opening_id)
+    world = f"{era.name} ({era.year}).\n\n{era.intro}\n\n{prof.lore}"
+    scene = opening.scenes[era.id] + "\n\n" + content.openings.CONSEQUENCE.format(
+        alarm=content.openings.ALARMS[era.id])
+    premise = sc.premise.format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=sc.deadline_days)
+    return [(opening.name, scene), ("The world", world), ("What you must do", premise)]
 
 
 # ------------------------------------------------------------------ scenario
@@ -171,6 +251,7 @@ def _populate(game) -> None:
         crate = (cx + 2, cy - 1)
         lv.containers[crate] = Container(loot=loot.roll_items(rng, game.era, "camp", 3.0, game.diff.loot),
                                          coins=rng.randint(2, 8))
+    _patrols(game)
     for _ in range(3 + (lv.w * lv.h) // 3500):
         for _try in range(30):
             pos = (rng.randint(4, lv.w - 5), rng.randint(4, lv.h - 5))
@@ -180,8 +261,8 @@ def _populate(game) -> None:
 
 
 def _intro(game) -> None:
+    game.intro_pages = intro_pages(game)
     era, sc, p = game.era, game.scenario, game.player
-    game.msg(era.intro, "lore")
     refuge = game.pois[game.refuge_id]
     if sc.final_site == "refuge":
         d = compass(refuge.x - p.x, refuge.y - p.y)

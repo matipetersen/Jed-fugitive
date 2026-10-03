@@ -19,8 +19,8 @@ TITLE = r"""
   \___/ \___/  |_| |____/|_| \_\_____/_/   \_\_|\_\
 """
 
-FIELDS = ("era", "zombies", "scenario", "origin", "difficulty", "needs", "permadeath", "seed", "start")
-LABELS = {"era": "Era", "zombies": "The dead", "scenario": "Objective", "origin": "Who you are",
+FIELDS = ("era", "zombies", "scenario", "origin", "opening", "difficulty", "needs", "permadeath", "seed", "start")
+LABELS = {"era": "Era", "zombies": "The dead", "scenario": "Objective", "origin": "Who you are", "opening": "How it starts",
           "difficulty": "Difficulty", "needs": "Hunger", "permadeath": "Permadeath", "seed": "Seed",
           "start": ">> BEGIN <<"}
 
@@ -34,6 +34,8 @@ def _options(cfg: GameConfig, field: str) -> List[str]:
         return list(content.SCENARIOS)
     if field == "origin":
         return list(content.ORIGINS)
+    if field == "opening":
+        return ["random"] + list(content.OPENINGS)
     if field == "difficulty":
         return list(DIFFICULTIES)
     return []
@@ -49,6 +51,8 @@ def _label(cfg: GameConfig, field: str) -> str:
         return content.get_scenario(cfg.scenario).name
     if field == "origin":
         return era.origin_names[cfg.origin]
+    if field == "opening":
+        return "Surprise me" if cfg.opening == "random" else content.get_opening(cfg.opening).name
     if field == "difficulty":
         return cfg.difficulty.title()
     if field == "needs":
@@ -71,6 +75,11 @@ def _blurb(cfg: GameConfig, field: str) -> str:
         return content.get_scenario(cfg.scenario).blurb
     if field == "origin":
         return content.get_origin(cfg.origin).blurb
+    if field == "opening":
+        if cfg.opening == "random":
+            return "The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds."
+        o = content.get_opening(cfg.opening)
+        return f"{o.scenes[cfg.era]}  [{o.perk}]"
     if field == "difficulty":
         d = DIRECTIONS[cfg.difficulty]
         return d

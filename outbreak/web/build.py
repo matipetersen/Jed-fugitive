@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Build web/dist/outbreak.html: one self-contained file (no network, no dependencies).
+
+Game content (eras, zombie presets, items, perks ...) is exported from the Python data packs so the
+browser game can never drift from the terminal game.  Run:  python3 web/build.py
+"""
+import dataclasses
+import json
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
+
+from outbreak import content  # noqa: E402
+from outbreak.engine import encounters, ending  # noqa: E402
+from outbreak.config import DIFFICULTIES  # noqa: E402
+from outbreak.engine.clock import START_HOUR, TURNS_PER_DAY, TURNS_PER_HOUR  # noqa: E402
+
+JS_ORDER = ["util", "model", "player", "worldgen", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai",
+            "hordes", "encounters", "services", "ending", "inventory_ops", "setup", "game", "save"]
+UI_ORDER = ["ui"]
+
+
+def plain(obj):
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: plain(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+    if isinstance(obj, dict):
+        return {k: plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [plain(v) for v in obj]
+    return obj
+
+
+def dump_content() -> str:
+    data = {
+        "eras": plain(content.ERAS),
+        "presets": plain(content.PRESETS),
+        "specials": plain(content.SPECIALS),
+        "scenarios": plain(content.SCENARIOS),
+        "origins": plain(content.ORIGINS),
+        "perks": plain(content.PERKS),
+        "branches": list(content.BRANCHES),
+        "branch_names": plain(content.perks.BRANCH_NAMES),
+        "recipes": plain(list(content.RECIPES)),
+        "difficulties": plain(DIFFICULTIES),
+        "events": plain(list(encounters.EVENTS)),
+        "win_endings": {f"{k[0]}|{k[1]}": list(v) for k, v in ending.WIN.items()},
+        "clock": {"turns_per_day": TURNS_PER_DAY, "turns_per_hour": TURNS_PER_HOUR, "start_hour": START_HOUR},
+    }
+    return "const CONTENT = " + json.dumps(data, separators=(",", ":"), ensure_ascii=False) + ";\n"
+
+
+def read(*parts):
+    with open(os.path.join(HERE, *parts), encoding="utf8") as fh:
+        return fh.read()
+
+
+def engine_js() -> str:
+    parts = [dump_content()]
+    for name in JS_ORDER:
+        path = os.path.join(HERE, "src", name + ".js")
+        if os.path.exists(path):
+            parts.append(f"// ===== {name}.js =====\n" + read("src", name + ".js"))
+    return "\n".join(parts)
+
+
+def main() -> None:
+    os.makedirs(os.path.join(HERE, "dist"), exist_ok=True)
+    engine = engine_js()
+    import re
+    names = sorted(set(re.findall(r"^(?:function|class|const|let)\s+([A-Za-z_$][\w$]*)", engine, re.M)))
+    export = ("\nif (typeof module !== 'undefined') { const __x = {}; for (const n of " + json.dumps(names) +
+              ") { try { __x[n] = eval(n); } catch (e) { /* not initialised */ } } module.exports = __x; }\n")
+    with open(os.path.join(HERE, "dist", "engine.js"), "w", encoding="utf8") as fh:
+        fh.write(engine + export)
+    ui = "\n".join(read("src", n + ".js") for n in UI_ORDER if os.path.exists(os.path.join(HERE, "src", n + ".js")))
+    html = read("src", "index.template.html")
+    html = html.replace("/*__CSS__*/", read("src", "style.css"))
+    html = html.replace("/*__ENGINE__*/", engine.replace("</script", "<\\/script"))
+    html = html.replace("/*__UI__*/", ui.replace("</script", "<\\/script"))
+    out = os.path.join(HERE, "dist", "outbreak.html")
+    with open(out, "w", encoding="utf8") as fh:
+        fh.write(html)
+    print(f"wrote {out} ({os.path.getsize(out) / 1024:.0f} KiB)")
+
+
+if __name__ == "__main__":
+    main()

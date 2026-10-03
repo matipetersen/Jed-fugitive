@@ -22,6 +22,7 @@ from outbreak.engine.spawn import make_raider, spawn_zombie
 from outbreak.engine.worldgen import UNSET
 from outbreak.util import DIRS8, Pos, cheb
 
+WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.4, 3.0, 20
 LOG_LIMIT = 600
 SCENT_KEEP = 60
 FORCE_TURNS = 6
@@ -72,6 +73,7 @@ class Game:
         self._field: Dict[Pos, int] = {}
         self._field_key = (-1, None)
         self._step_parity = 0
+        self._tired_parity = 0
         self._force_progress: Dict[Pos, int] = {}
         setup.initialize(self)
         if drawn:
@@ -658,6 +660,23 @@ class Game:
         self._spend(turns)
         return bool(turns)
 
+    def _tire(self, tile: int, sneaking: bool, sprinting: bool) -> None:
+        """Marching wears you down: a step costs stamina, more at a run and in water, little when creeping.  Resting and
+        standing still win it back faster than any of them spend it, so only a sustained march empties it."""
+        p = self.player
+        drain = SPRINT_DRAIN if sprinting else SNEAK_DRAIN if sneaking else WALK_DRAIN
+        if tile == T.SHALLOW:
+            drain *= 1.5
+        p.stamina = max(0.0, p.stamina - drain)
+        if p.stamina <= 0 and p.fatigue < 2:
+            p.fatigue = 2
+            self.msg("You are exhausted. You can barely put one foot in front of the other: rest.", "bad")
+        elif p.stamina < TIRED_BELOW and p.fatigue < 1:
+            p.fatigue = 1
+            self.msg("You are getting winded. Slow down, or find somewhere to rest.", "warn")
+        elif p.stamina > 40:
+            p.fatigue = 0
+
     def _after_step(self, tile: int) -> None:
         p, lv = self.player, self.level
         noise = {T.ROAD: 3, T.BRUSH: 3, T.SHALLOW: 5}.get(tile, 2)
@@ -675,11 +694,16 @@ class Game:
         if p.sneaking:
             cost = 2
         elif p.sprinting and p.stamina > 5:
-            p.stamina -= 3
             self._step_parity ^= 1
             cost = self._step_parity               # a free step every other move
         else:
             p.sprinting = False
+        self._tire(tile, p.sneaking, p.sprinting)
+        if p.stamina <= 0:
+            cost += 1                              # exhausted: you stagger at half speed
+        elif p.stamina < TIRED_BELOW:
+            self._tired_parity ^= 1
+            cost += self._tired_parity             # winded: every other step is a slog
         if p.fracture:
             self._step_parity ^= 1
             cost += self._step_parity

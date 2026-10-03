@@ -20,6 +20,7 @@ def xp_for(level: int) -> int:
 class Player(Actor):
     is_player = True
     stamina: float = 100.0
+    fatigue: int = 0                 # 0 fresh, 1 winded, 2 exhausted (only for the warnings)
     max_stamina: float = 100.0
     panic: float = 0.0
     max_panic: float = 100.0

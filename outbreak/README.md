@@ -89,6 +89,10 @@ the game starts, reproducibly if you also give a seed, and the log says what cam
   has noticed you or get hit. Fighting is never quiet: a blow carries 1.5x the weapon's noise (1.3x more for blunt
   weapons: a mace is heard from about 12 tiles), halved for a stealth strike. Everything within earshot goes to look
   (more rattled the closer it is, never past "about to notice you" without seeing you). The web build has a SNEAK button and a "Strike" action for this.
+* **Stamina and the march.** Every step costs stamina (1.5 walking, 3 running, 0.4 creeping, half as much again in shallow
+  water); standing still, resting and creeping win it back faster than they spend it. Marching nonstop empties the tank in about
+  130 steps: below 20 you are winded (every other step takes two ticks), at zero you are exhausted (every step takes two) and
+  cannot run. Running burns out in about 30 steps. Fast dead will catch a tired walker; stop, creep or rest to recover.
 * **Noise is the game.** Every action makes noise; loud ones raise a *noise meter*. Fill it and a Stalker
   comes for you. Blades and bows are quiet; guns draw hordes. Sneak (`s`) halves what they notice.
 * **Hordes are real.** Crowds roam the map, are drawn to noise, and become individual zombies when close.

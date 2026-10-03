@@ -26,6 +26,7 @@ class Clock {
 }
 
 const LIVE_MAX_CATCHUP = 80;
+const WALK_DRAIN = 1.5, SNEAK_DRAIN = 0.4, SPRINT_DRAIN = 3.0, TIRED_BELOW = 20;
 const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
 function default_config() {
@@ -77,7 +78,7 @@ class Game {
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
-    this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0;
+    this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0; this._tired_parity = 0;
     this._force_progress = {};
   }
 
@@ -631,6 +632,18 @@ class Game {
     return turns > 0;
   }
 
+  // Marching wears you down: a step costs stamina, more at a run and in water, little when creeping. Resting and standing
+  // still win it back faster than any of them spend it, so only a sustained march empties it.
+  _tire(tile, sneaking, sprinting) {
+    const p = this.player;
+    let drain = sprinting ? SPRINT_DRAIN : sneaking ? SNEAK_DRAIN : WALK_DRAIN;
+    if (tile === T.SHALLOW) drain *= 1.5;
+    p.stamina = Math.max(0, p.stamina - drain);
+    if (p.stamina <= 0 && (p.fatigue || 0) < 2) { p.fatigue = 2; this.msg('You are exhausted. You can barely put one foot in front of the other: rest.', 'bad'); }
+    else if (p.stamina < TIRED_BELOW && (p.fatigue || 0) < 1) { p.fatigue = 1; this.msg('You are getting winded. Slow down, or find somewhere to rest.', 'warn'); }
+    else if (p.stamina > 40) p.fatigue = 0;
+  }
+
   _after_step(tile) {
     const p = this.player, lv = this.level, k = lv.idx(p.x, p.y);
     let noise = { [T.ROAD]: 3, [T.BRUSH]: 3, [T.SHALLOW]: 5 }[tile] || 2;
@@ -642,8 +655,11 @@ class Game {
     if (!TILES[tile].masks_scent) this.scent[k] = this.clock.turn;
     let cost = 1;
     if (p.sneaking) cost = 2;
-    else if (p.sprinting && p.stamina > 5) { p.stamina -= 3; this._step_parity ^= 1; cost = this._step_parity; }
+    else if (p.sprinting && p.stamina > 5) { this._step_parity ^= 1; cost = this._step_parity; }
     else p.sprinting = false;
+    this._tire(tile, p.sneaking, p.sprinting);
+    if (p.stamina <= 0) cost += 1;                                          // exhausted: you stagger at half speed
+    else if (p.stamina < TIRED_BELOW) { this._tired_parity ^= 1; cost += this._tired_parity; }     // winded: every other step is a slog
     if (p.fracture) { this._step_parity ^= 1; cost += this._step_parity; }
     if (p.lost.includes('leg')) cost += p.lost.length >= 2 ? 2 : 1;        // one leg: half speed; no limbs to spare: a crawl
     const stack = lv.items[k];

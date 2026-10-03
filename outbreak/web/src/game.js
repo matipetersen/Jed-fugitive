@@ -33,10 +33,22 @@ function default_config() {
            needs: false, permadeath: true, map_w: 360, map_h: 240, opening: 'random' };
 }
 
+// Any of era, zombies, scenario, origin and mode may be 'random': drawn when the game starts (reproducibly if there is a seed).
+const RANDOMIZABLE = ['era', 'zombies', 'scenario', 'origin', 'mode'];
+function resolve_config(cfg) {
+  const c = Object.assign({}, cfg), drawn = [];
+  const rng = new RNG(c.seed !== null && c.seed !== undefined ? ((c.seed ^ 0xC0FFEE) >>> 0) : Math.floor(Math.random() * 4294967296));
+  const choices = { era: Object.keys(CONTENT.eras), zombies: Object.keys(CONTENT.presets), scenario: Object.keys(CONTENT.scenarios),
+                    origin: Object.keys(CONTENT.origins), mode: ['normal', 'living'] };
+  for (const f of RANDOMIZABLE) if (c[f] === 'random') { c[f] = rng.choice(choices[f]); drawn.push(f); }
+  return [c, drawn];
+}
+
 class Game {
   constructor(cfg, _blank = false) {
     if (_blank) return;                                   // used by deserialize_game
-    this.cfg = Object.assign(default_config(), cfg);
+    const [resolved, drawn] = resolve_config(Object.assign(default_config(), cfg));
+    this.cfg = resolved;
     const c = this.cfg;
     if (!CONTENT.eras[c.era]) throw new Error('unknown era ' + c.era);
     if (!CONTENT.presets[c.zombies]) throw new Error('unknown zombie preset ' + c.zombies);
@@ -48,6 +60,11 @@ class Game {
     if (c.map_w < 100 || c.map_h < 64) throw new Error('map too small (minimum 100x64)');
     this._init_state();
     setup_game(this);
+    if (drawn.length) {
+      const names = { era: this.era.name.split(' - ')[0], zombies: this.profile.name.split(' - ')[0], scenario: this.scenario.name.split(' - ')[0],
+                      origin: this.era.origin_names[c.origin], mode: c.mode === 'living' ? 'hardcore' : 'normal' };
+      this.msg('Random draw: ' + RANDOMIZABLE.filter((f) => drawn.includes(f)).map((f) => names[f]).join(', ') + '.', 'lore');
+    }
     this.update_fov();
   }
 

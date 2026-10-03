@@ -72,6 +72,10 @@ The web build also has a much larger map (360x240) planned whole and painted by 
 `web/README.md`); the terminal game keeps its fixed 120x76 map. In the web build the hardcore modes run in **real time** (no turns), and there is a third mode, a **shared world** with seasons
 that the keeper resets; see `web/README.md`. Those are web only (real time and the artifact database).
 
+**Random**: era, the dead, objective, who you are and mode can each be set to `random` (the new-game screen has a Random
+option on each choice and a "random everything" entry; `--era random` ... or `--random` on the command line). It is drawn when
+the game starts, reproducibly if you also give a seed, and the log says what came up. The shared world is never drawn.
+
 ## How it plays
 
 * **Sneaking up on them.** A zombie that has not noticed you has an awareness meter and a facing (the pale wedge on

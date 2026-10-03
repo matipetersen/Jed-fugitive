@@ -36,7 +36,8 @@ class FinalStand:
 
 class Game:
     def __init__(self, cfg: GameConfig):
-        self.cfg = cfg.validate()
+        drawn = cfg.random_fields()
+        self.cfg = cfg.resolve().validate()
         self._uid = 0
         self.log: List[Tuple[int, str, str]] = []
         self.over: Optional[ending.Ending] = None
@@ -73,7 +74,16 @@ class Game:
         self._step_parity = 0
         self._force_progress: Dict[Pos, int] = {}
         setup.initialize(self)
+        if drawn:
+            self.msg(self._draw_text(drawn), "lore")
         self.update_fov()
+
+    def _draw_text(self, drawn) -> str:
+        c = self.cfg
+        names = {"era": self.era.name.split(" - ")[0], "zombies": self.profile.name.split(" - ")[0],
+                 "scenario": self.scenario.name.split(" - ")[0], "origin": self.era.origin_names[c.origin],
+                 "mode": "hardcore" if c.mode == "living" else "normal"}
+        return "Random draw: " + ", ".join(names[f] for f in ("era", "zombies", "scenario", "origin", "mode") if f in drawn) + "."
 
     # ================================================================= basics
     def next_uid(self) -> int:

@@ -6,18 +6,19 @@ import sys
 from typing import List, Optional
 
 from outbreak import content
-from outbreak.config import DIFFICULTIES, MODES, GameConfig
+from outbreak.config import DIFFICULTIES, MODES, RANDOMIZABLE, GameConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="outbreak", description="OUTBREAK - a zombie survival roguelike.")
-    p.add_argument("--era", choices=sorted(content.ERAS), help="technology level / when the collapse happens")
-    p.add_argument("--zombies", choices=sorted(content.PRESETS), help="what kind of dead")
-    p.add_argument("--scenario", choices=sorted(content.SCENARIOS), help="your objective")
-    p.add_argument("--origin", choices=sorted(content.ORIGINS), help="who you are")
+    p.add_argument("--era", choices=["random"] + sorted(content.ERAS), help="technology level / when the collapse happens")
+    p.add_argument("--zombies", choices=["random"] + sorted(content.PRESETS), help="what kind of dead")
+    p.add_argument("--scenario", choices=["random"] + sorted(content.SCENARIOS), help="your objective")
+    p.add_argument("--origin", choices=["random"] + sorted(content.ORIGINS), help="who you are")
     p.add_argument("--opening", choices=["random"] + sorted(content.OPENINGS), help="how the story starts")
-    p.add_argument("--mode", choices=list(MODES), help="normal: one life; living: the world goes on after you")
+    p.add_argument("--mode", choices=["random"] + list(MODES), help="normal: one life; living: the world goes on after you")
     p.add_argument("--difficulty", choices=sorted(DIFFICULTIES))
+    p.add_argument("--random", action="store_true", help="draw era, zombies, scenario, origin and mode at random")
     p.add_argument("--seed", type=int, help="world seed (same seed, same world)")
     p.add_argument("--needs", action="store_true", help="enable hunger")
     p.add_argument("--no-permadeath", action="store_true", help="keep the save after dying")
@@ -49,6 +50,9 @@ def config_from_args(args) -> GameConfig:
         value = getattr(args, field)
         if value is not None:
             setattr(cfg, field, value)
+    if args.random:
+        for f in RANDOMIZABLE:
+            setattr(cfg, f, "random")
     cfg.needs = bool(args.needs)
     cfg.permadeath = not args.no_permadeath
     return cfg
@@ -60,7 +64,7 @@ def run_bot(cfg: GameConfig, turns: int) -> int:
     game = play(Game(cfg), turns)
     p = game.player
     status = game.over.title if game.over else "still alive"
-    print(f"{cfg.era}/{cfg.zombies}/{cfg.scenario} seed={game.seed}: {status} at {game.clock.stamp()} "
+    print(f"{game.cfg.era}/{game.cfg.zombies}/{game.cfg.scenario} seed={game.seed}: {status} at {game.clock.stamp()} "
           f"(level {p.level}, {p.kills} kills, humanity {p.humanity})")
     return 0
 
@@ -72,7 +76,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     cfg = config_from_args(args)
     try:
-        cfg.validate()
+        cfg.resolve().validate()
     except (KeyError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

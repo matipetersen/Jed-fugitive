@@ -1,7 +1,8 @@
 """Game configuration chosen on the new-game screen (or the command line)."""
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+import random
+from dataclasses import asdict, dataclass, replace
 from typing import Optional
 
 from outbreak import content
@@ -25,6 +26,7 @@ DIFFICULTIES = {
 
 
 MODES = ("normal", "living")
+RANDOMIZABLE = ("era", "zombies", "scenario", "origin", "mode")      # any of these may be "random": drawn when the game starts
 
 
 @dataclass
@@ -41,6 +43,19 @@ class GameConfig:
     permadeath: bool = True      # delete the save when you die
     map_w: int = 120
     map_h: int = 76
+
+    def random_fields(self) -> list:
+        return [f for f in RANDOMIZABLE if getattr(self, f) == "random"]
+
+    def resolve(self) -> "GameConfig":
+        """A copy with every \"random\" replaced by a concrete choice.  With a seed the draw is reproducible."""
+        fields = self.random_fields()
+        if not fields:
+            return self
+        rng = random.Random(self.seed ^ 0xC0FFEE) if self.seed is not None else random.SystemRandom()
+        choices = {"era": list(content.ERAS), "zombies": list(content.PRESETS), "scenario": list(content.SCENARIOS),
+                   "origin": list(content.ORIGINS), "mode": ["normal", "living"]}
+        return replace(self, **{f: rng.choice(choices[f]) for f in fields})
 
     def validate(self) -> "GameConfig":
         content.get_era(self.era)

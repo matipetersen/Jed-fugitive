@@ -7,7 +7,7 @@ import textwrap
 from typing import List, Optional
 
 from outbreak import content
-from outbreak.config import DIFFICULTIES, MODES, GameConfig
+from outbreak.config import DIFFICULTIES, MODES, RANDOMIZABLE, GameConfig
 from outbreak.engine import save as savemod
 from outbreak.ui.curses_ui import ENTER, ESC, HELP, UI
 
@@ -19,23 +19,23 @@ TITLE = r"""
   \___/ \___/  |_| |____/|_| \_\_____/_/   \_\_|\_\
 """
 
-FIELDS = ("era", "zombies", "scenario", "mode", "origin", "opening", "difficulty", "needs", "permadeath", "seed", "start")
+FIELDS = ("era", "zombies", "scenario", "mode", "origin", "opening", "difficulty", "needs", "permadeath", "seed", "randomize", "start")
 LABELS = {"era": "Era", "zombies": "The dead", "scenario": "Objective", "origin": "Who you are", "opening": "How it starts", "mode": "Mode",
           "difficulty": "Difficulty", "needs": "Hunger", "permadeath": "Permadeath", "seed": "Seed",
-          "start": ">> BEGIN <<"}
+          "randomize": ">> RANDOM <<", "start": ">> BEGIN <<"}
 
 
 def _options(cfg: GameConfig, field: str) -> List[str]:
     if field == "era":
-        return list(content.ERAS)
+        return ["random"] + list(content.ERAS)
     if field == "zombies":
-        return list(content.PRESETS)
+        return ["random"] + list(content.PRESETS)
     if field == "scenario":
-        return list(content.SCENARIOS)
+        return ["random"] + list(content.SCENARIOS)
     if field == "origin":
-        return list(content.ORIGINS)
+        return ["random"] + list(content.ORIGINS)
     if field == "mode":
-        return list(MODES)
+        return ["random"] + list(MODES)
     if field == "opening":
         return ["random"] + list(content.OPENINGS)
     if field == "difficulty":
@@ -44,7 +44,11 @@ def _options(cfg: GameConfig, field: str) -> List[str]:
 
 
 def _label(cfg: GameConfig, field: str) -> str:
-    era = content.get_era(cfg.era)
+    if field in RANDOMIZABLE and getattr(cfg, field) == "random":
+        return "Random"
+    if field == "randomize":
+        return "everything"
+    era = content.get_era(cfg.era) if cfg.era != "random" else None
     if field == "era":
         return era.name
     if field == "zombies":
@@ -52,7 +56,7 @@ def _label(cfg: GameConfig, field: str) -> str:
     if field == "scenario":
         return content.get_scenario(cfg.scenario).name
     if field == "origin":
-        return era.origin_names[cfg.origin]
+        return era.origin_names[cfg.origin] if era else cfg.origin.title()
     if field == "mode":
         return MODE_NAMES[cfg.mode]
     if field == "opening":
@@ -69,6 +73,10 @@ def _label(cfg: GameConfig, field: str) -> str:
 
 
 def _blurb(cfg: GameConfig, field: str) -> str:
+    if field in RANDOMIZABLE and getattr(cfg, field) == "random":
+        return "Drawn when the game starts: any of the choices, at random."
+    if field == "randomize":
+        return "Enter: set era, the dead, objective, who you are and mode to random. Then begin."
     if field == "era":
         e = content.get_era(cfg.era)
         return f"{e.year}. {e.blurb}"
@@ -82,7 +90,7 @@ def _blurb(cfg: GameConfig, field: str) -> str:
     if field == "mode":
         return MODE_BLURBS[cfg.mode]
     if field == "opening":
-        if cfg.opening == "random":
+        if cfg.opening == "random" or cfg.era == "random":
             return "The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds."
         o = content.get_opening(cfg.opening)
         return f"{o.scenes[cfg.era]}  [{o.perk}]"
@@ -144,7 +152,10 @@ def new_game_menu(ui: UI, cfg: Optional[GameConfig] = None) -> Optional[GameConf
         elif key in ENTER:
             if f == "start":
                 return cfg
-            if f == "seed":
+            if f == "randomize":
+                for rf in RANDOMIZABLE:
+                    setattr(cfg, rf, "random")
+            elif f == "seed":
                 cfg.seed = random.randrange(1 << 30) if cfg.seed is None else None
             else:
                 _change(cfg, f, 1)
@@ -155,7 +166,7 @@ def _change(cfg: GameConfig, field: str, step: int) -> None:
         setattr(cfg, field, not getattr(cfg, field))
     elif field == "seed":
         cfg.seed = (cfg.seed + step) if cfg.seed is not None else random.randrange(1 << 30)
-    elif field != "start":
+    elif field not in ("start", "randomize"):
         opts = _options(cfg, field)
         cur = getattr(cfg, field)
         setattr(cfg, field, opts[(opts.index(cur) + step) % len(opts)])

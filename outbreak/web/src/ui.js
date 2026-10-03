@@ -969,8 +969,10 @@ function showNewGame() {
     const w = el('div', 'wrap form');
     const head = el('h2', 'logo', 'Brief'); head.style.fontSize = '40px';
     w.append(el('div', 'fileno', 'New case file'), head);
-    const era = CONTENT.eras[newCfg.era];
+    const era = CONTENT.eras[newCfg.era] || CONTENT.eras.modern;
+    const RAND = 'Drawn when you begin: any of the choices, at random.';
     const group = (title, key, items, blurbOf, cols) => {
+      if (RANDOMIZABLE.includes(key)) items = [['random', 'Random', 'draw at the start']].concat(items);
       w.append(el('h3', null, title));
       const box = el('div', 'opts' + (cols ? ' cols' : ''));
       for (const [id, name, sub] of items) {
@@ -979,19 +981,20 @@ function showNewGame() {
         box.append(o);
       }
       w.append(box);
-      if (blurbOf) w.append(el('div', 'blurb', blurbOf()));
+      if (blurbOf) w.append(el('div', 'blurb', RANDOMIZABLE.includes(key) && newCfg[key] === 'random' ? RAND : blurbOf()));
     };
+    w.append(btn('btn', 'Surprise me: everything random', () => { for (const f of RANDOMIZABLE) newCfg[f] = 'random'; render(); }));
     group('When the collapse happens', 'era', Object.values(CONTENT.eras).map((e) => [e.id, `${e.year} · ${cap(e.name.split(' - ')[1] || e.name)}`, null]), () => era.blurb);
-    const pz = CONTENT.presets[newCfg.zombies];
+    const pz = CONTENT.presets[newCfg.zombies] || { blurb: '' };
     group('What the dead are', 'zombies', Object.values(CONTENT.presets).map((z) => [z.id, z.name.split(' - ')[0], z.inspired_by]), () => `${pz.blurb}`);
-    const sc = CONTENT.scenarios[newCfg.scenario];
+    const sc = CONTENT.scenarios[newCfg.scenario] || { blurb: '' };
     group('What you must do', 'scenario', Object.values(CONTENT.scenarios).map((c) => [c.id, c.name.split(' - ')[0], null]), () => sc.blurb);
-    group('Who you are', 'origin', Object.values(CONTENT.origins).map((o) => [o.id, era.origin_names[o.id], null]), () => CONTENT.origins[newCfg.origin].blurb, true);
+    group('Who you are', 'origin', Object.values(CONTENT.origins).map((o) => [o.id, (CONTENT.eras[newCfg.era] ? era.origin_names[o.id] : cap(o.id)), null]), () => (CONTENT.origins[newCfg.origin] || { blurb: '' }).blurb, true);
     group('Mode', 'mode', [['normal', 'Normal', 'one life'], ['living', 'Hardcore', 'the world goes on']],
       () => (newCfg.mode === 'living' ? 'You die, the world does not. A new survivor walks out of the refuge into the same world; what killed you levels up and keeps its name; your body rises. Infinite lives. The cure is for the world: nobody starts bitten.'
         : 'One survivor, one life. Permadeath deletes the save.'), true);
     group('How it starts', 'opening', [['random', 'Surprise me', null]].concat(Object.values(CONTENT.openings).map((o) => [o.id, o.name, null])),
-      () => (newCfg.opening === 'random' ? 'The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds.'
+      () => (newCfg.opening === 'random' || !CONTENT.eras[newCfg.era] ? 'The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds.'
         : `${CONTENT.openings[newCfg.opening].scenes[newCfg.era]} [${CONTENT.openings[newCfg.opening].perk}]`), true);
     group('Difficulty', 'difficulty', ['easy', 'normal', 'hard'].map((d) => [d, cap(d), null]), () => ({ easy: 'Fewer dead, more loot, gentler hits, longer fuse.', normal: 'The intended experience.', hard: 'More dead, scarce loot, brutal hits, a short fuse.' })[newCfg.difficulty], true);
     w.append(el('h3', null, 'Rules'));

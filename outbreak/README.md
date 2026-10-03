@@ -59,8 +59,8 @@ the first turn; `B` re-reads it.
   Enemies (zombies, raiders, patrols) gain levels by killing, capped by the calendar (level 3 on day 1, +1 per day,
   maximum 15). Big hordes keep every zombie instead of dropping the ones that do not fit on screen.
 
-The web build adds a third mode, a **shared world** with real-time seasons that the keeper resets; see `web/README.md`.
-It is web only (it needs the artifact database).
+In the web build the hardcore modes run in **real time** (no turns), and there is a third mode, a **shared world** with seasons
+that the keeper resets; see `web/README.md`. Those are web only (real time and the artifact database).
 
 ## How it plays
 

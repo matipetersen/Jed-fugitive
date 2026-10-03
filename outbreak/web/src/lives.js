@@ -71,6 +71,7 @@ function player_died(game, kind, cause) {
   np.level = Math.max(1, Math.floor(p.level / 2));
   np.perk_points = np.level - 1;
   np.max_hp += 3 * (np.level - 1); np.hp = np.max_hp;
+  if (game.live_started) game.invuln_until = game.clock.turn + 40;
   game.ring = null; game.final = null; game.pending_event = null; game.followers = [];
   game.heat = Math.min(game.heat, 30.0);
   for (const a of world.actors) if (a.kind === 'human' && a.state === 'follow') a.state = 'patrol';

@@ -227,6 +227,7 @@ function throw_item(game, item_id, pos) {
 
 function damage_player(game, amount, cause, by = null) {
   const p = game.player;
+  if (game.clock.turn < game.invuln_until) return;               // a new survivor gets a moment to look around
   game.killer = by;
   p.hp -= amount;
   game.add_panic(3 + amount * 0.4);
@@ -262,6 +263,7 @@ function infect(game, source = 'bite') {
 
 function zombie_attack(game, z) {
   const p = game.player, profile = game.profile;
+  if (game.clock.turn < game.invuln_until) return;
   if (game.rng.random() * 100 >= clamp(z.acc - p.evade, 15, 92)) { game.msg(`The ${z.name.toLowerCase()} lunges and misses.`, 'combat'); return; }
   const armor = p.armor ? game.item_def(p.armor.id) : null;
   const raw = game.rng.randint(z.dmg[0], z.dmg[1]) * game.diff.damage;
@@ -285,6 +287,7 @@ function zombie_attack(game, z) {
 
 function human_attack(game, h) {
   const p = game.player, d = cheb(apos(h), apos(p));
+  if (game.clock.turn < game.invuln_until) return;
   if (d > 1) game.emit_noise(apos(h), game.era.firearms ? 18 : 4, 'zombie');
   if (game.rng.random() * 100 >= clamp(h.acc - p.evade - (d - 1) * 2, 12, 90)) {
     game.msg(`The ${h.name.toLowerCase()} ${d > 1 ? 'shoots' : 'swings'} and misses.`, 'combat'); return;

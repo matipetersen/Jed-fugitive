@@ -18,18 +18,17 @@ function hash01(a, b) {
   h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
+// real time drives the clock: one tick every `tickMs`, the same instant for every player (so the sun is shared)
 const season_day = (season, now) => Math.max(1, Math.floor((now - season.startedAt) / season.dayMs) + 1);
 // the clock turn that matches the real time of day inside the current game day
-const season_turn = (season, now) => {
-  const e = Math.max(0, now - season.startedAt);
-  return Math.floor(e / season.dayMs) * 240 + Math.floor((e % season.dayMs) / season.dayMs * 240);
-};
+const season_turn = (season, now) => Math.floor(Math.max(0, now - season.startedAt) / (season.tickMs || 700));
 
 function new_season(prev, cfg, now, opts = {}) {
   const n = prev ? prev.n + 1 : 1;
   const dayMs = opts.dayMs || (prev && prev.dayMs) || SHARED_DEFAULTS.dayMs;
   const seasonMs = opts.seasonMs || (prev ? prev.endsAt - prev.startedAt : SHARED_DEFAULTS.seasonMs);
-  return { n, seed: opts.seed || Math.floor(Math.random() * 1073741824), startedAt: now, endsAt: now + seasonMs, dayMs, cfg };
+  const tickMs = opts.tickMs || (prev && prev.tickMs) || 700;
+  return { n, tickMs, seed: opts.seed || Math.floor(Math.random() * 1073741824), startedAt: now, endsAt: now + seasonMs, dayMs, cfg };
 }
 
 // ---- applying the world's shared facts to a running game (pure engine side, testable without a database)

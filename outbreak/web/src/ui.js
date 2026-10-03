@@ -217,6 +217,7 @@ function drawMarkers(fr) {
 }
 
 function frame() {
+  if (game && game.live) liveFrame();
   if (game) {
     const p = game.player;
     const k = 0.32;
@@ -228,6 +229,16 @@ function frame() {
   if (dirty) { dirty = false; draw(); }
   requestAnimationFrame(frame);
 }
+
+// ---------------------------------------------------------------- real time (hardcore worlds)
+let queued = null;
+function liveFrame() {
+  const g = game;
+  const n = g.live_update(Date.now());
+  if (queued && g.ready() && !modal && !g.over) { const fn = queued; queued = null; doAction(fn); }
+  else if (n) { dirty = true; afterAction(); }
+}
+function startLive() { if (game && game.cfg.mode !== 'normal') { game.start_live(Date.now()); queued = null; } }
 
 // ---------------------------------------------------------------- HUD, log, alerts
 // in the shared world the calendar day is real time; the hour is still your own clock
@@ -260,6 +271,9 @@ function updateHud() {
   if (p.sneaking) add('Sneaking', 'info');
   if (p.sprinting) add('Running', 'info');
   if (g.cfg.mode !== 'normal') add(`Survivor #${g.generation}`, 'info');
+  if (g.paused) add('PAUSED', 'warn');
+  if (g.live && g.rest_left > 0) add('Resting', 'info');
+  if (g.live && g.sleep_left > 0) add('Asleep', 'info');
   if (g.cfg.needs && p.hunger > 50) add('Hungry', p.hunger > 80 ? 'danger' : 'warn');
   if (g.final) add(`HOLD OUT ${g.final.turns_left}`, 'danger');
   if (g.ring && g.ring.active) add('Tide closing', 'warn');
@@ -312,6 +326,8 @@ function afterAction() {
 }
 function doAction(fn) {
   if (!game || game.over || modal) return;
+  if (game.live && !game.ready()) { queued = fn; return; }        // the world does not wait: the latest input runs when you are free
+  queued = null;
   cancelTravel();
   try { fn(); } catch (e) { console.error(e); toast('Something went wrong'); }
   afterAction();
@@ -365,6 +381,7 @@ function stepTravel() {
   const g = game, p = g.player;
   if (g.over || g.pending_event || modal) { cancelTravel(); return; }
   if (g.visible_hostiles().length) { toast('Enemy in view'); cancelTravel(); return; }
+  if (g.live && !g.ready()) { travel.timer = setTimeout(stepTravel, 40); return; }
   const next = travel.path[travel.i];
   const dx = next[0] - p.x, dy = next[1] - p.y;
   if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) { cancelTravel(); return; }
@@ -768,7 +785,7 @@ function showBriefing(i, first) {
     acts.append(btn('btn main', last ? (first ? 'Begin' : 'Close') : 'Continue', () => { if (last) closeSheet(); else showBriefing(i + 1, first); }));
     if (!last) acts.append(btn('btn', 'Skip', () => closeSheet()));
     body.append(acts, el('p', 'note', `${i + 1} / ${pages.length}`));
-  }, { locked: true });
+  }, { locked: true, onClose: first ? startLive : null });
 }
 
 function openSettings(msg) {
@@ -779,9 +796,11 @@ function openSettings(msg) {
     const z = el('div', 'row', [el('div', 'main', [el('div', 'name', 'Map zoom'), el('div', 'sub', `${prefs.zoom}px tiles. You can also pinch the map.`)]),
       btn('btn', '-', () => { prefs.zoom = Math.max(16, prefs.zoom - 3); savePrefs(); dirty = true; openSettings(); }), btn('btn', '+', () => { prefs.zoom = Math.min(46, prefs.zoom + 3); savePrefs(); dirty = true; openSettings(); })]);
     body.append(z);
+    const tg2 = (label, sub, on, fn) => { const r = el('button', 'toggle', [el('div', null, [el('b', null, label), el('div', 'sub', sub)]), el('span', 'sw' + (on ? ' on' : ''))]); r.type = 'button'; r.style.cssText = 'width:100%;text-align:left;margin-top:8px'; r.addEventListener('click', fn); body.append(r); };
     tg('Left-handed layout', 'lefty', 'Swap the pad and the buttons.');
     tg('Tap to travel', 'travel', 'Tap a far tile to walk there.');
     tg('Vibration', 'haptics', 'Buzz when you are hurt.');
+    if (game && game.live && game.cfg.mode === 'living') tg2('Pause the world', 'The shared world cannot be paused; a private one can.', game.paused, () => { game.paused = !game.paused; openSettings(); });
     const acts = el('div', 'actionrow'); acts.style.marginTop = '14px';
     acts.append(btn('btn main', 'Save now', () => { openSettings(trySave() ? 'Saved on this device.' : 'This browser would not let the page store a save.'); }));
     acts.append(btn('btn danger', 'Save and quit to title', () => { trySave(); quitToTitle(); }));
@@ -972,6 +991,7 @@ function startGame(cfg, loaded, shared) {
   showGameUi();
   trySave();
   if (!loaded) showBriefing(0, true);
+  else if (game.cfg.mode !== 'normal') openSheet('Back in the world', (b) => { b.append(el('p', 'event-text story', game.cfg.mode === 'shared' ? 'The world kept going while you were away. Time runs on its own here.' : 'The world runs in real time. Nothing waits for you once you continue.'), btn('btn main', 'Continue', () => closeSheet())); }, { locked: true, onClose: startLive });
 }
 
 function showEnding() {
@@ -1031,14 +1051,15 @@ async function showSharedWorld(msg) {
     w.append(el('h3', null, `Season ${season.n}`));
     const kv = el('dl', 'kv');
     const add = (k, v) => kv.append(el('dt', null, k), el('dd', null, v));
-    add('Calendar', `day ${dayN} (one game day = ${season.dayMs / 3600000} real hours)`);
+    add('Calendar', `day ${dayN} (${season.dayMs / 3600000} real hours per day)`);
+    add('Real time', `live: a step every ${season.tickMs || 700} ms, a sun cycle every ${Math.round(240 * (season.tickMs || 700) / 1000 / 60 * 10) / 10} min`);
     add('Resets in', over ? 'over' : fmtLeft(Math.max(0, Math.floor((season.endsAt - now) / 1000))));
     add('The world', `${CONTENT.eras[cfg.era].year} · ${CONTENT.presets[cfg.zombies].name.split(' - ')[0]} · ${CONTENT.scenarios[cfg.scenario].name.split(' - ')[0]} · ${cfg.difficulty}`);
     if (outcome) add('Outcome', outcome.kind === 'won' ? `The cure was made on day ${outcome.day}.` : 'The way out closed. Nobody made it.');
     w.append(kv);
     if (over) note(outcome ? 'This season is decided. The keeper will reset the world.' : 'This season has ended. The keeper will reset the world.');
     else {
-      note('Every survivor shares one seeded world. The dead you destroy stay dead for everyone, your tomb keeps your gear for the next, whatever killed you gets a name and a level, and enemies keep levelling while nobody plays. This is not a live simulation: you do not see other players move.');
+      note('Every survivor shares one seeded world. The dead you destroy stay dead for everyone, your tomb keeps your gear for the next, whatever killed you gets a name and a level, and enemies keep levelling while nobody plays. It runs in real time, with no turns and no pause, but you do not see other players move.');
       if (env.canWrite === false) note('You can read this world but not play in it: ask the owner for contributor access.', 't-warn');
       else {
         w.append(btn('btn main', 'Join the world', () => showSharedJoin(env, season)));
@@ -1084,7 +1105,7 @@ function showSharedJoin(env, season) {
 function showKeeper(env, season) {
   hideAll(); const s = $('#newgame'); s.hidden = false; s.innerHTML = '';
   const base = season ? Object.assign({}, season.cfg) : { era: 'modern', zombies: 'classic', scenario: 'cure', difficulty: 'normal', needs: false, map_w: 120, map_h: 76 };
-  const num = { days: season ? Math.round((season.endsAt - season.startedAt) / 86400000) : 7, hours: season ? season.dayMs / 3600000 : 3 };
+  const num = { days: season ? Math.round((season.endsAt - season.startedAt) / 86400000) : 7, hours: season ? season.dayMs / 3600000 : 3, tick: season ? (season.tickMs || 700) : 700 };
   let armed = false;
   const render = (msg) => {
     s.innerHTML = '';
@@ -1109,12 +1130,13 @@ function showKeeper(env, season) {
       row.append(inp, el('span', 'note', sub)); w.append(row);
     };
     numRow('Season length (real days)', 'days', 0.1, 90, 'days until the world resets');
-    numRow('Game day (real hours)', 'hours', 0.1, 48, 'hours of real time per game day');
+    numRow('Calendar day (real hours)', 'hours', 0.1, 48, 'real hours per calendar day: enemy level cap, zombie phases, the deadline');
+    numRow('Tick (milliseconds)', 'tick', 200, 3000, 'the world runs live: one step every tick. Day and night turn every 240 ticks');
     if (msg) w.append(el('p', 'note t-good', msg));
     const label = season ? (armed ? 'Tap again: reset the world now' : `Reset the world (end season ${season.n})`) : 'Create the world';
     w.append(btn('btn ' + (armed ? 'danger' : 'main'), label, async () => {
       if (season && !armed) { armed = true; render(); return; }
-      try { const next = await reset_world(env.db, season, base, Date.now(), { dayMs: num.hours * 3600000, seasonMs: num.days * 86400000 }); showSharedWorld(`Season ${next.n} has begun.`); }
+      try { const next = await reset_world(env.db, season, base, Date.now(), { dayMs: num.hours * 3600000, seasonMs: num.days * 86400000, tickMs: num.tick }); showSharedWorld(`Season ${next.n} has begun.`); }
       catch (e) { render('Could not write: ' + (e && e.code || e)); }
     }));
     w.append(btn('btn', 'Back', () => showSharedWorld()));

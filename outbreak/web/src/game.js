@@ -25,6 +25,7 @@ class Clock {
   }
 }
 
+const LIVE_MAX_CATCHUP = 80;
 const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
 function default_config() {
@@ -54,6 +55,7 @@ class Game {
     this._uid = 0; this.log = []; this.over = null; this.pending_event = null; this.recent_events = {};
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
     this.patrol_goals = {}; this.distress = {}; this.aided = {};
+    this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
@@ -178,8 +180,59 @@ class Game {
     return this._field;
   }
 
+  // ------------------------------------------------------------- real time (hardcore worlds)
+  // In a live world the clock runs by itself, one tick every `tick_ms`. An action takes effect at once and keeps you busy
+  // for as many ticks as it costs, so the world never waits for you. Until `start_live` the game is turn-based (tests, normal mode).
+  get live() { return this.live_started; }
+  ready() { return !this.live_started || this.busy <= 0; }
+  tick_ms() { return (this.shared && this.shared.season.tickMs) || this.cfg.tick_ms || 700; }
+  start_live(now) { this.live_started = true; this.live_last = now; this.live_acc = 0; this.busy = 0; if (this.shared) this.shared.sync_calendar(); }
+  // Run the ticks that real time owes the world. Returns how many ran.
+  live_update(now) {
+    if (!this.live_started || this.over) return 0;
+    const tm = this.tick_ms();
+    let n;
+    if (this.paused) { this.live_last = now; return 0; }
+    if (this.shared) {
+      const target = Math.floor((now - this.shared.season.startedAt) / tm);
+      n = target - this.clock.turn;
+      if (n > LIVE_MAX_CATCHUP) {                         // the page was away: the world moved on without playing out every tick
+        this.clock.turn = target - 3; n = 3; this.shared.sync_calendar();
+      }
+    } else {
+      this.live_acc += Math.min(Math.max(0, now - this.live_last), 3000); this.live_last = now;
+      n = Math.floor(this.live_acc / tm); this.live_acc -= n * tm;
+    }
+    let ran = 0;
+    for (let i = 0; i < n && !this.over; i++) {
+      if (this.busy > 0) this.busy--;
+      this._tick(); ran++;
+      if (this.sleep_left > 0 && --this.sleep_left === 0) this._wake();
+      else this._live_rest();
+    }
+    if (ran && !this.over) this.update_fov();
+    return ran;
+  }
+  _live_rest() {
+    if (this.rest_left <= 0 || this.busy > 0) return;
+    const p = this.player;
+    if (this.visible_hostiles().length || this.pending_event || p.hp < (this._rest_hp || 0)) { this.rest_left = 0; return; }
+    this.rest_left--; this._rest_hp = p.hp;
+    if (p.hp < p.max_hp && !p.bleeding && this.clock.turn % 3 === 0) p.hp += 1;
+    p.stamina = Math.min(p.max_stamina, p.stamina + 1.5);
+    if (p.hp >= p.max_hp && p.stamina >= p.max_stamina && p.panic < 5) this.rest_left = 0;
+  }
+  _wake() {
+    const p = this.player;
+    p.hp = Math.min(p.max_hp, p.hp + Math.floor(p.max_hp * 0.6));
+    p.stamina = p.max_stamina; p.panic = 0;
+    this.msg('You wake.', 'info');
+    if (p.infected) this.msg('You wake in a sweat. The fever has not broken.', 'warn');
+  }
+
   // ------------------------------------------------------------- the world tick
   _spend(turns) {
+    if (this.live_started) { this.busy += Math.max(0, turns); this.rest_left = 0; if (!this.over) this.update_fov(); return; }
     for (let i = 0; i < Math.max(0, turns); i++) { if (this.over) break; this._tick(); }
     if (!this.over) this.update_fov();
   }
@@ -596,6 +649,7 @@ class Game {
     if (this.over) return 0;
     if (this.visible_hostiles().length) { this.msg('You cannot rest with enemies in sight.', 'warn'); return 0; }
     const p = this.player;
+    if (this.live_started) { this.rest_left = max_turns; this._rest_hp = p.hp; return 1; }
     let rested = 0;
     for (let i = 0; i < max_turns; i++) {
       const hp0 = p.hp;
@@ -728,6 +782,7 @@ class Game {
     const lv = this.level, p = this.player;
     if (!lv.safe) { this.msg('It is not safe to sleep here.', 'warn'); return 0; }
     const turns = Math.min(80, this.clock.until_hour(6.0));
+    if (this.live_started) { this.busy += turns; this.sleep_left = turns; this.rest_left = 0; this.msg('You lie down and sleep.', 'info'); return turns; }
     this._spend(turns);
     if (!this.over) {
       p.hp = Math.min(p.max_hp, p.hp + Math.floor(p.max_hp * 0.6));

@@ -19,6 +19,18 @@ generators, so the same seed does not give the same world in both.
 The story briefing (three pages) opens when a new game starts; the menu has a **Briefing** tile to read it again.
 The new-game screen has a *How it starts* choice (or *Surprise me*).
 
+## Real time in the hardcore modes (web only)
+
+`normal` is turn-based. In the hardcore modes (private `living` and the shared world) the world runs **live**: there
+are no turns. A tick happens every `tick_ms` (700 ms by default; the keeper sets it for the shared world), whatever you do.
+An action takes effect at once and keeps you busy for the ticks it costs (a step is one tick, searching a crate two, forcing
+a lock six), and the latest input you make while busy is queued and runs as soon as you are free. Menus, the bag and
+the map do not stop the clock, and neither do events. Resting and sleeping are modes that pass in real time and stop
+when something appears. A new survivor gets about 40 ticks of grace. In the private mode you can pause (Settings); in
+the shared world nothing can pause, and the clock is anchored to the season start, so every player shares the same sun.
+If the page was away for a long time (a hidden tab, a closed phone), the world jumps to the present instead of playing every
+tick, and nothing hurts you while you are gone. The Python/terminal game is still turn-based in every mode.
+
 ## Shared world (web only)
 
 The title screen has **Shared world**: one hardcore world for everyone who opens the published page. It needs the

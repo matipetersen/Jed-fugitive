@@ -179,6 +179,24 @@ def burst(game, pos) -> None:
     game.emit_noise(pos, 6, "zombie")
 
 
+def attack_noise(game, w: ItemDef, silent: bool) -> int:
+    """How far a blow carries.  A fight is loud and bone is louder; a stealth strike on someone who has not noticed you is not."""
+    p = game.player
+    base = w.noise + (game.item_def(p.armor.id).stealth if p.armor else 0)
+    if not w.is_ranged:
+        base *= 1.5 * (1.3 if w.style == "blunt" else 1.0)
+    if silent:
+        base *= 0.5
+    return max(1, int(round(base)))
+
+
+def _drop_cover(game) -> None:
+    p = game.player
+    if p.sneaking:
+        p.sneaking = False
+        game.msg("You stand up to fight: you are no longer sneaking.", "info")
+
+
 def _sneak_ok(game, z: Zombie) -> bool:
     """True when the zombie has not noticed the player."""
     return z.state != "hunt" and z.alert < 70            # it has not noticed you (yet)
@@ -200,8 +218,9 @@ def player_attack(game, target: Actor) -> bool:
     p.stamina = max(0.0, p.stamina - STAMINA_PER_ATTACK)
     # judge surprise *before* making noise: the blow itself must not give you away
     sneak = isinstance(target, Zombie) and _sneak_ok(game, target)
-    noise = max(1, w.noise + (p.armor and game.item_def(p.armor.id).stealth or 0))
-    game.emit_noise(p.pos, noise, "player")
+    game.emit_noise(p.pos, attack_noise(game, w, sneak), "player")
+    if not sneak:
+        _drop_cover(game)                                   # a fair fight is not a stealth strike
     if isinstance(target, Human):
         return _attack_human(game, target, w, item)
     z: Zombie = target
@@ -286,6 +305,8 @@ def player_fire(game, target: Actor) -> bool:
         evade, sneak = 8, False
     else:
         evade, sneak = 0, _sneak_ok(game, target)
+    if not sneak:
+        _drop_cover(game)
     hit = game.rng.random() * 100 < _accuracy(game, w, evade, d) + (12 if sneak else 0)
     _wear_weapon(game, item, w)
     _train(game, w)
@@ -347,6 +368,9 @@ def throw(game, item_id: str, pos) -> bool:
 def damage_player(game, amount: int, cause: str, by=None) -> None:
     p = game.player
     game.killer = by
+    if p.sneaking and amount > 0:
+        p.sneaking = False
+        game.msg("You are hit: you cannot stay hidden.", "info")
     p.hp -= amount
     game.add_panic(3 + amount * 0.4)
     if p.hp <= 0:

@@ -115,6 +115,19 @@ function burst(game, pos) {
   game.emit_noise(pos, 6, 'zombie');
 }
 
+// How far a blow carries. A fight is loud and bone is louder; a stealth strike on someone who has not noticed you is not.
+function attack_noise(game, w, silent) {
+  const p = game.player;
+  let base = w.noise + (p.armor ? game.item_def(p.armor.id).stealth : 0);
+  if (!is_ranged(w)) base *= 1.5 * (w.style === 'blunt' ? 1.3 : 1.0);
+  if (silent) base *= 0.5;
+  return Math.max(1, Math.round(base));
+}
+function _drop_cover(game) {
+  const p = game.player;
+  if (p.sneaking) { p.sneaking = false; game.msg('You stand up to fight: you are no longer sneaking.', 'info'); }
+}
+
 function _sneak_ok(game, z) {
   return z.state !== 'hunt' && (z.alert || 0) < STAB_OK;      // it has not noticed you (yet)
 }
@@ -128,8 +141,8 @@ function player_attack(game, target) {
   if (d > w.reach || (d > 1 && !has_los(game.level, apos(p), apos(target)))) return false;
   p.stamina = Math.max(0, p.stamina - STAMINA_PER_ATTACK);
   const sneak = is_zombie(target) && _sneak_ok(game, target);
-  const noise = Math.max(1, w.noise + (p.armor ? game.item_def(p.armor.id).stealth : 0));
-  game.emit_noise(apos(p), noise, 'player');
+  game.emit_noise(apos(p), attack_noise(game, w, sneak), 'player');
+  if (!sneak) _drop_cover(game);                                     // a fair fight is not a stealth strike
   if (is_human(target)) return _attack_human(game, target, w, item);
   const z = target;
   const hit = sneak ? true : game.rng.random() * 100 < _accuracy(game, w, 0);
@@ -187,6 +200,7 @@ function player_fire(game, target) {
   let evade, sneak;
   if (is_human(target)) { if (!target.hostile) game.make_hostile(target); evade = 8; sneak = false; }
   else { evade = 0; sneak = _sneak_ok(game, target); }
+  if (!sneak) _drop_cover(game);
   const hit = game.rng.random() * 100 < _accuracy(game, w, evade, d) + (sneak ? 12 : 0);
   _wear_weapon(game, item, w);
   _train(game, w);
@@ -236,6 +250,7 @@ function damage_player(game, amount, cause, by = null) {
   const p = game.player;
   if (game.clock.turn < game.invuln_until) return;               // a new survivor gets a moment to look around
   game.killer = by;
+  if (p.sneaking && amount > 0) { p.sneaking = false; game.msg('You are hit: you cannot stay hidden.', 'info'); }
   p.hp -= amount;
   game.add_panic(3 + amount * 0.4);
   if (p.hp <= 0) game.end('dead', cause);

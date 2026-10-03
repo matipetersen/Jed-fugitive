@@ -160,7 +160,7 @@ class Game {
       const reach = radius * a.hearing;
       if ((a.x - pos[0]) ** 2 + (a.y - pos[1]) ** 2 > reach * reach) continue;
       a.state = 'investigate'; a.target = [pos[0], pos[1]]; a.stimulus_turn = turn;
-      a.alert = Math.min(80, (a.alert || 0) + 25);                // a noise puts it on edge; only seeing you makes it hunt
+      a.alert = Math.min(95, (a.alert || 0) + 25 + 30 * (1 - Math.sqrt((a.x - pos[0]) ** 2 + (a.y - pos[1]) ** 2) / reach));     // closer noise rattles it more; only seeing you makes it hunt
     }
     if (this.level === this.world.level) noise_attracts(this, pos, radius);
     if (source === 'player' && radius >= 8) this.add_heat(radius * 0.12);

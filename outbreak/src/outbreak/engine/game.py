@@ -206,7 +206,8 @@ class Game:
             if (a.x - pos[0]) ** 2 + (a.y - pos[1]) ** 2 > reach * reach:
                 continue
             a.state, a.target, a.stimulus_turn = "investigate", pos, turn
-            a.alert = min(80.0, a.alert + 25)              # a noise puts it on edge; only seeing you makes it hunt
+            d = ((a.x - pos[0]) ** 2 + (a.y - pos[1]) ** 2) ** 0.5
+            a.alert = min(95.0, a.alert + 25 + 30 * (1 - d / reach))     # closer noise rattles it more; only seeing you makes it hunt
         if self.level is self.world.level:
             hordes.noise_attracts(self, pos, radius)
         if source == "player" and radius >= 8:

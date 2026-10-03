@@ -3,6 +3,7 @@ import unittest
 from tests.helpers import make_game
 from outbreak.engine import ai, combat
 from outbreak.engine import tiles as T
+from outbreak.engine.model import Item
 from outbreak.engine.spawn import spawn_zombie
 
 
@@ -63,7 +64,7 @@ class Stealth(unittest.TestCase):
         noticed, killed, n = rate(sneak=True, from_behind=True)
         self.assertGreaterEqual(n, 15)
         self.assertLessEqual(noticed, 0.2)
-        self.assertGreaterEqual(killed, 0.6)
+        self.assertGreaterEqual(killed, 0.45)
         noticed, killed, _ = rate(sneak=True, from_behind=True, facing=(0, 1))
         self.assertLessEqual(noticed, 0.4)
         self.assertGreaterEqual(killed, 0.25)
@@ -89,7 +90,40 @@ class Stealth(unittest.TestCase):
         g.emit_noise(z.pos, 5)
         self.assertEqual(z.state, "investigate")
         self.assertTrue(0 < z.alert < 100)
-        self.assertIn("listening", g.describe_at(z.pos) if z.pos in g.visible else "listening")
+        self.assertIn(ai.awareness_of(z), ("listening", "suspicious", "about to notice you"))
+
+
+class Noise(unittest.TestCase):
+    def test_fights_are_loud_and_a_fair_fight_ends_sneaking(self):
+        g = make_game(era="medieval", seed=2)
+        mace, dagger, bow = g.items["mace"], g.items["dagger"], g.items["bow"]
+        self.assertGreaterEqual(combat.attack_noise(g, mace, False), 11)
+        self.assertGreater(combat.attack_noise(g, mace, False), combat.attack_noise(g, g.items["sword"], False))
+        self.assertLessEqual(combat.attack_noise(g, dagger, False), 4)
+        self.assertEqual(combat.attack_noise(g, bow, False), bow.noise)
+        lv = g.world.level
+        for a in list(lv.actors):
+            if not a.is_player:
+                lv.remove_actor(a)
+        p = g.player
+        p.hp = p.max_hp = 10 ** 6
+        far = spawn_zombie(g, lv, lv.free_spot_near(p.x + 9, p.y, 3), "walker", dormant=False)
+        far.state = "idle"
+        near = spawn_zombie(g, lv, lv.free_spot_near(p.x + 1, p.y, 2), "walker", dormant=False)
+        near.state, near.alert = "hunt", 100.0
+        p.weapon = Item("mace", 1, 55)
+        p.sneaking = True
+        combat.player_attack(g, near)
+        self.assertFalse(p.sneaking)
+        self.assertEqual(far.state, "investigate")
+        self.assertTrue(0 < far.alert < 100)
+        dormant = spawn_zombie(g, lv, lv.free_spot_near(p.x - 1, p.y, 2), "walker", dormant=False)
+        dormant.state, dormant.facing = "dormant", (-1, 0)
+        p.sneaking = True
+        combat.player_attack(g, dormant)
+        self.assertTrue(p.sneaking)
+        combat.damage_player(g, 3, "x", near)
+        self.assertFalse(p.sneaking)
 
 
 if __name__ == "__main__":

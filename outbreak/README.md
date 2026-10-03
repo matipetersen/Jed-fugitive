@@ -80,7 +80,11 @@ that the keeper resets; see `web/README.md`. Those are web only (real time and t
   side). At 100 it hunts you (a red `!`); at 40 it turns to look; a `?` means it is on edge. Hit one that has not noticed
   you (meter under 70) and you cannot miss: a double-damage head blow that kills most. Sneaking on soft ground makes no
   noise, walking is always noticed, and walking straight at one's face is too. Idle zombies keep going the way they face,
-  so wait, pick a side, and come in behind or beside it. The web build has a SNEAK button and a "Strike" action for this.
+  so wait, pick a side, and come in behind or beside it.
+  Sneaking costs you: half speed (two ticks a step), no running, and it ends as soon as you fight a zombie that
+  has noticed you or get hit. Fighting is never quiet: a blow carries 1.5x the weapon's noise (1.3x more for blunt
+  weapons: a mace is heard from about 12 tiles), halved for a stealth strike. Everything within earshot goes to look
+  (more rattled the closer it is, never past "about to notice you" without seeing you). The web build has a SNEAK button and a "Strike" action for this.
 * **Noise is the game.** Every action makes noise; loud ones raise a *noise meter*. Fill it and a Stalker
   comes for you. Blades and bows are quiet; guns draw hordes. Sneak (`s`) halves what they notice.
 * **Hordes are real.** Crowds roam the map, are drawn to noise, and become individual zombies when close.

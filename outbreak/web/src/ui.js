@@ -757,7 +757,7 @@ function openHelp() {
     li('Move', 'Hold the pad, or tap a tile to walk there. Walking stops when an enemy appears. Tap an adjacent enemy to hit it.');
     li('ACT button', 'It changes with what is next to you: pick up, search a crate, talk, sleep, unlock, rest. Tap yourself for the same.');
     li('Fire', 'With a ranged weapon equipped: one target fires at once; with several, tap the one you want.');
-    li('Sneak up on them', 'Zombies look where they walk (the pale wedge on them). Toggle SNEAK, come from behind or from the side, and hit them before the ? bar fills: an unaware zombie dies to one blow. In front of it, or running, it notices you fast. A red ! means it hunts you.');
+    li('Sneak up on them', 'Zombies look where they walk (the pale wedge on them). Toggle SNEAK, come from behind or from the side, and hit them before the ? bar fills: an unaware zombie dies to one blow. In front of it, or running, it notices you fast. A red ! means it hunts you. Sneaking costs half your speed and you cannot run; it ends the moment you fight a zombie that has noticed you, or get hit. Fights are loud (heavy blunt weapons the loudest) and bring the dead from far away.');
     li('Noise is the game', 'Every action makes noise. Guns are loud; blades, bows and sneaking are quiet. Too much noise brings a Stalker.');
     li('Bitten?', 'On an arm or leg, cut it off (red button) within the window, with a blade. Torso bites only buy time with suppressants.');
     li('Documents', 'They are written in a cipher. Read and study them to learn words. Deciphering reveals vault locations, codes and the formula.');

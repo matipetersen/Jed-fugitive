@@ -11,7 +11,7 @@
 // The calendar is real time: a game day is `dayMs` of real time, so enemy level caps, zombie phases and the extraction
 // deadline advance while nobody is playing (enemies "level offline").
 const SHARED_DEFAULTS = { dayMs: 3 * 3600 * 1000, seasonMs: 7 * 86400 * 1000 };
-const game_day = (g) => (g.shared ? g.shared.calendar_day() : g.clock.day);
+const game_day = (g) => g.gen_day || (g.shared ? g.shared.calendar_day() : g.clock.day);
 
 function hash01(a, b) {
   let h = (Math.imul(a | 0, 2654435761) ^ Math.imul(b | 0, 40503)) >>> 0;
@@ -59,7 +59,7 @@ function apply_tomb(game, id, d) {
 
 function _find_actor(game, d) {
   for (const lv of Object.values(game.levels)) {
-    for (const a of lv.actors) if (a.sid === d.sid || (d.uid !== undefined && d.uid <= game.world_uid_max && lv.id === 'world' && a.uid === d.uid)) return [lv, a];
+    for (const a of lv.actors) if (a.sid === d.sid || (d.uid !== undefined && is_world_uid(game, d.uid) && lv.id === 'world' && a.uid === d.uid)) return [lv, a];
   }
   return [null, null];
 }
@@ -88,6 +88,7 @@ function apply_named(game, sid, d) {
 
 function apply_dead(game, uids) {
   const lv = game.world.level, set = new Set(uids);
+  for (const u of uids) game.dead_uids.add(u);                 // chunks painted later must not bring them back
   for (const a of lv.actors.slice()) if (set.has(a.uid) && a.kind !== 'player' && !a.sid) lv.remove_actor(a);
 }
 
@@ -96,14 +97,13 @@ function apply_taken(game, comp_id) {
 }
 
 // the deterministic part of "enemies level while you are away": each enemy of the seeded world has its own appetite
-function catch_up_levels(game) {
+function catch_up_actor(game, a) {
   const cap = level_cap(game);
-  for (const a of game.world.level.actors) {
-    if (a.kind === 'player' || a.uid > game.world_uid_max || a.hp <= 0) continue;
-    const target = 1 + Math.floor((cap - 1) * (0.2 + 0.7 * hash01(a.uid, game.seed)));
-    while ((a.lvl || 1) < target) level_up(game, a, false);
-  }
+  if (a.kind === 'player' || a.hp <= 0 || !is_world_uid(game, a.uid)) return;
+  const target = 1 + Math.floor((cap - 1) * (0.2 + 0.7 * hash01(a.uid, game.seed)));
+  while ((a.lvl || 1) < target) level_up(game, a, false);
 }
+function catch_up_levels(game) { for (const a of game.world.level.actors) catch_up_actor(game, a); }
 
 class SharedWorld {
   constructor(db, uid, season, now = () => Date.now()) {
@@ -168,7 +168,7 @@ class SharedWorld {
   register_named(a, title) {
     const g = this.game;
     if (!a.sid) a.sid = `n${this.n}_${a.uid}_${Date.now().toString(36)}`;
-    const d = { season: this.n, sid: a.sid, uid: a.uid <= g.world_uid_max ? a.uid : null, kind: a.kind, role: a.role || '', special: a.special || '', name: a.name, title: title || a.title || '',
+    const d = { season: this.n, sid: a.sid, uid: is_world_uid(g, a.uid) ? a.uid : null, kind: a.kind, role: a.role || '', special: a.special || '', name: a.name, title: title || a.title || '',
       lvl: a.lvl || 1, x: a.x, y: a.y, level_id: a.level_id, alive: true, at: this.now() };
     this.named_known = this.named_known || new Set(); this.named_known.add(a.sid);
     g.named_state[a.sid] = 'alive';
@@ -176,7 +176,7 @@ class SharedWorld {
   }
   on_enemy_death(a) {
     if (a.sid) { g_state(this.game, a.sid, 'dead'); this._safe(this.db.doc(`named/${a.sid}`).update({ alive: false, killed_by: this.uid, at: this.now() })); return; }
-    if (a.uid <= this.game.world_uid_max && a.level_id === 'world') { this.dead_buf.push(a.uid); if (this.dead_buf.length >= 25) this.flush(); }
+    if (is_world_uid(this.game, a.uid) && a.level_id === 'world') { this.dead_buf.push(a.uid); if (this.dead_buf.length >= 25) this.flush(); }
   }
   on_enemy_level(a) { if (a.sid) this.dirty_named.add(a); }
   on_component_taken(id) { this._safe(this.db.doc(`taken/s${this.n}_${id}`).set({ season: this.n, id, by: this.uid, at: this.now() })); }

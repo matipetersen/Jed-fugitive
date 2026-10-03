@@ -24,9 +24,8 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
   const [B, swB] = await join('uB', 'soldier');
   // the world is the same for both, whoever they are
   assert.deepStrictEqual(Object.values(A.pois).map((q) => q.name), Object.values(B.pois).map((q) => q.name));
-  const ids = (g) => g.world.level.actors.filter((a) => a.uid <= g.world_uid_max).map((a) => `${a.uid}:${a.x},${a.y}:${a.kind}`);
+  const ids = (g) => g.world.level.actors.filter((a) => OB.is_world_uid(g, a.uid)).map((a) => `${a.uid}:${a.x},${a.y}:${a.kind}`);
   assert.deepStrictEqual(ids(A), ids(B), 'the seeded population must be identical for every player');
-  assert.strictEqual(A.world_uid_max, B.world_uid_max);
   assert.notStrictEqual(A.current_origin, B.current_origin);
   // survivors arrive at the refuge, real time sets the hour and the calendar
   const refuge = A.pois[A.refuge_id];
@@ -46,7 +45,7 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
 
   // ---- an ordinary enemy A kills stays dead for B
   const lvA = A.world.level, lvB = B.world.level;
-  const victim = lvA.actors.find((a) => a.kind === 'zombie' && a.uid <= A.world_uid_max && !a.sid);
+  const victim = lvA.actors.find((a) => a.kind === 'zombie' && OB.is_world_uid(A, a.uid) && !a.sid);
   OB.kill_zombie(A, victim, false, true);
   swA.flush(); await tick();
   assert(!lvB.actors.some((a) => a.uid === victim.uid), 'the kill did not propagate');
@@ -115,6 +114,6 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
   // ---- saving a shared game keeps its bookkeeping
   const E = OB.make_game(Object.assign({}, cfg0, { mode: 'shared', seed: season.seed, origin: 'medic', opening: 'meal', season_n: 1, clock_turn: 10 }));
   const E2 = OB.deserialize_game(OB.serialize_game(E));
-  assert.strictEqual(E2.cfg.mode, 'shared'); assert.strictEqual(E2.world_uid_max, E.world_uid_max); assert.strictEqual(E2.season_n, 1);
+  assert.strictEqual(E2.cfg.mode, 'shared'); assert.strictEqual(E2.world.generated.size, E.world.generated.size); assert.strictEqual(E2.season_n, 1);
   console.log('shared: seasons, tombs, named enemies, kills, calendar levels OK');
 })().catch((e) => { console.error(e); process.exit(1); });

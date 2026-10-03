@@ -42,7 +42,7 @@ function spawn_zombie(game, level, pos, special = null, dormant = true, fresh = 
 function make_raider(game, x, y) {
   const era = game.era;
   const reach = (era.firearms || era.tech === 0) ? 6 : 1;
-  const hp = Math.floor(18 * (1.0 + 0.04 * game.player.level));
+  const hp = Math.floor(18 * (1.0 + 0.04 * (game.gen_day ? 1 : game.player.level)));
   const h = { kind: 'human', uid: game.next_uid(), name: 'Raider', glyph: 'R', x, y, hp, max_hp: hp, level_id: 'world',
               role: 'raider', faction: 'raiders', hostile: true, dmg: [3, 6], acc: 48, reach, energy: 0, state: 'idle',
               target: null, loot: [], talked: false };

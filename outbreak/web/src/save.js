@@ -13,15 +13,25 @@ function b64_to_bytes(b64) {
   return out;
 }
 
-function _serialize_level(lv) {
-  return { id: lv.id, name: lv.name, w: lv.w, h: lv.h, kind: lv.kind, tiles: bytes_to_b64(lv.tiles), seen: bytes_to_b64(lv.seen),
+// A chunked overworld saves only the chunks that were painted (the rest regenerates from the seed when you get there).
+function _chunk_bytes(arr, lv, cx, cy, S) {
+  const x0 = cx * S, y0 = cy * S, w = Math.min(S, lv.w - x0), h = Math.min(S, lv.h - y0), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) out.set(arr.subarray((y0 + y) * lv.w + x0, (y0 + y) * lv.w + x0 + w), y * w);
+  return out;
+}
+function _put_chunk(arr, lv, cx, cy, S, bytes) {
+  const x0 = cx * S, y0 = cy * S, w = Math.min(S, lv.w - x0), h = Math.min(S, lv.h - y0);
+  for (let y = 0; y < h; y++) arr.set(bytes.subarray(y * w, (y + 1) * w), (y0 + y) * lv.w + x0);
+}
+function _serialize_level(lv, chunked = false) {
+  return { id: lv.id, name: lv.name, w: lv.w, h: lv.h, kind: lv.kind, tiles: chunked ? '' : bytes_to_b64(lv.tiles), seen: chunked ? '' : bytes_to_b64(lv.seen),
            actors: lv.actors, items: lv.items, containers: lv.containers, portals: lv.portals, corpses: lv.corpses,
            hazards: lv.hazards, door_hp: lv.door_hp, docs: lv.docs, entry: lv.entry, arrivals: lv.arrivals,
            vault_lock: lv.vault_lock, bench: lv.bench, dark: lv.dark, safe: lv.safe, poi_id: lv.poi_id };
 }
 function _deserialize_level(d) {
-  const lv = new Level(d.id, d.name, d.w, d.h, d.kind);
-  lv.tiles = b64_to_bytes(d.tiles); lv.seen = b64_to_bytes(d.seen);
+  const lv = new Level(d.id, d.name, d.w, d.h, d.kind, d.tiles === '' ? T.GRASS : T.WALL);
+  if (d.tiles !== '') { lv.tiles = b64_to_bytes(d.tiles); lv.seen = b64_to_bytes(d.seen); }
   for (const k of ['actors', 'items', 'containers', 'portals', 'corpses', 'hazards', 'door_hp', 'docs', 'entry', 'arrivals',
                    'vault_lock', 'bench', 'dark', 'safe', 'poi_id']) lv[k] = d[k];
   lv.rebuild_occ();
@@ -30,7 +40,14 @@ function _deserialize_level(d) {
 
 function serialize_game(game) {
   const levels = {};
-  for (const [id, lv] of Object.entries(game.levels)) levels[id] = _serialize_level(lv);
+  const chunked = !!game.world.chunked;
+  for (const [id, lv] of Object.entries(game.levels)) levels[id] = _serialize_level(lv, chunked && lv === game.world.level);
+  let chunks = null;
+  if (chunked) {
+    chunks = {};
+    const lv = game.world.level;
+    for (const key of game.world.generated) { const [cx, cy] = key.split(',').map(Number); chunks[key] = { t: bytes_to_b64(_chunk_bytes(lv.tiles, lv, cx, cy, game.world.S)), s: bytes_to_b64(_chunk_bytes(lv.seen, lv, cx, cy, game.world.S)) }; }
+  }
   const data = {
     v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), over: game.over,
     pending_event: game.pending_event, recent_events: game.recent_events, hordes: game.hordes, ring: game.ring, heat: game.heat,
@@ -40,7 +57,8 @@ function serialize_game(game) {
     rng: game.rng.state, refuge_id: game.refuge_id, pad_id: game.pad_id, final_site_id: game.final_site_id, rep: game.rep,
     docs: game.docs, know: { known: Array.from(game.know.known), exposure: game.know.exposure },
     player: Object.assign({}, game.player), pois: game.pois,
-    world: { start: game.world.start, camps: game.world.camps, zone: bytes_to_b64(game.world.zone) },
+    world: chunked ? { start: game.world.start, camps: game.world.camps, chunked: true, chunks } : { start: game.world.start, camps: game.world.camps, zone: bytes_to_b64(game.world.zone) },
+    dead_uids: Array.from(game.dead_uids),
     levels, current: game.level.id,
     patrol_goals: game.patrol_goals, patrol_nodes: game.patrol_nodes, distress: game.distress, aided: game.aided,
     season_n: game.season_n, world_uid_max: game.world_uid_max, pending_shared: game.pending_shared, applied_tombs: game.applied_tombs, tomb_at: game.tomb_at,
@@ -76,7 +94,12 @@ function deserialize_game(json) {
   g.pois = d.pois;
   g.levels = {};
   for (const [id, ld] of Object.entries(d.levels)) g.levels[id] = _deserialize_level(ld);
-  g.world = { level: g.levels.world, pois: g.pois, start: d.world.start, camps: d.world.camps, zone: b64_to_bytes(d.world.zone) };
+  g.dead_uids = new Set(d.dead_uids || []);
+  if (d.world.chunked) {
+    const lv = g.levels.world;
+    g.world = restore_world(g.seed, lv.w, lv.h, lv, g.pois, d.world.start, d.world.camps, Object.keys(d.world.chunks));
+    for (const [key, c] of Object.entries(d.world.chunks)) { const [cx, cy] = key.split(',').map(Number); _put_chunk(lv.tiles, lv, cx, cy, g.world.S, b64_to_bytes(c.t)); _put_chunk(lv.seen, lv, cx, cy, g.world.S, b64_to_bytes(c.s)); }
+  } else g.world = { level: g.levels.world, pois: g.pois, start: d.world.start, camps: d.world.camps, zone: b64_to_bytes(d.world.zone), chunked: false };
   g.level = g.levels[d.current];
   g.level.occ.set(g.level.idx(g.player.x, g.player.y), g.player);
   if (d.stalker_uid) {

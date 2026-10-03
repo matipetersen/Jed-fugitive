@@ -164,7 +164,8 @@ function with_patrol(group) {
   g.player.humanity = 5; assert(OB.join_refusal(g, h).includes('what you have become'));
 }
 {
-  const g = make({ era: 'modern', zombies: 'classic', seed: 3 }), lv = clear(g), p = g.player;
+  const g = make({ era: 'modern', zombies: 'classic', seed: 3, map_w: 160, map_h: 100 }); OB.generate_all(g);
+  const lv = clear(g), p = g.player;
   let base = null;
   for (let y = 8; y < lv.h - 8 && !base; y++) for (let x = 8; x < lv.w - 8 && !base; x++) {
     if (cheb([x, y], [p.x, p.y]) <= 47) continue;

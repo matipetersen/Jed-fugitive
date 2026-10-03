@@ -130,6 +130,6 @@ function ask_join(game, npc) {
 
 function dismiss(game, npc) {
   npc.state = 'patrol';
-  game.patrol_goals[npc.group] = game.patrol_nodes.length ? game.rng.choice(game.patrol_nodes) : [npc.x, npc.y];
+  game.patrol_goals[npc.group] = pick_patrol_goal(game, [npc.x, npc.y]);
   return `The ${npc.name.toLowerCase()} nods and goes back to the roads.`;
 }

@@ -249,9 +249,8 @@ function _patrol_step(game, h) {
   const goals = game.patrol_goals;
   let goal = goals[h.group];
   if (!goal || cheb(apos(h), goal) <= 2 || h.stuck > 8) {
-    const nodes = game.patrol_nodes;
-    if (!nodes.length) return;
-    goal = game.rng.choice(nodes); goals[h.group] = goal; h.stuck = 0;
+    if (!game.patrol_nodes.length) return;
+    goal = pick_patrol_goal(game, apos(h)); goals[h.group] = goal; h.stuck = 0;
   }
   const level = game.level;
   const nxt = greedy_step(level, apos(h), goal, game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
@@ -294,11 +293,11 @@ function _abstract_move(game, gid, members) {
   let goal = game.patrol_goals[gid];
   if (!goal || members.some((m) => cheb(apos(m), goal) <= 2)) {
     if (!game.patrol_nodes.length) return;
-    goal = game.rng.choice(game.patrol_nodes); game.patrol_goals[gid] = goal;
+    goal = pick_patrol_goal(game, apos(members[0])); game.patrol_goals[gid] = goal;
   }
   for (const m of members) {
     for (let i = 0; i < ABSTRACT_STEPS; i++) {
-      const nxt = greedy_step(lv, apos(m), goal, game.rng, (n) => !NO_ENTRY.has(lv.tile(n[0], n[1])));
+      const nxt = greedy_step(lv, apos(m), goal, game.rng, (n) => !NO_ENTRY.has(lv.tile(n[0], n[1])) && world_ready(game.world, n[0], n[1]));
       if (nxt === null || !_human_move(game, m, nxt)) break;
     }
   }

@@ -58,6 +58,7 @@ function player_died(game, kind, cause) {
   const origins = Object.keys(CONTENT.origins).filter((o) => o !== game.current_origin);
   const new_origin = rng.choice(origins.length ? origins : Object.keys(CONTENT.origins));
   const refuge = game.pois[game.refuge_id], world = game.world.level;
+  gen_near(game, refuge.x, refuge.y);
   const pos = world.free_spot_near(refuge.x, refuge.y + 2, 8) || world.free_spot_near(game.world.start[0], game.world.start[1], 8);
   const known = Array.from(game.know.known).sort();
   const keep = Math.floor(known.length * KEEP_KNOWLEDGE), kept = [];

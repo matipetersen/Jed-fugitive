@@ -30,7 +30,7 @@ const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
 function default_config() {
   return { era: 'modern', zombies: 'classic', scenario: 'cure', origin: 'medic', mode: 'normal', difficulty: 'normal', seed: null,
-           needs: false, permadeath: true, map_w: 120, map_h: 76, opening: 'random' };
+           needs: false, permadeath: true, map_w: 360, map_h: 240, opening: 'random' };
 }
 
 class Game {
@@ -56,6 +56,7 @@ class Game {
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
     this.patrol_goals = {}; this.distress = {}; this.aided = {};
     this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
+    this.gen_day = 0; this.dead_uids = new Set();
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
@@ -133,6 +134,7 @@ class Game {
   }
   update_fov() {
     const lv = this.level, p = this.player;
+    if (lv === this.world.level && this.world.chunked) gen_near(this, p.x, p.y);
     this.visible = visible_tiles(lv, [p.x, p.y], this.vision_radius());
     for (const k of this.visible) lv.seen[k] = 1;
     if (lv.kind === 'overworld') {

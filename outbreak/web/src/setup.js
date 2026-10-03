@@ -20,7 +20,7 @@ function setup_game(game) {
   game.diff = CONTENT.difficulties[cfg.difficulty];
   game.items = Object.assign({}, game.era.items);
   game.know = new Knowledge(era_vocabulary(game.era), game.era.glyphs);
-  game.world = generate_overworld(new RNG(seed), game.era, cfg.map_w, cfg.map_h);
+  game.world = generate_overworld(seed, game.era, cfg.map_w, cfg.map_h);
   game.levels = { world: game.world.level };
   game.level = game.world.level;
   game.pois = game.world.pois;
@@ -50,9 +50,10 @@ function _make_player(game) {
 // Shared world: swap the stand-in for the real survivor, who always arrives at the refuge.
 function _become_survivor(game, opening) {
   const dummy = game.player, lv = game.world.level;
-  game.world_uid_max = game._uid;
+  game.world_uid_max = game._uid;      // legacy; chunked worlds mark their actors by uid range
   lv.occ.delete(lv.idx(dummy.x, dummy.y));
   const refuge = game.pois[game.refuge_id];
+  gen_near(game, refuge.x, refuge.y);
   const pos = lv.free_spot_near(refuge.x, refuge.y + 2, 8) || lv.free_spot_near(game.world.start[0], game.world.start[1], 8);
   game.current_origin = game.cfg.origin;
   make_player(game, game.cfg.origin, pos);
@@ -139,7 +140,8 @@ function _setup_scenario(game) {
   const pois = Object.values(game.pois);
   for (const req of sc.requirements) {
     const pool = pois.filter((q) => q.kind === req.poi_kind && !q.component);
-    const near = pool.filter((q) => { const d = cheb(poi_pos(q), start); return d >= 18 && d <= 85; });
+    const band = Math.max(85, Math.floor(0.3 * Math.max(game.world.level.w, game.world.level.h * 1.6)));
+    const near = pool.filter((q) => { const d = cheb(poi_pos(q), start); return d >= 18 && d <= band; });
     const host = rng.choice(near.length ? near : pool);
     host.component = req.id;
     host.danger = Math.round(host.danger * 1.15 * 100) / 100;
@@ -181,70 +183,19 @@ function _setup_documents(game) {
   for (let i = 0; i < 9; i++) add('diary', {}, host_for(hosts), rng.choice(hosts).name);
 }
 
+// The world is planned already; paint the start, scatter the roaming hordes and list the places patrols walk between.
 function _populate(game) {
-  const lv = game.world.level, rng = game.rng, prof = game.profile, zone = game.world.zone, start = game.world.start;
-  const scale = prof.density * game.diff.zombies;
-  if (!prof.sun_burn) {
-    for (let y = 2; y < lv.h - 2; y++) {
-      for (let x = 2; x < lv.w - 2; x++) {
-        const t = lv.tiles[y * lv.w + x];
-        if ((t !== T.GRASS && t !== T.ROAD && t !== T.BRUSH) || cheb([x, y], start) < 14) continue;
-        if (rng.random() < ZONE_DENSITY[zone[y * lv.w + x]] * scale && !lv.occ.has(y * lv.w + x)) spawn_zombie(game, lv, [x, y], null, false);
-      }
-    }
-    for (const poi of Object.values(game.pois)) {
-      if (SPECIAL_KINDS.includes(poi.kind) || poi.kind === 'house') continue;
-      const n = rng.randint(0, 2);
-      for (let i = 0; i < n; i++) {
-        const spot = lv.free_spot_near(poi.x + rng.randint(-3, 3), poi.y + 2, 3);
-        if (spot && cheb(spot, start) > 12) spawn_zombie(game, lv, spot, null, false);
-      }
-    }
-  }
-  for (const [cx, cy] of game.world.camps) {
-    const n = rng.randint(2, 4);
-    for (let i = 0; i < n; i++) {
-      const spot = lv.free_spot_near(cx + rng.randint(-2, 2), cy + rng.randint(-1, 1), 3);
-      if (spot) { const r = make_raider(game, spot[0], spot[1]); r.state = 'idle'; lv.add_actor(r); }
-    }
-    lv.containers[lv.idx(cx + 2, cy - 1)] = { loot: roll_items(rng, game.era, 'camp', 3.0, game.diff.loot), docs: [],
-                                              coins: rng.randint(2, 8), opened: false, note: '' };
-  }
-  _patrols(game);
+  const lv = game.world.level, rng = game.rng, start = game.world.start;
+  const nodes = [];
+  for (const poi of Object.values(game.pois)) if (!SPECIAL_KINDS.includes(poi.kind)) nodes.push([poi.x, poi.y + 1]);
+  for (const [cx, cy] of game.world.camps) nodes.push([cx, cy + 1]);
+  game.patrol_nodes = nodes;
+  gen_near(game, start[0], start[1]);
   const n_hordes = 3 + Math.floor(lv.w * lv.h / 3500);
   for (let i = 0; i < n_hordes; i++) {
     for (let t = 0; t < 30; t++) {
       const pos = [rng.randint(4, lv.w - 5), rng.randint(4, lv.h - 5)];
       if (cheb(pos, start) > 34 && lv.free(pos[0], pos[1])) { spawn_horde(game, pos); break; }
-    }
-  }
-}
-
-// Enclave scouts and military soldiers walk the roads between buildings and the raider camps.
-function _patrols(game) {
-  const lv = game.world.level, rng = game.rng, start = game.world.start;
-  const nodes = [];
-  for (const poi of Object.values(game.pois)) {
-    if (SPECIAL_KINDS.includes(poi.kind)) continue;
-    const spot = lv.free_spot_near(poi.x, poi.y + 2, 3);
-    if (spot) nodes.push(spot);
-  }
-  for (const [cx, cy] of game.world.camps) { const c = lv.free_spot_near(cx, cy, 3); if (c) nodes.push(c); }
-  game.patrol_nodes = nodes;
-  const roads = [];
-  for (let y = 2; y < lv.h - 2; y++) for (let x = 2; x < lv.w - 2; x++) if (lv.tiles[y * lv.w + x] === T.ROAD && cheb([x, y], start) >= 30) roads.push([x, y]);
-  if (!roads.length || !nodes.length) return;
-  const groups = 1 + Math.floor(lv.w * lv.h / 7000);
-  let group = 0;
-  for (const role of ['scout', 'soldier']) {
-    for (let g = 0; g < groups; g++) {
-      group++;
-      const base = rng.choice(roads), members = rng.randint(2, 3);
-      for (let m = 0; m < members; m++) {
-        const spot = lv.free_spot_near(base[0], base[1], 3);
-        if (spot) lv.add_actor(make_patrol(game, role, spot[0], spot[1], group));
-      }
-      game.patrol_goals[group] = rng.choice(nodes);
     }
   }
 }

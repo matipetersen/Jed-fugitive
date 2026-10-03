@@ -19,6 +19,19 @@ generators, so the same seed does not give the same world in both.
 The story briefing (three pages) opens when a new game starts; the menu has a **Briefing** tile to read it again.
 The new-game screen has a *How it starts* choice (or *Surprise me*).
 
+## The map: planned whole, painted by chunks (web only)
+
+The web game's world is 360x240 by default (about 9 times the old 120x76; any size up to a few hundred tiles a side works),
+planned in full at the start and painted lazily. Terrain is a pure function of `(seed, x, y)`, so the planner can place
+every building, camp, the refuge and the extraction point up front (the quest needs to know where they are). Tiles,
+zombies, raiders, camps and patrols are painted per 48x48 chunk the first time you get within 56 tiles of it, from a random
+stream derived from `(seed, chunk)` alone and with uids from a range reserved for that chunk. So the result never depends on
+the order or the moment you visit chunks (a test checks both), which is what lets everyone in the shared world find the same
+world. Every chunk owns its left column and top row as a highway (a bridge over water), so the world is connected by construction;
+buildings never straddle a chunk and lanes lead from each building to the nearest highway. The start takes tens of milliseconds
+even at 600x400. A save stores only the chunks you painted; the rest regenerates from the seed when you get there. Saves
+from before this change still load (they keep their fixed 120x76 map).
+
 ## Real time in the hardcore modes (web only)
 
 `normal` is turn-based. In the hardcore modes (private `living` and the shared world) the world runs **live**: there

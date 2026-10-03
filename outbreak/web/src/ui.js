@@ -1115,7 +1115,7 @@ function showSharedJoin(env, season) {
 
 function showKeeper(env, season) {
   hideAll(); const s = $('#newgame'); s.hidden = false; s.innerHTML = '';
-  const base = season ? Object.assign({}, season.cfg) : { era: 'modern', zombies: 'classic', scenario: 'cure', difficulty: 'normal', needs: false, map_w: 120, map_h: 76 };
+  const base = season ? Object.assign({}, season.cfg) : { era: 'modern', zombies: 'classic', scenario: 'cure', difficulty: 'normal', needs: false, map_w: 360, map_h: 240 };
   const num = { days: season ? Math.round((season.endsAt - season.startedAt) / 86400000) : 7, hours: season ? season.dayMs / 3600000 : 3, tick: season ? (season.tickMs || 700) : 700 };
   let armed = false;
   const render = (msg) => {

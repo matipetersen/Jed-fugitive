@@ -118,7 +118,12 @@ def _medicate(game, item: Item, d: ItemDef) -> int:
         amount = int(eff["heal"] * (1.0 + p.mod("heal_mult")))
         p.hp = min(p.max_hp, p.hp + amount)
     if eff.get("stop_bleed"):
-        p.bleeding = 0
+        if p.hemorrhage and eff.get("heal", 0) < 20:       # a bandage only slows a fresh stump; a medkit closes it
+            p.bleeding = max(0, p.bleeding - 2)
+        else:
+            p.bleeding = 0
+        if not p.bleeding:
+            p.hemorrhage = False
     if eff.get("splint"):
         p.fracture = False
     if "suppress" in eff:

@@ -273,7 +273,7 @@ class Game:
                 if p.hp <= 0:
                     self.end("dead", "bled out")
                     return
-            if self.rng.random() < 0.03:
+            if not p.hemorrhage and self.rng.random() < 0.03:
                 p.bleeding -= 1
                 if not p.bleeding:
                     self.msg("The bleeding stops on its own.", "good")
@@ -656,7 +656,7 @@ class Game:
             self._step_parity ^= 1
             cost += self._step_parity
         if "leg" in p.lost:
-            cost += 0 if self.clock.turn % 3 else 1
+            cost += 2 if len(p.lost) >= 2 else 1           # one leg: half speed; no limbs to spare: a crawl
         stack = lv.items.get(p.pos)
         if stack:
             names = ", ".join(self.item_def(i.id).name.lower() for i in stack[:3])
@@ -729,6 +729,10 @@ class Game:
 
     def toggle_sprint(self) -> None:
         p = self.player
+        if "leg" in p.lost:
+            p.sprinting = False
+            self.msg("You cannot run on one leg.", "warn")
+            return
         p.sprinting = not p.sprinting and p.stamina > 10
         if p.sprinting:
             p.sneaking = False

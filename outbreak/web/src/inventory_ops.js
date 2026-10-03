@@ -73,7 +73,11 @@ function _medicate(game, item, d) {
     game.msg('You are not hurt.', 'warn'); return 0;
   }
   if ('heal' in eff) p.hp = Math.min(p.max_hp, p.hp + Math.floor(eff.heal * (1.0 + p.mod('heal_mult'))));
-  if (eff.stop_bleed) p.bleeding = 0;
+  if (eff.stop_bleed) {
+    if (p.hemorrhage && (eff.heal || 0) < 20) p.bleeding = Math.max(0, p.bleeding - 2);      // a bandage only slows a fresh stump; a medkit closes it
+    else p.bleeding = 0;
+    if (!p.bleeding) p.hemorrhage = false;
+  }
   if (eff.splint) p.fracture = false;
   if ('suppress' in eff) { p.infection_timer += Math.floor(eff.suppress); game.msg('The suppressant steadies your blood. The infection slows.', 'good'); }
   if ('panic' in eff) game.add_panic(eff.panic, true);

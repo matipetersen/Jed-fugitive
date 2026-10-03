@@ -86,12 +86,67 @@ class InfectionTests(unittest.TestCase):
         combat.infect(g)
         p.bite_limb, p.bite_window = "arm", 20
         self.assertIsNone(combat.can_amputate(g))
+        hp_before, max_before = p.hp, p.max_hp
         self.assertTrue(combat.amputate(g))
         self.assertFalse(p.infected)
         self.assertEqual(p.lost, ["arm"])
+        self.assertGreater(hp_before - p.hp, 18, "cutting off a limb must hurt a lot")
+        self.assertEqual(p.max_hp, max_before - 10)
+        self.assertTrue(p.hemorrhage)
         combat.infect(g)
         p.bite_limb, p.bite_window = "arm", 20
         self.assertIn("already gone", combat.can_amputate(g))
+
+    def test_a_fresh_stump_bleeds_until_bound_and_never_stops_alone(self):
+        g = new(zombies="classic")
+        p = g.player
+        p.weapon = Item("machete", 1, 50)
+        combat.infect(g)
+        p.bite_limb, p.bite_window = "leg", 20
+        combat.amputate(g)
+        self.assertEqual(p.bleeding, 3)
+        for _ in range(400):
+            g.rng.random()
+            g.clock.turn += 1
+            g._player_conditions() if p.hp > 5 else None
+        self.assertGreaterEqual(p.bleeding, 3, "a stump must not stop bleeding on its own")
+        p.hp = p.max_hp
+        p.inventory.append(Item("bandage", 1))
+        g.use(len(p.inventory) - 1)
+        self.assertEqual(p.bleeding, 1)                 # one bandage only slows it
+        self.assertTrue(p.hemorrhage)
+        p.inventory.append(Item("bandage", 1))
+        g.use(len(p.inventory) - 1)
+        self.assertEqual(p.bleeding, 0)
+        self.assertFalse(p.hemorrhage)
+
+    def test_second_limb_is_far_worse_and_can_kill(self):
+        g = new(zombies="classic")
+        p = g.player
+        p.weapon = Item("machete", 1, 50)
+        combat.infect(g)
+        p.bite_limb, p.bite_window = "arm", 20
+        combat.amputate(g)
+        p.hp = 30                                       # hurt, as after a fight
+        combat.infect(g)
+        p.bite_limb, p.bite_window = "leg", 20
+        self.assertGreater(combat.amputation_shock(g), 40)
+        combat.amputate(g)
+        self.assertIsNotNone(g.over, "a second amputation at 30 hp must kill")
+
+    def test_lost_limbs_cripple(self):
+        g = new(zombies="classic")
+        p = g.player
+        p.lost = ["leg"]
+        g.toggle_sprint()
+        self.assertFalse(p.sprinting)
+        self.assertLess(p.evade, 0)
+        p.lost = ["arm"]
+        self.assertEqual(p.capacity, 18)
+        from outbreak.engine import combat as c
+        p.weapon = Item("bow", 1, 30) if "bow" in g.items else p.weapon
+        if p.weapon and p.weapon.id == "bow":
+            self.assertEqual(c.weapon_def(g).id, "fists")
 
     def test_torso_bites_cannot_be_cut_away(self):
         g = new()

@@ -25,9 +25,19 @@ def article(noun: str) -> str:
     return "an" if noun[:1].lower() in "aeiou" else "a"
 
 
+def needs_both_arms(d: ItemDef) -> bool:
+    """Bows, polearms and heavy long guns cannot be used with one arm."""
+    return d.style in ("bow", "polearm") or (d.style in ("firearm", "energy") and d.dmg[1] >= 14)
+
+
 def weapon_def(game) -> ItemDef:
     w = game.player.weapon
-    return game.item_def(w.id) if w is not None else FISTS
+    if w is None:
+        return FISTS
+    d = game.item_def(w.id)
+    if "arm" in game.player.lost and needs_both_arms(d):
+        return FISTS                                   # you cannot work it one-handed
+    return d
 
 
 def player_lit(game) -> bool:
@@ -49,7 +59,7 @@ def _accuracy(game, w: ItemDef, evade: float, distance: int = 1) -> float:
     if p.stamina < STAMINA_PER_ATTACK + 1:
         acc -= 12
     if "arm" in p.lost:
-        acc -= 8
+        acc -= 20 if w.is_ranged else 14
     if game.is_dark() and not player_lit(game):
         acc -= 8
     return clamp(acc - evade, 12, 96)
@@ -70,6 +80,8 @@ def _damage(game, w: ItemDef, item: Optional[Item], sneak: bool) -> float:
     mult = 1.0 + 0.04 * p.style_rank(w.style)
     if not w.is_ranged:
         mult += p.mod("melee_dmg")
+        if "arm" in p.lost:
+            mult *= 0.6
     if item is not None and w.durability and (item.dur or 0) < w.durability * 0.25:
         mult *= 0.8
     if p.stamina < STAMINA_PER_ATTACK + 1:
@@ -181,7 +193,7 @@ def player_attack(game, target: Actor) -> bool:
         item = None
         game.msg("You club it with the butt of your weapon.", "info")
     else:
-        item = p.weapon
+        item = p.weapon if w is not FISTS else None
     d = cheb(p.pos, target.pos)
     if d > w.reach or (d > 1 and not has_los(game.level, p.pos, target.pos)):
         return False
@@ -510,6 +522,13 @@ def can_amputate(game) -> Optional[str]:
     return None
 
 
+def amputation_shock(game) -> int:
+    """Health the cut will cost.  The second limb is far worse than the first."""
+    p = game.player
+    base = 29 * (1.0 + 0.8 * len(p.lost))
+    return max(10, int(base - p.mod("surgeon") * 0.6))
+
+
 def amputate(game) -> bool:
     reason = can_amputate(game)
     if reason:
@@ -517,14 +536,26 @@ def amputate(game) -> bool:
         return False
     p = game.player
     limb = p.bite_limb
+    shock = int(amputation_shock(game) + game.rng.randint(-5, 5))
     p.infected = False
     p.infection_timer = 0
     p.bite_window = 0
     p.lost.append(limb)
-    p.bleeding = 2
-    p.hp = max(1, p.hp - 8)
-    game.add_panic(max(5.0, 30.0 - 4.0 * p.mod("surgeon") / 8))
-    game.emit_noise(p.pos, 7, "player")
-    game.msg(f"You cut off your {limb}. The infection goes with it. You are bleeding badly.", "good")
     p.bump("amputations")
+    game.emit_noise(p.pos, 9, "player")
+    game.add_panic(max(10.0, 45.0 - 4.0 * p.mod("surgeon") / 8))
+    p.max_hp = max(20, p.max_hp - 10)                 # blood, nerve and strength do not come back
+    p.max_stamina = max(40.0, p.max_stamina - 25.0)
+    p.sprinting = False
+    if p.hp <= shock:
+        p.hp = 0
+        game.msg(f"You cut off your {limb}. The pain and the blood are too much. Everything goes white.", "bad")
+        game.end("dead", f"went into shock after cutting off your {limb}")
+        return True
+    p.hp -= shock
+    p.hemorrhage = True
+    p.bleeding = 3
+    p.hp = min(p.hp, p.max_hp)
+    game.msg(f"You cut off your {limb}. The infection goes with it, and so does a great deal of blood. "
+             "It will not stop by itself: bind it now.", "warn")
     return True

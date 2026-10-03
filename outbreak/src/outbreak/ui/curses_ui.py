@@ -256,7 +256,7 @@ class UI:
         elif key == ord("t"):
             self.throw_mode()
         elif key in (ord("x"), ord("X")):
-            g.amputate()
+            self.amputate_prompt()
         elif key == ord("s"):
             g.toggle_sneak()
         elif key == ord("R"):
@@ -271,6 +271,22 @@ class UI:
             self.briefing()
         elif key == ord("Q"):
             self.quit = True
+
+    def amputate_prompt(self) -> None:
+        g = self.g
+        reason = combat.can_amputate(g)
+        if reason:
+            g.msg(reason, "warn")
+            return
+        shock = combat.amputation_shock(g)
+        odds = "You will not survive it." if g.player.hp <= shock - 5 else (
+            "It could kill you." if g.player.hp <= shock + 5 else "You should survive it.")
+        bandages = g.player.count("bandage") + g.player.count("medkit")
+        r = self.pick(f"Cut off your {g.player.bite_limb}? About {shock} health, a permanent loss of strength, and bleeding "
+                      f"that only a bandage (you have {bandages}) will slow. {odds}",
+                      [("Cut it off", "red"), ("Not yet", "grey")])
+        if r == 0:
+            g.amputate()
 
     # ------------------------------------------------------------ interaction
     def interact(self) -> None:

@@ -93,11 +93,36 @@ const nz = (g, special = 'walker', dx = 1, dy = 0, state = 'hunt') => {
   OB.infect(g);
   g.player.bite_limb = 'arm'; g.player.bite_window = 20;
   assert.strictEqual(OB.can_amputate(g), null);
+  const hp0 = g.player.hp, max0 = g.player.max_hp;
   assert(OB.amputate(g)); assert(!g.player.infected); assert.deepStrictEqual(g.player.lost, ['arm']);
+  assert(hp0 - g.player.hp > 18, 'cutting off a limb must hurt a lot'); assert.strictEqual(g.player.max_hp, max0 - 10); assert(g.player.hemorrhage);
   OB.infect(g); g.player.bite_limb = 'arm'; g.player.bite_window = 20;
   assert(/already gone/.test(OB.can_amputate(g)));
   g.player.bite_limb = 'torso'; g.player.bite_window = 0;
   assert(OB.can_amputate(g));
+}
+// a fresh stump bleeds until bound; the second limb is far worse and can kill
+{
+  const g = quiet(make({ zombies: 'classic' })), p = g.player;
+  p.weapon = OB.make_item('machete', 1, 50);
+  OB.infect(g); p.bite_limb = 'leg'; p.bite_window = 20; OB.amputate(g);
+  assert.strictEqual(p.bleeding, 3);
+  for (let i = 0; i < 300 && p.hp > 5; i++) { g.clock.turn += 1; g._player_conditions(); }
+  assert(p.bleeding >= 3, 'a stump must not stop bleeding on its own');
+  p.hp = p.max_hp; p.inventory.push(OB.make_item('bandage', 1)); g.use(p.inventory.length - 1);
+  assert.strictEqual(p.bleeding, 1); assert(p.hemorrhage);
+  p.inventory.push(OB.make_item('bandage', 1)); g.use(p.inventory.length - 1);
+  assert.strictEqual(p.bleeding, 0); assert(!p.hemorrhage);
+  g.toggle_sprint(); assert(!p.sprinting); assert(p.evade < 0);
+}
+{
+  const g = quiet(make({ zombies: 'classic' })), p = g.player;
+  p.weapon = OB.make_item('machete', 1, 50);
+  OB.infect(g); p.bite_limb = 'arm'; p.bite_window = 20; OB.amputate(g);
+  assert.strictEqual(p.capacity, 18);
+  p.hp = 30; OB.infect(g); p.bite_limb = 'leg'; p.bite_window = 20;
+  assert(OB.amputation_shock(g) > 40);
+  OB.amputate(g); assert(g.over, 'a second amputation at 30 hp must kill');
 }
 {
   const g = quiet(make({ zombies: 'rage', scenario: 'extraction' }));

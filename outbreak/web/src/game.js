@@ -271,7 +271,7 @@ class Game {
         p.hp -= p.bleeding; this.add_panic(1.5);
         if (p.hp <= 0) { this.end('dead', 'bled out'); return; }
       }
-      if (this.rng.random() < 0.03) {
+      if (!p.hemorrhage && this.rng.random() < 0.03) {
         p.bleeding -= 1;
         if (!p.bleeding) this.msg('The bleeding stops on its own.', 'good');
       }
@@ -611,7 +611,7 @@ class Game {
     else if (p.sprinting && p.stamina > 5) { p.stamina -= 3; this._step_parity ^= 1; cost = this._step_parity; }
     else p.sprinting = false;
     if (p.fracture) { this._step_parity ^= 1; cost += this._step_parity; }
-    if (p.lost.includes('leg')) cost += this.clock.turn % 3 ? 0 : 1;
+    if (p.lost.includes('leg')) cost += p.lost.length >= 2 ? 2 : 1;        // one leg: half speed; no limbs to spare: a crawl
     const stack = lv.items[k];
     if (stack) this.msg(`You see here: ${stack.slice(0, 3).map((i) => this.item_def(i.id).name.toLowerCase()).join(', ')}. (PICK UP)`, 'info');
     if (lv.docs[k]) this.msg('A document lies here. (PICK UP)', 'info');
@@ -670,6 +670,7 @@ class Game {
   }
   toggle_sprint() {
     const p = this.player;
+    if (p.lost.includes('leg')) { p.sprinting = false; this.msg('You cannot run on one leg.', 'warn'); return; }
     p.sprinting = !p.sprinting && p.stamina > 10;
     if (p.sprinting) p.sneaking = false;
     this.msg(p.sprinting ? 'You break into a run.' : 'You slow down.', 'info');

@@ -42,6 +42,7 @@ class Player(Actor):
     bite_window: int = 0             # turns left in which amputation can still save you
     lost: List[str] = field(default_factory=list)    # limbs amputated: "arm", "leg"
     bleeding: int = 0
+    hemorrhage: bool = False         # a fresh stump: it will not stop bleeding by itself
     fracture: bool = False
     filter_turns: int = 0
     disguise_turns: int = 0
@@ -67,7 +68,8 @@ class Player(Actor):
 
     @property
     def evade(self) -> float:
-        return 5 + self.mod("evade") - (6 if self.fracture else 0) - (4 if "leg" in self.lost else 0)
+        return (5 + self.mod("evade") - (6 if self.fracture else 0) - (8 if "leg" in self.lost else 0)
+                - (4 if len(self.lost) >= 2 else 0))
 
     # ------------------------------------------------------------ progression
     def style_rank(self, style: str) -> int:
@@ -117,13 +119,17 @@ class Player(Actor):
     def count(self, item_id: str) -> int:
         return sum(i.qty for i in self.inventory if i.id == item_id)
 
+    @property
+    def capacity(self) -> int:
+        return INVENTORY_SLOTS - (8 if "arm" in self.lost else 0)     # one arm carries less
+
     def slots_used(self) -> int:
         return sum(1 for i in self.inventory if not i.key)
 
     def can_hold(self, item: Item, stackable: bool) -> bool:
         if item.key or (stackable and any(i.id == item.id for i in self.inventory)):
             return True
-        return self.slots_used() < INVENTORY_SLOTS
+        return self.slots_used() < self.capacity
 
     def add_item(self, item: Item, stackable: bool) -> bool:
         if not self.can_hold(item, stackable):

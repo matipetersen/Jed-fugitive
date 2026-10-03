@@ -7,7 +7,14 @@ const is_zombie = (a) => a && a.kind === 'zombie';
 const is_human = (a) => a && a.kind === 'human';
 const apos = (a) => [a.x, a.y];
 
-function weapon_def(game) { const w = game.player.weapon; return w ? game.item_def(w.id) : FISTS; }
+// Bows, polearms and heavy long guns cannot be used with one arm.
+const needs_both_arms = (d) => d.style === 'bow' || d.style === 'polearm' || ((d.style === 'firearm' || d.style === 'energy') && d.dmg[1] >= 14);
+function weapon_def(game) {
+  const w = game.player.weapon;
+  if (!w) return FISTS;
+  const d = game.item_def(w.id);
+  return game.player.lost.includes('arm') && needs_both_arms(d) ? FISTS : d;      // you cannot work it one-handed
+}
 function player_lit(game) {
   const p = game.player;
   return !!p.light && p.light_on && (p.light.dur || 0) > 0 && game.is_dark();
@@ -20,7 +27,7 @@ function _accuracy(game, w, evade, distance = 1) {
   else if (p.fracture) acc -= 4;
   if (p.panic >= 75) acc -= 16; else if (p.panic >= 50) acc -= 8;
   if (p.stamina < STAMINA_PER_ATTACK + 1) acc -= 12;
-  if (p.lost.includes('arm')) acc -= 8;
+  if (p.lost.includes('arm')) acc -= is_ranged(w) ? 20 : 14;
   if (game.is_dark() && !player_lit(game)) acc -= 8;
   return clamp(acc - evade, 12, 96);
 }
@@ -37,7 +44,7 @@ function _damage(game, w, item, sneak) {
   const p = game.player;
   const raw = game.rng.randint(w.dmg[0], w.dmg[1]);
   let mult = 1.0 + 0.04 * p.style_rank(w.style);
-  if (!is_ranged(w)) mult += p.mod('melee_dmg');
+  if (!is_ranged(w)) { mult += p.mod('melee_dmg'); if (p.lost.includes('arm')) mult *= 0.6; }
   if (item && w.durability && (item.dur || 0) < w.durability * 0.25) mult *= 0.8;
   if (p.stamina < STAMINA_PER_ATTACK + 1) mult *= 0.75;
   if (p.hunger >= 75) mult *= 0.85;
@@ -116,7 +123,7 @@ function player_attack(game, target) {
   const p = game.player;
   let w = weapon_def(game), item;
   if (is_ranged(w)) { w = FISTS; item = null; game.msg('You club it with the butt of your weapon.', 'info'); }
-  else item = p.weapon;
+  else item = w !== FISTS ? p.weapon : null;
   const d = cheb(apos(p), apos(target));
   if (d > w.reach || (d > 1 && !has_los(game.level, apos(p), apos(target)))) return false;
   p.stamina = Math.max(0, p.stamina - STAMINA_PER_ATTACK);
@@ -363,15 +370,31 @@ function can_amputate(game) {
   return null;
 }
 
+// Health the cut will cost. The second limb is far worse than the first.
+function amputation_shock(game) {
+  const p = game.player;
+  return Math.max(10, Math.floor(29 * (1.0 + 0.8 * p.lost.length) - p.mod('surgeon') * 0.6));
+}
+
 function amputate(game) {
   const reason = can_amputate(game);
   if (reason) { game.msg(reason, 'warn'); return false; }
   const p = game.player, limb = p.bite_limb;
-  p.infected = false; p.infection_timer = 0; p.bite_window = 0; p.lost.push(limb); p.bleeding = 2;
-  p.hp = Math.max(1, p.hp - 8);
-  game.add_panic(Math.max(5.0, 30.0 - 4.0 * p.mod('surgeon') / 8));
-  game.emit_noise(apos(p), 7, 'player');
-  game.msg(`You cut off your ${limb}. The infection goes with it. You are bleeding badly.`, 'good');
+  const shock = Math.floor(amputation_shock(game) + game.rng.randint(-5, 5));
+  p.infected = false; p.infection_timer = 0; p.bite_window = 0; p.lost.push(limb);
   p.bump('amputations');
+  game.emit_noise(apos(p), 9, 'player');
+  game.add_panic(Math.max(10.0, 45.0 - 4.0 * p.mod('surgeon') / 8));
+  p.max_hp = Math.max(20, p.max_hp - 10);                // blood, nerve and strength do not come back
+  p.max_stamina = Math.max(40, p.max_stamina - 25);
+  p.sprinting = false;
+  if (p.hp <= shock) {
+    p.hp = 0;
+    game.msg(`You cut off your ${limb}. The pain and the blood are too much. Everything goes white.`, 'bad');
+    game.end('dead', `went into shock after cutting off your ${limb}`);
+    return true;
+  }
+  p.hp -= shock; p.hemorrhage = true; p.bleeding = 3; p.hp = Math.min(p.hp, p.max_hp);
+  game.msg(`You cut off your ${limb}. The infection goes with it, and so does a great deal of blood. It will not stop by itself: bind it now.`, 'warn');
   return true;
 }

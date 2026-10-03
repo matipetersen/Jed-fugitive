@@ -297,7 +297,7 @@ function updateControls() {
   $('#fire-sub').textContent = is_ranged(w) ? (w.ammo ? `${p.count(w.ammo)} ammo` : w.name) : (w.name || 'fists');
   const alert = $('#alert'); alert.innerHTML = '';
   if (p.infected && can_amputate(g) === null) {
-    alert.append(btn('big red', `CUT IT OFF (${p.bite_window})`, () => { doAction(() => g.amputate()); }));
+    alert.append(btn('big red', `CUT IT OFF (${p.bite_window})`, () => confirmAmputate()));
   }
   const heal = (p.hp < p.max_hp * 0.5 || p.bleeding) ? ['medkit', 'bandage'].find((id) => p.count(id) > 0) : null;
   if (heal) alert.append(btn('big', `Use ${g.item_def(heal).name.toLowerCase()}`, () => { doAction(() => g.use(p.inventory.findIndex((i) => i.id === heal))); }));
@@ -864,6 +864,17 @@ function openTrade(msg) {
       row.addEventListener('click', () => { const t = $('#sheet-body').scrollTop; const r = sell(g, i); refresh(); openTrade(r); $('#sheet-body').scrollTop = t; });
       body.append(row);
     });
+  });
+}
+
+function confirmAmputate() {
+  const g = game, p = g.player, shock = amputation_shock(g);
+  const bandages = p.count('bandage') + p.count('medkit');
+  const verdict = p.hp <= shock - 5 ? 'You will not survive it.' : p.hp <= shock + 5 ? 'It could kill you.' : 'You should survive it.';
+  openSheet(`Cut off your ${p.bite_limb}?`, (body) => {
+    body.append(el('p', 'event-text', `It costs about ${shock} health and a permanent loss of strength. The stump bleeds until you bind it: a bandage only slows it, a medkit closes it. You carry ${bandages}. ${p.lost.length ? 'You have already lost a limb: this one is far worse.' : ''}`));
+    body.append(el('p', 'event-text t-' + (p.hp <= shock + 5 ? 'bad' : 'warn'), verdict));
+    body.append(el('div', 'actionrow', [btn('btn danger', 'Cut it off', () => { closeSheet(); doAction(() => g.amputate()); }), btn('btn', 'Not yet', () => closeSheet())]));
   });
 }
 

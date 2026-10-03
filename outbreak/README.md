@@ -68,8 +68,12 @@ that the keeper resets; see `web/README.md`. Those are web only (real time and t
   comes for you. Blades and bows are quiet; guns draw hordes. Sneak (`s`) halves what they notice.
 * **Hordes are real.** Crowds roam the map, are drawn to noise, and become individual zombies when close.
   The game opens with a tide closing on the breach from every side but one.
-* **Bitten?** Arm or leg: you have a short window to **cut it off** (`x`, needs a blade). Torso: suppressants
-  only buy time. Spore presets infect through the air unless you wear a filter.
+* **Bitten?** Arm or leg: you have a short window to **cut it off** (`x`, needs a blade). It is not a free cure:
+  it costs about 30 health (the first limb; the second costs nearly twice as much and will kill you unless you are
+  nearly whole), permanently lowers your maximum health and stamina, and leaves a stump that bleeds until you bind
+  it (a bandage only slows it, a medkit closes it). A lost leg halves your speed, stops you running and wrecks your
+  evasion; a lost arm cuts your accuracy and melee damage, carries less, and rules out bows, polearms and rifles.
+  Torso: suppressants only buy time. Spore presets infect through the air unless you wear a filter.
 * **Injuries**: bleeding, broken legs, lost limbs. **Panic** wrecks your aim and can freeze you.
 * **Day and night**: you see less in the dark, lights make you visible, some dead change at night.
 * **Documents are written in a cipher.** Unknown words show as glyphs. You learn them by exposure, by

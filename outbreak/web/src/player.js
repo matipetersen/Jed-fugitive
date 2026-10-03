@@ -11,7 +11,7 @@ class Player {
     this.xp = 0; this.level = 1; this.perk_points = 0; this.perks = {}; this.coins = 0;
     this.inventory = []; this.weapon = null; this.armor = null; this.light = null; this.style_xp = {};
     this.infected = false; this.infection_timer = 0; this.bite_limb = ''; this.bite_window = 0; this.lost = [];
-    this.bleeding = 0; this.fracture = false; this.filter_turns = 0; this.disguise_turns = 0;
+    this.bleeding = 0; this.hemorrhage = false; this.fracture = false; this.filter_turns = 0; this.disguise_turns = 0;
     this.sneaking = false; this.sprinting = false; this.light_on = true;
     this.kills = 0; this.documents = []; this.stats = {};
   }
@@ -25,7 +25,8 @@ class Player {
     return total;
   }
   bump(stat, n = 1) { this.stats[stat] = (this.stats[stat] || 0) + n; }
-  get evade() { return 5 + this.mod('evade') - (this.fracture ? 6 : 0) - (this.lost.includes('leg') ? 4 : 0); }
+  get evade() { return 5 + this.mod('evade') - (this.fracture ? 6 : 0) - (this.lost.includes('leg') ? 8 : 0) - (this.lost.length >= 2 ? 4 : 0); }
+  get capacity() { return INVENTORY_SLOTS - (this.lost.includes('arm') ? 8 : 0); }      // one arm carries less
   style_rank(style) {
     const xp = this.style_xp[style] || 0;
     let rank = 0;
@@ -59,7 +60,7 @@ class Player {
   slots_used() { return this.inventory.filter((i) => !i.key).length; }
   can_hold(item, stackable) {
     if (item.key || (stackable && this.inventory.some((i) => i.id === item.id))) return true;
-    return this.slots_used() < INVENTORY_SLOTS;
+    return this.slots_used() < this.capacity;
   }
   add_item(item, stackable) {
     if (!this.can_hold(item, stackable)) return false;

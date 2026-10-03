@@ -347,6 +347,14 @@ class Game {
       const hz = lv.hazards[k];
       if (hz.ttl < 1e8) { hz.ttl -= 1; if (hz.ttl <= 0) { delete lv.hazards[k]; continue; } }
       const victim = lv.occ.get(+k);
+      if (hz.kind === 'spikes') {
+        if (victim && victim.kind === 'zombie') {
+          delete lv.hazards[k]; victim.hp -= hz.power;
+          if (this.visible.has(+k)) this.msg(`The ${victim.name.toLowerCase()} impales itself on your trap.`, 'good');
+          if (victim.hp <= 0) kill_zombie(this, victim, false, true);
+        }
+        continue;
+      }
       if (hz.kind === 'fire') {
         if (victim && victim.kind === 'zombie') { victim.hp -= 4; if (victim.hp <= 0) kill_zombie(this, victim, false, true); }
         else if (victim === p) {
@@ -625,7 +633,7 @@ class Game {
       this._spend(turns);
       return turns > 0;
     }
-    if (tile === T.BENCH) return this.use_bench();
+    if (tile === T.BENCH) return this.use_bench(true);
     if (tile === T.BED) { this.msg('A bed. Use the SLEEP action beside it.', 'info'); return false; }
     if (lv.portals[k] && (tile === T.PORTAL || tile === T.STAIRS_UP || tile === T.STAIRS_DOWN)) return this._use_portal(nx, ny);
     if (!lv.walkable(nx, ny)) return false;
@@ -830,7 +838,7 @@ class Game {
   interact() {
     if (this.adjacent_npc()) return 'npc';
     if (this.adjacent_tile(T.BED)) return 'bed';
-    if (this.adjacent_tile(T.BENCH)) { this.use_bench(); return ''; }
+    if (this.adjacent_tile(T.BENCH)) { this.use_bench(true); return ''; }
     const crate = this.adjacent_tile(T.CRATE);
     if (crate) { this._spend(search_container(this, crate)); return ''; }
     const lock = this.adjacent_tile(T.LOCKED);
@@ -873,7 +881,18 @@ class Game {
   }
   requirements_met() { return this.requirements().every((r) => r[1]); }
 
-  use_bench() {
+  _siege_doors(lv) {
+    const out = [];
+    for (let y = 0; y < lv.h; y++) for (let x = 0; x < lv.w; x++) {
+      const t = lv.tile(x, y);
+      if ((t === T.DOOR || t === T.DOOR_OPEN) && (x === 1 || x === lv.w - 2 || y === 1)) out.push([x, y]);
+    }
+    return out;
+  }
+  _door_name(lv, d) { return d[0] <= 1 ? 'west' : d[0] >= lv.w - 2 ? 'east' : 'north'; }
+  _door_inside(lv, d) { return [d[0] + (d[0] <= 1 ? 1 : d[0] >= lv.w - 2 ? -1 : 0), d[1] + (d[1] <= 1 ? 1 : 0)]; }
+
+  use_bench(ask = false) {
     const lv = this.level, site = this.pois[this.final_site_id];
     if (lv.poi_id !== site.id) { this.msg('It is idle. This is not where you need to be.', 'info'); return false; }
     if (this.final) { this.msg('You are already working. Hold out!', 'warn'); return false; }
@@ -882,8 +901,14 @@ class Game {
       this.msg('You are not ready: ' + missing.join('; ') + '.', 'warn');
       return false;
     }
-    const sc = this.scenario;
-    this.final = { turns_left: sc.final_turns, next_wave: 4, boss_done: false };
+    const sc = this.scenario, doors = this._siege_doors(lv);
+    const weak = doors.filter((d) => lv.tile(d[0], d[1]) !== T.DOOR || (lv.door_hp[lv.idx(d[0], d[1])] === undefined ? DOOR_HP : lv.door_hp[lv.idx(d[0], d[1])]) < 30);
+    if (ask && weak.length && !this.siege_warned) {
+      this.siege_warned = true;
+      this.msg(`Once you start there is no taking it back. The ${weak.map((d) => this._door_name(lv, d)).join(', ')} door${weak.length > 1 ? 's are' : ' is'} not barricaded: each wave will break through there. Barricade them, set traps, stock fire, then use it again to ${sc.final_verb}.`, 'warn');
+      return false;
+    }
+    this.final = { turns_left: sc.final_turns, next_wave: 4, boss_done: false, total: sc.final_turns, doors, pending: {} };
     lv.safe = false;
     this.msg(`You begin to ${sc.final_verb}. The noise carries. Hold out for ${sc.final_turns} turns!`, 'bad', true);
     this.emit_noise([this.player.x, this.player.y], 30);
@@ -899,16 +924,11 @@ class Game {
     if (f.turns_left <= 0) { this.final = null; this.end('won'); return; }
     f.next_wave -= 1;
     if (f.next_wave <= 0) {
-      f.next_wave = 6;
-      const n = 2 + Math.floor(p.level / 4) + (this.diff.zombies > 1 ? 1 : 0);
-      for (let i = 0; i < n; i++) {
-        const spot = lv.free_spot_near(lv.entry[0] + this.rng.randint(-2, 2), lv.entry[1], 3);
-        if (spot && cheb(spot, [p.x, p.y]) > 2) {
-          const z = spawn_zombie(this, lv, spot, null, false, true);
-          z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn;
-        }
-      }
-      this.msg('The door shakes. More of them are coming in!', 'warn');
+      const progress = 1.0 - f.turns_left / Math.max(1, f.total);
+      f.next_wave = Math.max(3, 7 - Math.floor(progress * 4));       // the waves come faster as it goes on
+      const n = 2 + Math.floor(p.level / 4) + (this.diff.zombies > 1 ? 1 : 0) + Math.floor(progress * 3);
+      const pts = [null].concat(f.doors);
+      this._siege_wave(f, pts[this.rng.randint(0, pts.length - 1)], n);
     }
     if (!f.boss_done && f.turns_left <= Math.floor(this.scenario.final_turns / 2)) {
       f.boss_done = true;
@@ -927,6 +947,38 @@ class Game {
         }
       }
     }
+  }
+
+  _siege_spawn(near, n, radius = 2) {
+    const lv = this.level, p = this.player;
+    for (let i = 0; i < n; i++) {
+      const spot = lv.free_spot_near(near[0] + this.rng.randint(-1, 1), near[1], radius);
+      if (spot && cheb(spot, [p.x, p.y]) > 1) {
+        const z = spawn_zombie(this, lv, spot, null, false, true);
+        z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn;
+      }
+    }
+  }
+
+  // a wave arrives at the main entrance or a side door; closed doors hold it back until they break
+  _siege_wave(f, door, n) {
+    const lv = this.level;
+    if (!door) { this._siege_spawn(lv.entry, n, 3); this.msg('The dead are pouring in through the entrance!', 'warn'); return; }
+    const name = this._door_name(lv, door), k = lv.idx(door[0], door[1]), key = `${door[0]},${door[1]}`;
+    if (lv.tile(door[0], door[1]) === T.DOOR_OPEN) { this._siege_spawn(this._door_inside(lv, door), n); this.msg(`More of them come through the broken ${name} door!`, 'warn'); return; }
+    f.pending[key] = (f.pending[key] || 0) + n;
+    const hp = (lv.door_hp[k] === undefined ? DOOR_HP : lv.door_hp[k]) - 5 * n;
+    if (hp > 0) {
+      lv.door_hp[k] = hp;
+      this.msg(`Something is battering the ${name} door. It will not hold forever (${hp} left).`, 'warn');
+      this.emit_noise(door, 6, 'zombie');
+      return;
+    }
+    delete lv.door_hp[k];
+    lv.set_tile(door[0], door[1], T.DOOR_OPEN);
+    const waiting = f.pending[key] || n; delete f.pending[key];
+    this._siege_spawn(this._door_inside(lv, door), waiting);
+    this.msg(`The ${name} door gives way!`, 'bad');
   }
 
   learn_perk(perk_id) { const ok = this.player.learn_perk(perk_id); if (ok) this.msg('You learn a new skill.', 'good'); return ok; }

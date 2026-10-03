@@ -61,6 +61,8 @@ def _glyph(game: Game, x: int, y: int, visible: bool) -> Cell:
         return (ch, "grey", False)
     hz = lv.hazards.get((x, y))
     if hz is not None:
+        if hz.kind == "spikes":
+            return ("*", "yellow", True)
         return ("^" if hz.kind == "fire" else "~", "red" if hz.kind == "fire" else "green", True)
     if (x, y) in lv.corpses and t in (T.FLOOR, T.GRASS, T.ROAD, T.BRUSH, T.SHALLOW):
         ch, color = "x", "grey"

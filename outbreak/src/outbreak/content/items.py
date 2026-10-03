@@ -91,6 +91,8 @@ BASE_ITEMS: Tuple[ItemDef, ...] = (
        effect={"repair": 25}, poi=("industry", "military", "market")),
     _i("barricade_kit", "Barricade kit", "tool", "Reinforces the door next to you.", value=7, stackable=True,
        effect={"barricade": 40}, poi=("industry", "market")),
+    _i("spike_trap", "Spike trap", "tool", "Set where you stand. The first of the dead to step on it takes a savage wound.",
+       value=6, stackable=True, effect={"trap": 26}, poi=("industry", "market")),
 )
 
 BASE_BY_ID: Dict[str, ItemDef] = {i.id: i for i in BASE_ITEMS}

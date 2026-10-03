@@ -35,8 +35,9 @@ class Portal:
 
 @dataclass
 class Hazard:
-    kind: str                        # fire | spore
+    kind: str                        # fire | spore | spikes
     ttl: int
+    power: int = 0                   # spikes: the damage the first victim takes
 
 
 @dataclass

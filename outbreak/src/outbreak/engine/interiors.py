@@ -329,6 +329,9 @@ def generate_haven(rng: random.Random, poi: POI, ctx: GenContext) -> Level:
     level.portals[(ex, ey)] = Portal("world", poi.pos, "outside")
     level.entry = (ex, ey - 1)
     level.arrivals["entry"] = level.entry
+    for pos in ((hall[0] - 1, hall[1] + hall[3] // 2), (hall[0] + hall[2], hall[1] + hall[3] // 2),
+                (w // 2, hall[1] - 1)):                      # side doors: the places a siege breaks in
+        level.set_tile(pos[0], pos[1], T.DOOR)
     for i in range(3):
         level.set_tile(hall[0] + 1 + 2 * i, hall[1], T.BED)
     level.bench = (hall[0] + hall[2] - 3, hall[1] + 1)

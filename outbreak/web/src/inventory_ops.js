@@ -47,6 +47,7 @@ function use_item(game, index) {
   if (d.kind === 'material' && 'refuel' in eff) return _refuel(game, item, d);
   if (d.kind === 'tool' && 'repair' in eff) return _repair(game, item, d);
   if (d.kind === 'tool' && 'barricade' in eff) return _barricade(game, item, d);
+  if (d.kind === 'tool' && 'trap' in eff) return _set_trap(game, item, d);
   if (d.kind === 'throw') { game.msg('Use THROW from the actions menu and pick a target.', 'warn'); return 0; }
   game.msg(`You cannot use the ${d.name.toLowerCase()} like that.`, 'warn');
   return 0;
@@ -116,6 +117,15 @@ function door_adjacent(game) {
     if (t === T.DOOR || t === T.DOOR_OPEN) return [p.x + dx, p.y + dy];
   }
   return null;
+}
+
+function _set_trap(game, item, d) {
+  const lv = game.level, p = game.player, k = lv.idx(p.x, p.y), t = lv.tile(p.x, p.y);
+  if (lv.hazards[k] || t === T.DOOR || t === T.DOOR_OPEN || t === T.PORTAL) { game.msg('Not here: you need clear floor.', 'warn'); return 0; }
+  lv.hazards[k] = { kind: 'spikes', ttl: 1e9, power: Math.floor(d.effect.trap) };
+  _consume(game, item);
+  game.msg('You set the trap and step carefully off it. The dead will not see it.', 'good');
+  return 2;
 }
 
 function _barricade(game, item, d) {

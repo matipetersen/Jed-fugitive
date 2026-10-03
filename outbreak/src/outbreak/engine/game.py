@@ -7,7 +7,7 @@ a seeded ``random.Random`` so a run is reproducible from its seed and inputs.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
@@ -35,6 +35,9 @@ class FinalStand:
     turns_left: int
     next_wave: int = 4
     boss_done: bool = False
+    total: int = 0
+    doors: List[Pos] = field(default_factory=list)          # the side doors a wave can batter down
+    pending: Dict[Pos, int] = field(default_factory=dict)   # zombies waiting behind a door that still stands
 
 
 class Game:
@@ -370,6 +373,15 @@ class Game:
                     del lv.hazards[pos]
                     continue
             victim = lv.occ.get(pos)
+            if hz.kind == "spikes":
+                if isinstance(victim, Zombie):
+                    del lv.hazards[pos]
+                    victim.hp -= hz.power
+                    if pos in self.visible:
+                        self.msg(f"The {victim.name.lower()} impales itself on your trap.", "good")
+                    if victim.hp <= 0:
+                        combat.kill_zombie(self, victim, by_player=True)
+                continue
             if hz.kind == "fire":
                 if isinstance(victim, Zombie):
                     victim.hp -= 4
@@ -657,7 +669,7 @@ class Game:
             self._spend(turns)
             return bool(turns)
         if tile == T.BENCH:
-            return self.use_bench()
+            return self.use_bench(True)
         if tile == T.BED:
             self.msg("A bed. Press 'z' to sleep.", "info")
             return False
@@ -971,7 +983,7 @@ class Game:
         if self.adjacent_tile(T.BED):
             return "bed"
         if self.adjacent_tile(T.BENCH):
-            self.use_bench()
+            self.use_bench(True)
             return ""
         crate = self.adjacent_tile(T.CRATE)
         if crate:
@@ -1024,7 +1036,19 @@ class Game:
     def requirements_met(self) -> bool:
         return all(done for _, done, _ in self.requirements())
 
-    def use_bench(self) -> bool:
+    SIEGE_SECURE_HP = 30                                       # a door this strong counts as barricaded
+
+    def _siege_doors(self, lv: Level) -> List[Pos]:
+        return [(x, y) for y in range(lv.h) for x in range(lv.w)
+                if lv.tile(x, y) in (T.DOOR, T.DOOR_OPEN) and (x in (1, lv.w - 2) or y == 1)]
+
+    def _door_name(self, lv: Level, pos: Pos) -> str:
+        return "west" if pos[0] <= 1 else "east" if pos[0] >= lv.w - 2 else "north"
+
+    def _door_inside(self, lv: Level, pos: Pos) -> Pos:
+        return (pos[0] + (1 if pos[0] <= 1 else -1 if pos[0] >= lv.w - 2 else 0), pos[1] + (1 if pos[1] <= 1 else 0))
+
+    def use_bench(self, ask: bool = False) -> bool:
         lv = self.level
         site = self.pois[self.final_site_id]
         if lv.poi_id != site.id:
@@ -1038,7 +1062,16 @@ class Game:
             self.msg("You are not ready: " + "; ".join(missing) + ".", "warn")
             return False
         sc = self.scenario
-        self.final = FinalStand(sc.final_turns)
+        doors = self._siege_doors(lv)
+        weak = [d for d in doors if lv.tile(*d) != T.DOOR or lv.door_hp.get(d, ai.DOOR_HP) < self.SIEGE_SECURE_HP]
+        if ask and weak and not getattr(self, "siege_warned", False):
+            self.siege_warned = True
+            names = ", ".join(self._door_name(lv, d) for d in weak)
+            self.msg(f"Once you start there is no taking it back. The {names} door{'s are' if len(weak) > 1 else ' is'} "
+                     "not barricaded: each wave will break through there. Barricade them, set traps, "
+                     f"stock fire, then use it again to {sc.final_verb}.", "warn")
+            return False
+        self.final = FinalStand(sc.final_turns, total=sc.final_turns, doors=doors)
         lv.safe = False
         self.msg(f"You begin to {sc.final_verb}. The noise carries. Hold out for {sc.final_turns} turns!", "bad", key=True)
         self.emit_noise(self.player.pos, 30)
@@ -1057,14 +1090,10 @@ class Game:
             return
         f.next_wave -= 1
         if f.next_wave <= 0:
-            f.next_wave = 6
-            n = 2 + self.player.level // 4 + (1 if self.diff.zombies > 1 else 0)
-            for _ in range(n):
-                spot = lv.free_spot_near(lv.entry[0] + self.rng.randint(-2, 2), lv.entry[1], 3)
-                if spot and cheb(spot, p.pos) > 2:
-                    z = spawn_zombie(self, lv, spot, dormant=False, fresh=True)
-                    z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn
-            self.msg("The door shakes. More of them are coming in!", "warn")
+            progress = 1.0 - f.turns_left / max(1, f.total)
+            f.next_wave = max(3, 7 - int(progress * 4))             # the waves come faster as it goes on
+            n = 2 + self.player.level // 4 + (1 if self.diff.zombies > 1 else 0) + int(progress * 3)
+            self._siege_wave(f, self.rng.choice([None] + f.doors), n)
         if not f.boss_done and f.turns_left <= self.scenario.final_turns // 2:
             f.boss_done = True
             if p.humanity < 40:
@@ -1081,6 +1110,38 @@ class Game:
                     z = spawn_zombie(self, lv, spot, "alpha", dormant=False, fresh=True)
                     z.state, z.target = "hunt", p.pos
                     self.msg("Something enormous pushes through the dead. The Alpha has come for you.", "bad", key=True)
+
+    def _siege_spawn(self, spot_near: Pos, n: int, radius: int = 2) -> None:
+        lv, p = self.level, self.player
+        for _ in range(n):
+            spot = lv.free_spot_near(spot_near[0] + self.rng.randint(-1, 1), spot_near[1], radius)
+            if spot and cheb(spot, p.pos) > 1:
+                z = spawn_zombie(self, lv, spot, dormant=False, fresh=True)
+                z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn
+
+    def _siege_wave(self, f: FinalStand, door: Optional[Pos], n: int) -> None:
+        """A wave arrives at the main entrance, or at a side door: closed doors hold it back until they break."""
+        lv = self.level
+        if door is None:
+            self._siege_spawn(lv.entry, n, 3)
+            self.msg("The dead are pouring in through the entrance!", "warn")
+            return
+        name = self._door_name(lv, door)
+        if lv.tile(*door) == T.DOOR_OPEN:                    # already broken: nothing holds them
+            self._siege_spawn(self._door_inside(lv, door), n)
+            self.msg(f"More of them come through the broken {name} door!", "warn")
+            return
+        f.pending[door] = f.pending.get(door, 0) + n
+        hp = lv.door_hp.get(door, ai.DOOR_HP) - 5 * n
+        if hp > 0:
+            lv.door_hp[door] = hp
+            self.msg(f"Something is battering the {name} door. It will not hold forever ({hp} left).", "warn")
+            self.emit_noise(door, 6, "zombie")
+            return
+        lv.door_hp.pop(door, None)
+        lv.set_tile(door[0], door[1], T.DOOR_OPEN)
+        self._siege_spawn(self._door_inside(lv, door), f.pending.pop(door, n))
+        self.msg(f"The {name} door gives way!", "bad")
 
     # ----------------------------------------------------------------- perks
     def learn_perk(self, perk_id: str) -> bool:

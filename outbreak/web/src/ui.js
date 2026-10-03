@@ -115,7 +115,8 @@ function draw() {
       }
       if (vis) {
         const hz = lv.hazards[k];
-        if (hz) { ctx.fillStyle = hz.kind === 'fire' ? `rgba(240,120,40,${0.45 + 0.2 * Math.sin(t_ms / 120 + x)})` : 'rgba(110,200,80,.35)'; ctx.fillRect(px, py, ts, ts); }
+        if (hz && hz.kind === 'spikes') { ctx.strokeStyle = '#e8d48a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px + ts * .2, py + ts * .8); ctx.lineTo(px + ts * .35, py + ts * .25); ctx.lineTo(px + ts * .5, py + ts * .8); ctx.lineTo(px + ts * .65, py + ts * .25); ctx.lineTo(px + ts * .8, py + ts * .8); ctx.stroke(); }
+        else if (hz) { ctx.fillStyle = hz.kind === 'fire' ? `rgba(240,120,40,${0.45 + 0.2 * Math.sin(t_ms / 120 + x)})` : 'rgba(110,200,80,.35)'; ctx.fillRect(px, py, ts, ts); }
         if (lv.corpses[k]) { ctx.fillStyle = '#6a6a62'; ctx.font = `${Math.floor(ts * .6)}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('x', px + ts / 2, py + ts / 2); }
         if (lv.docs[k]) { ctx.fillStyle = '#55b3c4'; ctx.fillRect(px + ts * .3, py + ts * .25, ts * .4, ts * .5); }
         if (lv.items[k]) { ctx.fillStyle = '#e8b948'; ctx.beginPath(); ctx.moveTo(px + ts / 2, py + ts * .22); ctx.lineTo(px + ts * .74, py + ts / 2); ctx.lineTo(px + ts / 2, py + ts * .78); ctx.lineTo(px + ts * .26, py + ts / 2); ctx.closePath(); ctx.fill(); }
@@ -366,7 +367,7 @@ function contextAction() {
   const npc = g.adjacent_npc();
   if (npc) return { label: 'Talk', sub: npc.name, run: () => openNpc(npc) };
   if (g.adjacent_tile(T.BED)) return { label: 'Sleep', sub: 'until morning', run: () => confirmSleep() };
-  if (g.adjacent_tile(T.BENCH)) return { label: cap(g.scenario.final_verb), sub: 'final stand', run: () => g.use_bench() };
+  if (g.adjacent_tile(T.BENCH)) return { label: cap(g.scenario.final_verb), sub: 'final stand', run: () => g.use_bench(true) };
   if (g.adjacent_tile(T.CRATE)) return { label: 'Search', sub: 'crate', run: () => g.interact() };
   if (g.adjacent_tile(T.LOCKED)) return { label: 'Unlock', sub: g.poi_of_level(lv) && g.poi_of_level(lv).code_known ? 'code known' : 'force it', run: () => g.interact() };
   return { label: 'Rest', sub: 'catch breath', run: () => g.rest() };

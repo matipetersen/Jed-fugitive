@@ -282,6 +282,7 @@ function generate_haven(rng, poi, ctx) {
   level.portals[level.idx(ex, ey)] = { target: 'world', pos: poi_pos(poi), label: 'outside', arrive: 'entry' };
   level.entry = [ex, ey - 1];
   level.arrivals.entry = level.entry;
+  for (const [x, y] of [[hall[0] - 1, hall[1] + Math.floor(hall[3] / 2)], [hall[0] + hall[2], hall[1] + Math.floor(hall[3] / 2)], [Math.floor(w / 2), hall[1] - 1]]) level.set_tile(x, y, T.DOOR);  // side doors: where a siege breaks in
   for (let i = 0; i < 3; i++) level.set_tile(hall[0] + 1 + 2 * i, hall[1], T.BED);
   level.bench = [hall[0] + hall[2] - 3, hall[1] + 1];
   level.set_tile(level.bench[0], level.bench[1], T.BENCH);

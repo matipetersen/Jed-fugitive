@@ -50,6 +50,14 @@ is created and fires once when you get close. Choices cost items, health, humani
 All three end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
 armed people who have heard about you if you did not.
 
+**The siege.** The hold-out is not a countdown you stand through. The final site has a main entrance and three
+side doors. Waves arrive at a random one of them, get bigger, and come faster as the clock runs down. A side
+door that is not barricaded breaks on the first wave; a barricaded one (barricade kit, 40 hp) batters for a few
+waves and then everything that piled up behind it comes through at once. The first time you use the console
+the game tells you which doors are open and lets you prepare; the second time it starts for good. Prepare with
+barricade kits, **spike traps** (craftable from wood and scrap; set where you stand, they wound the first of the
+dead to step on them), fire bombs and noisemakers, and re-barricade a door that still stands while you hold.
+
 **Opening** (how the story starts): you do not begin in a vacuum. Pick, or let the game pick from who you are,
 a scene: studying, preparing a meal, out hunting, on your rounds, standing watch, fixing things, at the market,
 a funeral vigil. Each has its own text per era and small consequences (a ranged weapon and food for the hunter, a

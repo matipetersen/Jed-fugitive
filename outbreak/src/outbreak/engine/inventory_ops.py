@@ -8,7 +8,7 @@ from outbreak.content.items import ItemDef
 from outbreak.content.recipes import RECIPES, Recipe
 from outbreak.engine import loot
 from outbreak.engine import tiles as T
-from outbreak.engine.model import Item
+from outbreak.engine.model import Hazard, Item
 from outbreak.util import DIRS4
 
 SLOT_OF_KIND = {"weapon": "weapon", "armor": "armor", "light": "light"}
@@ -81,6 +81,8 @@ def use(game, index: int) -> int:
         return _repair(game, item, d)
     if d.kind == "tool" and "barricade" in eff:
         return _barricade(game, item, d)
+    if d.kind == "tool" and "trap" in eff:
+        return _set_trap(game, item, d)
     if d.kind == "throw":
         game.msg("Use the throw command (t) and pick a target.", "warn")
         return 0
@@ -192,6 +194,17 @@ def _barricade(game, item: Item, d: ItemDef) -> int:
     game.msg("You wedge the door shut with everything you have.", "good")
     game.emit_noise(game.player.pos, 4, "player")
     return 3
+
+
+def _set_trap(game, item: Item, d: ItemDef) -> int:
+    lv, p = game.level, game.player
+    if lv.hazards.get(p.pos) or lv.tile(*p.pos) in (T.DOOR, T.DOOR_OPEN, T.PORTAL):
+        game.msg("Not here: you need clear floor.", "warn")
+        return 0
+    lv.hazards[p.pos] = Hazard("spikes", 10 ** 9, int(d.effect["trap"]))
+    _consume(game, item)
+    game.msg("You set the trap and step carefully off it. The dead will not see it.", "good")
+    return 2
 
 
 # ------------------------------------------------------------------ crafting

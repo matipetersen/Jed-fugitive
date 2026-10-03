@@ -23,6 +23,7 @@ RECIPES: Tuple[Recipe, ...] = (
     Recipe("molotov", "molotov", 1, (("fuel", 1), ("cloth", 1))),
     Recipe("noisemaker", "noisemaker", 1, (("parts", 1), ("scrap", 1))),
     Recipe("barricade", "barricade_kit", 1, (("wood", 2), ("scrap", 1))),
+    Recipe("spike_trap", "spike_trap", 1, (("wood", 1), ("scrap", 2))),
     Recipe("repair", "repair_kit", 1, (("scrap", 2), ("parts", 1)), fluency=0.08),
     Recipe("filter", "filter", 1, (("cloth", 1), ("chem", 1)), fluency=0.10),
     Recipe("medkit", "medkit", 1, (("bandage", 2), ("chem", 1)), fluency=0.15),

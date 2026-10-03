@@ -7,7 +7,7 @@ function spawn_horde(game, pos, size = null, target = null) {
   if (!spot) return null;
   if (size === null) size = game.rng.randint(prof.horde_size[0], prof.horde_size[1]);
   size = Math.max(2, Math.floor(size * profile_phase(prof, game.clock.day).spawn * game.diff.zombies));
-  const h = { id: game.next_uid(), x: spot[0], y: spot[1], size, target, energy: 0, announced: false, home_turn: game.clock.turn };
+  const h = { id: game.next_uid(), x: spot[0], y: spot[1], size, target, energy: 0, announced: false, home_turn: game.clock.turn, wait_until: 0 };
   game.hordes.push(h);
   return h;
 }
@@ -55,7 +55,7 @@ function hordes_tick(game) {
     while (h.energy >= 1.0) { h.energy -= 1.0; _horde_step(game, h); }
     if (!on_world) continue;
     const d = cheb([h.x, h.y], [p.x, p.y]);
-    if (d <= MATERIALIZE_RADIUS) materialize(game, h);
+    if (d <= MATERIALIZE_RADIUS && game.clock.turn >= (h.wait_until || 0)) materialize(game, h);
     else if (d <= 32 && !h.announced && game.clock.turn - game.last_moan >= 40) {
       h.announced = true;
       game.last_moan = game.clock.turn;
@@ -87,6 +87,8 @@ function materialize(game, h) {
     z.state = 'investigate'; z.target = [game.player.x, game.player.y]; z.stimulus_turn = game.clock.turn; z.horde = h.id;
     placed++;
   }
+  const leftover = h.size - placed;
+  if (game.cfg.mode === 'living' && leftover >= 2) { h.size = leftover; h.wait_until = game.clock.turn + 12; game.hordes.push(h); }   // nobody vanishes
   if (placed) { game.msg(`A horde of ${placed} comes into view!`, 'bad'); game.add_panic(8); }
 }
 

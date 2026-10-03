@@ -26,6 +26,7 @@ class Horde:
     energy: float = 0.0
     announced: bool = False
     home_turn: int = 0
+    wait_until: int = 0               # living world: the rest of a big crowd waits its turn
 
     @property
     def pos(self) -> Pos:
@@ -115,7 +116,7 @@ def tick(game) -> None:
         if not on_world:
             continue
         d = cheb(h.pos, p.pos)
-        if d <= MATERIALIZE_RADIUS:
+        if d <= MATERIALIZE_RADIUS and game.clock.turn >= h.wait_until:
             materialize(game, h)
         elif d <= 32 and not h.announced and game.clock.turn - game.last_moan >= 40:
             h.announced = True
@@ -137,6 +138,7 @@ def materialize(game, h: Horde) -> None:
     if h in game.hordes:
         game.hordes.remove(h)
     n = min(h.size, MAX_ON_SCREEN)
+
     placed = 0
     for _ in range(n * 3):
         if placed >= n:
@@ -148,6 +150,10 @@ def materialize(game, h: Horde) -> None:
         z.state, z.target, z.stimulus_turn = "investigate", game.player.pos, game.clock.turn
         z.horde = h.id
         placed += 1
+    leftover = h.size - placed
+    if game.cfg.mode == "living" and leftover >= 2:        # nobody vanishes: the rest are still coming
+        h.size, h.wait_until = leftover, game.clock.turn + 12
+        game.hordes.append(h)
     if placed:
         game.msg(f"A horde of {placed} comes into view!", "bad")
         game.add_panic(8)

@@ -63,10 +63,16 @@ def _resolve(game, token: str) -> str:
 
 
 def _make_player(game) -> None:
-    origin = content.get_origin(game.cfg.origin)
     sx, sy = game.world.start
+    game.current_origin = game.cfg.origin
+    make_player(game, game.cfg.origin, (sx, sy))
+
+
+def make_player(game, origin_id: str, pos) -> Player:
+    """A fresh character with an origin's perks and kit, placed at ``pos`` on the overworld."""
+    origin = content.get_origin(origin_id)
     hp = BASE_HP + origin.hp_bonus
-    p = Player(uid=game.next_uid(), name="You", glyph="@", x=sx, y=sy, hp=hp, max_hp=hp, coins=origin.coins)
+    p = Player(uid=game.next_uid(), name="You", glyph="@", x=pos[0], y=pos[1], hp=hp, max_hp=hp, coins=origin.coins)
     p.humanity = 70
     game.player = p
     game.level.occ[p.pos] = p
@@ -86,6 +92,7 @@ def _make_player(game) -> None:
             setattr(p, slot, item)
         else:
             p.add_item(item, d.stackable)
+    return p
 
 
 # ------------------------------------------------------------------ opening
@@ -159,7 +166,7 @@ def intro_pages(game) -> list:
     world = f"{era.name} ({era.year}).\n\n{era.intro}\n\n{prof.lore}"
     scene = opening.scenes[era.id] + "\n\n" + content.openings.CONSEQUENCE.format(
         alarm=content.openings.ALARMS[era.id])
-    premise = sc.premise.format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=sc.deadline_days)
+    premise = (sc.premise_living if game.cfg.mode == "living" else sc.premise).format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=sc.deadline_days)
     return [(opening.name, scene), ("The world", world), ("What you must do", premise)]
 
 
@@ -168,7 +175,7 @@ def _scenario(game) -> None:
     sc, era, rng = game.scenario, game.era, game.rng
     start = game.world.start
     p = game.player
-    if sc.start_infected:
+    if sc.start_infected and game.cfg.mode == "normal":
         p.infected = True
         p.infection_timer = int(sc.timer_turns * game.diff.timer)
         p.bite_limb = "torso"
@@ -268,8 +275,11 @@ def _intro(game) -> None:
         d = compass(refuge.x - p.x, refuge.y - p.y)
         game.msg(f"Rumour on {era.radio}: {era.refuge} still stands, {d} of here, about {cheb(refuge.pos, p.pos)} "
                  f"tiles away. They may have a way to make a cure.", "lore")
-        game.msg("You are bitten. The infection is slow, but it is in you. Find the three components "
-                 "and the formula before it takes you.", "warn")
+        if game.cfg.mode == "living":
+            game.msg("The cure is for the world. If you fall, someone else will carry on.", "warn")
+        else:
+            game.msg("You are bitten. The infection is slow, but it is in you. Find the three components "
+                     "and the formula before it takes you.", "warn")
     else:
         pad = game.pois[game.pad_id]
         d = compass(pad.x - p.x, pad.y - p.y)

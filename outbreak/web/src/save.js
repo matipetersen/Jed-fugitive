@@ -41,7 +41,8 @@ function serialize_game(game) {
     player: Object.assign({}, game.player), pois: game.pois,
     world: { start: game.world.start, camps: game.world.camps, zone: bytes_to_b64(game.world.zone) },
     levels, current: game.level.id,
-    patrol_goals: game.patrol_goals, patrol_nodes: game.patrol_nodes, distress: game.distress, aided: game.aided, opening_id: game.opening_id, intro_pages: game.intro_pages,
+    patrol_goals: game.patrol_goals, patrol_nodes: game.patrol_nodes, distress: game.distress, aided: game.aided,
+    generation: game.generation, current_origin: game.current_origin, fallen: game.fallen, fallen_bodies: game.fallen_bodies, death_notice: game.death_notice, opening_id: game.opening_id, intro_pages: game.intro_pages,
   };
   return JSON.stringify(data);
 }
@@ -57,7 +58,8 @@ function deserialize_game(json) {
   g.applied_docs = new Set(d.applied_docs); g.scent = d.scent; g._step_parity = d.step_parity; g._force_progress = d.force_progress;
   g.clock = new Clock(d.clock);
   g.rng = new RNG(1); g.rng.state = d.rng;
-  g.patrol_goals = d.patrol_goals || {}; g.patrol_nodes = d.patrol_nodes || []; g.distress = d.distress || {}; g.aided = d.aided || {}; g.opening_id = d.opening_id || ''; g.intro_pages = d.intro_pages || [];
+  g.patrol_goals = d.patrol_goals || {}; g.patrol_nodes = d.patrol_nodes || []; g.distress = d.distress || {}; g.aided = d.aided || {};
+  g.generation = d.generation || 1; g.current_origin = d.current_origin || g.cfg.origin; g.fallen = d.fallen || []; g.fallen_bodies = d.fallen_bodies || {}; g.death_notice = d.death_notice || ''; g.opening_id = d.opening_id || ''; g.intro_pages = d.intro_pages || [];
   g.refuge_id = d.refuge_id; g.pad_id = d.pad_id; g.final_site_id = d.final_site_id; g.rep = d.rep; g.docs = d.docs;
   g.era = CONTENT.eras[g.cfg.era]; g.profile = CONTENT.presets[g.cfg.zombies]; g.scenario = CONTENT.scenarios[g.cfg.scenario];
   g.diff = CONTENT.difficulties[g.cfg.difficulty];

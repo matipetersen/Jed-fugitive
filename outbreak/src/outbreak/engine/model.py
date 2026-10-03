@@ -77,6 +77,9 @@ class Actor:
     hp: int
     max_hp: int
     level_id: str = "world"
+    lvl: int = 1                     # enemy level (living-world mode); the player uses ``Player.level``
+    lvl_xp: int = 0
+    title: str = ""                  # earned name, e.g. "Killer of Paramedic #1"
 
     @property
     def pos(self) -> Pos:

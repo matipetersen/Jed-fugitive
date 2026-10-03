@@ -146,6 +146,8 @@ def build_side(game: Game) -> List[Line]:
     out.append((f"Panic {bar(p.panic, p.max_panic)}", pc))
     hc = "green" if p.humanity >= 60 else "yellow" if p.humanity >= 25 else "red"
     out.append((f"Human {bar(p.humanity, 100)} {p.humanity}", hc))
+    if game.cfg.mode == "living":
+        out.append((f"Survivor #{game.generation}  fallen {len(game.fallen)}", "grey"))
     out.append((f"Noise {bar(game.heat, 100)}", "red" if game.heat > 60 else "yellow" if game.heat > 30 else "grey"))
     if game.cfg.needs:
         out.append((f"Hungr {bar(p.hunger, 100)}", "red" if p.hunger > 75 else "grey"))

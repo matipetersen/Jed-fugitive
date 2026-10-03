@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, services,
+from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -49,6 +49,12 @@ class Game:
         self.stalker_ready = 0
         self.last_moan = -999
         self.patrol_goals: Dict[int, Pos] = {}
+        self.generation = 1                      # which survivor you are (living-world mode)
+        self.current_origin = cfg.origin
+        self.fallen: List[dict] = []             # records of the survivors who died
+        self.fallen_bodies: Dict[Tuple[str, Pos], dict] = {}
+        self.killer = None                       # whatever dealt the last damage to the player
+        self.death_notice = ""                   # text the UI shows once after a death
         self.distress: Dict[int, int] = {}       # patrol group -> turn it last called for help
         self.aided: Dict[int, bool] = {}         # patrol group -> thanked yet?
         self.patrol_nodes: List[Pos] = []
@@ -132,8 +138,12 @@ class Game:
             self.msg(f"Your pack is full; the {d.name.lower()} falls at your feet.", "warn")
 
     def end(self, kind: str, cause: str = "") -> None:
-        if self.over is None:
-            self.over = ending.build(self, kind, cause)
+        if self.over is not None:
+            return
+        if kind in ("dead", "turned") and self.cfg.mode == "living":
+            lives.player_died(self, kind, cause)           # the world goes on
+            return
+        self.over = ending.build(self, kind, cause)
 
     def make_hostile(self, h: Human) -> None:
         if not h.hostile:
@@ -312,7 +322,7 @@ class Game:
 
     def _infection_total(self) -> int:
         """The length of the infection clock the run started with (for warnings)."""
-        if self.scenario.start_infected:
+        if self.scenario.start_infected and self.cfg.mode == "normal":
             return max(1, int(self.scenario.timer_turns * self.diff.timer))
         return max(1, int(self.profile.incubation * self.diff.timer))
 
@@ -400,7 +410,9 @@ class Game:
             elif human and (human == 2 or self.profile.turn_on_death) and t - died > 55 and lv.free(*pos) \
                     and cheb(pos, self.player.pos) > 1 and not lv.safe:
                 del lv.corpses[pos]
-                z = spawn_zombie(self, lv, pos, "walker", dormant=False, fresh=True)
+                fallen = self.fallen_bodies.pop((lv.id, pos), None)
+                z = lives.make_fallen(self, lv, pos, fallen) if fallen else \
+                    spawn_zombie(self, lv, pos, "walker", dormant=False, fresh=True)
                 z.fresh_human = False
                 z.state, z.target, z.stimulus_turn = "hunt", self.player.pos, t
                 if pos in self.visible:
@@ -1020,7 +1032,7 @@ class Game:
         parts = [T.TILES[lv.tile(*pos)].name]
         a = lv.occ.get(pos)
         if a is not None and pos in self.visible:
-            parts.insert(0, a.name.lower() if not a.is_player else "you")
+            parts.insert(0, (a.name.lower() + (f" - {a.title}" if a.title else "")) if not a.is_player else "you")
         if pos in lv.items:
             parts.append("items")
         return ", ".join(parts)

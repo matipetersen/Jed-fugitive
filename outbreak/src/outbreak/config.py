@@ -24,6 +24,9 @@ DIFFICULTIES = {
 }
 
 
+MODES = ("normal", "living")
+
+
 @dataclass
 class GameConfig:
     era: str = "modern"
@@ -33,6 +36,7 @@ class GameConfig:
     opening: str = "random"      # a key of content.OPENINGS, or "random" (picked from your origin)
     difficulty: str = "normal"
     seed: Optional[int] = None
+    mode: str = "normal"         # normal: one life | living: the world goes on, infinite lives
     needs: bool = False          # hunger
     permadeath: bool = True      # delete the save when you die
     map_w: int = 120
@@ -45,6 +49,8 @@ class GameConfig:
         content.get_origin(self.origin)
         if self.opening != "random":
             content.get_opening(self.opening)
+        if self.mode not in MODES:
+            raise KeyError(f"unknown mode {self.mode!r}; choose one of: {', '.join(MODES)}")
         if self.difficulty not in DIFFICULTIES:
             raise KeyError(f"unknown difficulty {self.difficulty!r}; choose one of: {', '.join(DIFFICULTIES)}")
         if not (100 <= self.map_w <= 400 and 64 <= self.map_h <= 300):

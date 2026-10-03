@@ -6,7 +6,7 @@ a small state machine: ``dormant`` (still until disturbed) -> ``idle`` (wanders)
 """
 from __future__ import annotations
 
-from outbreak.engine import combat
+from outbreak.engine import combat, lives
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Human, Zombie
@@ -418,10 +418,11 @@ def _abstract_fight(game, members) -> int:
         power -= cost
         killed += 1
         if isinstance(a, Zombie):
-            combat.kill_zombie(game, a, by_player=False)
+            combat.kill_zombie(game, a, by_player=False, killer=lead)
         else:
             lv.remove_actor(a)
             lv.corpses[a.pos] = (game.clock.turn, True)
+            lives.grant_xp(game, lead, 12)
     for h in hordes:
         n = min(h.size, int(power / 0.9))
         power -= n * 0.9

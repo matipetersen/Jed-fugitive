@@ -69,6 +69,8 @@ def build(game, kind: str, cause: str = "") -> Ending:
         f"Level {p.level}   Humanity {p.humanity}   Fluency {int(game.know.fluency * 100)}%",
         f"Documents read: {len(p.documents)}   Words known: {len(game.know.known)}/{len(game.know.vocab)}",
     ]
+    if game.fallen:
+        summary.append(f"Survivors lost: {len(game.fallen)}   You were survivor #{game.generation}")
     if p.lost:
         summary.append("You lost your " + " and your ".join(p.lost) + " to survive.")
     if kind == "won":

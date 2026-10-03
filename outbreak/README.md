@@ -48,6 +48,17 @@ bigger vocabulary for the student, armour for the guard, a steadier conscience a
 start at). A three-page briefing (the scene, the world and what the dead are, what you must do) plays before
 the first turn; `B` re-reads it.
 
+**Mode**:
+* `normal` - one survivor, one life; permadeath deletes the save.
+* `living` ("Hardcore - the world goes on", `--mode living`) - your death is not the end. A new survivor
+  (another origin) walks out of the refuge into the *same* world at the same hour: the dead, the vaults, the
+  patrols and the clock are untouched. Your gear lies where you fell and your body rises as a named, levelled
+  zombie. Whatever killed you levels up, takes a name ("Killer of Paramedic #1") and stays. The new survivor
+  keeps your documents and half your cipher knowledge and starts at half your level. Infinite lives: the run
+  ends only by winning or, in `extraction`, when the way out closes. The cure is for the world: nobody starts bitten.
+  Enemies (zombies, raiders, patrols) gain levels by killing, capped by the calendar (level 3 on day 1, +1 per day,
+  maximum 15). Big hordes keep every zombie instead of dropping the ones that do not fit on screen.
+
 ## How it plays
 
 * **Noise is the game.** Every action makes noise; loud ones raise a *noise meter*. Fill it and a Stalker

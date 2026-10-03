@@ -79,8 +79,9 @@ function hurt_zombie(game, z, raw, head, style = '', fire = false) {
   return dealt;
 }
 
-function kill_zombie(game, z, head = false, by_player = true) {
+function kill_zombie(game, z, head = false, by_player = true, killer = null) {
   const level = game.level;
+  grant_xp(game, killer, z.xp);
   level.remove_actor(z);
   level.corpses[level.idx(z.x, z.y)] = [game.clock.turn, z.fresh_human];
   for (const item of z.carries) level.drop(apos(z), item);
@@ -222,8 +223,9 @@ function throw_item(game, item_id, pos) {
   return true;
 }
 
-function damage_player(game, amount, cause) {
+function damage_player(game, amount, cause, by = null) {
   const p = game.player;
+  game.killer = by;
   p.hp -= amount;
   game.add_panic(3 + amount * 0.4);
   if (p.hp <= 0) game.end('dead', cause);
@@ -267,7 +269,7 @@ function zombie_attack(game, z) {
     if (p.armor.dur <= 0) { game.msg(`Your ${armor.name.toLowerCase()} falls apart!`, 'bad'); p.armor = null; }
   }
   game.msg(`The ${z.name.toLowerCase()} hits you for ${dmg}.`, 'bad');
-  damage_player(game, dmg, `torn apart by ${article(z.name)} ${z.name.toLowerCase()}`);
+  damage_player(game, dmg, `torn apart by ${article(z.name)} ${z.name.toLowerCase()}`, z);
   if (!p.alive) return;
   const guard = armor ? armor.bite_guard : 0.0;
   let chance = profile.infect * (1.0 - guard) * (1.0 - p.mod('infect_resist'));
@@ -288,7 +290,7 @@ function human_attack(game, h) {
   const armor = p.armor ? game.item_def(p.armor.id) : null;
   const dmg = Math.max(1, Math.round(game.rng.randint(h.dmg[0], h.dmg[1]) * game.diff.damage - (armor ? armor.defense : 0)));
   game.msg(`The ${h.name.toLowerCase()} hits you for ${dmg}.`, 'bad');
-  damage_player(game, dmg, `killed by ${article(h.name)} ${h.name.toLowerCase()}`);
+  damage_player(game, dmg, `killed by ${article(h.name)} ${h.name.toLowerCase()}`, h);
 }
 
 // ---------------------------------------------------------------- everyone else's fights
@@ -307,7 +309,7 @@ function attack_actor(game, attacker, defender, ranged = false) {
   if (defender.kind === 'zombie') {
     const head = game.rng.random() < (ranged ? 0.25 : 0.2);
     defender.hp -= zombie_damage(game, defender, raw, head);
-    if (defender.hp <= 0) { kill_zombie(game, defender, head, false); return; }
+    if (defender.hp <= 0) { kill_zombie(game, defender, head, false, attacker); return; }
     defender.state = 'hunt'; defender.target = apos(attacker); defender.stimulus_turn = game.clock.turn;
     if (_seen(game, attacker, defender)) game.msg(`The ${noun} hits the ${victim}.`, 'combat');
     return;
@@ -334,6 +336,7 @@ function _distress(game, h) {
 // A human dies to something other than the player. Victims of the dead rise again (corpse flag 2).
 function kill_human_other(game, h, killer) {
   const level = game.level;
+  grant_xp(game, killer, 12);
   level.remove_actor(h);
   level.corpses[level.idx(h.x, h.y)] = [game.clock.turn, killer.kind === 'zombie' ? 2 : 1];
   for (const item of h.loot) level.drop(apos(h), item);

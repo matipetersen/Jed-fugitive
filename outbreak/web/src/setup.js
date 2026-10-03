@@ -39,13 +39,18 @@ function setup_game(game) {
 }
 
 function _make_player(game) {
-  const origin = CONTENT.origins[game.cfg.origin];
-  const [sx, sy] = game.world.start;
+  game.current_origin = game.cfg.origin;
+  make_player(game, game.cfg.origin, game.world.start);
+}
+
+// A fresh character with an origin's perks and kit, placed at `pos` on the overworld.
+function make_player(game, origin_id, pos) {
+  const origin = CONTENT.origins[origin_id];
   const hp = BASE_HP + origin.hp_bonus;
-  const p = new Player(game.next_uid(), sx, sy, hp);
+  const p = new Player(game.next_uid(), pos[0], pos[1], hp);
   p.coins = origin.coins;
   game.player = p;
-  game.level.occ.set(game.level.idx(sx, sy), p);
+  game.level.occ.set(game.level.idx(pos[0], pos[1]), p);
   for (const [perk_id, ranks] of Object.entries(origin.perks)) p.grant_perk(perk_id, ranks);
   game.know.learn_random(game.rng, origin.words);
   for (const [token, qty] of origin.kit) {
@@ -58,6 +63,7 @@ function _make_player(game) {
     if (slot && p[slot] === null && !(slot === 'weapon' && token === '@ranged')) p[slot] = item;
     else p.add_item(item, d.stackable);
   }
+  return p;
 }
 
 // ---------------------------------------------------------------- opening: where you are when it starts
@@ -94,7 +100,7 @@ function intro_pages(game) {
   const fill = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
   const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}`;
   const scene = opening.scenes[era.id] + '\n\n' + fill(CONTENT.opening_consequence, { alarm: CONTENT.opening_alarms[era.id] });
-  const premise = fill(sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: sc.deadline_days });
+  const premise = fill(game.cfg.mode === 'living' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: sc.deadline_days });
   return [[opening.name, scene], ['The world', world], ['What you must do', premise]];
 }
 
@@ -108,7 +114,7 @@ function register_components(game) {
 
 function _setup_scenario(game) {
   const sc = game.scenario, era = game.era, rng = game.rng, start = game.world.start, p = game.player;
-  if (sc.start_infected) {
+  if (sc.start_infected && game.cfg.mode === 'normal') {
     p.infected = true;
     p.infection_timer = Math.floor(sc.timer_turns * game.diff.timer);
     p.bite_limb = 'torso';
@@ -234,7 +240,8 @@ function _intro(game) {
   if (sc.final_site === 'refuge') {
     const d = compass(refuge.x - p.x, refuge.y - p.y);
     game.msg(`Rumour on ${era.radio}: ${era.refuge} still stands, ${d} of here, about ${cheb(poi_pos(refuge), [p.x, p.y])} tiles away. They may have a way to make a cure.`, 'lore');
-    game.msg('You are bitten. The infection is slow, but it is in you. Find the three components and the formula before it takes you.', 'warn');
+    if (game.cfg.mode === 'living') game.msg('The cure is for the world. If you fall, someone else will carry on.', 'warn');
+    else game.msg('You are bitten. The infection is slow, but it is in you. Find the three components and the formula before it takes you.', 'warn');
   } else {
     const pad = game.pois[game.pad_id];
     const d = compass(pad.x - p.x, pad.y - p.y);

@@ -251,6 +251,7 @@ function updateHud() {
   if (p.filter_turns) add('Filtered', 'info');
   if (p.sneaking) add('Sneaking', 'info');
   if (p.sprinting) add('Running', 'info');
+  if (g.cfg.mode === 'living') add(`Survivor #${g.generation}`, 'info');
   if (g.cfg.needs && p.hunger > 50) add('Hungry', p.hunger > 80 ? 'danger' : 'warn');
   if (g.final) add(`HOLD OUT ${g.final.turns_left}`, 'danger');
   if (g.ring && g.ring.active) add('Tide closing', 'warn');
@@ -298,6 +299,7 @@ function afterAction() {
   lastHp = p.hp;
   refresh();
   if (g.over) { cancelTravel(); if (!endingShown) showEnding(); return; }
+  if (g.death_notice && !modal) { cancelTravel(); showDeathNotice(); return; }
   if (g.pending_event && !modal) { cancelTravel(); showEvent(); }
 }
 function doAction(fn) {
@@ -517,6 +519,7 @@ function closeSheet() {
   const cb = sheetCloseCb; sheetCloseCb = null; if (cb) cb();
   dirty = true; if (game) refresh();
   if (game && game.over && !endingShown) showEnding();
+  else if (game && game.death_notice) showDeathNotice();
   else if (game && game.pending_event) showEvent();
 }
 $('#sheet-close').addEventListener('click', () => closeSheet());
@@ -529,7 +532,7 @@ function sheetAct(fn) {
   if (game.player.hp < hp) { flash(); vibrate(25); }
   lastHp = game.player.hp;
   refresh();
-  if (game.over || game.pending_event) { closeSheet(); }
+  if (game.over || game.pending_event || game.death_notice) { closeSheet(); }
 }
 
 const itemName = (it) => game.item_def(it.id).name;
@@ -734,6 +737,17 @@ function openMenu() {
   });
 }
 
+// A survivor fell and the world went on: shown once, then the new survivor takes over.
+function showDeathNotice() {
+  const g = game, text = g.death_notice;
+  g.death_notice = ''; lastHp = g.player.hp; camX = g.player.x + .5; camY = g.player.y + .5; flash(); vibrate([60, 40, 60]);
+  openSheet(`Survivor #${g.generation - 1} has fallen`, (body) => {
+    for (const para of text.split('\n\n')) body.append(el('p', 'event-text story', para));
+    body.append(btn('btn main', 'Continue', () => closeSheet()));
+  }, { locked: true });
+  trySave();
+}
+
 // The story pages: the scene you started in, the world, and what you must do.
 function showBriefing(i, first) {
   const pages = (game && game.intro_pages) || [];
@@ -905,6 +919,9 @@ function showNewGame() {
     const sc = CONTENT.scenarios[newCfg.scenario];
     group('What you must do', 'scenario', Object.values(CONTENT.scenarios).map((c) => [c.id, c.name.split(' - ')[0], null]), () => sc.blurb);
     group('Who you are', 'origin', Object.values(CONTENT.origins).map((o) => [o.id, era.origin_names[o.id], null]), () => CONTENT.origins[newCfg.origin].blurb, true);
+    group('Mode', 'mode', [['normal', 'Normal', 'one life'], ['living', 'Hardcore', 'the world goes on']],
+      () => (newCfg.mode === 'living' ? 'You die, the world does not. A new survivor walks out of the refuge into the same world; what killed you levels up and keeps its name; your body rises. Infinite lives. The cure is for the world: nobody starts bitten.'
+        : 'One survivor, one life. Permadeath deletes the save.'), true);
     group('How it starts', 'opening', [['random', 'Surprise me', null]].concat(Object.values(CONTENT.openings).map((o) => [o.id, o.name, null])),
       () => (newCfg.opening === 'random' ? 'The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds.'
         : `${CONTENT.openings[newCfg.opening].scenes[newCfg.era]} [${CONTENT.openings[newCfg.opening].perk}]`), true);

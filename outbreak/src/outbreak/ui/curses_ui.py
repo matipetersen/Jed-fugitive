@@ -208,6 +208,10 @@ class UI:
             if g.over:
                 self.ending_screen()
                 return
+            if g.death_notice:
+                text, g.death_notice = g.death_notice, ""
+                self.text_screen(f"Survivor #{g.generation - 1} has fallen", text)
+                continue
             if g.pending_event:
                 self.event_screen()
                 continue

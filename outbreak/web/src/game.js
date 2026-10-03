@@ -28,7 +28,7 @@ class Clock {
 const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
 function default_config() {
-  return { era: 'modern', zombies: 'classic', scenario: 'cure', origin: 'medic', difficulty: 'normal', seed: null,
+  return { era: 'modern', zombies: 'classic', scenario: 'cure', origin: 'medic', mode: 'normal', difficulty: 'normal', seed: null,
            needs: false, permadeath: true, map_w: 120, map_h: 76, opening: 'random' };
 }
 
@@ -42,6 +42,7 @@ class Game {
     if (!CONTENT.scenarios[c.scenario]) throw new Error('unknown scenario ' + c.scenario);
     if (!CONTENT.origins[c.origin]) throw new Error('unknown origin ' + c.origin);
     if (c.opening !== 'random' && !CONTENT.openings[c.opening]) throw new Error('unknown opening ' + c.opening);
+    if (c.mode !== 'normal' && c.mode !== 'living') throw new Error('unknown mode ' + c.mode);
     if (!CONTENT.difficulties[c.difficulty]) throw new Error('unknown difficulty ' + c.difficulty);
     if (c.map_w < 100 || c.map_h < 64) throw new Error('map too small (minimum 100x64)');
     this._init_state();
@@ -52,7 +53,8 @@ class Game {
   _init_state() {
     this._uid = 0; this.log = []; this.over = null; this.pending_event = null; this.recent_events = {};
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
-    this.patrol_goals = {}; this.distress = {}; this.aided = {}; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
+    this.patrol_goals = {}; this.distress = {}; this.aided = {};
+    this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
     this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0;
     this._force_progress = {};
@@ -98,7 +100,11 @@ class Game {
       this.msg(`Your pack is full; the ${d.name.toLowerCase()} falls at your feet.`, 'warn');
     }
   }
-  end(kind, cause = '') { if (!this.over) this.over = build_ending(this, kind, cause); }
+  end(kind, cause = '') {
+    if (this.over) return;
+    if ((kind === 'dead' || kind === 'turned') && this.cfg.mode === 'living') { player_died(this, kind, cause); return; }   // the world goes on
+    this.over = build_ending(this, kind, cause);
+  }
   make_hostile(h) {
     if (h.hostile) return;
     h.hostile = true;
@@ -198,7 +204,7 @@ class Game {
   }
 
   _infection_total() {
-    if (this.scenario.start_infected) return Math.max(1, Math.floor(this.scenario.timer_turns * this.diff.timer));
+    if (this.scenario.start_infected && this.cfg.mode === 'normal') return Math.max(1, Math.floor(this.scenario.timer_turns * this.diff.timer));
     return Math.max(1, Math.floor(this.profile.incubation * this.diff.timer));
   }
 
@@ -324,7 +330,9 @@ class Game {
       else if (human && (human === 2 || this.profile.turn_on_death) && t - died > 55 && lv.free(x, y) &&
                cheb([x, y], [this.player.x, this.player.y]) > 1 && !lv.safe) {
         delete lv.corpses[k];
-        const z = spawn_zombie(this, lv, [x, y], 'walker', false, true);
+        const fk = `${lv.id}|${k}`, fallen = this.fallen_bodies[fk];
+        if (fallen) delete this.fallen_bodies[fk];
+        const z = fallen ? make_fallen(this, lv, [x, y], fallen) : spawn_zombie(this, lv, [x, y], 'walker', false, true);
         z.fresh_human = false; z.state = 'hunt'; z.target = [this.player.x, this.player.y]; z.stimulus_turn = t;
         if (this.is_visible(x, y)) this.msg('A body twitches, and rises.', 'warn');
       }
@@ -815,7 +823,7 @@ class Game {
     if (!this.is_visible(x, y) && !lv.seen[lv.idx(x, y)]) return 'unexplored';
     const parts = [TILES[lv.tile(x, y)].name];
     const a = lv.occ.get(lv.idx(x, y));
-    if (a && this.is_visible(x, y)) parts.unshift(a.kind === 'player' ? 'you' : a.name.toLowerCase());
+    if (a && this.is_visible(x, y)) parts.unshift(a.kind === 'player' ? 'you' : a.name.toLowerCase() + (a.title ? ` - ${a.title}` : ''));
     if (this.is_visible(x, y) && lv.items[lv.idx(x, y)]) parts.push('items');
     return parts.join(', ');
   }

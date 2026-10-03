@@ -7,7 +7,7 @@ import textwrap
 from typing import List, Optional
 
 from outbreak import content
-from outbreak.config import DIFFICULTIES, GameConfig
+from outbreak.config import DIFFICULTIES, MODES, GameConfig
 from outbreak.engine import save as savemod
 from outbreak.ui.curses_ui import ENTER, ESC, HELP, UI
 
@@ -19,8 +19,8 @@ TITLE = r"""
   \___/ \___/  |_| |____/|_| \_\_____/_/   \_\_|\_\
 """
 
-FIELDS = ("era", "zombies", "scenario", "origin", "opening", "difficulty", "needs", "permadeath", "seed", "start")
-LABELS = {"era": "Era", "zombies": "The dead", "scenario": "Objective", "origin": "Who you are", "opening": "How it starts",
+FIELDS = ("era", "zombies", "scenario", "mode", "origin", "opening", "difficulty", "needs", "permadeath", "seed", "start")
+LABELS = {"era": "Era", "zombies": "The dead", "scenario": "Objective", "origin": "Who you are", "opening": "How it starts", "mode": "Mode",
           "difficulty": "Difficulty", "needs": "Hunger", "permadeath": "Permadeath", "seed": "Seed",
           "start": ">> BEGIN <<"}
 
@@ -34,6 +34,8 @@ def _options(cfg: GameConfig, field: str) -> List[str]:
         return list(content.SCENARIOS)
     if field == "origin":
         return list(content.ORIGINS)
+    if field == "mode":
+        return list(MODES)
     if field == "opening":
         return ["random"] + list(content.OPENINGS)
     if field == "difficulty":
@@ -51,6 +53,8 @@ def _label(cfg: GameConfig, field: str) -> str:
         return content.get_scenario(cfg.scenario).name
     if field == "origin":
         return era.origin_names[cfg.origin]
+    if field == "mode":
+        return MODE_NAMES[cfg.mode]
     if field == "opening":
         return "Surprise me" if cfg.opening == "random" else content.get_opening(cfg.opening).name
     if field == "difficulty":
@@ -75,6 +79,8 @@ def _blurb(cfg: GameConfig, field: str) -> str:
         return content.get_scenario(cfg.scenario).blurb
     if field == "origin":
         return content.get_origin(cfg.origin).blurb
+    if field == "mode":
+        return MODE_BLURBS[cfg.mode]
     if field == "opening":
         if cfg.opening == "random":
             return "The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds."
@@ -91,6 +97,12 @@ def _blurb(cfg: GameConfig, field: str) -> str:
         return "Left/Right to change, or leave random. The same seed gives the same world."
     return "Start the game."
 
+
+MODE_NAMES = {"normal": "Normal - one life", "living": "Hardcore - the world goes on"}
+MODE_BLURBS = {"normal": "One survivor, one life. Permadeath deletes the save.",
+               "living": "You die, the world does not. A new survivor walks out of the refuge into the same world; "
+                         "what killed you levels up and keeps its name; your body rises. Infinite lives. "
+                         "The cure is for the world: nobody starts bitten."}
 
 DIRECTIONS = {"easy": "Fewer dead, more loot, gentler hits, longer fuse.",
               "normal": "The intended experience.",

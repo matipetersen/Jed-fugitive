@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
+from outbreak.engine import lives
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Hazard, Human, Item, Zombie
@@ -131,8 +132,9 @@ def hurt_zombie(game, z: Zombie, raw: float, head: bool, style: str = "", fire: 
     return dealt
 
 
-def kill_zombie(game, z: Zombie, head: bool = False, by_player: bool = True) -> None:
+def kill_zombie(game, z: Zombie, head: bool = False, by_player: bool = True, killer=None) -> None:
     level = game.level
+    lives.grant_xp(game, killer, z.xp)
     level.remove_actor(z)
     level.corpses[z.pos] = (game.clock.turn, z.fresh_human)
     for item in z.carries:
@@ -330,8 +332,9 @@ def throw(game, item_id: str, pos) -> bool:
 
 
 # ------------------------------------------------------------------ enemy attacks
-def damage_player(game, amount: int, cause: str) -> None:
+def damage_player(game, amount: int, cause: str, by=None) -> None:
     p = game.player
+    game.killer = by
     p.hp -= amount
     game.add_panic(3 + amount * 0.4)
     if p.hp <= 0:
@@ -385,7 +388,7 @@ def zombie_attack(game, z: Zombie) -> None:
             game.msg(f"Your {armor.name.lower()} falls apart!", "bad")
             p.armor = None
     game.msg(f"The {z.name.lower()} hits you for {dmg}.", "bad")
-    damage_player(game, dmg, f"torn apart by {article(z.name)} {z.name.lower()}")
+    damage_player(game, dmg, f"torn apart by {article(z.name)} {z.name.lower()}", z)
     if not p.alive:
         return
     guard = armor.bite_guard if armor else 0.0
@@ -416,7 +419,7 @@ def human_attack(game, h: Human) -> None:
     armor = game.item_def(p.armor.id) if p.armor else None
     dmg = max(1, int(round(game.rng.randint(*h.dmg) * game.diff.damage - (armor.defense if armor else 0))))
     game.msg(f"The {h.name.lower()} hits you for {dmg}.", "bad")
-    damage_player(game, dmg, f"killed by {article(h.name)} {h.name.lower()}")
+    damage_player(game, dmg, f"killed by {article(h.name)} {h.name.lower()}", h)
 
 
 # ------------------------------------------------------------------ everyone else's fights
@@ -441,7 +444,7 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
         dealt = zombie_damage(game, defender, raw, head)
         defender.hp -= dealt
         if defender.hp <= 0:
-            kill_zombie(game, defender, head=head, by_player=False)
+            kill_zombie(game, defender, head=head, by_player=False, killer=attacker)
             return
         defender.state, defender.target, defender.stimulus_turn = "hunt", attacker.pos, game.clock.turn
         if _seen(game, attacker, defender):
@@ -476,6 +479,7 @@ def _distress(game, h: Human) -> None:
 def kill_human_other(game, h: Human, killer: Actor) -> None:
     """A human dies to something other than the player.  Zombie victims rise again."""
     level = game.level
+    lives.grant_xp(game, killer, 12)
     level.remove_actor(h)
     level.corpses[h.pos] = (game.clock.turn, 2 if isinstance(killer, Zombie) else True)
     for item in h.loot:

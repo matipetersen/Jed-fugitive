@@ -109,6 +109,8 @@ class Zombie(Actor):
     horde: int = 0                   # horde id (0 = none)
     carries: List[Item] = field(default_factory=list)
     fresh_human: bool = False        # was a person: reanimated corpse
+    alert: float = 0.0               # awareness of the player while it has not noticed them: it hunts at 100
+    facing: Tuple[int, int] = (1, 0) # the way it looks
 
 
 @dataclass(eq=False)
@@ -191,6 +193,9 @@ class Level:
     def move_actor(self, a: Actor, x: int, y: int) -> None:
         if self.occ.get(a.pos) is a:
             del self.occ[a.pos]
+        dx, dy = x - a.x, y - a.y
+        if (dx or dy) and hasattr(a, "facing"):
+            a.facing = ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
         a.x, a.y = x, y
         self.occ[a.pos] = a
 

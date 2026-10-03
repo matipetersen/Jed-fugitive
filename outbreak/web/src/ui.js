@@ -173,6 +173,21 @@ function drawActor(a, px, py, ts) {
   c.globalAlpha = 1;
   c.fillStyle = ink; c.font = `bold ${Math.floor(ts * .56)}px ${MONO}`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(a.glyph, cx, cy + 1);
+  if (a.kind === 'zombie' && a.state !== 'hunt' && a.facing) {         // where it is looking: sneak up on the other side
+    const ang = Math.atan2(a.facing[1], a.facing[0]), r = ts * .42;
+    c.fillStyle = 'rgba(255,230,160,.9)'; c.beginPath();
+    c.moveTo(cx + Math.cos(ang) * (r + 4), cy + Math.sin(ang) * (r + 4));
+    c.lineTo(cx + Math.cos(ang + 2.4) * (r - 1), cy + Math.sin(ang + 2.4) * (r - 1));
+    c.lineTo(cx + Math.cos(ang - 2.4) * (r - 1), cy + Math.sin(ang - 2.4) * (r - 1)); c.closePath(); c.fill();
+  }
+  if (a.kind === 'zombie') {                                           // awareness: ! hunting, ? it heard or half noticed you
+    const al = a.alert || 0;
+    if (a.state === 'hunt') { c.fillStyle = '#e2573f'; c.font = `bold ${Math.floor(ts * .5)}px ${MONO}`; c.fillText('!', cx + ts * .36, cy - ts * .38); }
+    else if (al >= 25 || a.state === 'investigate') {
+      c.fillStyle = al >= 70 ? '#e2573f' : '#d99a2b'; c.font = `bold ${Math.floor(ts * .5)}px ${MONO}`; c.fillText('?', cx + ts * .36, cy - ts * .38);
+      if (al > 0) { c.fillStyle = '#000'; c.fillRect(px + 3, py + 1, ts - 6, 3); c.fillStyle = al >= 70 ? '#e2573f' : '#d99a2b'; c.fillRect(px + 3, py + 1, (ts - 6) * Math.min(1, al / 100), 3); }
+    }
+  }
   if (a.kind !== 'player' && a.hp < a.max_hp) {
     c.fillStyle = '#000'; c.fillRect(px + 3, py + ts - 5, ts - 6, 3);
     c.fillStyle = '#e2573f'; c.fillRect(px + 3, py + ts - 5, (ts - 6) * Math.max(0, a.hp / a.max_hp), 3);
@@ -269,6 +284,7 @@ function updateHud() {
   if (p.disguise_turns) add('Disguised', 'info');
   if (p.filter_turns) add('Filtered', 'info');
   if (p.sneaking) add('Sneaking', 'info');
+  { const sb = document.querySelector('.act.sneak'); if (sb) { sb.classList.toggle('on', !!p.sneaking); $('#sneak-sub').textContent = p.sneaking ? 'on' : 'off'; } }
   if (p.sprinting) add('Running', 'info');
   if (g.cfg.mode !== 'normal') add(`Survivor #${g.generation}`, 'info');
   if (g.paused) add('PAUSED', 'warn');
@@ -333,8 +349,18 @@ function doAction(fn) {
   afterAction();
 }
 
+function adjacentUnaware() {
+  const g = game, p = g.player;
+  for (const [dx, dy] of DIRS8) {
+    const a = g.level.occ.get(g.level.idx(p.x + dx, p.y + dy));
+    if (a && a.kind === 'zombie' && a.state !== 'hunt' && (a.alert || 0) < 70) return a;
+  }
+  return null;
+}
 function contextAction() {
   const g = game, p = g.player, lv = g.level, k = lv.idx(p.x, p.y);
+  const sneak = adjacentUnaware();
+  if (sneak && !is_ranged(weapon_def(g))) return { label: 'Strike', sub: 'it has not seen you', run: () => g.attack(sneak) };
   if (lv.items[k] || lv.docs[k]) return { label: 'Pick up', sub: lv.docs[k] ? 'document' : 'items here', run: () => g.pickup() };
   const npc = g.adjacent_npc();
   if (npc) return { label: 'Talk', sub: npc.name, run: () => openNpc(npc) };
@@ -509,6 +535,7 @@ function buildControls() {
   mk('', '<span>Fire</span><small id="fire-sub"></small>', () => { if (game && !game.over && !modal) startAim('fire'); });
   mk('', '<span>Bag</span><small>items</small>', () => { if (game && !modal) openInventory(); });
   mk('', '<span>Menu</span><small>more</small>', () => { if (game && !modal) openMenu(); });
+  mk('sneak', '<span id="sneak-label">Sneak</span><small id="sneak-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sneak(); afterAction(); } });
   $('#controls').classList.toggle('lefty', prefs.lefty);
 }
 
@@ -730,6 +757,7 @@ function openHelp() {
     li('Move', 'Hold the pad, or tap a tile to walk there. Walking stops when an enemy appears. Tap an adjacent enemy to hit it.');
     li('ACT button', 'It changes with what is next to you: pick up, search a crate, talk, sleep, unlock, rest. Tap yourself for the same.');
     li('Fire', 'With a ranged weapon equipped: one target fires at once; with several, tap the one you want.');
+    li('Sneak up on them', 'Zombies look where they walk (the pale wedge on them). Toggle SNEAK, come from behind or from the side, and hit them before the ? bar fills: an unaware zombie dies to one blow. In front of it, or running, it notices you fast. A red ! means it hunts you.');
     li('Noise is the game', 'Every action makes noise. Guns are loud; blades, bows and sneaking are quiet. Too much noise brings a Stalker.');
     li('Bitten?', 'On an arm or leg, cut it off (red button) within the window, with a blade. Torso bites only buy time with suppressants.');
     li('Documents', 'They are written in a cipher. Read and study them to learn words. Deciphering reveals vault locations, codes and the formula.');

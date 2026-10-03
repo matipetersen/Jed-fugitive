@@ -6,6 +6,8 @@ a small state machine: ``dormant`` (still until disturbed) -> ``idle`` (wanders)
 """
 from __future__ import annotations
 
+import math
+
 from outbreak.engine import combat, lives
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
@@ -19,6 +21,7 @@ HUMAN_SIGHT = 8
 FIGHTERS = ("raider", "scout", "soldier")
 FIELD_RADIUS = 28
 NO_ENTRY = (T.PORTAL, T.STAIRS_UP, T.STAIRS_DOWN)
+ALERT_AT, SUSPICIOUS, STAB_OK, SNEAK_GAIN, NOTICE_BASE = 100, 40, 70, 0.4, 36
 DOOR_HP = 8
 LOST_AFTER = 14               # turns a hunter keeps looking after losing you
 TRAIL_LENGTH = 60
@@ -43,12 +46,67 @@ def sight_range(game, z: Zombie) -> float:
     return r
 
 
+def unaware(z: Zombie) -> bool:
+    return z.state in ("idle", "dormant", "investigate")
+
+
+def exposure(z: Zombie, p) -> float:
+    """How much of the zombie's attention the player gets: 1 straight ahead of it, 0.8 at its side, 0.6 right behind it."""
+    fx, fy = z.facing
+    dx, dy = p.x - z.x, p.y - z.y
+    d = math.hypot(dx, dy) or 1.0
+    return 0.8 + 0.2 * (dx * fx + dy * fy) / (d * math.hypot(fx, fy))
+
+
+def awareness_of(z: Zombie) -> str:
+    if z.state == "hunt":
+        return "hunting you"
+    if z.alert >= STAB_OK:
+        return "about to notice you"
+    if z.alert >= SUSPICIOUS:
+        return "suspicious"
+    return "listening" if z.state == "investigate" else "unaware"
+
+
 def sees_player(game, z: Zombie) -> bool:
     p = game.player
     r = sight_range(game, z)
+    if unaware(z):
+        r *= exposure(z, p)                            # an unwary zombie sees poorly over its own shoulder
     if r <= 0 or dist(z.pos, p.pos) > r:
         return False
     return has_los(game.level, z.pos, p.pos)
+
+
+def _notice(game, z: Zombie, in_sight: bool, d: int) -> bool:
+    """A zombie that has not noticed you fills an awareness meter while you are in its sight; it hunts at 100.  Closer,
+    running and in front of it fill it fast; sneaking and being behind it fill it slowly; out of sight it calms down."""
+    p = game.player
+    if not in_sight:
+        z.alert = max(0.0, z.alert - 8)
+        return False
+    e = exposure(z, p)
+    r = max(1.0, sight_range(game, z) * e)
+    gain = NOTICE_BASE * (1 + max(0.0, r - d) / r) * e
+    if p.sneaking:
+        gain *= SNEAK_GAIN
+    if p.sprinting:
+        gain *= 1.4
+    z.alert += gain
+    if z.alert >= SUSPICIOUS:
+        z.facing = ((p.x > z.x) - (p.x < z.x), (p.y > z.y) - (p.y < z.y))     # it turns to look
+    return z.alert >= ALERT_AT
+
+
+def _perceive(game, z: Zombie) -> None:
+    if not unaware(z) or "blind" in z.flags:
+        return
+    p = game.player
+    d = cheb(z.pos, p.pos)
+    close_enough = z.state != "dormant" or d <= max(2.0, sight_range(game, z) * 0.5)
+    if _notice(game, z, sees_player(game, z) and close_enough, d):
+        _spotted(game, z)
+        z.state, z.target, z.stimulus_turn, z.alert = "hunt", p.pos, game.clock.turn, float(ALERT_AT)
 
 
 def speed_now(game, z: Zombie) -> float:
@@ -84,6 +142,7 @@ def _zombie(game, z: Zombie, humans) -> None:
         if z.hp <= 0:
             combat.kill_zombie(game, z, by_player=False)
             return
+    _perceive(game, z)                                  # awareness is checked every tick, not only when it moves
     z.energy += speed_now(game, z)
     steps = 0
     while z.energy >= 1.0 and steps < 3 and z.hp > 0 and level.occ.get(z.pos) is z:
@@ -118,21 +177,21 @@ def _zombie_step(game, z: Zombie, humans=()) -> None:
     p, prof = game.player, game.profile
     turn = game.clock.turn
     d = cheb(z.pos, p.pos)
-    seen = sees_player(game, z)
+    seen = False if unaware(z) else sees_player(game, z)    # the unaware only notice through the awareness meter
     if humans and z.state != "dormant":
         foe = nearest_foe(game, z, humans, FOE_SIGHT)
         if foe is not None and (not seen or cheb(z.pos, foe.pos) < d):
             _zombie_fight(game, z, foe)
             return
     if z.state == "dormant":
-        if seen and d <= max(2.0, sight_range(game, z) * 0.5):
+        if seen:
             z.state = "hunt"
         else:
             return
     if seen:
         if z.state != "hunt":
             _spotted(game, z)
-        z.state, z.target, z.stimulus_turn = "hunt", p.pos, turn
+        z.state, z.target, z.stimulus_turn, z.alert = "hunt", p.pos, turn, float(ALERT_AT)
     elif z.state == "hunt":
         _lost_sight(game, z, d)
     if prof.dormant_after and z.state in ("hunt", "investigate") and turn - z.stimulus_turn > prof.dormant_after:
@@ -245,7 +304,8 @@ def _bash_door(game, z: Zombie, pos) -> None:
 
 
 def _wander(game, z: Zombie) -> None:
-    dx, dy = game.rng.choice(DIRS8)
+    # shamblers keep going the way they face most of the time, which is what makes them stalkable from behind
+    dx, dy = z.facing if game.rng.random() < 0.7 else game.rng.choice(DIRS8)
     n = (z.x + dx, z.y + dy)
     if game.level.walkable(*n) and _passable(game, z, n) and n not in game.level.occ \
             and game.level.tile(*n) != T.DOOR:

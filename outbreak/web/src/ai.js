@@ -17,10 +17,46 @@ function sight_range(game, z) {
   return r;
 }
 
+const _unaware = (z) => z.state === 'idle' || z.state === 'dormant' || z.state === 'investigate';
+// How much of the zombie's attention the player gets: 1 straight ahead of it, 0.8 at its side, 0.6 right behind it.
+function exposure(z, p) {
+  const f = z.facing; if (!f) return 1;
+  const dx = p.x - z.x, dy = p.y - z.y, d = Math.hypot(dx, dy) || 1;
+  return 0.8 + 0.2 * (dx * f[0] + dy * f[1]) / (d * Math.hypot(f[0], f[1]));
+}
+const ALERT_AT = 100, SUSPICIOUS = 40, STAB_OK = 70, SNEAK_GAIN = 0.4, NOTICE_BASE = 36;
+const awareness_of = (z) => (z.state === 'hunt' ? 'hunting you' : (z.alert || 0) >= STAB_OK ? 'about to notice you' : (z.alert || 0) >= SUSPICIOUS ? 'suspicious' : z.state === 'investigate' ? 'listening' : 'unaware');
+
 function sees_player(game, z) {
-  const p = game.player, r = sight_range(game, z);
+  const p = game.player;
+  let r = sight_range(game, z);
+  if (_unaware(z)) r *= exposure(z, p);                      // an unwary zombie sees poorly over its own shoulder
   if (r <= 0 || dist(apos(z), apos(p)) > r) return false;
   return has_los(game.level, apos(z), apos(p));
+}
+
+// A zombie that has not noticed you fills an awareness meter while you are in its sight; it hunts at 100. Closer, running
+// and in front of it fill it fast; sneaking and being behind it fill it slowly; out of sight it calms down.
+function _notice(game, z, in_sight, d) {
+  const p = game.player;
+  if (!in_sight) { z.alert = Math.max(0, (z.alert || 0) - 8); return false; }
+  const e = exposure(z, p), r = Math.max(1, sight_range(game, z) * e);
+  let gain = NOTICE_BASE * (1 + Math.max(0, r - d) / r) * e;
+  if (p.sneaking) gain *= SNEAK_GAIN;
+  if (p.sprinting) gain *= 1.4;
+  z.alert = (z.alert || 0) + gain;
+  if (z.alert >= SUSPICIOUS) z.facing = [sign(p.x - z.x), sign(p.y - z.y)];     // it turns to look
+  return z.alert >= ALERT_AT;
+}
+
+function _perceive(game, z) {
+  if (!_unaware(z) || z.flags.includes('blind')) return;
+  const p = game.player, d = cheb(apos(z), apos(p));
+  const close_enough = z.state !== 'dormant' || d <= Math.max(2.0, sight_range(game, z) * 0.5);
+  if (_notice(game, z, sees_player(game, z) && close_enough, d)) {
+    _spotted(game, z);
+    z.state = 'hunt'; z.target = apos(p); z.stimulus_turn = game.clock.turn; z.alert = ALERT_AT;
+  }
 }
 
 function speed_now(game, z) {
@@ -48,6 +84,7 @@ function _zombie(game, z, humans) {
     z.hp -= 2;
     if (z.hp <= 0) { kill_zombie(game, z, false, false); return; }
   }
+  _perceive(game, z);                                  // awareness is checked every tick, not only when it moves
   z.energy += speed_now(game, z);
   let steps = 0;
   while (z.energy >= 1.0 && steps < 3 && z.hp > 0 && level.occ.get(level.idx(z.x, z.y)) === z) {
@@ -78,17 +115,17 @@ function _zombie_fight(game, z, foe) {
 function _zombie_step(game, z, humans) {
   const p = game.player, prof = game.profile, turn = game.clock.turn;
   const d = cheb(apos(z), apos(p));
-  const seen = sees_player(game, z);
+  const seen = _unaware(z) ? false : sees_player(game, z);     // the unaware only notice through the awareness meter
   if (humans && humans.length && z.state !== 'dormant') {
     const foe = nearest_foe(game, z, humans, FOE_SIGHT);
     if (foe !== null && (!seen || cheb(apos(z), apos(foe)) < d)) { _zombie_fight(game, z, foe); return; }
   }
   if (z.state === 'dormant') {
-    if (seen && d <= Math.max(2.0, sight_range(game, z) * 0.5)) z.state = 'hunt'; else return;
+    if (seen) z.state = 'hunt'; else return;
   }
   if (seen) {
     if (z.state !== 'hunt') _spotted(game, z);
-    z.state = 'hunt'; z.target = apos(p); z.stimulus_turn = turn;
+    z.state = 'hunt'; z.target = apos(p); z.stimulus_turn = turn; z.alert = ALERT_AT;
   } else if (z.state === 'hunt') _lost_sight(game, z, d);
   if (prof.dormant_after && (z.state === 'hunt' || z.state === 'investigate') && turn - z.stimulus_turn > prof.dormant_after) {
     z.state = 'dormant'; z.target = null; return;
@@ -189,7 +226,8 @@ function _bash_door(game, z, pos) {
 }
 
 function _wander(game, z) {
-  const [dx, dy] = game.rng.choice(DIRS8);
+  // shamblers keep going the way they face most of the time, which is what makes them stalkable from behind
+  const [dx, dy] = z.facing && game.rng.random() < 0.7 ? z.facing : game.rng.choice(DIRS8);
   const n = [z.x + dx, z.y + dy], level = game.level;
   if (level.walkable(n[0], n[1]) && _passable(game, z, n) && !level.occ.has(level.idx(n[0], n[1])) && level.tile(n[0], n[1]) !== T.DOOR) {
     level.move_actor(z, n[0], n[1]);

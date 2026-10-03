@@ -61,6 +61,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 #dpad, #actions { display: grid; gap: 6px; pointer-events: auto; }
 #dpad { grid-template-columns: repeat(3, var(--btn)); grid-auto-rows: var(--btn); }
 #actions { grid-template-columns: repeat(2, calc(var(--btn) * 1.15)); grid-auto-rows: calc(var(--btn) * 1.0); }
+#actions .act.sneak { height: calc(var(--btn) * .62); }
 .pad { background: rgba(20,27,30,.8); border: 1px solid var(--line); border-radius: 14px; display: grid; place-items: center;
   backdrop-filter: blur(3px); transition: transform .06s, background .1s; }
 .pad:active, .pad.held { transform: scale(.94); background: rgba(217,154,43,.3); }
@@ -154,3 +155,6 @@ p.note { color: var(--muted); font-size: 13px; margin: 8px 0; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 .story { font-family: var(--display); font-size: 15px; line-height: 1.55; }
+
+.act.sneak { grid-column: 1 / -1; border-radius: 12px; }
+.act.sneak.on { background: rgba(88,184,120,.25); border-color: #58b878; }

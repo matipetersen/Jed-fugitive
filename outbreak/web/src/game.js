@@ -160,6 +160,7 @@ class Game {
       const reach = radius * a.hearing;
       if ((a.x - pos[0]) ** 2 + (a.y - pos[1]) ** 2 > reach * reach) continue;
       a.state = 'investigate'; a.target = [pos[0], pos[1]]; a.stimulus_turn = turn;
+      a.alert = Math.min(80, (a.alert || 0) + 25);                // a noise puts it on edge; only seeing you makes it hunt
     }
     if (this.level === this.world.level) noise_attracts(this, pos, radius);
     if (source === 'player' && radius >= 8) this.add_heat(radius * 0.12);
@@ -602,7 +603,7 @@ class Game {
   _after_step(tile) {
     const p = this.player, lv = this.level, k = lv.idx(p.x, p.y);
     let noise = { [T.ROAD]: 3, [T.BRUSH]: 3, [T.SHALLOW]: 5 }[tile] || 2;
-    if (p.sneaking) noise = 1;
+    if (p.sneaking) noise = tile === T.ROAD || tile === T.BRUSH ? 1 : tile === T.SHALLOW ? 3 : 0;      // a careful step on soft ground is silent
     else if (p.sprinting && p.stamina > 5) noise += 4;
     if (p.armor) noise += this.item_def(p.armor.id).stealth;
     noise = Math.max(0, noise + Math.trunc(p.mod('move_noise')));
@@ -888,7 +889,7 @@ class Game {
     if (!this.is_visible(x, y) && !lv.seen[lv.idx(x, y)]) return 'unexplored';
     const parts = [TILES[lv.tile(x, y)].name];
     const a = lv.occ.get(lv.idx(x, y));
-    if (a && this.is_visible(x, y)) parts.unshift(a.kind === 'player' ? 'you' : a.name.toLowerCase() + (a.title ? ` - ${a.title}` : ''));
+    if (a && this.is_visible(x, y)) parts.unshift(a.kind === 'player' ? 'you' : a.name.toLowerCase() + (a.title ? ` - ${a.title}` : '') + (a.kind === 'zombie' ? ` (${awareness_of(a)})` : ''));
     if (this.is_visible(x, y) && lv.items[lv.idx(x, y)]) parts.push('items');
     return parts.join(', ');
   }

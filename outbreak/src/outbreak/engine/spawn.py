@@ -7,7 +7,7 @@ from typing import Optional
 
 from outbreak.content.zombies import SPECIALS, ZombieProfile
 from outbreak.engine.model import Human, Level, Zombie
-from outbreak.util import weighted_choice
+from outbreak.util import DIRS8, weighted_choice
 
 
 def pick_special(rng: random.Random, profile: ZombieProfile, day: int) -> str:
@@ -33,6 +33,7 @@ def make_zombie(game, special_id: str, x: int, y: int, fresh: bool = False) -> Z
         speed=profile.speed * sp.speed * phase.speed * (0.85 if decay < 1 else 1.0),
         sight=profile.sight * sp.sight, hearing=profile.hearing * sp.hearing, xp=sp.xp, flags=sp.flags,
         birth_day=day - age)
+    z.facing = DIRS8[z.uid % 8]                         # which way it looks (from the uid: the same for everyone)
     if "boss" in sp.flags or "relentless" in sp.flags:
         z.speed = max(z.speed, 1.0)
     return z

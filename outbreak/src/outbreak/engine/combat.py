@@ -181,7 +181,7 @@ def burst(game, pos) -> None:
 
 def _sneak_ok(game, z: Zombie) -> bool:
     """True when the zombie has not noticed the player."""
-    return z.state in ("idle", "dormant") or (z.state == "investigate" and not game.zombie_sees_player(z))
+    return z.state != "hunt" and z.alert < 70            # it has not noticed you (yet)
 
 
 def player_attack(game, target: Actor) -> bool:

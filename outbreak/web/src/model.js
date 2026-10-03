@@ -93,6 +93,8 @@ class Level {
   move_actor(a, x, y) {
     const k = this.idx(a.x, a.y);
     if (this.occ.get(k) === a) this.occ.delete(k);
+    const dx = x - a.x, dy = y - a.y;
+    if (dx || dy) a.facing = [Math.sign(dx), Math.sign(dy)];
     a.x = x; a.y = y;
     this.occ.set(this.idx(x, y), a);
   }

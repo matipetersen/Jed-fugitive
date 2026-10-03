@@ -203,6 +203,7 @@ class Game:
             if (a.x - pos[0]) ** 2 + (a.y - pos[1]) ** 2 > reach * reach:
                 continue
             a.state, a.target, a.stimulus_turn = "investigate", pos, turn
+            a.alert = min(80.0, a.alert + 25)              # a noise puts it on edge; only seeing you makes it hunt
         if self.level is self.world.level:
             hordes.noise_attracts(self, pos, radius)
         if source == "player" and radius >= 8:
@@ -634,7 +635,7 @@ class Game:
         p, lv = self.player, self.level
         noise = {T.ROAD: 3, T.BRUSH: 3, T.SHALLOW: 5}.get(tile, 2)
         if p.sneaking:
-            noise = 1
+            noise = 1 if tile in (T.ROAD, T.BRUSH) else 3 if tile == T.SHALLOW else 0     # a careful step on soft ground is silent
         elif p.sprinting and p.stamina > 5:
             noise += 4
         if p.armor:
@@ -1036,7 +1037,10 @@ class Game:
         parts = [T.TILES[lv.tile(*pos)].name]
         a = lv.occ.get(pos)
         if a is not None and pos in self.visible:
-            parts.insert(0, (a.name.lower() + (f" - {a.title}" if a.title else "")) if not a.is_player else "you")
+            label = (a.name.lower() + (f" - {a.title}" if a.title else "")) if not a.is_player else "you"
+            if isinstance(a, Zombie):
+                label += f" ({ai.awareness_of(a)})"
+            parts.insert(0, label)
         if pos in lv.items:
             parts.append("items")
         return ", ".join(parts)

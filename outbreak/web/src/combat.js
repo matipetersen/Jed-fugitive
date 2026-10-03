@@ -116,7 +116,7 @@ function burst(game, pos) {
 }
 
 function _sneak_ok(game, z) {
-  return z.state === 'idle' || z.state === 'dormant' || (z.state === 'investigate' && !game.zombie_sees_player(z));
+  return z.state !== 'hunt' && (z.alert || 0) < STAB_OK;      // it has not noticed you (yet)
 }
 
 function player_attack(game, target) {

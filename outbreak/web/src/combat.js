@@ -82,6 +82,7 @@ function hurt_zombie(game, z, raw, head, style = '', fire = false) {
 function kill_zombie(game, z, head = false, by_player = true, killer = null) {
   const level = game.level;
   grant_xp(game, killer, z.xp);
+  if (game.shared) game.shared.on_enemy_death(z);
   level.remove_actor(z);
   level.corpses[level.idx(z.x, z.y)] = [game.clock.turn, z.fresh_human];
   for (const item of z.carries) level.drop(apos(z), item);
@@ -154,6 +155,7 @@ function _attack_human(game, h, w, item) {
 
 function kill_human(game, h) {
   const level = game.level;
+  if (game.shared) game.shared.on_enemy_death(h);
   level.remove_actor(h);
   level.corpses[level.idx(h.x, h.y)] = [game.clock.turn, true];
   for (const item of h.loot) level.drop(apos(h), item);
@@ -337,6 +339,7 @@ function _distress(game, h) {
 function kill_human_other(game, h, killer) {
   const level = game.level;
   grant_xp(game, killer, 12);
+  if (game.shared) game.shared.on_enemy_death(h);
   level.remove_actor(h);
   level.corpses[level.idx(h.x, h.y)] = [game.clock.turn, killer.kind === 'zombie' ? 2 : 1];
   for (const item of h.loot) level.drop(apos(h), item);

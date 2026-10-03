@@ -2,7 +2,7 @@
 function _band(h) { return h >= 75 ? 'saint' : h >= 40 ? 'survivor' : h >= 15 ? 'cold' : 'monster'; }
 
 function build_ending(game, kind, cause = '') {
-  const p = game.player, sc = game.scenario, days = game.clock.day;
+  const p = game.player, sc = game.scenario, days = game_day(game);
   const decoded = Object.values(game.docs).filter((d) => p.documents.includes(d.id) && is_decoded(d, game.know)).length;
   const score = p.kills * 2 + days * 25 + p.humanity + decoded * 8 + p.level * 12 + (kind === 'won' ? 500 : 0);
   const summary = [
@@ -21,6 +21,7 @@ function build_ending(game, kind, cause = '') {
   } else if (kind === 'left_behind') {
     title = 'Left behind';
     text = `Day ${sc.deadline_days + 1} dawns. Somewhere far away, the last way out leaves without you. The dead are patient. You are not.`;
-  } else { title = 'You died'; text = cause ? cap(cause) + '.' : 'You did not make it.'; }
+  } else if (kind === 'closed') { title = 'The world is closed'; text = cause; }
+  else { title = 'You died'; text = cause ? cap(cause) + '.' : 'You did not make it.'; }
   return { kind, title, text, summary, score, victory: kind === 'won' };
 }

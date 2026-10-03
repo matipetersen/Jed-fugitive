@@ -6,7 +6,7 @@ function spawn_horde(game, pos, size = null, target = null) {
   const spot = game.world.level.free_spot_near(pos[0], pos[1], 6);
   if (!spot) return null;
   if (size === null) size = game.rng.randint(prof.horde_size[0], prof.horde_size[1]);
-  size = Math.max(2, Math.floor(size * profile_phase(prof, game.clock.day).spawn * game.diff.zombies));
+  size = Math.max(2, Math.floor(size * profile_phase(prof, game_day(game)).spawn * game.diff.zombies));
   const h = { id: game.next_uid(), x: spot[0], y: spot[1], size, target, energy: 0, announced: false, home_turn: game.clock.turn, wait_until: 0 };
   game.hordes.push(h);
   return h;
@@ -48,7 +48,7 @@ function hordes_tick(game) {
   const prof = game.profile, p = game.player;
   const on_world = game.level === game.world.level;
   if (prof.sun_burn && game.clock.is_day) return;
-  let speed = Math.max(0.3, prof.speed * (game.clock.is_night ? prof.night_speed : 1.0) * profile_phase(prof, game.clock.day).speed);
+  let speed = Math.max(0.3, prof.speed * (game.clock.is_night ? prof.night_speed : 1.0) * profile_phase(prof, game_day(game)).speed);
   if (game.ring && game.ring.active) speed = Math.min(speed, RING_SPEED_CAP);
   for (const h of game.hordes.slice()) {
     h.energy += speed;
@@ -88,7 +88,7 @@ function materialize(game, h) {
     placed++;
   }
   const leftover = h.size - placed;
-  if (game.cfg.mode === 'living' && leftover >= 2) { h.size = leftover; h.wait_until = game.clock.turn + 12; game.hordes.push(h); }   // nobody vanishes
+  if (game.cfg.mode !== 'normal' && leftover >= 2) { h.size = leftover; h.wait_until = game.clock.turn + 12; game.hordes.push(h); }   // nobody vanishes
   if (placed) { game.msg(`A horde of ${placed} comes into view!`, 'bad'); game.add_panic(8); }
 }
 
@@ -100,7 +100,7 @@ function wanderers(game) {
   if (game.level !== game.world.level || game.clock.turn % 25) return;
   const prof = game.profile;
   if (prof.sun_burn && game.clock.is_day) return;
-  let chance = 0.22 * profile_phase(prof, game.clock.day).spawn * game.diff.zombies * prof.density;
+  let chance = 0.22 * profile_phase(prof, game_day(game)).spawn * game.diff.zombies * prof.density;
   if (game.clock.is_night) chance *= 1.5;
   chance += game.heat / 400.0;
   if (game.rng.random() >= chance) return;

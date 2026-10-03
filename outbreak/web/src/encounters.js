@@ -19,7 +19,7 @@ function can_afford(game, choice) {
 function pick_event(game) {
   const pairs = [];
   for (const ev of EVENTS) {
-    if (game.clock.day < ev.min_day || (game.recent_events[ev.id] !== undefined ? game.recent_events[ev.id] : -999) > game.clock.turn - 600) continue;
+    if (game_day(game) < ev.min_day || (game.recent_events[ev.id] !== undefined ? game.recent_events[ev.id] : -999) > game.clock.turn - 600) continue;
     const w = ['toll', 'prisoner', 'bait'].includes(ev.id) ? ev.weight * game.profile.human_threat : ev.weight;
     if (ev.id === 'radio' && !game.era.electricity && game.era.tech > 0) continue;
     pairs.push([ev, w]);

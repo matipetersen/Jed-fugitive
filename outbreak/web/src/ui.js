@@ -230,12 +230,20 @@ function frame() {
 }
 
 // ---------------------------------------------------------------- HUD, log, alerts
+// in the shared world the calendar day is real time; the hour is still your own clock
+function stampOf(g) {
+  const c = g.clock;
+  if (!g.shared) return c.stamp();
+  const h = Math.floor(c.hour), m = Math.floor((c.hour - h) * 60);
+  return `Day ${game_day(g)} ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 const pct = (v, m) => Math.max(0, Math.min(100, (v / Math.max(1, m)) * 100));
 const setBar = (id, v, m, color) => { const f = $(id); f.style.width = pct(v, m) + '%'; f.style.background = color; };
 function updateHud() {
   const g = game, p = g.player, c = g.clock;
   $('#h-place').innerHTML = ''; $('#h-place').append(el('b', null, g.level.name));
-  $('#h-time').textContent = `${c.stamp()} · ${c.phase}`;
+  $('#h-time').textContent = `${stampOf(g)} · ${c.phase}`;
   $('#v-hp').textContent = p.hp;
   setBar('#b-hp', p.hp, p.max_hp, p.hp > p.max_hp * .5 ? '#58b878' : p.hp > p.max_hp * .25 ? '#d99a2b' : '#e2573f');
   setBar('#b-sta', p.stamina, p.max_stamina, '#55b3c4');
@@ -251,7 +259,7 @@ function updateHud() {
   if (p.filter_turns) add('Filtered', 'info');
   if (p.sneaking) add('Sneaking', 'info');
   if (p.sprinting) add('Running', 'info');
-  if (g.cfg.mode === 'living') add(`Survivor #${g.generation}`, 'info');
+  if (g.cfg.mode !== 'normal') add(`Survivor #${g.generation}`, 'info');
   if (g.cfg.needs && p.hunger > 50) add('Hungry', p.hunger > 80 ? 'danger' : 'warn');
   if (g.final) add(`HOLD OUT ${g.final.turns_left}`, 'danger');
   if (g.ring && g.ring.active) add('Tide closing', 'warn');
@@ -684,10 +692,10 @@ function openStatus() {
     add('Panic', `${Math.round(p.panic)}/100${p.panic >= 50 ? ' (aim suffers)' : ''}`);
     add('Noise', `${Math.round(g.heat)}/100${g.heat >= g.profile.stalker_heat * 0.7 ? ' (something will come)' : ''}`);
     add('Kills', `${p.stats.zombies || 0} dead, ${p.stats.humans || 0} people`);
-    add('Time', `${g.clock.stamp()} (${g.clock.phase})`);
+    add('Time', `${stampOf(g)} (${g.clock.phase})`);
     if (p.infected) add('Infection', `${p.infection_timer} turns left (about ${Math.round(p.infection_timer / 10)} hours)`);
     if (g.scenario.deadline_days) add('Deadline', `the way out closes after day ${g.scenario.deadline_days}`);
-    add('The dead', `${g.profile.name}. ${profile_phase(g.profile, g.clock.day).name}.`);
+    add('The dead', `${g.profile.name}. ${profile_phase(g.profile, game_day(g)).name}.`);
     add('Seed', String(g.seed));
     body.append(kv);
   });
@@ -730,6 +738,7 @@ function openMenu() {
     tile('Light', p.light ? (p.light_on ? 'on: you are visible' : 'off') : 'none carried', () => { sheetAct(() => g.toggle_light()); openMenu(); }, p.light && p.light_on);
     tile('Gore disguise', 'smear with a corpse', () => { closeSheet(); doAction(() => g.smear()); });
     tile('Field report', 'goals and stats', () => openStatus());
+    if (g.shared) tile('World', 'the shared season', () => openWorld());
     tile('Briefing', 'the story so far', () => showBriefing(0));
     tile('Journal', 'message history', () => openLog());
     tile('Settings', 'zoom, layout, save', () => openSettings());
@@ -874,7 +883,7 @@ function trySave() {
   if (!game || game.over) return false;
   try { save_game(game); storageOk = true; return true; } catch (e) { storageOk = false; return false; }
 }
-function quitToTitle() { if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; } game = null; cancelTravel(); endAim(); showTitle(); }
+function quitToTitle() { if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; } game = null; if (sharedWorld) { sharedWorld.flush(); sharedWorld.detach(); sharedWorld = null; } cancelTravel(); endAim(); showTitle(); }
 
 function showTitle() {
   hideAll(); const s = $('#title'); s.hidden = false; s.innerHTML = '';
@@ -886,12 +895,13 @@ function showTitle() {
   if (has_save()) m.append(btn('btn main', 'Continue', () => {
     try { startGame(null, load_game()); } catch (e) { toast('That save could not be loaded'); delete_save(); showTitle(); }
   }));
-  m.append(btn('btn', 'New game', showNewGame), btn('btn', 'How to play', () => openHelp()));
+  m.append(btn('btn', 'New game', showNewGame), btn('btn', 'Shared world', showSharedWorld), btn('btn', 'How to play', () => openHelp()));
   w.append(m);
   w.append(el('p', 'note', 'A zombie survival roguelike. Turn based, one run, one life.'));
   if (!lsSet('outbreak.probe', 1)) w.append(el('p', 'note t-warn', 'This browser blocks storage, so saving will not work here.'));
   s.append(w);
 }
+let sharedWorld = null, sharedCtx = null;
 let newCfg = null;
 function showNewGame() {
   hideAll(); const s = $('#newgame'); s.hidden = false;
@@ -948,8 +958,14 @@ function showNewGame() {
   render(); s.scrollTop = 0;
 }
 
-function startGame(cfg, loaded) {
+function startGame(cfg, loaded, shared) {
+  if (sharedWorld) { sharedWorld.detach(); sharedWorld = null; }
   game = loaded || new Game(cfg);
+  if (shared) {
+    sharedWorld = new SharedWorld(shared.env.db, shared.env.uid, shared.season);
+    sharedWorld.onclose = () => { if (game && game.over) afterAction(); };
+    sharedWorld.attach(game);
+  }
   game.on_autosave = () => { trySave(); };
   endingShown = false; aim = null; travel = null; pathPreview = null; modal = 0;
   lastHp = game.player.hp; camX = game.player.x + .5; camY = game.player.y + .5;
@@ -960,16 +976,171 @@ function startGame(cfg, loaded) {
 
 function showEnding() {
   const g = game, e = g.over; endingShown = true; cancelTravel(); endAim();
-  if (g.cfg.permadeath || e.victory) delete_save();
+  const isShared = g.cfg.mode === 'shared';
+  if (isShared) { delete_save(null, true); if (sharedWorld) { sharedWorld.flush(); sharedWorld.detach(); sharedWorld = null; } }
+  else if (g.cfg.mode === 'normal' ? (g.cfg.permadeath || e.victory) : e.victory) delete_save();
   if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; }
   hideAll(); const s = $('#ending'); s.hidden = false; s.innerHTML = '';
   const w = el('div', 'wrap');
-  w.append(el('div', 'fileno', e.victory ? 'Case closed' : 'Case file: terminated'), el('h2', 'end-title ' + (e.victory ? 'win' : 'lose'), e.title), el('p', 'end-text', e.text));
+  w.append(el('div', 'fileno', e.victory ? 'Case closed' : e.kind === 'closed' ? 'The world is closed' : 'Case file: terminated'), el('h2', 'end-title ' + (e.victory ? 'win' : 'lose'), e.title), el('p', 'end-text', e.text));
   w.append(el('div', 'sum', e.summary.map((l) => el('div', null, l))));
   w.append(el('div', 'fileno', 'Score'), el('div', 'score', String(e.score)));
   const m = el('div', 'menu'); m.style.marginTop = '20px';
-  m.append(btn('btn main', 'New game', () => { game = null; showNewGame(); }), btn('btn', 'Title screen', () => { game = null; showTitle(); }));
+  if (isShared) m.append(btn('btn main', 'Back to the shared world', () => { game = null; showSharedWorld(); }), btn('btn', 'Title screen', () => { game = null; showTitle(); }));
+  else m.append(btn('btn main', 'New game', () => { game = null; showNewGame(); }), btn('btn', 'Title screen', () => { game = null; showTitle(); }));
   w.append(m); s.append(w); s.scrollTop = 0;
+}
+
+// ---------------------------------------------------------------- the shared world: season, keeper, join
+async function sharedEnv() {
+  if (sharedCtx) return sharedCtx;
+  try {
+    if (typeof claude === 'undefined' || !claude.use) return null;
+    const db = await claude.use('db'); if (!db) return null;
+    const user = await claude.use('user');
+    sharedCtx = { db, uid: user ? await user.id() : null, canWrite: user ? await user.can('data.write') : null, isAdmin: user ? await user.canEdit() : false };
+    return sharedCtx;
+  } catch (e) { return null; }
+}
+const fmtLeft = (sec) => { const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
+
+async function showSharedWorld(msg) {
+  hideAll(); const s = $('#newgame'); s.hidden = false; s.innerHTML = '';
+  const w = el('div', 'wrap form');
+  w.append(el('div', 'fileno', 'Hardcore · one world for everyone'), el('h2', 'logo', 'Shared world'));
+  w.firstChild.nextSibling.style.fontSize = '36px';
+  s.append(w);
+  const note = (t, cls) => w.append(el('p', 'note ' + (cls || ''), t));
+  note('Loading the world...');
+  const env = await sharedEnv();
+  w.querySelector('p.note').remove();
+  const back = () => w.append(btn('btn', 'Back', showTitle));
+  if (!env) { note('The shared world needs this page to be opened from claude.ai, signed in, with the owner\'s sharing on. In a plain browser it cannot reach the shared database.', 't-warn'); back(); return; }
+  let season = null, outcome = null;
+  try {
+    const sd = await env.db.doc('season/current').get(); season = sd.exists ? sd.data() : null;
+    const od = await env.db.doc('play/outcome').get(); outcome = od.exists ? od.data() : null;
+  } catch (e) { note('The shared database did not answer. Try again in a moment.', 't-warn'); back(); return; }
+  if (msg) note(msg, 't-good');
+  const now = Date.now();
+  if (outcome && season && outcome.season !== season.n) outcome = null;
+  const over = season && (now >= season.endsAt || outcome);
+  if (!season) note(env.isAdmin ? 'There is no world yet. You are the keeper: create the first season.' : 'There is no world yet. The keeper has not created one.');
+  else {
+    const dayN = season_day(season, now), cfg = season.cfg;
+    w.append(el('h3', null, `Season ${season.n}`));
+    const kv = el('dl', 'kv');
+    const add = (k, v) => kv.append(el('dt', null, k), el('dd', null, v));
+    add('Calendar', `day ${dayN} (one game day = ${season.dayMs / 3600000} real hours)`);
+    add('Resets in', over ? 'over' : fmtLeft(Math.max(0, Math.floor((season.endsAt - now) / 1000))));
+    add('The world', `${CONTENT.eras[cfg.era].year} · ${CONTENT.presets[cfg.zombies].name.split(' - ')[0]} · ${CONTENT.scenarios[cfg.scenario].name.split(' - ')[0]} · ${cfg.difficulty}`);
+    if (outcome) add('Outcome', outcome.kind === 'won' ? `The cure was made on day ${outcome.day}.` : 'The way out closed. Nobody made it.');
+    w.append(kv);
+    if (over) note(outcome ? 'This season is decided. The keeper will reset the world.' : 'This season has ended. The keeper will reset the world.');
+    else {
+      note('Every survivor shares one seeded world. The dead you destroy stay dead for everyone, your tomb keeps your gear for the next, whatever killed you gets a name and a level, and enemies keep levelling while nobody plays. This is not a live simulation: you do not see other players move.');
+      if (env.canWrite === false) note('You can read this world but not play in it: ask the owner for contributor access.', 't-warn');
+      else {
+        w.append(btn('btn main', 'Join the world', () => showSharedJoin(env, season)));
+        if (has_save(null, true)) w.append(btn('btn', 'Continue my survivor', () => {
+          try { const g = load_game(null, true); if (g.season_n !== season.n) { delete_save(null, true); showSharedWorld('That survivor belonged to an earlier season.'); return; } startGame(null, g, { env, season }); }
+          catch (e) { delete_save(null, true); showSharedWorld('That save could not be loaded.'); }
+        }));
+      }
+    }
+  }
+  if (env.isAdmin) w.append(btn('btn', season ? 'Keeper: reset or reconfigure' : 'Keeper: create the world', () => showKeeper(env, season)));
+  back();
+}
+
+function showSharedJoin(env, season) {
+  hideAll(); const s = $('#newgame'); s.hidden = false; s.innerHTML = '';
+  const cfg = season.cfg, era = CONTENT.eras[cfg.era], pick = { origin: 'medic', opening: 'random' };
+  const render = () => {
+    s.innerHTML = '';
+    const w = el('div', 'wrap form');
+    w.append(el('div', 'fileno', `Season ${season.n}`), el('h2', 'logo', 'Arrive'));
+    w.querySelector('h2').style.fontSize = '36px';
+    const group = (title, key, items, blurb) => {
+      w.append(el('h3', null, title));
+      const box = el('div', 'opts cols');
+      for (const [id, name] of items) { const o = el('button', 'opt' + (pick[key] === id ? ' on' : ''), [el('b', null, name)]); o.type = 'button'; o.addEventListener('click', () => { pick[key] = id; render(); }); box.append(o); }
+      w.append(box, el('div', 'blurb', blurb()));
+    };
+    group('Who you are', 'origin', Object.values(CONTENT.origins).map((o) => [o.id, era.origin_names[o.id]]), () => CONTENT.origins[pick.origin].blurb);
+    group('How you arrive', 'opening', [['random', 'Surprise me']].concat(Object.values(CONTENT.openings).map((o) => [o.id, o.name])),
+      () => (pick.opening === 'random' ? 'Picked from who you are.' : CONTENT.openings[pick.opening].scenes[cfg.era]));
+    const go = el('div', 'sticky'); const start = btn('btn main', 'BEGIN', () => {
+      start.textContent = 'Generating the world...'; start.disabled = true;
+      setTimeout(() => { try { startGame(Object.assign({}, cfg, { mode: 'shared', seed: season.seed, origin: pick.origin, opening: pick.opening, season_n: season.n, clock_turn: season_turn(season, Date.now()) }), null, { env, season }); }
+        catch (e) { console.error(e); start.textContent = 'Failed: ' + e.message; } }, 30);
+    });
+    go.append(start); w.append(go, btn('btn', 'Back', () => showSharedWorld()));
+    s.append(w);
+  };
+  render(); s.scrollTop = 0;
+}
+
+function showKeeper(env, season) {
+  hideAll(); const s = $('#newgame'); s.hidden = false; s.innerHTML = '';
+  const base = season ? Object.assign({}, season.cfg) : { era: 'modern', zombies: 'classic', scenario: 'cure', difficulty: 'normal', needs: false, map_w: 120, map_h: 76 };
+  const num = { days: season ? Math.round((season.endsAt - season.startedAt) / 86400000) : 7, hours: season ? season.dayMs / 3600000 : 3 };
+  let armed = false;
+  const render = (msg) => {
+    s.innerHTML = '';
+    const w = el('div', 'wrap form');
+    w.append(el('div', 'fileno', 'Keeper'), el('h2', 'logo', 'The world'));
+    w.querySelector('h2').style.fontSize = '36px';
+    w.append(el('p', 'note', 'These rules apply to the next season. Resetting ends the current one for everyone, clears its tombs, named enemies and kills, and picks a new seed.'));
+    const group = (title, key, items) => {
+      w.append(el('h3', null, title));
+      const box = el('div', 'opts cols');
+      for (const [id, name] of items) { const o = el('button', 'opt' + (base[key] === id ? ' on' : ''), [el('b', null, name)]); o.type = 'button'; o.addEventListener('click', () => { base[key] = id; armed = false; render(); }); box.append(o); }
+      w.append(box);
+    };
+    group('Era', 'era', Object.values(CONTENT.eras).map((e) => [e.id, e.year]));
+    group('The dead', 'zombies', Object.values(CONTENT.presets).map((z) => [z.id, z.name.split(' - ')[0]]));
+    group('Goal', 'scenario', Object.values(CONTENT.scenarios).map((c) => [c.id, c.name.split(' - ')[0]]));
+    group('Difficulty', 'difficulty', ['easy', 'normal', 'hard'].map((d) => [d, cap(d)]));
+    const numRow = (label, key, min, max, sub) => {
+      w.append(el('h3', null, label));
+      const row = el('div', 'seed'); const inp = el('input'); inp.type = 'number'; inp.value = num[key]; inp.min = min; inp.max = max; inp.inputMode = 'decimal';
+      inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v >= min && v <= max) { num[key] = v; armed = false; } });
+      row.append(inp, el('span', 'note', sub)); w.append(row);
+    };
+    numRow('Season length (real days)', 'days', 0.1, 90, 'days until the world resets');
+    numRow('Game day (real hours)', 'hours', 0.1, 48, 'hours of real time per game day');
+    if (msg) w.append(el('p', 'note t-good', msg));
+    const label = season ? (armed ? 'Tap again: reset the world now' : `Reset the world (end season ${season.n})`) : 'Create the world';
+    w.append(btn('btn ' + (armed ? 'danger' : 'main'), label, async () => {
+      if (season && !armed) { armed = true; render(); return; }
+      try { const next = await reset_world(env.db, season, base, Date.now(), { dayMs: num.hours * 3600000, seasonMs: num.days * 86400000 }); showSharedWorld(`Season ${next.n} has begun.`); }
+      catch (e) { render('Could not write: ' + (e && e.code || e)); }
+    }));
+    w.append(btn('btn', 'Back', () => showSharedWorld()));
+    s.append(w);
+  };
+  render(); s.scrollTop = 0;
+}
+
+// in-game: how the season is going
+function openWorld() {
+  const g = game, sw = g.shared; if (!sw) return;
+  const sm = sw.summary();
+  openSheet(`Season ${sm.n}`, (body) => {
+    const kv = el('dl', 'kv');
+    const add = (k, v) => kv.append(el('dt', null, k), el('dd', null, v));
+    add('Calendar day', String(sm.day)); add('Resets in', fmtLeft(sm.seconds_left)); add('Survivors fallen', String(sm.fallen));
+    add('Enemy level cap', String(level_cap(g)));
+    body.append(kv);
+    if (sm.outcome) body.append(el('p', 'note', sm.outcome.kind === 'won' ? 'The cure has been made.' : 'The way out has closed.'));
+    body.append(el('h3', 'sec', 'Named enemies still out there'));
+    if (!sm.named.length) body.append(el('p', 'note', 'None yet.'));
+    for (const d of sm.named) body.append(el('div', 'row', [el('div', 'main', [el('div', 'name', `${d.name}`), el('div', 'sub', d.title)])]));
+    body.append(el('h3', 'sec', 'Hall of the fallen'));
+    if (!sm.hall.length) body.append(el('p', 'note', 'Nobody has fallen yet.'));
+    for (const h of sm.hall.slice(0, 12)) body.append(el('div', 'row', [el('div', 'main', [el('div', 'name', `${h.label} · level ${h.level}`), el('div', 'sub', `day ${h.day}: ${h.cause}`)])]));
+  });
 }
 
 // ---------------------------------------------------------------- boot

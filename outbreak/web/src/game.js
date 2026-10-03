@@ -42,7 +42,7 @@ class Game {
     if (!CONTENT.scenarios[c.scenario]) throw new Error('unknown scenario ' + c.scenario);
     if (!CONTENT.origins[c.origin]) throw new Error('unknown origin ' + c.origin);
     if (c.opening !== 'random' && !CONTENT.openings[c.opening]) throw new Error('unknown opening ' + c.opening);
-    if (c.mode !== 'normal' && c.mode !== 'living') throw new Error('unknown mode ' + c.mode);
+    if (c.mode !== 'normal' && c.mode !== 'living' && c.mode !== 'shared') throw new Error('unknown mode ' + c.mode);
     if (!CONTENT.difficulties[c.difficulty]) throw new Error('unknown difficulty ' + c.difficulty);
     if (c.map_w < 100 || c.map_h < 64) throw new Error('map too small (minimum 100x64)');
     this._init_state();
@@ -54,6 +54,7 @@ class Game {
     this._uid = 0; this.log = []; this.over = null; this.pending_event = null; this.recent_events = {};
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
     this.patrol_goals = {}; this.distress = {}; this.aided = {};
+    this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
     this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0;
@@ -102,8 +103,9 @@ class Game {
   }
   end(kind, cause = '') {
     if (this.over) return;
-    if ((kind === 'dead' || kind === 'turned') && this.cfg.mode === 'living') { player_died(this, kind, cause); return; }   // the world goes on
+    if ((kind === 'dead' || kind === 'turned') && this.cfg.mode !== 'normal') { player_died(this, kind, cause); return; }   // the world goes on
     this.over = build_ending(this, kind, cause);
+    if (this.shared && (kind === 'won' || kind === 'left_behind')) this.shared.on_outcome(kind === 'won' ? 'won' : 'lost');
   }
   make_hostile(h) {
     if (h.hostile) return;
@@ -193,6 +195,7 @@ class Game {
     wanderers(this);
     this._followers();
     this._rising_dead();
+    if (this.shared) this.shared.tick(this);
     this._heat();
     this._time_events();
     if (this.final) this._final_tick();
@@ -332,7 +335,9 @@ class Game {
         delete lv.corpses[k];
         const fk = `${lv.id}|${k}`, fallen = this.fallen_bodies[fk];
         if (fallen) delete this.fallen_bodies[fk];
+        if (fallen && fallen.tomb_id && this.shared && this.named_state[`t_${fallen.tomb_id}`]) continue;   // the shared world already decided
         const z = fallen ? make_fallen(this, lv, [x, y], fallen) : spawn_zombie(this, lv, [x, y], 'walker', false, true);
+        if (fallen && fallen.tomb_id && this.shared) this.shared.on_fallen_rise(z, fallen.tomb_id);
         z.fresh_human = false; z.state = 'hunt'; z.target = [this.player.x, this.player.y]; z.stimulus_turn = t;
         if (this.is_visible(x, y)) this.msg('A body twitches, and rises.', 'warn');
       }
@@ -342,11 +347,12 @@ class Game {
   _time_events() {
     const c = this.clock, sc = this.scenario;
     if (this.profile.sun_burn && c.turn % 240 === 200 && this.world.level.kind === 'overworld') this._dusk_wave();
-    if (sc.deadline_days && c.day > sc.deadline_days && !this.final) this.end('left_behind', '');
-    else if (sc.deadline_days && c.turn % 240 === 0 && c.day === sc.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'warn');
+    const day = game_day(this);
+    if (sc.deadline_days && day > sc.deadline_days && !this.final) this.end('left_behind', '');
+    else if (sc.deadline_days && c.turn % 240 === 0 && day === sc.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'warn');
     if (c.turn % 240 === 0) {
-      const ph = profile_phase(this.profile, c.day), prev = profile_phase(this.profile, c.day - 1);
-      if (ph !== prev && ph.blurb) this.msg(`Day ${c.day}: ${ph.name}. ${ph.blurb}`, 'lore');
+      const ph = profile_phase(this.profile, day), prev = profile_phase(this.profile, day - 1);
+      if (ph !== prev && ph.blurb) this.msg(`Day ${day}: ${ph.name}. ${ph.blurb}`, 'lore');
     }
   }
 
@@ -436,14 +442,15 @@ class Game {
     const cut = level_id.lastIndexOf(':');
     const poi = this.pois[level_id.slice(0, cut)], floor = parseInt(level_id.slice(cut + 1), 10);
     const ctx = { era: this.era, profile: this.profile, loot_mult: this.diff.loot, zombie_mult: this.diff.zombies,
-                  spawn: (lv, pos, special = null, dormant = true) => spawn_zombie(this, lv, pos, special, dormant), day: this.clock.day };
+                  spawn: (lv, pos, special = null, dormant = true) => spawn_zombie(this, lv, pos, special, dormant), day: game_day(this) };
     const n = Math.max(1, poi.floors);
     const docs = poi.docs.filter((d, i) => i % n === floor % n);
     const lv = generate_interior(poi, floor, this.seed, ctx, docs);
     lv.poi_id = poi.id;
     this.levels[level_id] = lv;
-    for (const z of lv.actors) z.birth_day = this.clock.day;
+    for (const z of lv.actors) z.birth_day = game_day(this);
     if (poi.kind === 'refuge') this._populate_refuge(lv);
+    if (this.shared) this.shared.on_level_created(lv);
     return lv;
   }
 

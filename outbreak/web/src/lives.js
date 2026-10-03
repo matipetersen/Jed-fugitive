@@ -2,9 +2,9 @@
 // In mode 'living' your death is not the end. Your body keeps your gear and rises as a named zombie; whatever killed
 // you grows stronger and keeps its name; a new survivor walks out of the refuge into the same world.
 const MAX_ENEMY_LEVEL = 15, KEEP_KNOWLEDGE = 0.5;
-const living = (game) => game.cfg.mode === 'living';
+const living = (game) => game.cfg.mode !== 'normal';
 // Enemies cannot outgrow the calendar: day 1 caps at level 3.
-const level_cap = (game) => Math.min(MAX_ENEMY_LEVEL, 2 + game.clock.day);
+const level_cap = (game) => Math.min(MAX_ENEMY_LEVEL, 2 + game_day(game));
 const base_name = (a) => a.name.replace(/ \(Lv\d+\)$/, '');
 
 function level_up(game, a, announce = true) {
@@ -21,7 +21,7 @@ function level_up(game, a, announce = true) {
 function grant_xp(game, killer, value) {
   if (!killer || killer.kind === 'player' || killer.hp <= 0 || !living(game)) return;
   killer.lvl = killer.lvl || 1; killer.lvl_xp = (killer.lvl_xp || 0) + value;
-  while (killer.lvl < level_cap(game) && killer.lvl_xp >= 8 * killer.lvl) { killer.lvl_xp -= 8 * killer.lvl; level_up(game, killer); }
+  while (killer.lvl < level_cap(game) && killer.lvl_xp >= 8 * killer.lvl) { killer.lvl_xp -= 8 * killer.lvl; level_up(game, killer); if (game.shared) game.shared.on_enemy_level(killer); }
 }
 
 const label_of = (game, generation, origin_id) => `${game.era.origin_names[origin_id]} #${generation}`;
@@ -39,9 +39,11 @@ function make_fallen(game, level, pos, info) {
 function player_died(game, kind, cause) {
   const p = game.player, lv = game.level, rng = game.rng;
   const label = label_of(game, game.generation, game.current_origin);
-  const record = { label, level: p.level, day: game.clock.day, kills: p.kills, cause: cause || (kind === 'turned' ? 'turned' : 'died'), kind };
+  const record = { label, level: p.level, day: game_day(game), kills: p.kills, cause: cause || (kind === 'turned' ? 'turned' : 'died'), kind };
   game.fallen.push(record);
-  for (const item of [p.weapon, p.armor, p.light].concat(p.inventory)) if (item) lv.drop([p.x, p.y], item);
+  const gear = [p.weapon, p.armor, p.light].concat(p.inventory).filter((i) => i);
+  for (const item of gear) lv.drop([p.x, p.y], item);
+  const death_pos = [p.x, p.y], death_level = lv.id, death_key = lv.idx(p.x, p.y);
   if (lv.occ.get(lv.idx(p.x, p.y)) === p) lv.occ.delete(lv.idx(p.x, p.y));
   lv.corpses[lv.idx(p.x, p.y)] = [game.clock.turn, 2];
   game.fallen_bodies[`${lv.id}|${lv.idx(p.x, p.y)}`] = record;
@@ -74,9 +76,13 @@ function player_died(game, kind, cause) {
   for (const a of world.actors) if (a.kind === 'human' && a.state === 'follow') a.state = 'patrol';
   const new_label = label_of(game, game.generation, new_origin);
   const why = cause || (kind === 'turned' ? 'The fever won.' : '');
-  game.death_notice = `${label} (level ${p.level}, day ${game.clock.day}) is gone: ${why}.${killer_line}\n\n` +
+  game.death_notice = `${label} (level ${p.level}, day ${game_day(game)}) is gone: ${why}.${killer_line}\n\n` +
     `Their gear lies where they fell, and the body will not stay down. Nothing else changes. The dead are where they were, ` +
     `the vaults are as they left them, and the clock keeps running.\n\n` +
     `${new_label} reaches ${game.era.refuge}. They know part of what the journals say, and they start at level ${np.level}.`;
   game.msg(`${label} has died. ${new_label} takes up the search.`, 'bad');
+  if (game.shared) {
+    game.shared.on_player_died({ label, level: p.level, x: death_pos[0], y: death_pos[1], level_id: death_level, key: death_key, cause: record.cause, record, killer,
+      items: gear.map((i) => ({ id: i.id, qty: i.qty, dur: i.dur === undefined ? null : i.dur, key: !!i.key })) });
+  }
 }

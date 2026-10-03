@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------- saving: the whole game as JSON
-const SAVE_VERSION = 1, SAVE_KEY = 'outbreak.save.v1';
+const SAVE_VERSION = 1, SAVE_KEY = 'outbreak.save.v1', SHARED_SAVE_KEY = 'outbreak.save.shared.v1';
+const save_key = (shared) => (shared ? SHARED_SAVE_KEY : SAVE_KEY);
 
 function bytes_to_b64(bytes) {
   let s = '';
@@ -42,6 +43,8 @@ function serialize_game(game) {
     world: { start: game.world.start, camps: game.world.camps, zone: bytes_to_b64(game.world.zone) },
     levels, current: game.level.id,
     patrol_goals: game.patrol_goals, patrol_nodes: game.patrol_nodes, distress: game.distress, aided: game.aided,
+    season_n: game.season_n, world_uid_max: game.world_uid_max, pending_shared: game.pending_shared, applied_tombs: game.applied_tombs, tomb_at: game.tomb_at,
+    named_state: game.named_state, taken_components: game.taken_components,
     generation: game.generation, current_origin: game.current_origin, fallen: game.fallen, fallen_bodies: game.fallen_bodies, death_notice: game.death_notice, opening_id: game.opening_id, intro_pages: game.intro_pages,
   };
   return JSON.stringify(data);
@@ -59,6 +62,8 @@ function deserialize_game(json) {
   g.clock = new Clock(d.clock);
   g.rng = new RNG(1); g.rng.state = d.rng;
   g.patrol_goals = d.patrol_goals || {}; g.patrol_nodes = d.patrol_nodes || []; g.distress = d.distress || {}; g.aided = d.aided || {};
+  g.season_n = d.season_n || 0; g.world_uid_max = d.world_uid_max || 0; g.pending_shared = d.pending_shared || {}; g.applied_tombs = d.applied_tombs || {};
+  g.tomb_at = d.tomb_at || {}; g.named_state = d.named_state || {}; g.taken_components = d.taken_components || [];
   g.generation = d.generation || 1; g.current_origin = d.current_origin || g.cfg.origin; g.fallen = d.fallen || []; g.fallen_bodies = d.fallen_bodies || {}; g.death_notice = d.death_notice || ''; g.opening_id = d.opening_id || ''; g.intro_pages = d.intro_pages || [];
   g.refuge_id = d.refuge_id; g.pad_id = d.pad_id; g.final_site_id = d.final_site_id; g.rep = d.rep; g.docs = d.docs;
   g.era = CONTENT.eras[g.cfg.era]; g.profile = CONTENT.presets[g.cfg.zombies]; g.scenario = CONTENT.scenarios[g.cfg.scenario];
@@ -85,17 +90,17 @@ function deserialize_game(json) {
 function save_game(game, store) {
   store = store || (typeof localStorage !== 'undefined' ? localStorage : null);
   if (!store) throw new Error('no storage available');
-  store.setItem(SAVE_KEY, serialize_game(game));
+  store.setItem(save_key(game.cfg.mode === 'shared'), serialize_game(game));
 }
-function load_game(store) {
+function load_game(store, shared = false) {
   store = store || (typeof localStorage !== 'undefined' ? localStorage : null);
-  const raw = store && store.getItem(SAVE_KEY);
+  const raw = store && store.getItem(save_key(shared));
   if (!raw) throw new Error('no save found');
   return deserialize_game(raw);
 }
-function has_save(store) {
-  try { store = store || (typeof localStorage !== 'undefined' ? localStorage : null); return !!(store && store.getItem(SAVE_KEY)); } catch (e) { return false; }
+function has_save(store, shared = false) {
+  try { store = store || (typeof localStorage !== 'undefined' ? localStorage : null); return !!(store && store.getItem(save_key(shared))); } catch (e) { return false; }
 }
-function delete_save(store) {
-  try { store = store || (typeof localStorage !== 'undefined' ? localStorage : null); if (store) store.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+function delete_save(store, shared = false) {
+  try { store = store || (typeof localStorage !== 'undefined' ? localStorage : null); if (store) store.removeItem(save_key(shared)); } catch (e) { /* ignore */ }
 }

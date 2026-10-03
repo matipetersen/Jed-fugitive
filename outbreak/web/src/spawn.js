@@ -15,7 +15,7 @@ function pick_special(rng, profile, day) {
 
 function make_zombie(game, special_id, x, y, fresh = false) {
   const profile = game.profile, sp = CONTENT.specials[special_id];
-  const day = game.clock.day, phase = profile_phase(profile, day);
+  const day = game_day(game), phase = profile_phase(profile, day);
   const age = fresh ? 0 : game.rng.randint(0, Math.max(0, day - 1));
   const decay = Math.max(0.4, 1.0 - profile.decay * age);
   const hp = Math.max(1, Math.floor(sp.hp * profile.hp_mult * phase.hp * decay));
@@ -32,7 +32,7 @@ function make_zombie(game, special_id, x, y, fresh = false) {
 }
 
 function spawn_zombie(game, level, pos, special = null, dormant = true, fresh = false) {
-  const sid = special || pick_special(game.rng, game.profile, game.clock.day);
+  const sid = special || pick_special(game.rng, game.profile, game_day(game));
   const z = make_zombie(game, sid, pos[0], pos[1], fresh);
   z.state = dormant && level.kind !== 'overworld' ? 'dormant' : 'idle';
   level.add_actor(z);

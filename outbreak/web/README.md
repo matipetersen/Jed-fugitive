@@ -19,6 +19,30 @@ generators, so the same seed does not give the same world in both.
 The story briefing (three pages) opens when a new game starts; the menu has a **Briefing** tile to read it again.
 The new-game screen has a *How it starts* choice (or *Surprise me*).
 
+## Shared world (web only)
+
+The title screen has **Shared world**: one hardcore world for everyone who opens the published page. It needs the
+artifact database (`db`) and the viewer's identity (`user`), so it only works from the published artifact with
+sharing on. People who can only view it can read the world but not play; players need contributor access. The owner
+(or any editor) is the **keeper**: they create the world, choose era, dead, goal, difficulty, season length and
+how long a game day lasts in real time, and reset it whenever they want. Resetting ends the season for everyone,
+clears the ledger and picks a new seed.
+
+What is shared, and what is not. Every browser runs its own copy of the same seeded world (identical map,
+buildings, and starting population whoever you are). The facts below go through the database:
+* the **calendar**: a game day is `dayMs` of real time, so enemy level caps, zombie phases and the extraction
+  deadline move on while nobody plays; each seeded enemy catches up its levels deterministically on the same schedule;
+* **tombs**: your gear stays where you fell for anyone to loot (components included); looted once, gone for all;
+* **named enemies**: the thing that killed you, and your risen body, keep a name and a level for everyone until
+  somebody kills them;
+* **kills**: ordinary enemies of the seeded population stay dead for everyone;
+* **vault components** can only be taken once; the **outcome** (cure made, way out closed) closes the season;
+* the **hall** of the fallen.
+
+Not shared: where other players are right now, or what each browser's roaming hordes and wanderers do. This is a
+shared ledger on top of identical seeded worlds, not a live server simulation. Tests run against an in-memory fake
+of the database (`test/fakedb.js`); the real database was only exercised by publishing the page.
+
 ## Touch controls
 
 * **Pad** (bottom left): hold to keep moving. The centre dot waits; hold it to rest.

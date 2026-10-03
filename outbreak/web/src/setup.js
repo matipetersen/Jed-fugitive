@@ -28,19 +28,35 @@ function setup_game(game) {
   game.opening_id = opening.id;
   let start_hour = opening.hour;
   if (game.profile.sun_burn) start_hour = Math.min(start_hour, 10);   // sun-shy dead: keep a whole safe day to loot
-  game.clock = new Clock(start_hour * CONTENT.clock.turns_per_hour);
+  const shared = cfg.mode === 'shared';
+  game.clock = new Clock(shared ? cfg.clock_turn : start_hour * CONTENT.clock.turns_per_hour);
+  game.season_n = cfg.season_n || 0;
   _make_player(game);
-  _apply_opening(game, opening);
+  if (!shared) _apply_opening(game, opening);          // shared: after the world is built, so the world never depends on who you are
   _setup_scenario(game);
   _setup_documents(game);
   _populate(game);
-  if (!game.profile.sun_burn) start_ring(game);
+  if (!game.profile.sun_burn && !shared) start_ring(game);
+  if (shared) _become_survivor(game, opening);
   _intro(game);
 }
 
 function _make_player(game) {
+  const origin = game.cfg.mode === 'shared' ? 'medic' : game.cfg.origin;      // shared world: a stand-in until the world exists
+  game.current_origin = origin;
+  make_player(game, origin, game.world.start);
+}
+
+// Shared world: swap the stand-in for the real survivor, who always arrives at the refuge.
+function _become_survivor(game, opening) {
+  const dummy = game.player, lv = game.world.level;
+  game.world_uid_max = game._uid;
+  lv.occ.delete(lv.idx(dummy.x, dummy.y));
+  const refuge = game.pois[game.refuge_id];
+  const pos = lv.free_spot_near(refuge.x, refuge.y + 2, 8) || lv.free_spot_near(game.world.start[0], game.world.start[1], 8);
   game.current_origin = game.cfg.origin;
-  make_player(game, game.cfg.origin, game.world.start);
+  make_player(game, game.cfg.origin, pos);
+  _apply_opening(game, opening);
 }
 
 // A fresh character with an origin's perks and kit, placed at `pos` on the overworld.
@@ -100,7 +116,7 @@ function intro_pages(game) {
   const fill = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
   const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}`;
   const scene = opening.scenes[era.id] + '\n\n' + fill(CONTENT.opening_consequence, { alarm: CONTENT.opening_alarms[era.id] });
-  const premise = fill(game.cfg.mode === 'living' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: sc.deadline_days });
+  const premise = fill(game.cfg.mode !== 'normal' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: sc.deadline_days });
   return [[opening.name, scene], ['The world', world], ['What you must do', premise]];
 }
 
@@ -240,7 +256,7 @@ function _intro(game) {
   if (sc.final_site === 'refuge') {
     const d = compass(refuge.x - p.x, refuge.y - p.y);
     game.msg(`Rumour on ${era.radio}: ${era.refuge} still stands, ${d} of here, about ${cheb(poi_pos(refuge), [p.x, p.y])} tiles away. They may have a way to make a cure.`, 'lore');
-    if (game.cfg.mode === 'living') game.msg('The cure is for the world. If you fall, someone else will carry on.', 'warn');
+    if (game.cfg.mode !== 'normal') game.msg('The cure is for the world. If you fall, someone else will carry on.', 'warn');
     else game.msg('You are bitten. The infection is slow, but it is in you. Find the three components and the formula before it takes you.', 'warn');
   } else {
     const pad = game.pois[game.pad_id];

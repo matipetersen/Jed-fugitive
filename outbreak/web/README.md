@@ -16,6 +16,9 @@ perks, recipes, moral encounters, endings) is **exported from the Python packs b
 or a zombie preset in Python shows up here after a rebuild. The two engines use different random number
 generators, so the same seed does not give the same world in both.
 
+The story briefing (three pages) opens when a new game starts; the menu has a **Briefing** tile to read it again.
+The new-game screen has a *How it starts* choice (or *Surprise me*).
+
 ## Touch controls
 
 * **Pad** (bottom left): hold to keep moving. The centre dot waits; hold it to rest.

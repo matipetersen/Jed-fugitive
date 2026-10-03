@@ -72,3 +72,26 @@ function buy_lead(game) {
   game.player.coins -= LEAD_COST;
   return 'They tell you where to look.';
 }
+
+const PATROL_LINES = {
+  scout: ['"Keep to the roads and off the high ground. They see you up there."',
+          '"We bring the stragglers in when we can. Not every day we can."',
+          '"Camps to the east are not friendly. Do not go knocking."'],
+  soldier: ['"Move along, civilian. This sector is not clear."',
+            '"We hold the roads. Beyond that you are on your own."',
+            '"Noise draws them. Noise draws the other kind too."'],
+};
+
+// A passing patrol: wary, but willing to share one tip with someone who still looks human.
+function talk_patrol(game, npc) {
+  const name = npc.name.toLowerCase();
+  if (game.player.humanity < 20) return `The ${name} looks at what you have become, and does not lower their weapon.`;
+  if (!npc.talked) {
+    npc.talked = true;
+    game.rep[npc.faction] = (game.rep[npc.faction] || 0) + 2;
+    if (game.reveal_random_lead()) return `The ${name} lowers their weapon and tells you where they have seen something worth finding.`;
+    return `The ${name} has no news, but nods and wishes you luck.`;
+  }
+  const lines = PATROL_LINES[npc.role] || PATROL_LINES.scout;
+  return lines[(npc.uid + Math.floor(game.clock.turn / 60)) % lines.length];
+}

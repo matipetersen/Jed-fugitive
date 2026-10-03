@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------- behaviour of the living and the dead
-const ACTIVE_RADIUS = 45, FIELD_RADIUS = 28, DOOR_HP = 8, LOST_AFTER = 14;
+const ACTIVE_RADIUS = 45, FIELD_RADIUS = 28, DOOR_HP = 8, LOST_AFTER = 14, FOE_SIGHT = 5, HUMAN_SIGHT = 8;
+const FIGHTERS = ['raider', 'scout', 'soldier'];
 const same = (a, b) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
 
 function sight_range(game, z) {
@@ -32,14 +33,15 @@ function speed_now(game, z) {
 
 function ai_run(game) {
   const level = game.level, p = game.player;
+  const humans = level.actors.filter((a) => a.kind === 'human' && a.hp > 0 && FIGHTERS.includes(a.role));
   for (const a of level.actors.slice()) {
     if (a.hp <= 0 || level.occ.get(level.idx(a.x, a.y)) !== a || cheb(apos(a), apos(p)) > ACTIVE_RADIUS) continue;
-    if (a.kind === 'zombie') _zombie(game, a);
-    else if (a.kind === 'human') _human(game, a);
+    if (a.kind === 'zombie') _zombie(game, a, humans);
+    else if (a.kind === 'human') _human(game, a, humans);
   }
 }
 
-function _zombie(game, z) {
+function _zombie(game, z, humans) {
   const prof = game.profile, level = game.level;
   if (z.cooldown > 0) z.cooldown -= 1;
   if (prof.sun_burn && level.kind === 'overworld' && game.clock.is_day) {
@@ -50,14 +52,37 @@ function _zombie(game, z) {
   let steps = 0;
   while (z.energy >= 1.0 && steps < 3 && z.hp > 0 && level.occ.get(level.idx(z.x, z.y)) === z) {
     z.energy -= 1.0; steps++;
-    _zombie_step(game, z);
+    _zombie_step(game, z, humans);
   }
 }
 
-function _zombie_step(game, z) {
+// The closest living foe of `a` within `limit` that it can see, or null.
+function nearest_foe(game, a, foes, limit) {
+  const level = game.level;
+  let best = null, best_d = limit + 1;
+  for (const f of foes) {
+    if (f === a || f.hp <= 0) continue;
+    const d = cheb(apos(a), apos(f));
+    if (d < best_d && has_los(level, apos(a), apos(f))) { best = f; best_d = d; }
+  }
+  return best;
+}
+
+function _zombie_fight(game, z, foe) {
+  z.state = 'hunt'; z.target = apos(foe); z.stimulus_turn = game.clock.turn;
+  if (cheb(apos(z), apos(foe)) === 1) { attack_actor(game, z, foe); return; }
+  const nxt = greedy_step(game.level, apos(z), apos(foe), game.rng, (n) => _passable(game, z, n));
+  if (nxt !== null) _move_or_bash(game, z, nxt);
+}
+
+function _zombie_step(game, z, humans) {
   const p = game.player, prof = game.profile, turn = game.clock.turn;
   const d = cheb(apos(z), apos(p));
   const seen = sees_player(game, z);
+  if (humans && humans.length && z.state !== 'dormant') {
+    const foe = nearest_foe(game, z, humans, FOE_SIGHT);
+    if (foe !== null && (!seen || cheb(apos(z), apos(foe)) < d)) { _zombie_fight(game, z, foe); return; }
+  }
   if (z.state === 'dormant') {
     if (seen && d <= Math.max(2.0, sight_range(game, z) * 0.5)) z.state = 'hunt'; else return;
   }
@@ -171,31 +196,72 @@ function _wander(game, z) {
   }
 }
 
-function _human(game, h) {
-  if (!h.hostile) return;
+// Everything this human will shoot at that is not the player: the dead, and the other side.
+function _foes_of(h, game, humans) {
+  const out = game.level.actors.filter((z) => z.kind === 'zombie' && z.hp > 0);
+  const mine = h.faction === 'raiders';
+  for (const o of humans) if (o !== h && (o.faction === 'raiders') !== mine) out.push(o);
+  return out;
+}
+
+function _human(game, h, humans) {
+  if (!FIGHTERS.includes(h.role)) return;                       // shopkeepers and healers keep out of it
   const p = game.player, level = game.level;
   const d = cheb(apos(h), apos(p));
-  const seen = d <= 11 && has_los(level, apos(h), apos(p));
+  const seen = h.hostile && d <= 11 && has_los(level, apos(h), apos(p));
+  const foe = nearest_foe(game, h, _foes_of(h, game, humans), h.reach > 1 ? HUMAN_SIGHT : FOE_SIGHT);
+  if (foe !== null && !(seen && d < cheb(apos(h), apos(foe)))) { _human_fight(game, h, foe); return; }
   if (seen) { h.state = 'hunt'; h.target = apos(p); }
-  if (h.state !== 'hunt') return;
-  if (h.hp < h.max_hp * 0.3 && seen) { _flee(game, h); return; }
+  if (h.state === 'patrol') { _patrol_step(game, h); return; }
+  if (h.state !== 'hunt' || !h.hostile) return;
+  if (h.hp < h.max_hp * 0.3 && seen) { _flee(game, h, apos(p)); return; }
   if (h.reach > 1 && seen && d >= 2 && d <= h.reach) { human_attack(game, h); return; }
   if (d === 1) { human_attack(game, h); return; }
   const field = game.get_field();
   let nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null;
   if (nxt === null) nxt = greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+  _human_move(game, h, nxt);
+}
+
+function _human_move(game, h, nxt) {
+  const level = game.level;
   if (nxt && !level.occ.has(level.idx(nxt[0], nxt[1])) && !NO_ENTRY.has(level.tile(nxt[0], nxt[1]))) {
     if (level.tile(nxt[0], nxt[1]) === T.DOOR) level.set_tile(nxt[0], nxt[1], T.DOOR_OPEN);
     else level.move_actor(h, nxt[0], nxt[1]);
+    return true;
   }
+  return false;
 }
 
-function _flee(game, h) {
-  const p = game.player, level = game.level;
-  let best = null, best_d = cheb(apos(h), apos(p));
+function _human_fight(game, h, foe) {
+  const level = game.level, d = cheb(apos(h), apos(foe));
+  if (h.hp < h.max_hp * 0.3 && foe.kind === 'zombie' && d <= 2) { _flee(game, h, apos(foe)); return; }
+  if (h.reach > 1 && d >= 2 && d <= h.reach) attack_actor(game, h, foe, true);
+  else if (d === 1) attack_actor(game, h, foe, false);
+  else _human_move(game, h, greedy_step(level, apos(h), apos(foe), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1]))));
+}
+
+// Walk to the group's current waypoint, every other tick; pick a new one on arrival.
+function _patrol_step(game, h) {
+  if (game.clock.turn % 2) return;
+  const goals = game.patrol_goals;
+  let goal = goals[h.group];
+  if (!goal || cheb(apos(h), goal) <= 2 || h.stuck > 8) {
+    const nodes = game.patrol_nodes;
+    if (!nodes.length) return;
+    goal = game.rng.choice(nodes); goals[h.group] = goal; h.stuck = 0;
+  }
+  const level = game.level;
+  const nxt = greedy_step(level, apos(h), goal, game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+  if (nxt === null || !_human_move(game, h, nxt)) h.stuck += 1;
+}
+
+function _flee(game, h, away_from) {
+  const level = game.level;
+  let best = null, best_d = cheb(apos(h), away_from);
   for (const [dx, dy] of DIRS8) {
     const n = [h.x + dx, h.y + dy];
-    if (level.free(n[0], n[1]) && !NO_ENTRY.has(level.tile(n[0], n[1])) && cheb(n, apos(p)) > best_d) { best = n; best_d = cheb(n, apos(p)); }
+    if (level.free(n[0], n[1]) && !NO_ENTRY.has(level.tile(n[0], n[1])) && cheb(n, away_from) > best_d) { best = n; best_d = cheb(n, away_from); }
   }
   if (best) level.move_actor(h, best[0], best[1]);
 }

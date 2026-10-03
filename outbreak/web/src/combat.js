@@ -58,7 +58,7 @@ function _train(game, w, amount = 1) {
   if (p.style_rank(w.style) > before) game.msg(`Your skill with ${w.style} weapons improves.`, 'good');
 }
 
-function hurt_zombie(game, z, raw, head, style = '', fire = false) {
+function zombie_damage(game, z, raw, head, style = '', fire = false) {
   const profile = game.profile;
   let dmg = raw;
   if (head) dmg *= profile.kill_rule === 'head' ? 3.0 : 2.0;
@@ -68,7 +68,11 @@ function hurt_zombie(game, z, raw, head, style = '', fire = false) {
   }
   if (fire && (profile.weakness === 'fire' || profile.weakness === 'light')) dmg *= 2.0;
   else if (style === 'energy' && profile.weakness === 'light') dmg *= 1.3;
-  const dealt = Math.max(1, Math.round(dmg));
+  return Math.max(1, Math.round(dmg));
+}
+
+function hurt_zombie(game, z, raw, head, style = '', fire = false) {
+  const dealt = zombie_damage(game, z, raw, head, style, fire);
   z.hp -= dealt;
   if (z.hp <= 0) kill_zombie(game, z, head);
   else { z.state = 'hunt'; z.target = apos(game.player); z.stimulus_turn = game.clock.turn; }
@@ -89,7 +93,7 @@ function kill_zombie(game, z, head = false, by_player = true) {
   }
   if (z.flags.includes('explodes')) burst(game, apos(z));
   if (z.flags.includes('boss') && z.special === 'stalker') game.on_stalker_killed();
-  game.msg(`The ${z.name.toLowerCase()} ${head ? 'collapses' : 'goes down'}.`, 'combat');
+  if (by_player || game.is_visible(z.x, z.y)) game.msg(`The ${z.name.toLowerCase()} ${head ? 'collapses' : 'goes down'}.`, 'combat');
 }
 
 function burst(game, pos) {
@@ -283,6 +287,45 @@ function human_attack(game, h) {
   const dmg = Math.max(1, Math.round(game.rng.randint(h.dmg[0], h.dmg[1]) * game.diff.damage - (armor ? armor.defense : 0)));
   game.msg(`The ${h.name.toLowerCase()} hits you for ${dmg}.`, 'bad');
   damage_player(game, dmg, `killed by ${article(h.name)} ${h.name.toLowerCase()}`);
+}
+
+// ---------------------------------------------------------------- everyone else's fights
+function _seen(game, ...actors) { return actors.some((a) => game.is_visible(a.x, a.y)); }
+
+// One actor (zombie or human) strikes another that is not the player.
+function attack_actor(game, attacker, defender, ranged = false) {
+  const d = cheb(apos(attacker), apos(defender));
+  if (ranged && d > 1) game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight');
+  const noun = attacker.name.toLowerCase(), victim = defender.name.toLowerCase();
+  if (game.rng.random() * 100 >= clamp(attacker.acc - 8 - Math.max(0, d - 1) * 2, 12, 90)) {
+    if (_seen(game, attacker, defender)) game.msg(`The ${noun} ${ranged && d > 1 ? 'shoots' : 'strikes'} at the ${victim} and misses.`, 'combat');
+    return;
+  }
+  const raw = game.rng.randint(attacker.dmg[0], attacker.dmg[1]);
+  if (defender.kind === 'zombie') {
+    const head = game.rng.random() < (ranged ? 0.25 : 0.2);
+    defender.hp -= zombie_damage(game, defender, raw, head);
+    if (defender.hp <= 0) { kill_zombie(game, defender, head, false); return; }
+    defender.state = 'hunt'; defender.target = apos(attacker); defender.stimulus_turn = game.clock.turn;
+    if (_seen(game, attacker, defender)) game.msg(`The ${noun} hits the ${victim}.`, 'combat');
+    return;
+  }
+  defender.hp -= raw;
+  if (defender.hp <= 0) { kill_human_other(game, defender, attacker); return; }
+  defender.state = 'hunt'; defender.target = apos(attacker);
+  if (_seen(game, attacker, defender)) game.msg(`The ${noun} ${attacker.kind === 'zombie' ? 'bites' : 'hits'} the ${victim}.`, 'combat');
+}
+
+// A human dies to something other than the player. Victims of the dead rise again (corpse flag 2).
+function kill_human_other(game, h, killer) {
+  const level = game.level;
+  level.remove_actor(h);
+  level.corpses[level.idx(h.x, h.y)] = [game.clock.turn, killer.kind === 'zombie' ? 2 : 1];
+  for (const item of h.loot) level.drop(apos(h), item);
+  if (_seen(game, h, killer)) {
+    if (killer.kind === 'zombie') game.msg(`The ${killer.name.toLowerCase()} drags the ${h.name.toLowerCase()} down.`, 'bad');
+    else game.msg(`The ${h.name.toLowerCase()} falls to the ${killer.name.toLowerCase()}.`, 'combat');
+  }
 }
 
 function can_amputate(game) {

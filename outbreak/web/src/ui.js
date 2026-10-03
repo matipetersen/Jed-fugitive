@@ -727,10 +727,25 @@ function openMenu() {
     tile('Light', p.light ? (p.light_on ? 'on: you are visible' : 'off') : 'none carried', () => { sheetAct(() => g.toggle_light()); openMenu(); }, p.light && p.light_on);
     tile('Gore disguise', 'smear with a corpse', () => { closeSheet(); doAction(() => g.smear()); });
     tile('Field report', 'goals and stats', () => openStatus());
+    tile('Briefing', 'the story so far', () => showBriefing(0));
     tile('Journal', 'message history', () => openLog());
     tile('Settings', 'zoom, layout, save', () => openSettings());
     tile('How to play', 'controls', () => openHelp());
   });
+}
+
+// The story pages: the scene you started in, the world, and what you must do.
+function showBriefing(i, first) {
+  const pages = (game && game.intro_pages) || [];
+  if (!pages.length) return;
+  const [title, text] = pages[i], last = i === pages.length - 1;
+  openSheet(title, (body) => {
+    for (const para of text.split('\n\n')) body.append(el('p', 'event-text story', para));
+    const acts = el('div', 'actionrow');
+    acts.append(btn('btn main', last ? (first ? 'Begin' : 'Close') : 'Continue', () => { if (last) closeSheet(); else showBriefing(i + 1, first); }));
+    if (!last) acts.append(btn('btn', 'Skip', () => closeSheet()));
+    body.append(acts, el('p', 'note', `${i + 1} / ${pages.length}`));
+  }, { locked: true });
 }
 
 function openSettings(msg) {
@@ -755,7 +770,13 @@ function openSettings(msg) {
 
 // ---------------------------------------------------------------- people, rest and events
 function openNpc(npc) {
-  const g = game, why = refuses(g);
+  const g = game;
+  if (npc.role === 'scout' || npc.role === 'soldier') {
+    const line = talk_patrol(g, npc); refresh();
+    openSheet(npc.name, (b) => b.append(el('p', 'event-text', line)));
+    return;
+  }
+  const why = refuses(g);
   if (why) { openSheet(npc.name, (b) => b.append(el('p', 'event-text', why))); return; }
   if (npc.role === 'trader') return openTrade();
   openSheet(npc.name, (body) => {
@@ -877,6 +898,9 @@ function showNewGame() {
     const sc = CONTENT.scenarios[newCfg.scenario];
     group('What you must do', 'scenario', Object.values(CONTENT.scenarios).map((c) => [c.id, c.name.split(' - ')[0], null]), () => sc.blurb);
     group('Who you are', 'origin', Object.values(CONTENT.origins).map((o) => [o.id, era.origin_names[o.id], null]), () => CONTENT.origins[newCfg.origin].blurb, true);
+    group('How it starts', 'opening', [['random', 'Surprise me', null]].concat(Object.values(CONTENT.openings).map((o) => [o.id, o.name, null])),
+      () => (newCfg.opening === 'random' ? 'The scene you wake up in is picked for who you are: scholars start studying, medics on their rounds.'
+        : `${CONTENT.openings[newCfg.opening].scenes[newCfg.era]} [${CONTENT.openings[newCfg.opening].perk}]`), true);
     group('Difficulty', 'difficulty', ['easy', 'normal', 'hard'].map((d) => [d, cap(d), null]), () => ({ easy: 'Fewer dead, more loot, gentler hits, longer fuse.', normal: 'The intended experience.', hard: 'More dead, scarce loot, brutal hits, a short fuse.' })[newCfg.difficulty], true);
     w.append(el('h3', null, 'Rules'));
     for (const [key, label, sub] of [['needs', 'Hunger', 'Eat or weaken and starve.'], ['permadeath', 'Permadeath', 'Death deletes the save.']]) {
@@ -906,8 +930,8 @@ function startGame(cfg, loaded) {
   endingShown = false; aim = null; travel = null; pathPreview = null; modal = 0;
   lastHp = game.player.hp; camX = game.player.x + .5; camY = game.player.y + .5;
   showGameUi();
-  if (!loaded) toast(game.era.intro.length > 70 ? 'The tide is closing. Move.' : game.era.intro);
   trySave();
+  if (!loaded) showBriefing(0, true);
 }
 
 function showEnding() {

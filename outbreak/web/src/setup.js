@@ -24,9 +24,13 @@ function setup_game(game) {
   game.levels = { world: game.world.level };
   game.level = game.world.level;
   game.pois = game.world.pois;
-  const start_hour = game.profile.sun_burn ? 6 : CONTENT.clock.start_hour;
+  const opening = _pick_opening(game);
+  game.opening_id = opening.id;
+  let start_hour = opening.hour;
+  if (game.profile.sun_burn) start_hour = Math.min(start_hour, 10);   // sun-shy dead: keep a whole safe day to loot
   game.clock = new Clock(start_hour * CONTENT.clock.turns_per_hour);
   _make_player(game);
+  _apply_opening(game, opening);
   _setup_scenario(game);
   _setup_documents(game);
   _populate(game);
@@ -54,6 +58,44 @@ function _make_player(game) {
     if (slot && p[slot] === null && !(slot === 'weapon' && token === '@ranged')) p[slot] = item;
     else p.add_item(item, d.stackable);
   }
+}
+
+// ---------------------------------------------------------------- opening: where you are when it starts
+function _pick_opening(game) {
+  const cfg = game.cfg;
+  if (cfg.opening && cfg.opening !== 'random') return CONTENT.openings[cfg.opening];
+  const rng = new RNG(((game.seed ^ 0x0BE17) >>> 0));            // a separate stream: never shifts the world
+  const pairs = Object.values(CONTENT.openings).map((o) => [o, o.affinity[cfg.origin] !== undefined ? o.affinity[cfg.origin] : CONTENT.opening_default_affinity]);
+  return weighted_choice(rng, pairs);
+}
+
+function _apply_opening(game, opening) {
+  const p = game.player;
+  p.coins += opening.coins;
+  p.panic = Math.min(p.max_panic, p.panic + opening.panic);
+  p.humanity = Math.min(100, p.humanity + opening.humanity);
+  if (opening.words) game.know.learn_random(game.rng, opening.words);
+  for (const [token, qty] of opening.items) {
+    const item_id = _resolve_token(game, token);
+    if (!item_id) continue;
+    const d = game.item_def(item_id);
+    const owned = [p.weapon, p.armor].concat(p.inventory);
+    if ((d.kind === 'weapon' || d.kind === 'armor') && owned.some((i) => i && i.id === item_id)) continue;
+    const item = make_item(item_id, d.stackable ? qty : 1, d.durability || null);
+    if (d.kind === 'armor' && p.armor === null) p.armor = item;
+    else if (d.kind === 'weapon' && !is_ranged(d) && p.weapon === null) p.weapon = item;
+    else p.add_item(item, d.stackable);
+  }
+}
+
+// The briefing: the scene you start in, the world, and what you have to do.
+function intro_pages(game) {
+  const era = game.era, sc = game.scenario, prof = game.profile, opening = CONTENT.openings[game.opening_id];
+  const fill = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+  const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}`;
+  const scene = opening.scenes[era.id] + '\n\n' + fill(CONTENT.opening_consequence, { alarm: CONTENT.opening_alarms[era.id] });
+  const premise = fill(sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: sc.deadline_days });
+  return [[opening.name, scene], ['The world', world], ['What you must do', premise]];
 }
 
 function register_components(game) {
@@ -146,6 +188,7 @@ function _populate(game) {
     lv.containers[lv.idx(cx + 2, cy - 1)] = { loot: roll_items(rng, game.era, 'camp', 3.0, game.diff.loot), docs: [],
                                               coins: rng.randint(2, 8), opened: false, note: '' };
   }
+  _patrols(game);
   const n_hordes = 3 + Math.floor(lv.w * lv.h / 3500);
   for (let i = 0; i < n_hordes; i++) {
     for (let t = 0; t < 30; t++) {
@@ -155,9 +198,38 @@ function _populate(game) {
   }
 }
 
+// Enclave scouts and military soldiers walk the roads between buildings and the raider camps.
+function _patrols(game) {
+  const lv = game.world.level, rng = game.rng, start = game.world.start;
+  const nodes = [];
+  for (const poi of Object.values(game.pois)) {
+    if (SPECIAL_KINDS.includes(poi.kind)) continue;
+    const spot = lv.free_spot_near(poi.x, poi.y + 2, 3);
+    if (spot) nodes.push(spot);
+  }
+  for (const [cx, cy] of game.world.camps) { const c = lv.free_spot_near(cx, cy, 3); if (c) nodes.push(c); }
+  game.patrol_nodes = nodes;
+  const roads = [];
+  for (let y = 2; y < lv.h - 2; y++) for (let x = 2; x < lv.w - 2; x++) if (lv.tiles[y * lv.w + x] === T.ROAD && cheb([x, y], start) >= 30) roads.push([x, y]);
+  if (!roads.length || !nodes.length) return;
+  const groups = 1 + Math.floor(lv.w * lv.h / 7000);
+  let group = 0;
+  for (const role of ['scout', 'soldier']) {
+    for (let g = 0; g < groups; g++) {
+      group++;
+      const base = rng.choice(roads), members = rng.randint(2, 3);
+      for (let m = 0; m < members; m++) {
+        const spot = lv.free_spot_near(base[0], base[1], 3);
+        if (spot) lv.add_actor(make_patrol(game, role, spot[0], spot[1], group));
+      }
+      game.patrol_goals[group] = rng.choice(nodes);
+    }
+  }
+}
+
 function _intro(game) {
+  game.intro_pages = intro_pages(game);
   const era = game.era, sc = game.scenario, p = game.player;
-  game.msg(era.intro, 'lore');
   const refuge = game.pois[game.refuge_id];
   if (sc.final_site === 'refuge') {
     const d = compass(refuge.x - p.x, refuge.y - p.y);

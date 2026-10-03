@@ -1,7 +1,7 @@
 // node web/test/run_all.js  (build first: python3 web/build.py)
 const { execFileSync } = require('child_process');
 const path = require('path');
-for (const t of ['world', 'interiors', 'chain', 'core']) {
+for (const t of ['world', 'interiors', 'chain', 'core', 'factions']) {
   const out = execFileSync(process.execPath, [path.join(__dirname, t + '.test.js')], { encoding: 'utf8' });
   process.stdout.write(out);
 }

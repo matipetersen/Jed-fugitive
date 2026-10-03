@@ -49,3 +49,16 @@ function make_raider(game, x, y) {
   if (game.rng.random() < 0.7) h.loot = roll_items(game.rng, era, 'camp', 1.6, game.diff.loot);
   return h;
 }
+
+const PATROL_NAMES = {
+  scout: { medieval: 'Abbey scout', eighties: 'Fort scout', modern: 'Survivor scout', scifi: 'Dome scout' },
+  soldier: { medieval: 'Man-at-arms', eighties: 'Soldier', modern: 'Soldier', scifi: 'Marine' },
+};
+
+// A friendly-ish armed walker: an enclave scout or a military soldier.
+function make_patrol(game, role, x, y, group) {
+  const era = game.era, reach = (era.firearms || era.tech === 0) ? 6 : 1;
+  const [hp, dmg, acc, faction] = role === 'scout' ? [24, [3, 6], 52, 'enclave'] : [32, [4, 8], 60, 'military'];
+  return { kind: 'human', uid: game.next_uid(), name: PATROL_NAMES[role][era.id], glyph: 'f', x, y, hp, max_hp: hp, level_id: 'world',
+           role, faction, hostile: false, dmg, acc, reach, energy: 0, state: 'patrol', target: null, loot: [], talked: false, group, stuck: 0 };
+}

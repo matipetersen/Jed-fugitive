@@ -41,6 +41,13 @@ speed, senses, how the infection spreads, intelligence, decay over the days, and
 Both end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
 armed people who have heard about you if you did not.
 
+**Opening** (how the story starts): you do not begin in a vacuum. Pick, or let the game pick from who you are,
+a scene: studying, preparing a meal, out hunting, on your rounds, standing watch, fixing things, at the market,
+a funeral vigil. Each has its own text per era and small consequences (a ranged weapon and food for the hunter, a
+bigger vocabulary for the student, armour for the guard, a steadier conscience at the vigil, the hour you
+start at). A three-page briefing (the scene, the world and what the dead are, what you must do) plays before
+the first turn; `B` re-reads it.
+
 ## How it plays
 
 * **Noise is the game.** Every action makes noise; loud ones raise a *noise meter*. Fill it and a Stalker
@@ -56,13 +63,19 @@ armed people who have heard about you if you did not.
   formula; better recipes need fluency too.
 * **Choices**: the road throws moral encounters at you. Humanity changes who will trade with you, how you are
   remembered, and who you face at the end.
+* **Everyone fights everyone.** Zombies attack any living person they see, not just you: a patrol that
+  meets a horde loses people, and what it loses gets up again (even on presets where the dead normally do not
+  turn). Raiders and patrols shoot each other on sight. Gunfire draws the dead whoever fires.
+* **Patrols**: enclave scouts and military soldiers walk between buildings and the raider camps. They leave
+  you alone unless you attack them. Talk to one (`e`) for a tip, once, if you still look human. Only people
+  near you are simulated, so a fight you are not close to does not happen.
 * **Gore disguise** (`v`): smear yourself with a corpse to walk past mindless dead.
 
 ## Keys (press `?` in game)
 
 `arrows/hjkl/yubn` move or attack, `.` wait, `r` rest, `g` pick up, `e` interact (crates, people, beds, bench),
 `i` inventory, `c` craft, `d` documents, `p` skills, `m` places, `f` fire, `t` throw, `x` amputate,
-`s` sneak, `R` run, `L` light, `v` gore, `Q` save and quit.
+`s` sneak, `R` run, `L` light, `v` gore, `B` briefing, `Q` save and quit.
 
 ## Layout
 

@@ -29,7 +29,7 @@ const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
 function default_config() {
   return { era: 'modern', zombies: 'classic', scenario: 'cure', origin: 'medic', difficulty: 'normal', seed: null,
-           needs: false, permadeath: true, map_w: 120, map_h: 76 };
+           needs: false, permadeath: true, map_w: 120, map_h: 76, opening: 'random' };
 }
 
 class Game {
@@ -41,6 +41,7 @@ class Game {
     if (!CONTENT.presets[c.zombies]) throw new Error('unknown zombie preset ' + c.zombies);
     if (!CONTENT.scenarios[c.scenario]) throw new Error('unknown scenario ' + c.scenario);
     if (!CONTENT.origins[c.origin]) throw new Error('unknown origin ' + c.origin);
+    if (c.opening !== 'random' && !CONTENT.openings[c.opening]) throw new Error('unknown opening ' + c.opening);
     if (!CONTENT.difficulties[c.difficulty]) throw new Error('unknown difficulty ' + c.difficulty);
     if (c.map_w < 100 || c.map_h < 64) throw new Error('map too small (minimum 100x64)');
     this._init_state();
@@ -51,6 +52,7 @@ class Game {
   _init_state() {
     this._uid = 0; this.log = []; this.over = null; this.pending_event = null; this.recent_events = {};
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
+    this.patrol_goals = {}; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
     this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0;
     this._force_progress = {};
@@ -318,7 +320,7 @@ class Game {
       const [died, human] = lv.corpses[k];
       const x = k % w, y = Math.floor(k / w);
       if (t - died > 800) delete lv.corpses[k];
-      else if (human && this.profile.turn_on_death && t - died > 55 && lv.free(x, y) &&
+      else if (human && (human === 2 || this.profile.turn_on_death) && t - died > 55 && lv.free(x, y) &&
                cheb([x, y], [this.player.x, this.player.y]) > 1 && !lv.safe) {
         delete lv.corpses[k];
         const z = spawn_zombie(this, lv, [x, y], 'walker', false, true);

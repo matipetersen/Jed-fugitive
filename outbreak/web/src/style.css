@@ -152,3 +152,5 @@ p.note { color: var(--muted); font-size: 13px; margin: 8px 0; }
   #sheet { max-height: 94%; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.story { font-family: var(--display); font-size: 15px; line-height: 1.55; }

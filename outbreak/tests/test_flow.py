@@ -125,11 +125,11 @@ class WorldInteractionTests(unittest.TestCase):
         g = quiet(helpers.make_game(scenario="cure", seed=4))
         research = next(d for d in g.docs.values() if d.kind == "research")
         target = g.pois[research.payload["reveal"]]
-        target.revealed = False
+        target.revealed = target.lead = False
         g.collect_document(research.id)
         g.know.known.update(research.words)
         text, _ = g.read_document(research.id)
-        self.assertTrue(target.revealed)
+        self.assertTrue(target.lead)
         code = next(d for d in g.docs.values() if d.kind == "code" and d.payload["code"] == target.id)
         g.know.known.update(code.words)
         g.read_document(code.id)

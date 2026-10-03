@@ -45,7 +45,7 @@ function play_through(era, scenario, seed) {
   }
   for (const req of g.scenario.requirements) {
     const poi = Object.values(g.pois).find((p) => p.component === req.id);
-    assert(poi.revealed, `${era} ${scenario}: lead never revealed for ${poi.name}`);
+    assert(poi.lead, `${era} ${scenario}: lead never revealed for ${poi.name}`);
     assert(poi.code_known);
     loot_vault(g, poi);
     assert.strictEqual(g.player.count(req.id), 1, `${era} ${scenario} ${req.id}`);

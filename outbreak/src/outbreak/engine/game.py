@@ -471,7 +471,7 @@ class Game:
                 lv.add_actor(r)
 
     def reveal_random_lead(self) -> bool:
-        pois = [q for q in self.pois.values() if q.component and not q.revealed]
+        pois = [q for q in self.pois.values() if q.component and not q.lead]
         if not pois:
             site = self.pois[self.final_site_id]
             pois = [site] if not site.revealed else [
@@ -479,7 +479,7 @@ class Game:
         if not pois:
             return False
         poi = self.rng.choice(pois)
-        poi.revealed = True
+        poi.revealed = poi.lead = True
         self.msg(f"A lead: {poi.name} is marked on your map.", "good")
         return True
 
@@ -841,7 +841,7 @@ class Game:
         self.player.gain_xp(10)
         if "reveal" in doc.payload:
             poi = self.pois[doc.payload["reveal"]]
-            poi.revealed = True
+            poi.revealed = poi.lead = True
             self.msg(f"Deciphered: {poi.name} is now marked on your map.", "good")
         if "code" in doc.payload:
             poi = self.pois[doc.payload["code"]]
@@ -911,7 +911,7 @@ class Game:
         for req in sc.requirements:
             have = p.count(req.id) > 0
             poi = next((q for q in self.pois.values() if q.component == req.id), None)
-            hint = "in your pack" if have else (f"lead: {poi.name}" if poi and poi.revealed else "location unknown")
+            hint = "in your pack" if have else (f"lead: {poi.name}" if poi and poi.lead else "location unknown")
             out.append((self.item_def(req.id).name, have, hint))
         if sc.needs_formula:
             ok = self.formula_found and self.know.fluency >= sc.formula_fluency

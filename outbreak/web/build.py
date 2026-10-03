@@ -32,9 +32,16 @@ def plain(obj):
     return obj
 
 
+# Glyph alphabets for unreadable words that render on every phone font (the runic block often does not).
+WEB_GLYPHS = {"medieval": "\u00de\u00fe\u00d0\u00f0\u00c6\u00e6\u0152\u0153\u00df\u014a\u014b\u0192", "scifi": "\u2592\u2591\u2593\u2588"}
+
+
 def dump_content() -> str:
+    eras = plain(content.ERAS)
+    for era_id, glyphs in WEB_GLYPHS.items():
+        eras[era_id]["glyphs"] = glyphs
     data = {
-        "eras": plain(content.ERAS),
+        "eras": eras,
         "presets": plain(content.PRESETS),
         "specials": plain(content.SPECIALS),
         "scenarios": plain(content.SCENARIOS),
@@ -67,23 +74,38 @@ def engine_js() -> str:
 
 def main() -> None:
     os.makedirs(os.path.join(HERE, "dist"), exist_ok=True)
-    engine = engine_js()
     import re
+    engine = engine_js()
     names = sorted(set(re.findall(r"^(?:function|class|const|let)\s+([A-Za-z_$][\w$]*)", engine, re.M)))
     export = ("\nif (typeof module !== 'undefined') { const __x = {}; for (const n of " + json.dumps(names) +
               ") { try { __x[n] = eval(n); } catch (e) { /* not initialised */ } } module.exports = __x; }\n")
     with open(os.path.join(HERE, "dist", "engine.js"), "w", encoding="utf8") as fh:
         fh.write(engine + export)
-    ui = "\n".join(read("src", n + ".js") for n in UI_ORDER if os.path.exists(os.path.join(HERE, "src", n + ".js")))
+    ui = "\n".join(read("src", n + ".js") for n in UI_ORDER)
+    pieces = {
+        "/*__CSS__*/": read("src", "style.css"),
+        "/*__BODY__*/": read("src", "body.html"),
+        "/*__ENGINE__*/": engine.replace("</script", "<\\/script"),
+        "/*__UI__*/": ui.replace("</script", "<\\/script"),
+    }
+    # 1. a complete standalone document
     html = read("src", "index.template.html")
-    html = html.replace("/*__CSS__*/", read("src", "style.css"))
-    html = html.replace("/*__ENGINE__*/", engine.replace("</script", "<\\/script"))
-    html = html.replace("/*__UI__*/", ui.replace("</script", "<\\/script"))
+    for key, val in pieces.items():
+        html = html.replace(key, val)
     out = os.path.join(HERE, "dist", "outbreak.html")
     with open(out, "w", encoding="utf8") as fh:
         fh.write(html)
-    print(f"wrote {out} ({os.path.getsize(out) / 1024:.0f} KiB)")
+    # 2. the same page as a fragment for hosts that supply their own <html>/<head>/<body>
+    frag = ("<title>OUTBREAK</title>\n" + FONT_LINK + "\n<style>\n" + pieces["/*__CSS__*/"] + "\n</style>\n" + pieces["/*__BODY__*/"] +
+            "\n<script>\n" + pieces["/*__ENGINE__*/"] + "\n</script>\n<script>\n" + pieces["/*__UI__*/"] + "\n</script>\n")
+    out2 = os.path.join(HERE, "dist", "outbreak.fragment.html")
+    with open(out2, "w", encoding="utf8") as fh:
+        fh.write(frag)
+    print(f"wrote {out} ({os.path.getsize(out) / 1024:.0f} KiB) and {os.path.basename(out2)}")
 
+
+FONT_LINK = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&'
+             'family=IBM+Plex+Sans:wght@400;500;600&family=Special+Elite&display=swap">')
 
 if __name__ == "__main__":
     main()

@@ -60,7 +60,7 @@ class ChainTests(unittest.TestCase):
             decode(g, doc.id)
         for req in g.scenario.requirements:
             poi = next(p for p in g.pois.values() if p.component == req.id)
-            self.assertTrue(poi.revealed, (era, scenario, "lead never revealed", poi.name))
+            self.assertTrue(poi.lead, (era, scenario, "lead never revealed", poi.name))
             self.assertTrue(poi.code_known)
             loot_vault(g, poi)
             self.assertEqual(g.player.count(req.id), 1, (era, scenario, req.id))

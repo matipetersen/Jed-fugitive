@@ -49,7 +49,8 @@ class POI:
     box: Tuple[int, int, int, int] = (0, 0, 0, 0)    # footprint on the overworld: x, y, w, h
     floors: int = 1
     danger: float = 1.0
-    revealed: bool = False
+    revealed: bool = False           # you know the building exists (seen, or marked on the map)
+    lead: bool = False               # you know it holds something you need (document, tip-off)
     visited: bool = False
     component: str = ""              # requirement item id hidden in the vault
     docs: List[str] = field(default_factory=list)     # document ids placed inside

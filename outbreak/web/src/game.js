@@ -398,14 +398,14 @@ class Game {
   }
   reveal_random_lead() {
     const all = Object.values(this.pois);
-    let pois = all.filter((q) => q.component && !q.revealed);
+    let pois = all.filter((q) => q.component && !q.lead);
     if (!pois.length) {
       const site = this.pois[this.final_site_id];
       pois = !site.revealed ? [site] : all.filter((q) => !q.revealed && q.kind !== 'house' && q.kind !== 'breach');
     }
     if (!pois.length) return false;
     const poi = this.rng.choice(pois);
-    poi.revealed = true;
+    poi.revealed = true; poi.lead = true;
     this.msg(`A lead: ${poi.name} is marked on your map.`, 'good');
     return true;
   }
@@ -666,7 +666,7 @@ class Game {
     if (this.applied_docs.has(doc.id) || !is_decoded(doc, this.know)) return;
     this.applied_docs.add(doc.id);
     this.player.gain_xp(10);
-    if (doc.payload.reveal) { const poi = this.pois[doc.payload.reveal]; poi.revealed = true; this.msg(`Deciphered: ${poi.name} is now marked on your map.`, 'good'); }
+    if (doc.payload.reveal) { const poi = this.pois[doc.payload.reveal]; poi.revealed = true; poi.lead = true; this.msg(`Deciphered: ${poi.name} is now marked on your map.`, 'good'); }
     if (doc.payload.code) { const poi = this.pois[doc.payload.code]; poi.code_known = true; this.msg(`Deciphered: you now know the vault code for ${poi.name}.`, 'good'); }
     if (doc.payload.formula) { this.formula_found = true; this.msg('Deciphered: you now hold the formula.', 'good'); }
   }
@@ -716,7 +716,7 @@ class Game {
     for (const req of sc.requirements) {
       const have = p.count(req.id) > 0;
       const poi = Object.values(this.pois).find((q) => q.component === req.id);
-      const hint = have ? 'in your pack' : (poi && poi.revealed ? `lead: ${poi.name}` : 'location unknown');
+      const hint = have ? 'in your pack' : (poi && poi.lead ? `lead: ${poi.name}` : 'location unknown');
       out.push([this.item_def(req.id).name, have, hint]);
     }
     if (sc.needs_formula) {

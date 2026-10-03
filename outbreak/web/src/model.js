@@ -53,7 +53,7 @@ const poi_pos = (poi) => [poi.x, poi.y];
 
 function new_poi(id, kind, name, x, y, extra) {
   return Object.assign({ id, kind, name, x, y, box: [0, 0, 0, 0], floors: 1, danger: 1.0, revealed: false,
-                         visited: false, component: '', docs: [], code_known: false, done: false }, extra || {});
+                         lead: false, visited: false, component: '', docs: [], code_known: false, done: false }, extra || {});
 }
 
 // ---------------------------------------------------------------- level

@@ -117,7 +117,7 @@ function intro_pages(game) {
   const fill = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
   const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}`;
   const scene = opening.scenes[era.id] + '\n\n' + fill(CONTENT.opening_consequence, { alarm: CONTENT.opening_alarms[era.id] });
-  const premise = fill(game.cfg.mode !== 'normal' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: sc.deadline_days });
+  const premise = fill(game.cfg.mode !== 'normal' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: game.deadline_days });
   return [[opening.name, scene], ['The world', world], ['What you must do', premise]];
 }
 
@@ -152,6 +152,41 @@ function _setup_scenario(game) {
   game.final_site_id = site.id;
   if (sc.final_site === 'refuge') site.revealed = true;
   game.rep = { military: 0, enclave: 10, raiders: -20, cult: 0, science: 0 };
+  _setup_deadline(game, start, pad);
+  _setup_incidents(game, start, pad);
+}
+
+// The way out closes after the scenario's minimum, or later when the route is long: collecting parts and crossing the map must
+// be possible, not a sprint. About 96 tiles a day of real progress (looting, interiors, rest and trouble included).
+function _setup_deadline(game, start, pad) {
+  const sc = game.scenario;
+  if (!sc.deadline_days) { game.deadline_days = 0; return; }
+  const left = Object.values(game.pois).filter((q) => q.component).map((q) => poi_pos(q));
+  let here = start, tour = 0;
+  const stops = [];
+  while (left.length) {
+    let bi = 0;
+    for (let i = 1; i < left.length; i++) if (cheb(left[i], here) < cheb(left[bi], here)) bi = i;
+    here = left.splice(bi, 1)[0]; stops.push(here);
+  }
+  here = start;
+  for (const q of stops.concat([poi_pos(pad)])) { tour += cheb(here, q); here = q; }
+  const days = Math.ceil(tour * 1.5 / 96) + 3 * sc.requirements.length + 4;
+  game.deadline_days = Math.max(sc.deadline_days, Math.min(45, days));
+}
+
+// Things that happen on the road to the extraction point: fixed spots on the way, each fires once when you get close.
+function _setup_incidents(game, start, pad) {
+  const sc = game.scenario, rng = game.rng;
+  game.incidents = [];
+  if (!sc.incidents || sc.final_site !== 'pad') return;
+  const ids = rng.shuffle(CONTENT.events.filter((e) => e.id.startsWith('road_')).map((e) => e.id));
+  const n = sc.incidents;
+  for (let i = 0; i < n; i++) {
+    const t = (i + 1) / (n + 1);
+    game.incidents.push({ x: Math.floor(start[0] + (pad.x - start[0]) * t + rng.randint(-5, 5)), y: Math.floor(start[1] + (pad.y - start[1]) * t + rng.randint(-5, 5)),
+                          event: ids[i % ids.length], done: false });
+  }
 }
 
 function _setup_documents(game) {
@@ -212,7 +247,7 @@ function _intro(game) {
   } else {
     const pad = game.pois[game.pad_id];
     const d = compass(pad.x - p.x, pad.y - p.y);
-    game.msg(`Rumour on ${era.radio}: the last way out is ${d} of here, roughly ${cheb(poi_pos(pad), [p.x, p.y])} tiles. It closes on day ${sc.deadline_days}.`, 'lore');
+    game.msg(`Rumour on ${era.radio}: the last way out is ${d} of here, roughly ${cheb(poi_pos(pad), [p.x, p.y])} tiles. It closes after day ${game.deadline_days}.`, 'lore');
   }
   if (game.profile.sun_burn) game.msg('The sun keeps them in the dark places. You have until dusk to find shelter and answers.', 'warn');
   else game.msg('The dead are closing in from every side but one. Move!', 'warn');

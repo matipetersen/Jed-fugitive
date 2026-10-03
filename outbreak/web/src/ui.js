@@ -738,7 +738,7 @@ function openStatus() {
     add('Kills', `${p.stats.zombies || 0} dead, ${p.stats.humans || 0} people`);
     add('Time', `${stampOf(g)} (${g.clock.phase})`);
     if (p.infected) add('Infection', `${p.infection_timer} turns left (about ${Math.round(p.infection_timer / 10)} hours)`);
-    if (g.scenario.deadline_days) add('Deadline', `the way out closes after day ${g.scenario.deadline_days}`);
+    if (g.deadline_days) add('Deadline', `the way out closes after day ${g.deadline_days}` + (g.lost_turns ? ` (the road has cost ${Math.round(g.lost_turns / 10)} hours)` : ''));
     add('The dead', `${g.profile.name}. ${profile_phase(g.profile, game_day(g)).name}.`);
     add('Seed', String(g.seed));
     body.append(kv);

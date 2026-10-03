@@ -169,7 +169,7 @@ const nz = (g, special = 'walker', dx = 1, dy = 0, state = 'hunt') => {
   const titles = new Set();
   for (const h of [90, 55, 25, 3]) { const g = quiet(make({ scenario: 'cure', seed: 2 })); g.player.humanity = h; g.end('won'); titles.add(g.over.title); }
   assert.strictEqual(titles.size, 4);
-  const g = quiet(make({ scenario: 'extraction' })); g.clock.turn = g.scenario.deadline_days * 240 + 238; g.wait(5);
+  const g = quiet(make({ scenario: 'extraction' })); g.clock.turn = g.deadline_days * 240 + 238; g.wait(5);
   assert.strictEqual(g.over.kind, 'left_behind');
 }
 { // every event choice resolves

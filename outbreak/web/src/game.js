@@ -56,7 +56,7 @@ class Game {
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
     this.patrol_goals = {}; this.distress = {}; this.aided = {};
     this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
-    this.gen_day = 0; this.dead_uids = new Set();
+    this.gen_day = 0; this.dead_uids = new Set(); this.deadline_days = 0; this.lost_turns = 0; this.incidents = [];
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
@@ -254,6 +254,7 @@ class Game {
     if (this.shared) this.shared.tick(this);
     this._heat();
     this._time_events();
+    if (this.incidents.length && t % 5 === 0) this._check_incidents();
     if (this.final) this._final_tick();
     if (t % 40 === 0) this._maybe_event();
     if (t % 30 === 0) {
@@ -404,8 +405,9 @@ class Game {
     const c = this.clock, sc = this.scenario;
     if (this.profile.sun_burn && c.turn % 240 === 200 && this.world.level.kind === 'overworld') this._dusk_wave();
     const day = game_day(this);
-    if (sc.deadline_days && day > sc.deadline_days && !this.final) this.end('left_behind', '');
-    else if (sc.deadline_days && c.turn % 240 === 0 && day === sc.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'warn');
+    const eff_day = day + Math.floor(this.lost_turns / 240);        // the road's lost time counts against the deadline
+    if (this.deadline_days && eff_day > this.deadline_days && !this.final) this.end('left_behind', '');
+    else if (this.deadline_days && c.turn % 240 === 0 && eff_day === this.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'warn');
     if (c.turn % 240 === 0) {
       const ph = profile_phase(this.profile, day), prev = profile_phase(this.profile, day - 1);
       if (ph !== prev && ph.blurb) this.msg(`Day ${day}: ${ph.name}. ${ph.blurb}`, 'lore');
@@ -434,6 +436,18 @@ class Game {
     if (this.level.actors.some((a) => a.kind === 'zombie' && cheb([a.x, a.y], [p.x, p.y]) < 11)) return;
     const ev = pick_event(this);
     if (ev) this.pending_event = start_event(this, ev);
+  }
+
+  // A scripted road incident fires once when you come within a few tiles of it.
+  _check_incidents() {
+    if (this.pending_event || this.final || this.level !== this.world.level) return;
+    for (const inc of this.incidents) {
+      if (!inc.done && cheb([inc.x, inc.y], [this.player.x, this.player.y]) <= 5) {
+        inc.done = true;
+        this.pending_event = start_event(this, EVENT_BY_ID[inc.event]);
+        return;
+      }
+    }
   }
 
   resolve_event(index) {

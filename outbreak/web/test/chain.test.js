@@ -62,6 +62,6 @@ function play_through(era, scenario, seed) {
 }
 
 let n = 0;
-for (const era of Object.keys(OB.CONTENT.eras)) for (const sc of ['cure', 'extraction']) { play_through(era, sc, 3); n++; }
+for (const era of Object.keys(OB.CONTENT.eras)) for (const sc of ['cure', 'extraction', 'dash']) { play_through(era, sc, 3); n++; }
 for (let seed = 6; seed < 14; seed++) { play_through('modern', seed % 2 ? 'cure' : 'extraction', seed); n++; }
 console.log(`chain: ${n} full playthroughs OK`);

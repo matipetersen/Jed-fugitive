@@ -57,6 +57,9 @@ WIN = {
 }
 
 
+WIN.update({("dash", band): text for (sid, band), text in list(WIN.items()) if sid == "extraction"})
+
+
 def build(game, kind: str, cause: str = "") -> Ending:
     p, sc = game.player, game.scenario
     days = game.clock.day
@@ -81,7 +84,7 @@ def build(game, kind: str, cause: str = "") -> Ending:
                 "the sounds of the living are very loud.")
     elif kind == "left_behind":
         title = "Left behind"
-        text = (f"Day {sc.deadline_days + 1} dawns. Somewhere far away, the last way out leaves without you. "
+        text = (f"Day {game.deadline_days + 1} dawns. Somewhere far away, the last way out leaves without you. "
                 "The dead are patient. You are not.")
     else:
         title = "You died"

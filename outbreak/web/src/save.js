@@ -63,6 +63,7 @@ function serialize_game(game) {
     patrol_goals: game.patrol_goals, patrol_nodes: game.patrol_nodes, distress: game.distress, aided: game.aided,
     season_n: game.season_n, world_uid_max: game.world_uid_max, pending_shared: game.pending_shared, applied_tombs: game.applied_tombs, tomb_at: game.tomb_at,
     named_state: game.named_state, taken_components: game.taken_components,
+    deadline_days: game.deadline_days, lost_turns: game.lost_turns, incidents: game.incidents,
     generation: game.generation, current_origin: game.current_origin, fallen: game.fallen, fallen_bodies: game.fallen_bodies, death_notice: game.death_notice, opening_id: game.opening_id, intro_pages: game.intro_pages,
   };
   return JSON.stringify(data);
@@ -82,6 +83,7 @@ function deserialize_game(json) {
   g.patrol_goals = d.patrol_goals || {}; g.patrol_nodes = d.patrol_nodes || []; g.distress = d.distress || {}; g.aided = d.aided || {};
   g.season_n = d.season_n || 0; g.world_uid_max = d.world_uid_max || 0; g.pending_shared = d.pending_shared || {}; g.applied_tombs = d.applied_tombs || {};
   g.tomb_at = d.tomb_at || {}; g.named_state = d.named_state || {}; g.taken_components = d.taken_components || [];
+  g.deadline_days = d.deadline_days !== undefined ? d.deadline_days : (g.scenario.deadline_days || 0); g.lost_turns = d.lost_turns || 0; g.incidents = d.incidents || [];
   g.generation = d.generation || 1; g.current_origin = d.current_origin || g.cfg.origin; g.fallen = d.fallen || []; g.fallen_bodies = d.fallen_bodies || {}; g.death_notice = d.death_notice || ''; g.opening_id = d.opening_id || ''; g.intro_pages = d.intro_pages || [];
   g.refuge_id = d.refuge_id; g.pad_id = d.pad_id; g.final_site_id = d.final_site_id; g.rep = d.rep; g.docs = d.docs;
   g.era = CONTENT.eras[g.cfg.era]; g.profile = CONTENT.presets[g.cfg.zombies]; g.scenario = CONTENT.scenarios[g.cfg.scenario];

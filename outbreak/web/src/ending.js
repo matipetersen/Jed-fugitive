@@ -20,7 +20,7 @@ function build_ending(game, kind, cause = '') {
     text = 'The fever peaks and the world goes quiet. When you open your eyes again, you are hungry, and the sounds of the living are very loud.';
   } else if (kind === 'left_behind') {
     title = 'Left behind';
-    text = `Day ${sc.deadline_days + 1} dawns. Somewhere far away, the last way out leaves without you. The dead are patient. You are not.`;
+    text = `Day ${game.deadline_days + 1} dawns. Somewhere far away, the last way out leaves without you. The dead are patient. You are not.`;
   } else if (kind === 'closed') { title = 'The world is closed'; text = cause; }
   else { title = 'You died'; text = cause ? cap(cause) + '.' : 'You did not make it.'; }
   return { kind, title, text, summary, score, victory: kind === 'won' };

@@ -49,6 +49,9 @@ class Game:
         self.stalker_ready = 0
         self.last_moan = -999
         self.patrol_goals: Dict[int, Pos] = {}
+        self.deadline_days = 0                   # the way out closes after this day (set from the route)
+        self.lost_turns = 0                      # time the road incidents cost: counts against the deadline
+        self.incidents: List[dict] = []          # scripted road incidents: {x, y, event, done}
         self.generation = 1                      # which survivor you are (living-world mode)
         self.current_origin = cfg.origin
         self.fallen: List[dict] = []             # records of the survivors who died
@@ -251,6 +254,8 @@ class Game:
         self._rising_dead()
         self._heat()
         self._time_events()
+        if self.incidents and t % 5 == 0:
+            self._check_incidents()
         if self.final:
             self._final_tick()
         if t % 40 == 0:
@@ -423,9 +428,10 @@ class Game:
         c, sc = self.clock, self.scenario
         if self.profile.sun_burn and c.turn % 240 == 200 and self.world.level.kind == "overworld":
             self._dusk_wave()
-        if sc.deadline_days and c.day > sc.deadline_days and not self.final:
+        day = c.day + self.lost_turns // 240
+        if self.deadline_days and day > self.deadline_days and not self.final:
             self.end("left_behind", "")
-        elif sc.deadline_days and c.turn % 240 == 0 and c.day == sc.deadline_days:
+        elif self.deadline_days and c.turn % 240 == 0 and day == self.deadline_days:
             self.msg("The last day. By nightfall the way out will be gone.", "warn")
         if c.turn % 240 == 0:
             ph = self.profile.phase(c.day)
@@ -456,6 +462,16 @@ class Game:
         ev = encounters.pick(self)
         if ev:
             self.pending_event = encounters.start(self, ev)
+
+    def _check_incidents(self) -> None:
+        """A scripted road incident fires once when you come within a few tiles of it."""
+        if self.pending_event or self.final or self.level is not self.world.level:
+            return
+        for inc in self.incidents:
+            if not inc["done"] and cheb((inc["x"], inc["y"]), self.player.pos) <= 5:
+                inc["done"] = True
+                self.pending_event = encounters.start(self, encounters.BY_ID[inc["event"]])
+                return
 
     def resolve_event(self, index: int) -> str:
         ev = self.pending_event

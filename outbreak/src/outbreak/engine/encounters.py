@@ -124,6 +124,59 @@ EVENTS: Tuple[EventDef, ...] = (
               _c("Buy a medkit (12 {coin})", _o("Wrapped in a clean cloth.", items={"medkit": 1}, coins=-12), coins=12),
               _c("Move on", _o("They shrug and push their cart on.")))),
 )
+# Incidents on the road to the extraction point.  They are placed on the route at the start of the game and fire once, when
+# you get close; they are never picked at random (weight 0).
+ROAD_EVENTS: Tuple[EventDef, ...] = (
+    EventDef("road_convoy", "A wrecked convoy",
+             "Trucks nose to tail across the road, doors open, cargo spilled. Nobody is moving. Something here was loud once.",
+             (_c("Search quickly", _o("A few crates are intact. You take what you can carry and go.", 0.7, items={"food": 2, "bandage": 2},
+                                      coins=4, xp=8),
+                 _o("The noise of the crates carries down the road.", 0.3, items={"food": 1}, heat=20, horde=True)),
+              _c("Strip it thoroughly", _o("It takes the better part of an afternoon. It is worth it.", items={"food": 3, "bandage": 3,
+                                                                                                   "medkit": 1}, coins=6, xp=12,
+                                          time=40, heat=12)),
+              _c("Leave it", _o("You keep to the verge and keep moving.", xp=1))), weight=0.0),
+    EventDef("road_checkpoint", "An abandoned checkpoint",
+             "A {military} checkpoint, tents flapping, a radio hissing on a table. Whoever held it left in a hurry.",
+             (_c("Listen to the radio traffic", _o("Between the static: where the road is clear, and where it is not.", 0.7,
+                                                  reveal=True, xp=10, words=2),
+                 _o("Static, and then a voice that is not human. You turn it off.", 0.3, panic=10)),
+              _c("Rest in the tents", _o("A few hours of something like sleep. You wake stiff, and better.", hp=20, time=45,
+                                         panic=-20)),
+              _c("Take the supplies and go", _o("Ammunition, bandages, a map with writing on it.", items={"bandage": 2, "food": 1},
+                                                coins=5, xp=6)))),
+    EventDef("road_bridge", "The road is cut",
+             "A bridge has dropped into the river and the road ends in air. The ruins on either side look slow and loud.",
+             (_c("Climb across the wreckage", _o("You make it over, scraped and shaking.", 0.65, hp=-6, xp=10),
+                 _o("A section gives way under you.", 0.35, hp=-18, panic=15, xp=6)),
+              _c("Go around through the ruins", _o("It costs you half a day and a lot of nerve.", time=70, heat=10, xp=8)),
+              _c("Look for another crossing", _o("You find a shallow place upriver, and a bit of luck.", 0.5, time=35, xp=8),
+                 _o("The shallow place was occupied.", 0.5, time=35, horde=True, panic=8)))),
+    EventDef("road_refugees", "A column of refugees",
+             "Forty people on foot, children in carts, trailing a tide of the dead a mile behind. They are heading where you are.",
+             (_c("Give them food", _o("They cannot thank you enough. A woman presses coins into your hand.", humanity=8, coins=5, xp=10,
+                                      items={"food": -1}, rep={"enclave": 4}), items={"food": 1}),
+              _c("Walk with them for a while", _o("The road is easier in a crowd. You learn what they know.", humanity=5, hp=10,
+                                                  reveal=True, time=60, panic=-10)),
+              _c("Take what you need from the carts", _o("They do not stop you. Nobody speaks to you again.", humanity=-14, items={"food": 2, "bandage": 2},
+                                                         coins=4, rep={"enclave": -6})))),
+    EventDef("road_ambush", "Someone is waiting",
+             "The road narrows between two burned-out buildings. A glint on a roof. {raiders} have been busy here.",
+             (_c("Pay your way through (6 {coin})", _o("A shout from above. The way is yours.", coins=-6, rep={"raiders": 3}), coins=6),
+              _c("Fight your way through", _o("They come down fast.", raiders=4, xp=5)),
+              _c("Go back and around", _o("It costs time, but nobody dies.", 0.7, time=60, xp=6),
+                 _o("They saw you turn.", 0.3, time=60, raiders=3, heat=10)))),
+    EventDef("road_crossing", "The dead are crossing",
+             "A river of the dead is crossing the road ahead, slow and endless, walking toward something you cannot see.",
+             (_c("Wait for them to pass", _o("It takes hours. The light changes. They pass.", 0.75, time=50, panic=-5, xp=6),
+                 _o("They notice something. A hundred heads turn.", 0.25, time=20, horde=True, panic=12)),
+              _c("Run for it", _o("You make it across by yards. Your lungs burn.", 0.6, hp=-8, panic=18, xp=10, heat=18),
+                 _o("Too many. Too close.", 0.4, hp=-14, panic=22, horde=True)),
+              _c("Draw them off with noise", _o("A smashed window, a long way away. They drift toward it.", heat=-5, xp=8, time=30,
+                                       items={"noisemaker": -1}),
+                 items={"noisemaker": 1}))),
+)
+EVENTS = EVENTS + ROAD_EVENTS
 BY_ID: Dict[str, EventDef] = {e.id: e for e in EVENTS}
 
 
@@ -157,6 +210,8 @@ def can_afford(game, choice: Choice) -> bool:
 def pick(game) -> Optional[EventDef]:
     pairs = []
     for ev in EVENTS:
+        if ev.id.startswith("road_"):
+            continue                                      # scripted, not random
         if game.clock.day < ev.min_day or game.recent_events.get(ev.id, -999) > game.clock.turn - 600:
             continue
         w = ev.weight * game.profile.human_threat if ev.id in ("toll", "prisoner", "bait") else ev.weight
@@ -201,6 +256,8 @@ def apply_fx(game, fx: Dict[str, object]) -> None:
             game.msg(f"You pick up the meaning of: {', '.join(learned)}.", "good")
     if "heat" in fx:
         game.add_heat(float(fx["heat"]), raw=True)
+    if "time" in fx:
+        game.lost_turns += int(fx["time"])                   # the road eats the clock: the deadline moves closer, nothing hunts you meanwhile
     for item_id, qty in dict(fx.get("items", {})).items():
         if qty > 0:
             game.give_item(Item(item_id, qty))

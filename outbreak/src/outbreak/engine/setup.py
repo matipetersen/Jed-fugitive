@@ -1,12 +1,13 @@
 """Building a new game: world, player, scenario, documents, population."""
 from __future__ import annotations
 
+import math
 import random
 from typing import List
 
 from outbreak import content
 from outbreak.content.items import ItemDef
-from outbreak.engine import cipher, hordes
+from outbreak.engine import cipher, encounters, hordes
 from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
@@ -166,7 +167,7 @@ def intro_pages(game) -> list:
     world = f"{era.name} ({era.year}).\n\n{era.intro}\n\n{prof.lore}"
     scene = opening.scenes[era.id] + "\n\n" + content.openings.CONSEQUENCE.format(
         alarm=content.openings.ALARMS[era.id])
-    premise = (sc.premise_living if game.cfg.mode == "living" else sc.premise).format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=sc.deadline_days)
+    premise = (sc.premise_living if game.cfg.mode == "living" else sc.premise).format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=game.deadline_days)
     return [(opening.name, scene), ("The world", world), ("What you must do", premise)]
 
 
@@ -194,6 +195,46 @@ def _scenario(game) -> None:
     game.final_site_id = site.id
     site.revealed = True if sc.final_site == "refuge" else site.revealed
     game.rep = {"military": 0, "enclave": 10, "raiders": -20, "cult": 0, "science": 0}
+    _deadline(game, start, pad)
+    _incidents(game, start, pad)
+
+
+def _deadline(game, start, pad) -> None:
+    """The way out closes after the scenario's minimum, or later when the route is long: collecting parts and crossing the
+    map must be possible, not a sprint.  About 96 tiles a day of real progress (looting, interiors, rest and trouble included)."""
+    sc = game.scenario
+    if not sc.deadline_days:
+        game.deadline_days = 0
+        return
+    points, here = [], start
+    left = [q.pos for q in game.pois.values() if q.component]
+    while left:
+        nxt = min(left, key=lambda q: cheb(q, here))
+        points.append(nxt)
+        left.remove(nxt)
+        here = nxt
+    tour, here = 0, start
+    for q in points + [pad.pos]:
+        tour += cheb(here, q)
+        here = q
+    days = math.ceil(tour * 1.5 / 96) + 3 * len(sc.requirements) + 4
+    game.deadline_days = max(sc.deadline_days, min(45, days))
+
+
+def _incidents(game, start, pad) -> None:
+    """Things that happen on the road to the extraction point: fixed spots on the way, each fires once when you get close."""
+    sc, rng = game.scenario, game.rng
+    game.incidents = []
+    if not sc.incidents or sc.final_site != "pad":
+        return
+    ids = [e.id for e in encounters.ROAD_EVENTS]
+    rng.shuffle(ids)
+    n = sc.incidents
+    for i in range(n):
+        t = (i + 1) / (n + 1)
+        x = int(start[0] + (pad.x - start[0]) * t + rng.randint(-5, 5))
+        y = int(start[1] + (pad.y - start[1]) * t + rng.randint(-5, 5))
+        game.incidents.append({"x": x, "y": y, "event": ids[i % len(ids)], "done": False})
 
 
 # ------------------------------------------------------------------ documents
@@ -284,7 +325,7 @@ def _intro(game) -> None:
         pad = game.pois[game.pad_id]
         d = compass(pad.x - p.x, pad.y - p.y)
         game.msg(f"Rumour on {era.radio}: the last way out is {d} of here, roughly {cheb(pad.pos, p.pos)} tiles. "
-                 f"It closes on day {sc.deadline_days}.", "lore")
+                 f"It closes after day {game.deadline_days}.", "lore")
     if game.profile.sun_burn:
         game.msg("The sun keeps them in the dark places. You have until dusk to find shelter and answers.", "warn")
     else:

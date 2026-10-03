@@ -35,7 +35,7 @@ def prepare_final(g):
 
 class VictoryTests(unittest.TestCase):
     def test_both_scenarios_can_be_won(self):
-        for scenario in ("cure", "extraction"):
+        for scenario in ("cure", "extraction", "dash"):
             for era in content.ERAS:
                 g = quiet(helpers.make_game(era=era, scenario=scenario, seed=5))
                 prepare_final(g)
@@ -78,7 +78,7 @@ class VictoryTests(unittest.TestCase):
 
     def test_extraction_deadline_ends_the_run(self):
         g = quiet(helpers.make_game(scenario="extraction"))
-        g.clock.turn = g.scenario.deadline_days * 240 + 238
+        g.clock.turn = g.deadline_days * 240 + 238
         g.wait(5)
         self.assertEqual(g.over.kind, "left_behind")
 

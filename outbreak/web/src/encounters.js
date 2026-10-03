@@ -19,6 +19,7 @@ function can_afford(game, choice) {
 function pick_event(game) {
   const pairs = [];
   for (const ev of EVENTS) {
+    if (ev.id.startsWith('road_')) continue;                       // scripted, not random
     if (game_day(game) < ev.min_day || (game.recent_events[ev.id] !== undefined ? game.recent_events[ev.id] : -999) > game.clock.turn - 600) continue;
     const w = ['toll', 'prisoner', 'bait'].includes(ev.id) ? ev.weight * game.profile.human_threat : ev.weight;
     if (ev.id === 'radio' && !game.era.electricity && game.era.tech > 0) continue;
@@ -55,6 +56,7 @@ function apply_fx(game, fx) {
     if (learned.length) game.msg(`You pick up the meaning of: ${learned.join(', ')}.`, 'good');
   }
   if ('heat' in fx) game.add_heat(fx.heat, true);
+  if ('time' in fx) game.lost_turns += Math.trunc(fx.time);        // the road eats the clock: the deadline moves closer, nothing hunts you meanwhile
   for (const [item_id, qty] of Object.entries(fx.items || {})) {
     if (qty > 0) game.give_item(make_item(item_id, qty)); else if (qty < 0) p.take(item_id, -qty);
   }

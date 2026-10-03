@@ -20,7 +20,7 @@ class ScenarioDef:
     blurb: str
     start_infected: bool           # you begin the game bitten
     timer_turns: int               # infection timer when start_infected (normal difficulty)
-    deadline_days: int             # the way out closes on this day (0 = never)
+    deadline_days: int             # the way out closes after this day at the earliest (0 = never); long routes get longer
     requirements: Tuple[Requirement, ...]
     final_site: str                # 'refuge' or 'pad'
     final_turns: int               # how long you must hold out at the final site
@@ -30,6 +30,7 @@ class ScenarioDef:
     final_verb: str                # what you do at the final site
     premise_living: str = ""       # the same, when the world goes on after you
     premise: str = ""              # story page shown after the opening scene (may use {refuge}/{pad}/{radio}/{days})
+    incidents: int = 0             # scripted road incidents between the start and the final site
 
 
 CURE = ScenarioDef(
@@ -86,6 +87,7 @@ EXTRACTION = ScenarioDef(
     final_site="pad", final_turns=45, needs_formula=False, formula_fluency=0.0,
     goal="Gather the three parts and reach the extraction point before the deadline.",
     final_verb="call the pickup",
+    incidents=3,
     premise_living="One way out is left: {pad}, by way of {radio}. A pickup comes once, for anyone who can bring it power, "
                    "a signal and the right papers, and not after day {days}. You are one of many who will try. If you fall, "
                    "another survivor walks out of {refuge} behind you, and the world goes on without you.",
@@ -94,4 +96,22 @@ EXTRACTION = ScenarioDef(
             "and it will not come after day {days}. You have to find all three, and you have to get there.",
 )
 
-SCENARIOS: Dict[str, ScenarioDef] = {s.id: s for s in (CURE, EXTRACTION)}
+DASH = ScenarioDef(
+    id="dash", name="Dash - run for the way out",
+    blurb="No parts to find. The last evacuation leaves from one place, a long way off, and the road to it is not empty. "
+          "Get there before it closes and hold out until the pickup.",
+    start_infected=False, timer_turns=0, deadline_days=8,
+    requirements=(),
+    final_site="pad", final_turns=60, needs_formula=False, formula_fluency=0.0,
+    goal="Reach the extraction point before the way closes, and hold out.",
+    final_verb="call the pickup",
+    incidents=5,
+    premise_living="One way out is left: {pad}, by way of {radio}. The pickup comes once, and not after day {days}. "
+                   "Nothing to collect, only the road: it is long, and it is not empty. You are one of many who will try. "
+                   "If you fall, another survivor walks out of {refuge} behind you.",
+    premise="You are not hurt, and the word on {radio} is that one way out is left: {pad}. The pickup comes once and "
+            "will not wait past day {days}. There is nothing to gather and nobody to ask. There is only the road, and "
+            "whatever is on it.",
+)
+
+SCENARIOS: Dict[str, ScenarioDef] = {s.id: s for s in (CURE, EXTRACTION, DASH)}

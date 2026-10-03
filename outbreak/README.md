@@ -36,9 +36,18 @@ speed, senses, how the infection spreads, intelligence, decay over the days, and
 **Scenario** (your goal):
 * `cure` - you start bitten with a slow strain. Find three components in locked vaults, decipher the formula,
   and synthesise a cure at the refuge before the fever turns you.
-* `extraction` - gather three parts, reach the extraction point before the way out closes on day 10.
+* `extraction` - gather three parts, reach the extraction point before the way out closes and hold out until the pickup.
+  The deadline is computed from the route (the farther the parts and the extraction point are, the longer you get: about 96
+  tiles of real progress a day, plus time for every vault), never less than 10 days.
+* `dash` - no parts, only the road: get to the extraction point before the way closes and hold out. A shorter, more
+  physical run, with five incidents on the way.
 
-Both end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
+On the road to the extraction point (`extraction` and `dash`) things happen: wrecked convoys, an abandoned checkpoint, a
+bridge that is out, a column of refugees, an ambush, the dead crossing the road. Each is placed on the route when the world
+is created and fires once when you get close. Choices cost items, health, humanity or time; time lost does not simulate the world
+(nothing hunts you while you lose it) but counts against the deadline.
+
+All three end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
 armed people who have heard about you if you did not.
 
 **Opening** (how the story starts): you do not begin in a vacuum. Pick, or let the game pick from who you are,

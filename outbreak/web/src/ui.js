@@ -772,8 +772,15 @@ function openSettings(msg) {
 function openNpc(npc) {
   const g = game;
   if (npc.role === 'scout' || npc.role === 'soldier') {
-    const line = talk_patrol(g, npc); refresh();
-    openSheet(npc.name, (b) => b.append(el('p', 'event-text', line)));
+    const show = (line) => openSheet(npc.name, (b) => {
+      if (line) b.append(el('p', 'event-text', line));
+      const follows = npc.state === 'follow';
+      const acts = el('div', 'actionrow');
+      acts.append(btn('btn main', 'Talk', () => { const l = talk_patrol(g, npc); refresh(); show(l); }));
+      acts.append(btn('btn', follows ? 'Go your way' : 'Come with me', () => { const l = follows ? dismiss(g, npc) : ask_join(g, npc); refresh(); show(l); }));
+      b.append(acts);
+    });
+    show('');
     return;
   }
   const why = refuses(g);

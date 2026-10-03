@@ -210,8 +210,10 @@ function _human(game, h, humans) {
   const d = cheb(apos(h), apos(p));
   const seen = h.hostile && d <= 11 && has_los(level, apos(h), apos(p));
   const foe = nearest_foe(game, h, _foes_of(h, game, humans), h.reach > 1 ? HUMAN_SIGHT : FOE_SIGHT);
-  if (foe !== null && !(seen && d < cheb(apos(h), apos(foe)))) { _human_fight(game, h, foe); return; }
+  const target_foe = h.state === 'follow' && d > 10 ? null : foe;     // a companion does not chase far from you
+  if (target_foe !== null && !(seen && d < cheb(apos(h), apos(target_foe)))) { _human_fight(game, h, target_foe); return; }
   if (seen) { h.state = 'hunt'; h.target = apos(p); }
+  if (h.state === 'follow') { _follow_step(game, h); return; }
   if (h.state === 'patrol') { _patrol_step(game, h); return; }
   if (h.state !== 'hunt' || !h.hostile) return;
   if (h.hp < h.max_hp * 0.3 && seen) { _flee(game, h, apos(p)); return; }
@@ -254,6 +256,87 @@ function _patrol_step(game, h) {
   const level = game.level;
   const nxt = greedy_step(level, apos(h), goal, game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
   if (nxt === null || !_human_move(game, h, nxt)) h.stuck += 1;
+}
+
+// A companion stays close to the player.
+function _follow_step(game, h) {
+  const p = game.player, level = game.level;
+  if (p.humanity < 20) { h.state = 'patrol'; game.msg(`The ${h.name.toLowerCase()} looks at what you have become, and walks away.`, 'warn'); return; }
+  if (cheb(apos(h), apos(p)) <= 2) return;
+  const field = game.get_field();
+  let nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null;
+  if (nxt === null) nxt = greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+  _human_move(game, h, nxt);
+}
+
+// ---------------------------------------------------------------- far away, in the abstract
+const ABSTRACT_EVERY = 20, ABSTRACT_STEPS = 5, ABSTRACT_RANGE = 10;
+
+// Patrols beyond the simulated radius still walk and still fight, in coarse strokes.
+function abstract_run(game) {
+  if (game.level !== game.world.level || game.clock.turn % ABSTRACT_EVERY) return;
+  const lv = game.world.level, p = game.player, groups = new Map();
+  for (const a of lv.actors) {
+    if (a.kind === 'human' && (a.role === 'scout' || a.role === 'soldier') && a.state === 'patrol' && a.hp > 0 && cheb(apos(a), apos(p)) > ACTIVE_RADIUS) {
+      if (!groups.has(a.group)) groups.set(a.group, []);
+      groups.get(a.group).push(a);
+    }
+  }
+  for (const [gid, all] of groups) {
+    _abstract_fight(game, all);
+    const members = all.filter((m) => m.hp > 0);
+    if (members.length) _abstract_move(game, gid, members);
+  }
+}
+
+function _abstract_move(game, gid, members) {
+  const lv = game.world.level;
+  let goal = game.patrol_goals[gid];
+  if (!goal || members.some((m) => cheb(apos(m), goal) <= 2)) {
+    if (!game.patrol_nodes.length) return;
+    goal = game.rng.choice(game.patrol_nodes); game.patrol_goals[gid] = goal;
+  }
+  for (const m of members) {
+    for (let i = 0; i < ABSTRACT_STEPS; i++) {
+      const nxt = greedy_step(lv, apos(m), goal, game.rng, (n) => !NO_ENTRY.has(lv.tile(n[0], n[1])));
+      if (nxt === null || !_human_move(game, m, nxt)) break;
+    }
+  }
+}
+
+// Resolve a skirmish between a far-off patrol and whatever is near it. Returns foes killed.
+function _abstract_fight(game, members) {
+  const lv = game.world.level, p = game.player, rng = game.rng, lead = members[0];
+  const foes = lv.actors.filter((a) => a.hp > 0 && cheb(apos(a), apos(lead)) <= ABSTRACT_RANGE && cheb(apos(a), apos(p)) > ACTIVE_RADIUS &&
+    (a.kind === 'zombie' || (a.kind === 'human' && a.faction === 'raiders')));
+  const hordes = game.hordes.filter((h) => cheb([h.x, h.y], apos(lead)) <= ABSTRACT_RANGE);
+  if (!foes.length && !hordes.length) return 0;
+  const foe_power = foes.reduce((s, a) => s + (a.kind === 'human' ? 1.8 : 0.8), 0) + hordes.reduce((s, h) => s + 0.7 * h.size, 0);
+  let power = members.reduce((s, m) => s + (m.role === 'soldier' ? 1.6 : 1.2), 0) * (0.6 + rng.random() * 0.8);
+  let killed = 0;
+  foes.sort((a, b) => cheb(apos(a), apos(lead)) - cheb(apos(b), apos(lead)));
+  for (const a of foes) {
+    const cost = a.kind === 'human' ? 1.8 : 0.9;
+    if (power < cost) break;
+    power -= cost; killed++;
+    if (a.kind === 'zombie') kill_zombie(game, a, false, false);
+    else { lv.remove_actor(a); lv.corpses[lv.idx(a.x, a.y)] = [game.clock.turn, true]; }
+  }
+  for (const h of hordes.slice()) {
+    const n = Math.min(h.size, Math.floor(power / 0.9));
+    power -= n * 0.9; h.size -= n; killed += n;
+    if (h.size <= 1) { const i = game.hordes.indexOf(h); if (i >= 0) game.hordes.splice(i, 1); }
+  }
+  let damage = foe_power * (0.5 + rng.random()) * 3.0;
+  const killer = foes.length ? foes[0] : lead;
+  const order = members.map((m) => [rng.random(), m]).sort((a, b) => a[0] - b[0]).map((t) => t[1]);
+  for (const m of order) {
+    if (damage <= 0) break;
+    const hit = Math.min(damage, rng.randint(6, 14));
+    damage -= hit; m.hp -= Math.floor(hit);
+    if (m.hp <= 0) kill_human_other(game, m, killer);
+  }
+  return killed;
 }
 
 function _flee(game, h, away_from) {

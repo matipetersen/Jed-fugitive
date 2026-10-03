@@ -151,6 +151,124 @@ class FactionCombat(unittest.TestCase):
         self.assertEqual(z.state, "investigate")
 
 
+class Companions(unittest.TestCase):
+    def setUp(self):
+        self.g = make_game(era="modern", zombies="classic", seed=3)
+        self.lv = clear(self.g)
+        p = self.g.player
+        self.h = make_patrol(self.g, "soldier", 0, 0, 5)
+        spot = self.lv.free_spot_near(p.x + 1, p.y, 2)
+        self.lv.add_actor(self.h)
+        self.lv.move_actor(self.h, *spot)
+
+    def test_stranger_will_not_join(self):
+        self.assertIn("know you", services.ask_join(self.g, self.h))
+        self.assertNotEqual(self.h.state, "follow")
+
+    def test_distress_then_help_then_thanks_then_join(self):
+        g, lv, h = self.g, self.lv, self.h
+        z = spawn_zombie(g, lv, lv.free_spot_near(h.x + 2, h.y, 2), "walker", dormant=False)
+        combat.attack_actor(g, z, h)
+        for _ in range(30):
+            if g.distress:
+                break
+            combat.attack_actor(g, z, h)
+        self.assertIn(5, g.distress)
+        z.hp = 1
+        combat.kill_zombie(g, z)                      # the player kills it next to the patrol
+        self.assertIn(5, g.aided)
+        text = services.talk_patrol(g, h)
+        self.assertIn("called", text)
+        self.assertTrue(g.aided[5])
+        self.assertEqual(services.ask_join(g, h).startswith("The"), True)
+        self.assertEqual(h.state, "follow")
+
+    def test_help_far_from_the_call_is_not_credited(self):
+        g, lv, h = self.g, self.lv, self.h
+        g.distress[5] = g.clock.turn
+        g.note_assist((h.x + 40, h.y))
+        self.assertNotIn(5, g.aided)
+
+    def test_companion_follows_and_fights_and_can_be_dismissed(self):
+        g, lv, h = self.g, self.lv, self.h
+        g.rep["military"] = 20
+        services.ask_join(g, h)
+        self.assertEqual(h.state, "follow")
+        self.assertEqual(len(services.companions(g)), 1)
+        p = g.player
+        for _ in range(12):
+            g.move(0, 1) or g.move(1, 0)
+        self.assertLessEqual(ai.cheb(h.pos, p.pos), 4)
+        z = spawn_zombie(g, lv, lv.free_spot_near(p.x + 4, p.y, 2), "walker", dormant=False)
+        z.hp = z.max_hp = 6
+        g.player.hp = g.player.max_hp = 500
+        tick(g, 60)
+        self.assertNotIn(z, lv.actors)
+        services.dismiss(g, h)
+        self.assertEqual(h.state, "patrol")
+
+    def test_companion_limit_and_inhuman(self):
+        g, lv, h = self.g, self.lv, self.h
+        g.rep["military"] = 20
+        extra = []
+        for i in range(2):
+            m = make_patrol(g, "soldier", 0, 0, 20 + i)
+            lv.add_actor(m)
+            lv.move_actor(m, *lv.free_spot_near(g.player.x - 2, g.player.y + i, 3))
+            extra.append(m)
+            self.assertTrue(services.ask_join(g, m).startswith("The"))
+        self.assertIn("already lead", services.ask_join(g, h))
+        g.player.humanity = 5
+        self.assertIn("follow what you have become", services.join_refusal(g, h))
+
+
+class AbstractFights(unittest.TestCase):
+    def test_far_patrol_walks_and_wins_or_loses(self):
+        g = make_game(era="modern", zombies="classic", seed=3)
+        lv = clear(g)
+        p = g.player
+        base = next((x, y) for y in range(8, lv.h - 8) for x in range(8, lv.w - 8)
+                    if ai.cheb((x, y), p.pos) > 55 and all(lv.free(x + i, y + j) for i in range(-4, 8) for j in range(-1, 6)))
+        self.assertGreater(ai.cheb(base, p.pos), ai.ACTIVE_RADIUS)
+        members = []
+        for i in range(3):
+            m = make_patrol(g, "soldier", 0, 0, 7)
+            lv.add_actor(m)
+            lv.move_actor(m, *lv.free_spot_near(base[0] + i, base[1], 3))
+            members.append(m)
+        zs = [spawn_zombie(g, lv, lv.free_spot_near(base[0] + 4, base[1] + k, 3), "walker", dormant=False) for k in range(5)]
+        killed = ai._abstract_fight(g, members)
+        self.assertGreater(killed, 0)
+        self.assertLess(len([z for z in zs if z in lv.actors]), 5)
+
+    def test_far_patrol_moves_when_not_fighting(self):
+        g = make_game(era="modern", zombies="classic", seed=3)
+        lv = clear(g)
+        p = g.player
+        far = [(x, y) for y in range(4, lv.h - 4) for x in range(4, lv.w - 4)
+               if ai.cheb((x, y), p.pos) > 55 and lv.free(x, y)]
+        h = make_patrol(g, "scout", 0, 0, 8)
+        lv.add_actor(h)
+        lv.move_actor(h, *far[0])
+        g.patrol_goals[8] = (min(lv.w - 5, h.x + 30), h.y)
+        start = h.pos
+        g.clock.turn = 20 * 50
+        ai.abstract_run(g)
+        self.assertNotEqual(h.pos, start)
+
+    def test_abstract_does_not_touch_patrols_in_sight(self):
+        g = make_game(era="modern", zombies="classic", seed=3)
+        lv = clear(g)
+        p = g.player
+        h = make_patrol(g, "scout", 0, 0, 8)
+        lv.add_actor(h)
+        lv.move_actor(h, *lv.free_spot_near(p.x + 6, p.y + 6, 4))
+        start = h.pos
+        g.clock.turn = 20 * 50
+        ai.abstract_run(g)
+        self.assertEqual(h.pos, start)
+
+
 class Openings(unittest.TestCase):
     def test_every_opening_every_era_builds(self):
         for era in content.ERAS:

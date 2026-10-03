@@ -52,7 +52,7 @@ class Game {
   _init_state() {
     this._uid = 0; this.log = []; this.over = null; this.pending_event = null; this.recent_events = {};
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
-    this.patrol_goals = {}; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
+    this.patrol_goals = {}; this.distress = {}; this.aided = {}; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
     this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0;
     this._force_progress = {};
@@ -182,6 +182,7 @@ class Game {
     this._player_conditions(); if (this.over) return;
     this._hazards(); if (this.over) return;
     ai_run(this); if (this.over) return;
+    abstract_run(this);
     hordes_tick(this);
     wanderers(this);
     this._followers();
@@ -395,6 +396,15 @@ class Game {
         const r = make_raider(this, spot[0], spot[1]);
         r.state = 'hunt';
         lv.add_actor(r);
+      }
+    }
+  }
+  // You killed something near a patrol that had called for help: they will remember.
+  note_assist(pos) {
+    for (const a of this.level.actors) {
+      if (a.kind === 'human' && a.group && (a.role === 'scout' || a.role === 'soldier') && cheb(apos(a), pos) <= 7 &&
+          this.clock.turn - (this.distress[a.group] !== undefined ? this.distress[a.group] : -999) < 300) {
+        if (this.aided[a.group] === undefined) this.aided[a.group] = false;
       }
     }
   }

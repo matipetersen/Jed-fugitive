@@ -82,10 +82,26 @@ const PATROL_LINES = {
             '"Noise draws them. Noise draws the other kind too."'],
 };
 
+const MAX_COMPANIONS = 2, JOIN_TRUST = 15;
+
+function companions(game) {
+  return game.world.level.actors.filter((a) => a.kind === 'human' && a.state === 'follow' && a.hp > 0);
+}
+
 // A passing patrol: wary, but willing to share one tip with someone who still looks human.
 function talk_patrol(game, npc) {
   const name = npc.name.toLowerCase();
   if (game.player.humanity < 20) return `The ${name} looks at what you have become, and does not lower their weapon.`;
+  if (game.aided[npc.group] === false) {
+    game.aided[npc.group] = true;
+    game.rep[npc.faction] = (game.rep[npc.faction] || 0) + 10;
+    game.adjust_humanity(4, '');
+    npc.talked = true;
+    const gift = game.items.medkit ? 'medkit' : 'bandage';
+    game.give_item(make_item(gift, 1));
+    game.reveal_random_lead();
+    return `The ${name} grips your arm. "You came when we called. We do not forget that." They press a ${game.item_def(gift).name.toLowerCase()} into your hand and tell you what they know.`;
+  }
   if (!npc.talked) {
     npc.talked = true;
     game.rep[npc.faction] = (game.rep[npc.faction] || 0) + 2;
@@ -94,4 +110,26 @@ function talk_patrol(game, npc) {
   }
   const lines = PATROL_LINES[npc.role] || PATROL_LINES.scout;
   return lines[(npc.uid + Math.floor(game.clock.turn / 60)) % lines.length];
+}
+
+// Why this patrol member will not travel with you, or an empty string.
+function join_refusal(game, npc) {
+  if (game.player.humanity < 20) return 'They will not follow what you have become.';
+  if (companions(game).length >= MAX_COMPANIONS) return `You already lead ${MAX_COMPANIONS} people. Any more and you would be a patrol of your own.`;
+  const trusted = (game.rep[npc.faction] || 0) >= JOIN_TRUST || game.aided[npc.group] === true;
+  if (!trusted) return 'They do not know you well enough to follow you. Earn their trust: answer a call for help, or do them a favour.';
+  return '';
+}
+
+function ask_join(game, npc) {
+  const why = join_refusal(game, npc);
+  if (why) return why;
+  npc.state = 'follow'; npc.hostile = false;
+  return `The ${npc.name.toLowerCase()} falls in beside you. They will fight what you fight, and wait outside when you go in.`;
+}
+
+function dismiss(game, npc) {
+  npc.state = 'patrol';
+  game.patrol_goals[npc.group] = game.patrol_nodes.length ? game.rng.choice(game.patrol_nodes) : [npc.x, npc.y];
+  return `The ${npc.name.toLowerCase()} nods and goes back to the roads.`;
 }

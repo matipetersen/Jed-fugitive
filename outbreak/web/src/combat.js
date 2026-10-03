@@ -85,6 +85,7 @@ function kill_zombie(game, z, head = false, by_player = true) {
   level.corpses[level.idx(z.x, z.y)] = [game.clock.turn, z.fresh_human];
   for (const item of z.carries) level.drop(apos(z), item);
   if (by_player) {
+    game.note_assist(apos(z));
     const p = game.player;
     p.kills++; p.bump('zombies');
     const levels = p.gain_xp(z.xp);
@@ -155,6 +156,7 @@ function kill_human(game, h) {
   level.remove_actor(h);
   level.corpses[level.idx(h.x, h.y)] = [game.clock.turn, true];
   for (const item of h.loot) level.drop(apos(h), item);
+  if (h.hostile && h.role === 'raider') game.note_assist(apos(h));
   game.player.gain_xp(12);
   game.player.bump('humans');
   game.msg(`The ${h.name.toLowerCase()} falls.`, 'combat');
@@ -312,8 +314,21 @@ function attack_actor(game, attacker, defender, ranged = false) {
   }
   defender.hp -= raw;
   if (defender.hp <= 0) { kill_human_other(game, defender, attacker); return; }
-  defender.state = 'hunt'; defender.target = apos(attacker);
+  if (defender.kind === 'human') {
+    if (defender.state !== 'follow') { defender.state = 'hunt'; defender.target = apos(attacker); }
+    _distress(game, defender);
+  }
   if (_seen(game, attacker, defender)) game.msg(`The ${noun} ${attacker.kind === 'zombie' ? 'bites' : 'hits'} the ${victim}.`, 'combat');
+}
+
+// A patrol under attack calls for help; if you hear it and answer, they will remember.
+function _distress(game, h) {
+  if ((h.role !== 'scout' && h.role !== 'soldier') || !h.group || game.level !== game.world.level) return;
+  const t = game.clock.turn, last = game.distress[h.group];
+  if (last !== undefined && t - last < 200) return;
+  game.distress[h.group] = t;
+  const p = game.player;
+  if (!game.is_visible(h.x, h.y)) game.msg(`You hear a call for help to the ${compass(h.x - p.x, h.y - p.y)}: a patrol is under attack.`, 'warn');
 }
 
 // A human dies to something other than the player. Victims of the dead rise again (corpse flag 2).

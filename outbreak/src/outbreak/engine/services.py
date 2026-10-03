@@ -134,18 +134,64 @@ PATROL_LINES = {
 }
 
 
+MAX_COMPANIONS = 2
+JOIN_TRUST = 15
+
+
+def companions(game) -> List[Human]:
+    return [a for a in game.world.level.actors if isinstance(a, Human) and a.state == "follow" and a.hp > 0]
+
+
 def talk_patrol(game, npc: Human) -> str:
     """A passing patrol: wary, but willing to share one tip with someone who still looks human."""
     if game.player.humanity < 20:
         return f"The {npc.name.lower()} looks at what you have become, and does not lower their weapon."
+    name = npc.name.lower()
+    if npc.group in game.aided and not game.aided[npc.group]:
+        game.aided[npc.group] = True
+        game.rep[npc.faction] = game.rep.get(npc.faction, 0) + 10
+        game.adjust_humanity(4, "")
+        npc.talked = True
+        gift = "medkit" if "medkit" in game.items else "bandage"
+        game.give_item(Item(gift, 1))
+        game.reveal_random_lead()
+        return (f"The {name} grips your arm. \"You came when we called. We do not forget that.\" "
+                f"They press a {game.item_def(gift).name.lower()} into your hand and tell you what they know.")
     if not npc.talked:
         npc.talked = True
         game.rep[npc.faction] = game.rep.get(npc.faction, 0) + 2
         if game.reveal_random_lead():
-            return f"The {npc.name.lower()} lowers their weapon and tells you where they have seen something worth finding."
-        return f"The {npc.name.lower()} has no news, but nods and wishes you luck."
+            return f"The {name} lowers their weapon and tells you where they have seen something worth finding."
+        return f"The {name} has no news, but nods and wishes you luck."
     lines = PATROL_LINES.get(npc.role, PATROL_LINES["scout"])
     return lines[(npc.uid + game.clock.turn // 60) % len(lines)]
+
+
+def join_refusal(game, npc: Human) -> str:
+    """Why this patrol member will not travel with you, or an empty string."""
+    if game.player.humanity < 20:
+        return "They will not follow what you have become."
+    if len(companions(game)) >= MAX_COMPANIONS:
+        return f"You already lead {MAX_COMPANIONS} people. Any more and you would be a patrol of your own."
+    trusted = game.rep.get(npc.faction, 0) >= JOIN_TRUST or game.aided.get(npc.group) is True
+    if not trusted:
+        return "They do not know you well enough to follow you. Earn their trust: answer a call for help, or do them a favour."
+    return ""
+
+
+def ask_join(game, npc: Human) -> str:
+    why = join_refusal(game, npc)
+    if why:
+        return why
+    npc.state = "follow"
+    npc.hostile = False
+    return f"The {npc.name.lower()} falls in beside you. They will fight what you fight, and wait outside when you go in."
+
+
+def dismiss(game, npc: Human) -> str:
+    npc.state = "patrol"
+    game.patrol_goals[npc.group] = game.rng.choice(game.patrol_nodes) if game.patrol_nodes else npc.pos
+    return f"The {npc.name.lower()} nods and goes back to the roads."
 
 
 def npc_title(npc: Human) -> str:

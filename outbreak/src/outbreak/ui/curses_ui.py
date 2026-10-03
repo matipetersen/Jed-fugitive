@@ -281,8 +281,17 @@ class UI:
     def npc_screen(self, npc: Human) -> None:
         g = self.g
         if npc.role in ("scout", "soldier"):
-            self.message(services.talk_patrol(g, npc))
-            return
+            while True:
+                follows = npc.state == "follow"
+                r = self.pick(npc.name, [("Talk", "white"),
+                                         ("Tell them to go their way" if follows else "Ask them to come with you", "white"),
+                                         ("Never mind", "grey")])
+                if r == 0:
+                    self.message(services.talk_patrol(g, npc))
+                elif r == 1:
+                    self.message(services.dismiss(g, npc) if follows else services.ask_join(g, npc))
+                else:
+                    return
         reason = services.refuses(g)
         if reason:
             self.message(f"{npc.name}: {reason}")

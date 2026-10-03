@@ -67,8 +67,16 @@ the first turn; `B` re-reads it.
   meets a horde loses people, and what it loses gets up again (even on presets where the dead normally do not
   turn). Raiders and patrols shoot each other on sight. Gunfire draws the dead whoever fires.
 * **Patrols**: enclave scouts and military soldiers walk between buildings and the raider camps. They leave
-  you alone unless you attack them. Talk to one (`e`) for a tip, once, if you still look human. Only people
-  near you are simulated, so a fight you are not close to does not happen.
+  you alone unless you attack them. Talk to one (`e`) for a tip, once, if you still look human.
+* **Calls for help**: a patrol under attack shouts, and you hear it ("a call for help to the north-east").
+  Kill something near them while they are in trouble and they remember: next time they thank you with a
+  medical item and a lead, and trust you.
+* **Companions**: ask a patrol member to come with you (`e` > ask) once they trust you (answered a call, or
+  enough reputation). Up to two. They follow, fight what you fight, wait outside when you go indoors, and
+  leave if you become inhuman. Tell them to go their way from the same menu.
+* **Far away, in the abstract**: patrols you cannot see still walk their routes and still fight, resolved
+  coarsely every 20 turns (they kill or lose to nearby dead, raiders and hordes). Over a long game the
+  patrols thin out.
 * **Gore disguise** (`v`): smear yourself with a corpse to walk past mindless dead.
 
 ## Keys (press `?` in game)

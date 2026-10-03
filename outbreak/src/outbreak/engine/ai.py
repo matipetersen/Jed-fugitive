@@ -268,11 +268,16 @@ def _human(game, h: Human, humans) -> None:
     d = cheb(h.pos, p.pos)
     seen = h.hostile and d <= 11 and has_los(level, h.pos, p.pos)
     foe = nearest_foe(game, h, _foes_of(h, game, humans), HUMAN_SIGHT if h.reach > 1 else FOE_SIGHT)
+    if h.state == "follow" and d > 10:
+        foe = None                                                # a companion does not chase far from you
     if foe is not None and not (seen and d < cheb(h.pos, foe.pos)):
         _human_fight(game, h, foe)
         return
     if seen:
         h.state, h.target = "hunt", p.pos
+    if h.state == "follow":
+        _follow_step(game, h)
+        return
     if h.state == "patrol":
         _patrol_step(game, h)
         return
@@ -337,6 +342,104 @@ def _patrol_step(game, h: Human) -> None:
     nxt = greedy_step(game.level, h.pos, goal, game.rng, can_pass=lambda n: game.level.tile(*n) not in NO_ENTRY)
     if nxt is None or not _human_move(game, h, nxt):
         h.stuck += 1
+
+
+def _follow_step(game, h: Human) -> None:
+    """A companion stays close to the player."""
+    p, level = game.player, game.level
+    if p.humanity < 20:
+        h.state = "patrol"
+        game.msg(f"The {h.name.lower()} looks at what you have become, and walks away.", "warn")
+        return
+    if cheb(h.pos, p.pos) <= 2:
+        return
+    field = game.get_field()
+    nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
+    if nxt is None:
+        nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+    _human_move(game, h, nxt)
+
+
+# ------------------------------------------------------------------ far away, in the abstract
+ABSTRACT_EVERY = 20
+ABSTRACT_STEPS = 5
+ABSTRACT_RANGE = 10
+
+
+def abstract_run(game) -> None:
+    """Patrols beyond the simulated radius still walk and still fight, in coarse strokes."""
+    if game.level is not game.world.level or game.clock.turn % ABSTRACT_EVERY:
+        return
+    lv, p = game.world.level, game.player
+    groups = {}
+    for a in lv.actors:
+        if isinstance(a, Human) and a.role in ("scout", "soldier") and a.state == "patrol" and a.hp > 0 \
+                and cheb(a.pos, p.pos) > ACTIVE_RADIUS:
+            groups.setdefault(a.group, []).append(a)
+    for gid, members in groups.items():
+        _abstract_fight(game, members)
+        members = [m for m in members if m.hp > 0]
+        if members:
+            _abstract_move(game, gid, members)
+
+
+def _abstract_move(game, gid: int, members) -> None:
+    lv = game.world.level
+    goal = game.patrol_goals.get(gid)
+    if goal is None or any(cheb(m.pos, goal) <= 2 for m in members):
+        if not game.patrol_nodes:
+            return
+        goal = game.rng.choice(game.patrol_nodes)
+        game.patrol_goals[gid] = goal
+    for m in members:
+        for _ in range(ABSTRACT_STEPS):
+            nxt = greedy_step(lv, m.pos, goal, game.rng, can_pass=lambda n: lv.tile(*n) not in NO_ENTRY)
+            if nxt is None or not _human_move(game, m, nxt):
+                break
+
+
+def _abstract_fight(game, members) -> int:
+    """Resolve a skirmish between a far-off patrol and whatever is near it.  Returns foes killed."""
+    lv, p, rng = game.world.level, game.player, game.rng
+    lead = members[0]
+    foes = [a for a in lv.actors if a.hp > 0 and cheb(a.pos, lead.pos) <= ABSTRACT_RANGE and cheb(a.pos, p.pos) > ACTIVE_RADIUS
+            and (isinstance(a, Zombie) or (isinstance(a, Human) and a.faction == "raiders"))]
+    hordes = [h for h in game.hordes if cheb(h.pos, lead.pos) <= ABSTRACT_RANGE]
+    if not foes and not hordes:
+        return 0
+    foe_power = sum(1.8 if isinstance(a, Human) else 0.8 for a in foes) + sum(0.7 * h.size for h in hordes)
+    power = sum(1.6 if m.role == "soldier" else 1.2 for m in members) * (0.6 + rng.random() * 0.8)
+    killed = 0
+    foes.sort(key=lambda a: cheb(a.pos, lead.pos))
+    for a in foes:
+        cost = 1.8 if isinstance(a, Human) else 0.9
+        if power < cost:
+            break
+        power -= cost
+        killed += 1
+        if isinstance(a, Zombie):
+            combat.kill_zombie(game, a, by_player=False)
+        else:
+            lv.remove_actor(a)
+            lv.corpses[a.pos] = (game.clock.turn, True)
+    for h in hordes:
+        n = min(h.size, int(power / 0.9))
+        power -= n * 0.9
+        h.size -= n
+        killed += n
+        if h.size <= 1 and h in game.hordes:
+            game.hordes.remove(h)
+    damage = foe_power * (0.5 + rng.random()) * 3.0
+    killer = foes[0] if foes else lead
+    for m in sorted(members, key=lambda _m: rng.random()):
+        if damage <= 0:
+            break
+        hit = min(damage, rng.randint(6, 14))
+        damage -= hit
+        m.hp -= int(hit)
+        if m.hp <= 0:
+            combat.kill_human_other(game, m, killer)
+    return killed
 
 
 def _flee(game, h: Human, away_from) -> None:

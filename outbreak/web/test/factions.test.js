@@ -115,6 +115,83 @@ function fresh(cfg) { const g = make(Object.assign({ era: 'modern', zombies: 'cl
   assert.strictEqual(z.state, 'investigate');
 }
 
+// ---- companions, distress, abstract fights
+const cheb = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
+function with_patrol(group) {
+  const g = make({ era: 'modern', zombies: 'classic', seed: 3 }), lv = clear(g), p = g.player;
+  const h = OB.make_patrol(g, 'soldier', 0, 0, group), spot = lv.free_spot_near(p.x + 1, p.y, 2);
+  lv.add_actor(h); lv.move_actor(h, spot[0], spot[1]);
+  return [g, lv, h];
+}
+{
+  const [g, lv, h] = with_patrol(5);
+  assert(OB.ask_join(g, h).includes('know you')); assert.notStrictEqual(h.state, 'follow');
+  const z = OB.spawn_zombie(g, lv, lv.free_spot_near(h.x + 2, h.y, 2), 'walker', false);
+  for (let i = 0; i < 40 && g.distress[5] === undefined; i++) OB.attack_actor(g, z, h);
+  assert(g.distress[5] !== undefined, 'no distress call');
+  z.hp = 1; OB.kill_zombie(g, z);
+  assert.strictEqual(g.aided[5], false);
+  assert(OB.talk_patrol(g, h).includes('called')); assert.strictEqual(g.aided[5], true);
+  assert(OB.ask_join(g, h).startsWith('The')); assert.strictEqual(h.state, 'follow');
+}
+{
+  const [g, lv, h] = with_patrol(5);
+  g.distress[5] = g.clock.turn; g.note_assist([h.x + 40, h.y]);
+  assert.strictEqual(g.aided[5], undefined);
+}
+{
+  const [g, lv, h] = with_patrol(5);
+  g.rep.military = 20; OB.ask_join(g, h);
+  assert.strictEqual(OB.companions(g).length, 1);
+  const p = g.player;
+  for (let i = 0; i < 12; i++) if (!g.move(0, 1)) g.move(1, 0);
+  assert(cheb([h.x, h.y], [p.x, p.y]) <= 4, 'companion did not follow');
+  const z = OB.spawn_zombie(g, lv, lv.free_spot_near(p.x + 4, p.y, 2), 'walker', false);
+  z.hp = z.max_hp = 6; p.hp = p.max_hp = 500;
+  tick(g, 60);
+  assert(!lv.actors.includes(z), 'companion did not fight');
+  OB.dismiss(g, h); assert.strictEqual(h.state, 'patrol');
+}
+{
+  const [g, lv, h] = with_patrol(5);
+  g.rep.military = 20;
+  for (let i = 0; i < 2; i++) {
+    const m = OB.make_patrol(g, 'soldier', 0, 0, 20 + i), sp = lv.free_spot_near(g.player.x - 2, g.player.y + i, 3);
+    lv.add_actor(m); lv.move_actor(m, sp[0], sp[1]);
+    assert(OB.ask_join(g, m).startsWith('The'));
+  }
+  assert(OB.ask_join(g, h).includes('already lead'));
+  g.player.humanity = 5; assert(OB.join_refusal(g, h).includes('what you have become'));
+}
+{
+  const g = make({ era: 'modern', zombies: 'classic', seed: 3 }), lv = clear(g), p = g.player;
+  let base = null;
+  for (let y = 8; y < lv.h - 8 && !base; y++) for (let x = 8; x < lv.w - 8 && !base; x++) {
+    if (cheb([x, y], [p.x, p.y]) <= 47) continue;
+    if (lv.free(x, y) && lv.free_spot_near(x + 4, y, 3) && lv.free_spot_near(x, y + 12, 3)) base = [x, y];
+  }
+  const members = [];
+  for (let i = 0; i < 3; i++) { const m = OB.make_patrol(g, 'soldier', 0, 0, 7), sp = lv.free_spot_near(base[0] + i, base[1], 3); lv.add_actor(m); lv.move_actor(m, sp[0], sp[1]); members.push(m); }
+  const zs = [];
+  for (let k = 0; k < 5; k++) { const sp = lv.free_spot_near(base[0] + 2, base[1] + k, 6); if (sp) zs.push(OB.spawn_zombie(g, lv, sp, 'walker', false)); }
+  assert(zs.length >= 3);
+  assert(OB._abstract_fight(g, members) > 0);
+  assert(zs.filter((z) => lv.actors.includes(z)).length < zs.length);
+  // movement when nothing is near
+  const h = OB.make_patrol(g, 'scout', 0, 0, 8), sp = lv.free_spot_near(base[0], base[1] + 12, 3);
+  lv.add_actor(h); lv.move_actor(h, sp[0], sp[1]); g.patrol_goals[8] = [Math.min(lv.w - 5, h.x + 30), h.y];
+  for (const z of zs) if (lv.actors.includes(z)) lv.remove_actor(z);
+  const before = [h.x, h.y]; g.clock.turn = 1000; OB.abstract_run(g);
+  assert(h.x !== before[0] || h.y !== before[1], 'far patrol did not move');
+}
+{
+  const g = make({ era: 'modern', zombies: 'classic', seed: 3 }), lv = clear(g), p = g.player;
+  const h = OB.make_patrol(g, 'scout', 0, 0, 8), sp = lv.free_spot_near(p.x + 6, p.y + 6, 4);
+  lv.add_actor(h); lv.move_actor(h, sp[0], sp[1]); const b = [h.x, h.y];
+  g.clock.turn = 1000; OB.abstract_run(g);
+  assert.deepStrictEqual([h.x, h.y], b);
+}
+
 // ---- openings
 for (const era of Object.keys(OB.CONTENT.eras)) for (const oid of Object.keys(OB.CONTENT.openings)) {
   const g = make({ era, opening: oid, seed: 4, zombies: oid === 'vigil' ? 'night' : 'classic' });
@@ -144,5 +221,8 @@ for (const era of Object.keys(OB.CONTENT.eras)) for (const oid of Object.keys(OB
   assert.strictEqual(g2.opening_id, 'hunt'); assert.strictEqual(g2.intro_pages.length, 3);
   assert.deepStrictEqual(g2.patrol_goals, JSON.parse(JSON.stringify(g.patrol_goals)));
   assert.strictEqual(g2.patrol_nodes.length, g.patrol_nodes.length);
+  g.distress[3] = 5; g.aided[3] = false;
+  const g3 = OB.deserialize_game(OB.serialize_game(g));
+  assert.deepStrictEqual(g3.aided, { 3: false }); assert.strictEqual(g3.distress[3], 5);
 }
 console.log('factions: combat, patrols and openings OK');

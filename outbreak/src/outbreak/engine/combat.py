@@ -12,7 +12,7 @@ from outbreak.content.items import ItemDef
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Hazard, Human, Item, Zombie
-from outbreak.util import cheb, clamp
+from outbreak.util import cheb, clamp, compass
 
 FISTS = ItemDef("fists", "Fists", "weapon", style="unarmed", dmg=(1, 3), noise=2)
 LIMBS = (("arm", 41), ("leg", 41), ("torso", 15), ("neck", 3))
@@ -138,6 +138,7 @@ def kill_zombie(game, z: Zombie, head: bool = False, by_player: bool = True) -> 
     for item in z.carries:
         level.drop(z.pos, item)
     if by_player:
+        game.note_assist(z.pos)
         p = game.player
         p.kills += 1
         p.bump("zombies")
@@ -233,6 +234,8 @@ def kill_human(game, h: Human) -> None:
     level.corpses[h.pos] = (game.clock.turn, True)
     for item in h.loot:
         level.drop(h.pos, item)
+    if h.hostile and h.role == "raider":
+        game.note_assist(h.pos)
     game.player.gain_xp(12)
     game.player.bump("humans")
     game.msg(f"The {h.name.lower()} falls.", "combat")
@@ -449,9 +452,25 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
         kill_human_other(game, defender, attacker)
         return
     if isinstance(defender, Human):
-        defender.state, defender.target = "hunt", attacker.pos
+        if defender.state != "follow":
+            defender.state, defender.target = "hunt", attacker.pos
+        _distress(game, defender)
     if _seen(game, attacker, defender):
         game.msg(f"The {noun} {'bites' if isinstance(attacker, Zombie) else 'hits'} the {victim}.", "combat")
+
+
+def _distress(game, h: Human) -> None:
+    """A patrol under attack calls for help; if you hear it and answer, they will remember."""
+    if h.role not in ("scout", "soldier") or not h.group or game.level is not game.world.level:
+        return
+    t = game.clock.turn
+    last = game.distress.get(h.group)
+    if last is not None and t - last < 200:
+        return
+    game.distress[h.group] = t
+    p = game.player
+    if h.pos not in game.visible:
+        game.msg(f"You hear a call for help to the {compass(h.x - p.x, h.y - p.y)}: a patrol is under attack.", "warn")
 
 
 def kill_human_other(game, h: Human, killer: Actor) -> None:

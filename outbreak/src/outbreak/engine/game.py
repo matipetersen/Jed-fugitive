@@ -49,6 +49,8 @@ class Game:
         self.stalker_ready = 0
         self.last_moan = -999
         self.patrol_goals: Dict[int, Pos] = {}
+        self.distress: Dict[int, int] = {}       # patrol group -> turn it last called for help
+        self.aided: Dict[int, bool] = {}         # patrol group -> thanked yet?
         self.patrol_nodes: List[Pos] = []
         self.followers: List[Tuple[int, str, Zombie]] = []
         self.final: Optional[FinalStand] = None
@@ -231,6 +233,7 @@ class Game:
         ai.run(self)
         if self.over:
             return
+        ai.abstract_run(self)
         hordes.tick(self)
         hordes.wanderers(self)
         self._followers()
@@ -471,6 +474,13 @@ class Game:
                 r = make_raider(self, *spot)
                 r.state = "hunt"
                 lv.add_actor(r)
+
+    def note_assist(self, pos: Pos) -> None:
+        """You killed something near a patrol that had called for help: they will remember."""
+        for a in self.level.actors:
+            if isinstance(a, Human) and a.group and a.role in ("scout", "soldier") and cheb(a.pos, pos) <= 7 \
+                    and self.clock.turn - self.distress.get(a.group, -999) < 300:
+                self.aided.setdefault(a.group, False)
 
     def reveal_random_lead(self) -> bool:
         pois = [q for q in self.pois.values() if q.component and not q.lead]

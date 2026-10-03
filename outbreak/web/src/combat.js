@@ -56,7 +56,7 @@ function _wear_weapon(game, item, w) {
   if (!item || !w.durability) return;
   if (game.rng.random() < game.player.mod('dur_save')) return;
   item.dur = (item.dur || 1) - 1;
-  if (item.dur <= 0) { game.player.weapon = null; game.msg(`Your ${w.name} breaks!`, 'bad'); }
+  if (item.dur <= 0) { game.player.weapon = null; game.msg(`Your ${w.name} breaks!`, 'bad', true); }
 }
 
 function _train(game, w, amount = 1) {
@@ -100,6 +100,8 @@ function kill_zombie(game, z, head = false, by_player = true, killer = null) {
     const levels = p.gain_xp(z.xp);
     p.panic = Math.max(0, p.panic - 1.0);
     if (levels) game.msg(`You reach level ${p.level}! (+1 perk point)`, 'good');
+    if ((p.stats.zombies || 0) % 25 === 0) game._chronicle(`${p.stats.zombies} of the dead put down for good.`);
+    if (z.flags.includes('boss')) game._chronicle(`You brought down the ${z.name.toLowerCase()}.`);
   }
   if (z.flags.includes('explodes')) burst(game, apos(z));
   if (z.flags.includes('boss') && z.special === 'stalker') game.on_stalker_killed();
@@ -266,7 +268,7 @@ function infect(game, source = 'bite') {
   const p = game.player, profile = game.profile;
   if (p.infected) {
     p.infection_timer = Math.max(1, p.infection_timer - 40);
-    game.msg('Another wound feeds the infection. The clock runs faster.', 'bad');
+    game.msg('Another wound feeds the infection. The clock runs faster.', 'bad', true);
     return;
   }
   p.infected = true;
@@ -275,9 +277,9 @@ function infect(game, source = 'bite') {
   p.bite_limb = source === 'spore' ? 'lungs' : (p.lost.includes(limb) ? 'torso' : limb);
   const window = Math.max(8, Math.min(30, Math.floor(profile.incubation / 3))) + Math.floor(p.mod('surgeon'));
   p.bite_window = (p.bite_limb === 'arm' || p.bite_limb === 'leg') ? window : 0;
-  if (source === 'spore') game.msg('You breathe in the spores. You are infected.', 'bad');
+  if (source === 'spore') game.msg('You breathe in the spores. You are infected.', 'bad', true);
   else {
-    game.msg(`You have been bitten (${p.bite_limb})! You are infected.`, 'bad');
+    game.msg(`You have been bitten (${p.bite_limb})! You are infected.`, 'bad', true);
     if (p.bite_window) game.msg(`Cutting it off might save you - but only for the next ${p.bite_window} turns (CUT OFF).`, 'warn');
   }
   game.add_panic(25);
@@ -303,7 +305,7 @@ function zombie_attack(game, z) {
   if (game.rng.random() < chance) infect(game, 'bite');
   if (dmg >= 4 && game.rng.random() < 0.2 * (1.0 - p.mod('bleed_resist'))) { p.bleeding = Math.min(3, p.bleeding + 1); game.msg('You are bleeding.', 'bad'); }
   if ((z.flags.includes('breaker') || z.flags.includes('cripples')) && !p.fracture && game.rng.random() < 0.2) {
-    p.fracture = true; game.msg('Something snaps. Your leg is broken!', 'bad');
+    p.fracture = true; game.msg('Something snaps. Your leg is broken!', 'bad', true);
   }
 }
 
@@ -405,11 +407,11 @@ function amputate(game) {
   p.sprinting = false;
   if (p.hp <= shock) {
     p.hp = 0;
-    game.msg(`You cut off your ${limb}. The pain and the blood are too much. Everything goes white.`, 'bad');
+    game.msg(`You cut off your ${limb}. The pain and the blood are too much. Everything goes white.`, 'bad', true);
     game.end('dead', `went into shock after cutting off your ${limb}`);
     return true;
   }
   p.hp -= shock; p.hemorrhage = true; p.bleeding = 3; p.hp = Math.min(p.hp, p.max_hp);
-  game.msg(`You cut off your ${limb}. The infection goes with it, and so does a great deal of blood. It will not stop by itself: bind it now.`, 'warn');
+  game.msg(`You cut off your ${limb}. The infection goes with it, and so does a great deal of blood. It will not stop by itself: bind it now.`, 'warn', true);
   return true;
 }

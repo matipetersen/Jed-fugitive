@@ -511,6 +511,12 @@ class UI:
         e = self.g.over
         lines = [e.text, ""] + e.summary + ["", f"Score: {e.score}"]
         self.text_screen(("VICTORY - " if e.victory else "") + e.title, "\n".join(lines), "Any key to leave")
+        if e.chronicle or e.last_moments:
+            how = "How you survived" if e.victory else "How it went"
+            parts = [how + ":"] + ["- " + c for c in e.chronicle[-40:]]
+            if e.last_moments:
+                parts += ["", "The last moments:"] + ["> " + l for l in e.last_moments]
+            self.text_screen(e.title + " - the record", "\n".join(parts), "Any key to leave")
         if self.g.cfg.permadeath or e.victory:
             savemod.delete()
 

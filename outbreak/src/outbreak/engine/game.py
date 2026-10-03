@@ -24,6 +24,8 @@ from outbreak.util import DIRS8, Pos, cheb
 
 WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.4, 3.0, 20
 LOG_LIMIT = 600
+CHRONICLE_TAGS = ("good", "lore")
+CHRONICLE_LIMIT, CHRONICLE_KEEP = 160, 25   # when full, drop the entry at index KEEP (head and tail survive)
 SCENT_KEEP = 60
 FORCE_TURNS = 6
 
@@ -41,6 +43,7 @@ class Game:
         self.cfg = cfg.resolve().validate()
         self._uid = 0
         self.log: List[Tuple[int, str, str]] = []
+        self.chronicle: List[Tuple[int, int, str]] = []      # (turn, day, text): what the end screen retells
         self.over: Optional[ending.Ending] = None
         self.pending_event: Optional[encounters.ActiveEvent] = None
         self.recent_events: Dict[str, int] = {}
@@ -92,12 +95,25 @@ class Game:
         self._uid += 1
         return self._uid
 
-    def msg(self, text: str, tag: str = "info") -> None:
+    def msg(self, text: str, tag: str = "info", key: bool = False) -> None:
         if not text:
             return
         self.log.append((self.clock.turn, text, tag))
         if len(self.log) > LOG_LIMIT:
             del self.log[:100]
+        if key or tag in CHRONICLE_TAGS:
+            self._chronicle(text)
+
+    def _chronicle(self, text: str) -> None:
+        """The few lines worth retelling at the end: wounds, finds, deaths, choices.  Keeps the start and the latest."""
+        c = getattr(self, "chronicle", None)
+        if c is None:
+            c = self.chronicle = []
+        if c and c[-1][2] == text:
+            return
+        c.append((self.clock.turn, self.clock.day, text))
+        if len(c) > CHRONICLE_LIMIT:
+            del c[CHRONICLE_KEEP]
 
     def item_def(self, item_id: str) -> ItemDef:
         return self.items[item_id]
@@ -164,7 +180,7 @@ class Game:
         if not h.hostile:
             h.hostile = True
             self.rep[h.faction or "enclave"] = self.rep.get(h.faction or "enclave", 0) - 20
-            self.msg(f"The {h.name.lower()} turns on you!", "bad")
+            self.msg(f"The {h.name.lower()} turns on you!", "bad", key=True)
             if h.role in ("trader", "healer", "scholar"):
                 self.rep["enclave"] = self.rep.get("enclave", 0) - 40
 
@@ -301,7 +317,7 @@ class Game:
             if p.bite_window > 0:
                 p.bite_window -= 1
                 if p.bite_window == 0 and p.bite_limb in ("arm", "leg"):
-                    self.msg("It is too late to cut it off. The infection has spread.", "bad")
+                    self.msg("It is too late to cut it off. The infection has spread.", "bad", key=True)
             left, total = p.infection_timer, self._infection_total()
             if left in (total // 2, total // 4, 30, 10) and left > 0:
                 self.msg(f"Fever. Your hands shake. About {max(1, left // 10)} hours left.", "warn")
@@ -392,7 +408,7 @@ class Game:
                 z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn
                 self.stalker = z
                 self.heat = 55.0
-                self.msg(f"Something is hunting you. A {z.name.lower()}, and it does not stop.", "bad")
+                self.msg(f"Something is hunting you. A {z.name.lower()}, and it does not stop.", "bad", key=True)
                 self.add_panic(15)
                 return
 
@@ -600,6 +616,7 @@ class Game:
             poi.visited = True
             poi.revealed = True
             p.gain_xp(6 if poi.kind == "house" else 15)
+            self._chronicle(f"You enter {target.name} for the first time.")
         self.msg(f"You enter {target.name}." if portal.target != "world" else "You step back outside.", "info")
         self._spend(1)
         return True
@@ -1023,7 +1040,7 @@ class Game:
         sc = self.scenario
         self.final = FinalStand(sc.final_turns)
         lv.safe = False
-        self.msg(f"You begin to {sc.final_verb}. The noise carries. Hold out for {sc.final_turns} turns!", "bad")
+        self.msg(f"You begin to {sc.final_verb}. The noise carries. Hold out for {sc.final_turns} turns!", "bad", key=True)
         self.emit_noise(self.player.pos, 30)
         self.add_heat(30, raw=True)
         self._spend(1)
@@ -1051,7 +1068,7 @@ class Game:
         if not f.boss_done and f.turns_left <= self.scenario.final_turns // 2:
             f.boss_done = True
             if p.humanity < 40:
-                self.msg("People step out of the dark with weapons. 'We have heard about you.'", "bad")
+                self.msg("People step out of the dark with weapons. 'We have heard about you.'", "bad", key=True)
                 for _ in range(3):
                     spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4)
                     if spot and cheb(spot, p.pos) > 2:
@@ -1063,7 +1080,7 @@ class Game:
                 if spot:
                     z = spawn_zombie(self, lv, spot, "alpha", dormant=False, fresh=True)
                     z.state, z.target = "hunt", p.pos
-                    self.msg("Something enormous pushes through the dead. The Alpha has come for you.", "bad")
+                    self.msg("Something enormous pushes through the dead. The Alpha has come for you.", "bad", key=True)
 
     # ----------------------------------------------------------------- perks
     def learn_perk(self, perk_id: str) -> bool:

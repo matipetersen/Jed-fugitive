@@ -125,6 +125,10 @@ the game starts, reproducibly if you also give a seed, and the log says what cam
   coarsely every 20 turns (they kill or lose to nearby dead, raiders and hordes). Over a long game the
   patrols thin out.
 * **Gore disguise** (`v`): smear yourself with a corpse to walk past mindless dead.
+* **The record**: when a run ends (won, dead, turned, left behind) a second page retells how it went: a
+  chronicle of the moments that mattered (bites, amputations, documents deciphered, event choices, first
+  visits, level-ups, hordes, boss kills, every 25th kill, survivors lost) and the last ten log lines before
+  the end. Routine hits and idle chatter are left out; a long run keeps its opening and its latest events.
 
 ## Keys (press `?` in game)
 

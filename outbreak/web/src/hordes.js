@@ -89,7 +89,7 @@ function materialize(game, h) {
   }
   const leftover = h.size - placed;
   if (game.cfg.mode !== 'normal' && leftover >= 2) { h.size = leftover; h.wait_until = game.clock.turn + 12; game.hordes.push(h); }   // nobody vanishes
-  if (placed) { game.msg(`A horde of ${placed} comes into view!`, 'bad'); game.add_panic(8); }
+  if (placed) { game.msg(`A horde of ${placed} comes into view!`, 'bad', true); game.add_panic(8); }
 }
 
 function noise_attracts(game, pos, radius) {

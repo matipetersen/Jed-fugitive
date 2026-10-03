@@ -155,7 +155,7 @@ def materialize(game, h: Horde) -> None:
         h.size, h.wait_until = leftover, game.clock.turn + 12
         game.hordes.append(h)
     if placed:
-        game.msg(f"A horde of {placed} comes into view!", "bad")
+        game.msg(f"A horde of {placed} comes into view!", "bad", key=True)
         game.add_panic(8)
 
 

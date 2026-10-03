@@ -14,6 +14,8 @@ class Ending:
     text: str
     summary: List[str] = field(default_factory=list)
     score: int = 0
+    chronicle: List[str] = field(default_factory=list)      # how the run went: "Day 3 - You have been bitten..."
+    last_moments: List[str] = field(default_factory=list)   # the final lines of the log
 
     @property
     def victory(self) -> bool:
@@ -89,4 +91,17 @@ def build(game, kind: str, cause: str = "") -> Ending:
     else:
         title = "You died"
         text = cause[:1].upper() + cause[1:] + "." if cause else "You did not make it."
-    return Ending(kind, title, text, summary, score)
+    return Ending(kind, title, text, summary, score, _chronicle(game), _last_moments(game))
+
+
+LAST_LINES = 10
+
+
+def _chronicle(game) -> List[str]:
+    return [f"Day {day}: {text}" for _, day, text in getattr(game, "chronicle", [])]
+
+
+def _last_moments(game) -> List[str]:
+    """The final stretch of the log, oldest first: what actually happened just before the end."""
+    lines = [text for _, text, _ in game.log[-LAST_LINES:]]
+    return lines

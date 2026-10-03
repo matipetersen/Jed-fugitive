@@ -101,7 +101,7 @@ def _wear_weapon(game, item: Optional[Item], w: ItemDef) -> None:
     item.dur = (item.dur or 1) - 1
     if item.dur <= 0:
         game.player.weapon = None
-        game.msg(f"Your {w.name} breaks!", "bad")
+        game.msg(f"Your {w.name} breaks!", "bad", key=True)
 
 
 def _train(game, w: ItemDef, amount: int = 1) -> None:
@@ -160,6 +160,10 @@ def kill_zombie(game, z: Zombie, head: bool = False, by_player: bool = True, kil
         p.panic = max(0.0, p.panic - 1.0)
         if levels:
             game.msg(f"You reach level {p.level}! (+1 perk point)", "good")
+        if p.stats.get("zombies", 0) % 25 == 0:
+            game._chronicle(f"{p.stats['zombies']} of the dead put down for good.")
+        if "boss" in z.flags:
+            game._chronicle(f"You brought down the {z.name.lower()}.")
     if "explodes" in z.flags:
         burst(game, z.pos)
     if "boss" in z.flags and z.special == "stalker":
@@ -392,7 +396,7 @@ def infect(game, source: str = "bite") -> None:
     profile = game.profile
     if p.infected:
         p.infection_timer = max(1, p.infection_timer - 40)
-        game.msg("Another wound feeds the infection. The clock runs faster.", "bad")
+        game.msg("Another wound feeds the infection. The clock runs faster.", "bad", key=True)
         return
     p.infected = True
     p.infection_timer = max(10, int(profile.incubation * game.diff.timer))
@@ -401,9 +405,9 @@ def infect(game, source: str = "bite") -> None:
     window = max(8, min(30, profile.incubation // 3)) + int(p.mod("surgeon"))
     p.bite_window = window if p.bite_limb in ("arm", "leg") else 0
     if source == "spore":
-        game.msg("You breathe in the spores. You are infected.", "bad")
+        game.msg("You breathe in the spores. You are infected.", "bad", key=True)
     else:
-        game.msg(f"You have been bitten ({p.bite_limb})! You are infected.", "bad")
+        game.msg(f"You have been bitten ({p.bite_limb})! You are infected.", "bad", key=True)
         if p.bite_window:
             game.msg(f"Cutting it off might save you - but only for the next {p.bite_window} turns (X).", "warn")
     game.add_panic(25)
@@ -438,7 +442,7 @@ def zombie_attack(game, z: Zombie) -> None:
         game.msg("You are bleeding.", "bad")
     if ("breaker" in z.flags or "cripples" in z.flags) and not p.fracture and game.rng.random() < 0.2:
         p.fracture = True
-        game.msg("Something snaps. Your leg is broken!", "bad")
+        game.msg("Something snaps. Your leg is broken!", "bad", key=True)
 
 
 def human_attack(game, h: Human) -> None:
@@ -573,7 +577,7 @@ def amputate(game) -> bool:
     p.sprinting = False
     if p.hp <= shock:
         p.hp = 0
-        game.msg(f"You cut off your {limb}. The pain and the blood are too much. Everything goes white.", "bad")
+        game.msg(f"You cut off your {limb}. The pain and the blood are too much. Everything goes white.", "bad", key=True)
         game.end("dead", f"went into shock after cutting off your {limb}")
         return True
     p.hp -= shock
@@ -581,5 +585,5 @@ def amputate(game) -> bool:
     p.bleeding = 3
     p.hp = min(p.hp, p.max_hp)
     game.msg(f"You cut off your {limb}. The infection goes with it, and so does a great deal of blood. "
-             "It will not stop by itself: bind it now.", "warn")
+             "It will not stop by itself: bind it now.", "warn", key=True)
     return True

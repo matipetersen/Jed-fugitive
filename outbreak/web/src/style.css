@@ -158,3 +158,5 @@ p.note { color: var(--muted); font-size: 13px; margin: 8px 0; }
 
 .act.sneak { grid-column: 1 / -1; border-radius: 12px; }
 .act.sneak.on { background: rgba(88,184,120,.25); border-color: #58b878; }
+.chron { margin: 8px 0 18px; padding: 12px 14px 12px 34px; background: var(--panel); border-radius: 8px; font: 12.5px/1.6 var(--mono); }
+.chron.last { padding-left: 14px; opacity: .85; }

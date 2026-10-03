@@ -1049,6 +1049,8 @@ function showEnding() {
   w.append(el('div', 'fileno', e.victory ? 'Case closed' : e.kind === 'closed' ? 'The world is closed' : 'Case file: terminated'), el('h2', 'end-title ' + (e.victory ? 'win' : 'lose'), e.title), el('p', 'end-text', e.text));
   w.append(el('div', 'sum', e.summary.map((l) => el('div', null, l))));
   w.append(el('div', 'fileno', 'Score'), el('div', 'score', String(e.score)));
+  if (e.chronicle && e.chronicle.length) w.append(el('div', 'fileno', e.victory ? 'How you survived' : 'How it went'), el('ol', 'chron', e.chronicle.slice(-40).map((l) => el('li', null, l))));
+  if (e.last_moments && e.last_moments.length) w.append(el('div', 'fileno', 'The last moments'), el('div', 'chron last', e.last_moments.map((l) => el('div', null, l))));
   const m = el('div', 'menu'); m.style.marginTop = '20px';
   if (isShared) m.append(btn('btn main', 'Back to the shared world', () => { game = null; showSharedWorld(); }), btn('btn', 'Title screen', () => { game = null; showTitle(); }));
   else m.append(btn('btn main', 'New game', () => { game = null; showNewGame(); }), btn('btn', 'Title screen', () => { game = null; showTitle(); }));

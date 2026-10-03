@@ -49,7 +49,7 @@ function serialize_game(game) {
     for (const key of game.world.generated) { const [cx, cy] = key.split(',').map(Number); chunks[key] = { t: bytes_to_b64(_chunk_bytes(lv.tiles, lv, cx, cy, game.world.S)), s: bytes_to_b64(_chunk_bytes(lv.seen, lv, cx, cy, game.world.S)) }; }
   }
   const data = {
-    v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), over: game.over,
+    v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), chronicle: game.chronicle, over: game.over,
     pending_event: game.pending_event, recent_events: game.recent_events, hordes: game.hordes, ring: game.ring, heat: game.heat,
     stalker_uid: game.stalker ? game.stalker.uid : 0, stalker_ready: game.stalker_ready, last_moan: game.last_moan,
     followers: game.followers, final: game.final, formula_found: game.formula_found, applied_docs: Array.from(game.applied_docs),
@@ -74,7 +74,7 @@ function deserialize_game(json) {
   if (d.v !== SAVE_VERSION) throw new Error(`save version ${d.v} is not supported`);
   const g = new Game(null, true);
   g._init_state();
-  g.cfg = d.cfg; g.seed = d.seed; g._uid = d.uid; g.log = d.log; g.over = d.over; g.pending_event = d.pending_event;
+  g.cfg = d.cfg; g.seed = d.seed; g._uid = d.uid; g.log = d.log; g.chronicle = d.chronicle || []; g.over = d.over; g.pending_event = d.pending_event;
   g.recent_events = d.recent_events; g.hordes = d.hordes; g.ring = d.ring; g.heat = d.heat; g.stalker_ready = d.stalker_ready;
   g.last_moan = d.last_moan; g.followers = d.followers; g.final = d.final; g.formula_found = d.formula_found;
   g.applied_docs = new Set(d.applied_docs); g.scent = d.scent; g._step_parity = d.step_parity; g._force_progress = d.force_progress;

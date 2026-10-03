@@ -27,6 +27,7 @@ class Clock {
 
 const LIVE_MAX_CATCHUP = 80;
 const WALK_DRAIN = 1.5, SNEAK_DRAIN = 0.4, SPRINT_DRAIN = 3.0, TIRED_BELOW = 20;
+const CHRONICLE_LIMIT = 160, CHRONICLE_KEEP = 25;
 const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
 function default_config() {
@@ -70,7 +71,7 @@ class Game {
   }
 
   _init_state() {
-    this._uid = 0; this.log = []; this.over = null; this.pending_event = null; this.recent_events = {};
+    this._uid = 0; this.log = []; this.chronicle = []; this.over = null; this.pending_event = null; this.recent_events = {};
     this.hordes = []; this.ring = null; this.heat = 0.0; this.stalker = null; this.stalker_ready = 0; this.last_moan = -999;
     this.patrol_goals = {}; this.distress = {}; this.aided = {};
     this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
@@ -84,10 +85,18 @@ class Game {
 
   // ------------------------------------------------------------- basics
   next_uid() { return ++this._uid; }
-  msg(text, tag = 'info') {
+  msg(text, tag = 'info', key = false) {
     if (!text) return;
     this.log.push([this.clock.turn, text, tag]);
     if (this.log.length > LOG_LIMIT) this.log.splice(0, 100);
+    if (key || tag === 'good' || tag === 'lore') this._chronicle(text);
+  }
+  // the few lines worth retelling at the end; keeps the start and the latest
+  _chronicle(text) {
+    const c = this.chronicle || (this.chronicle = []);
+    if (c.length && c[c.length - 1][2] === text) return;
+    c.push([this.clock.turn, game_day(this), text]);
+    if (c.length > CHRONICLE_LIMIT) c.splice(CHRONICLE_KEEP, 1);
   }
   item_def(id) { return this.items[id]; }
   is_dark() { return this.level.dark || this.clock.is_night; }
@@ -133,7 +142,7 @@ class Game {
     h.hostile = true;
     const f = h.faction || 'enclave';
     this.rep[f] = (this.rep[f] || 0) - 20;
-    this.msg(`The ${h.name.toLowerCase()} turns on you!`, 'bad');
+    this.msg(`The ${h.name.toLowerCase()} turns on you!`, 'bad', true);
     if (['trader', 'healer', 'scholar'].includes(h.role)) this.rep.enclave = (this.rep.enclave || 0) - 40;
   }
 
@@ -302,7 +311,7 @@ class Game {
       p.infection_timer -= 1;
       if (p.bite_window > 0) {
         p.bite_window -= 1;
-        if (p.bite_window === 0 && (p.bite_limb === 'arm' || p.bite_limb === 'leg')) this.msg('It is too late to cut it off. The infection has spread.', 'bad');
+        if (p.bite_window === 0 && (p.bite_limb === 'arm' || p.bite_limb === 'leg')) this.msg('It is too late to cut it off. The infection has spread.', 'bad', true);
       }
       const left = p.infection_timer, total = this._infection_total();
       if ((left === Math.floor(total / 2) || left === Math.floor(total / 4) || left === 30 || left === 10) && left > 0) {
@@ -370,7 +379,7 @@ class Game {
         const z = spawn_zombie(this, lv, pos, 'stalker', false, true);
         z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn;
         this.stalker = z; this.heat = 55.0;
-        this.msg(`Something is hunting you. A ${z.name.toLowerCase()}, and it does not stop.`, 'bad');
+        this.msg(`Something is hunting you. A ${z.name.toLowerCase()}, and it does not stop.`, 'bad', true);
         this.add_panic(15);
         return;
       }
@@ -578,7 +587,7 @@ class Game {
     this.scent = {};
     const poi = this.poi_of_level(target);
     if (portal.target !== 'world' && poi && !poi.visited) {
-      poi.visited = true; poi.revealed = true;
+      poi.visited = true; poi.revealed = true; this._chronicle(`You enter ${target.name} for the first time.`);
       p.gain_xp(poi.kind === 'house' ? 6 : 15);
     }
     this.msg(portal.target !== 'world' ? `You enter ${target.name}.` : 'You step back outside.', 'info');
@@ -876,7 +885,7 @@ class Game {
     const sc = this.scenario;
     this.final = { turns_left: sc.final_turns, next_wave: 4, boss_done: false };
     lv.safe = false;
-    this.msg(`You begin to ${sc.final_verb}. The noise carries. Hold out for ${sc.final_turns} turns!`, 'bad');
+    this.msg(`You begin to ${sc.final_verb}. The noise carries. Hold out for ${sc.final_turns} turns!`, 'bad', true);
     this.emit_noise([this.player.x, this.player.y], 30);
     this.add_heat(30, true);
     this._spend(1);
@@ -904,7 +913,7 @@ class Game {
     if (!f.boss_done && f.turns_left <= Math.floor(this.scenario.final_turns / 2)) {
       f.boss_done = true;
       if (p.humanity < 40) {
-        this.msg("People step out of the dark with weapons. 'We have heard about you.'", 'bad');
+        this.msg("People step out of the dark with weapons. 'We have heard about you.'", 'bad', true);
         for (let i = 0; i < 3; i++) {
           const spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4);
           if (spot && cheb(spot, [p.x, p.y]) > 2) { const r = make_raider(this, spot[0], spot[1]); r.state = 'hunt'; lv.add_actor(r); }
@@ -914,7 +923,7 @@ class Game {
         if (spot) {
           const z = spawn_zombie(this, lv, spot, 'alpha', false, true);
           z.state = 'hunt'; z.target = [p.x, p.y];
-          this.msg('Something enormous pushes through the dead. The Alpha has come for you.', 'bad');
+          this.msg('Something enormous pushes through the dead. The Alpha has come for you.', 'bad', true);
         }
       }
     }

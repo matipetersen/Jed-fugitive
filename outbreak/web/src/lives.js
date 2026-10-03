@@ -82,7 +82,7 @@ function player_died(game, kind, cause) {
     `Their gear lies where they fell, and the body will not stay down. Nothing else changes. The dead are where they were, ` +
     `the vaults are as they left them, and the clock keeps running.\n\n` +
     `${new_label} reaches ${game.era.refuge}. They know part of what the journals say, and they start at level ${np.level}.`;
-  game.msg(`${label} has died. ${new_label} takes up the search.`, 'bad');
+  game.msg(`${label} has died. ${new_label} takes up the search.`, 'bad', true);
   if (game.shared) {
     game.shared.on_player_died({ label, level: p.level, x: death_pos[0], y: death_pos[1], level_id: death_level, key: death_key, cause: record.cause, record, killer,
       items: gear.map((i) => ({ id: i.id, qty: i.qty, dur: i.dur === undefined ? null : i.dur, key: !!i.key })) });

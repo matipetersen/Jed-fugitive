@@ -23,5 +23,7 @@ function build_ending(game, kind, cause = '') {
     text = `Day ${game.deadline_days + 1} dawns. Somewhere far away, the last way out leaves without you. The dead are patient. You are not.`;
   } else if (kind === 'closed') { title = 'The world is closed'; text = cause; }
   else { title = 'You died'; text = cause ? cap(cause) + '.' : 'You did not make it.'; }
-  return { kind, title, text, summary, score, victory: kind === 'won' };
+  const chronicle = (game.chronicle || []).map(([, day, t]) => `Day ${day}: ${t}`);
+  const last_moments = game.log.slice(-10).map((l) => l[1]);
+  return { kind, title, text, summary, score, victory: kind === 'won', chronicle, last_moments };
 }

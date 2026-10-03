@@ -128,4 +128,4 @@ def player_died(game, kind: str, cause: str) -> None:
             f"{new_label} reaches {game.era.refuge}. They know part of what the journals say, and they start at "
             f"level {new.level}.")
     game.death_notice = text
-    game.msg(f"{label} has died. {new_label} takes up the search.", "bad")
+    game.msg(f"{label} has died. {new_label} takes up the search.", "bad", key=True)

@@ -79,14 +79,19 @@ def engine_js() -> str:
 def sprite_data() -> str:
     """The sprite atlas (art/build_atlas.py, Kenney CC0 packs) inlined as a data URI.  Without it the game draws vectors."""
     import base64
-    png, meta = os.path.join(HERE, "art", "atlas.png"), os.path.join(HERE, "art", "atlas.json")
-    if not (os.path.exists(png) and os.path.exists(meta)):
+    sets = {}
+    for name in ("modern", "medieval"):
+        png, meta = os.path.join(HERE, "art", f"atlas_{name}.png"), os.path.join(HERE, "art", f"atlas_{name}.json")
+        if not (os.path.exists(png) and os.path.exists(meta)):
+            continue
+        with open(png, "rb") as fh:
+            src = "data:image/png;base64," + base64.b64encode(fh.read()).decode()
+        data = json.load(open(meta))
+        data["src"] = src
+        sets[name] = data
+    if not sets:
         return ""
-    with open(png, "rb") as fh:
-        src = "data:image/png;base64," + base64.b64encode(fh.read()).decode()
-    data = json.load(open(meta))
-    data["src"] = src
-    return "const SPRITE_DATA = " + json.dumps(data) + ";\n"
+    return "const SPRITE_DATA = " + json.dumps({"sets": sets, "era": {"medieval": "medieval"}, "default": "modern"}) + ";\n"
 
 
 def main() -> None:

@@ -172,19 +172,23 @@ function draw() {
 }
 
 // ---------------------------------------------------------------- sprites (Kenney, CC0): a tiny atlas, with the vector drawing as the fallback
-let SPR = null;
+const SPR_SETS = {};                                  // name -> { img, map, s }, filled as the images load
 function loadSprites() {
   if (typeof SPRITE_DATA === 'undefined') return;
-  const img = new Image();
-  img.onload = () => { SPR = { img, map: SPRITE_DATA.sprites, s: SPRITE_DATA.size }; dirty = true; };
-  img.src = SPRITE_DATA.src;
+  for (const [name, d] of Object.entries(SPRITE_DATA.sets)) {
+    const img = new Image();
+    img.onload = () => { SPR_SETS[name] = { img, map: d.sprites, s: d.size }; dirty = true; };
+    img.src = d.src;
+  }
 }
-const sprOn = () => !!SPR && prefs.sprites !== false;
+// the set follows the era of the game being played (the medieval one has its own art)
+const activeSprites = () => { const name = (game && SPRITE_DATA.era[game.cfg.era]) || SPRITE_DATA.default; return SPR_SETS[name] || SPR_SETS[SPRITE_DATA.default] || null; };
+const sprOn = () => typeof SPRITE_DATA !== 'undefined' && prefs.sprites !== false && !!activeSprites();
 function spr(name, px, py, w, h = w) {
-  const m = SPR.map[name];
+  const set = activeSprites(), m = set && set.map[name];
   if (!m) return false;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(SPR.img, m[0] * SPR.s, m[1] * SPR.s, SPR.s, SPR.s, px, py, w + 0.5, h + 0.5);
+  ctx.drawImage(set.img, m[0] * set.s, m[1] * set.s, set.s, set.s, px, py, w + 0.5, h + 0.5);
   return true;
 }
 const SPRITE_FULL = new Set([T.GRASS, T.ROAD, T.WATER, T.SHALLOW, T.WALL, T.BRUSH, T.TREE, T.RUBBLE, T.FENCE, T.CRATE, T.CRATE_OPEN, T.FLOOR]);
@@ -200,9 +204,10 @@ function tileSprite(t, x, y) {
 }
 function actorSprite(a) {
   if (a.kind === 'player') return 'player';
-  if (a.kind === 'zombie') return SPR.map['z_' + a.special] ? 'z_' + a.special : 'z_walker';
+  const map = activeSprites().map;
+  if (a.kind === 'zombie') return map['z_' + a.special] ? 'z_' + a.special : 'z_walker';
   if (a.hostile) return 'raider';
-  return SPR.map[a.role] ? a.role : 'human';
+  return map[a.role] ? a.role : 'human';
 }
 
 function drawActor(a, px, py, ts) {

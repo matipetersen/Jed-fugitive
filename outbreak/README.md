@@ -200,8 +200,9 @@ do not load save files from people you do not trust.
 
 ## Art credits
 
-The web build draws with pixel sprites from **Kenney** (www.kenney.nl), packs *Roguelike Modern City* and
-*Roguelike Characters*, both **CC0** (public domain; the licence files are in `web/art/src/`). A small atlas is built
+The web build draws with pixel sprites from **Kenney** (www.kenney.nl): *Roguelike Modern City* and
+*Roguelike Characters* for every era but the medieval one, *Tiny Town* and *Tiny Dungeon* for the medieval one (its
+dead are villagers gone green, plus the dungeon pack's spiders, slimes, bats and ghosts). All are **CC0** (public domain; the licence files are in `web/art/src/`). A small atlas is built
 from them by `web/art/build_atlas.py` (Pillow; the result, `atlas.png` + `atlas.json`, is committed and inlined by
 `web/build.py`). The zombies are the packs' green body in a torn shirt, recoloured per kind. *Settings > Pixel
 sprites* turns them off and draws plain shapes instead, which is also what happens if the atlas is missing.

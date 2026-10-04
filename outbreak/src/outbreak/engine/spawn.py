@@ -43,14 +43,14 @@ def make_zombie(game, special_id: str, x: int, y: int, fresh: bool = False) -> Z
     z.facing = DIRS8[z.uid % 8]                         # which way it looks (from the uid: the same for everyone)
     if "boss" in sp.flags or "relentless" in sp.flags:
         z.speed = max(z.speed, 1.0)
-    mutation.apply(game, z)
     return z
 
 
 def spawn_zombie(game, level: Level, pos, special: Optional[str] = None, dormant: bool = True,
                  fresh: bool = False) -> Zombie:
-    sid = special or pick_special(game.rng, game.profile, game.clock.day, mutation.special_boost(game))
+    sid = special or pick_special(game.rng, game.profile, game.clock.day, mutation.boost_at(game, level, pos))
     z = make_zombie(game, sid, pos[0], pos[1], fresh)
+    mutation.apply(game, z, level, pos)                   # what its district has become
     z.state = "dormant" if (dormant and level.kind != "overworld") else "idle"
     level.add_actor(z)
     return z

@@ -407,6 +407,7 @@ const setBar = (id, v, m, color) => { const f = $(id); f.style.width = pct(v, m)
 function updateHud() {
   const g = game, p = g.player, c = g.clock;
   $('#h-place').innerHTML = ''; $('#h-place').append(el('b', null, g.level.name));
+  { const r = mutation_here(g); if (r) $('#h-place').append(el('span', 'dim', ` · ${r.name}` + (r.traits.length ? ` ▲${r.traits.length}` : ''))); }
   $('#h-time').textContent = `${stampOf(g)} · ${c.phase}` + (g.weather !== 'clear' && g.level.kind === 'overworld' ? ` · ${g.weather}` : '');
   $('#v-hp').textContent = p.hp;
   setBar('#b-hp', p.hp, p.max_hp, p.hp > p.max_hp * .5 ? '#58b878' : p.hp > p.max_hp * .25 ? '#d99a2b' : '#e2573f');
@@ -879,6 +880,23 @@ function openSkills() {
   });
 }
 
+function openStrain() {
+  const g = game, p = g.player;
+  openSheet('The strain, district by district', (body) => {
+    body.append(el('p', 'note', 'The strain changes differently in every district; labs, bases and ground zero breed it worst. You only know a district\'s dead once you have been there (or heard about it).'));
+    const rows = g.regions.slice().sort((a, b) => Math.hypot(a.cx - p.x, a.cy - p.y) - Math.hypot(b.cx - p.x, b.cy - p.y));
+    const here = mutation_here(g);
+    for (const r of rows) {
+      const d = Math.round(Math.hypot(r.cx - p.x, r.cy - p.y));
+      const row = el('div', 'row');
+      row.append(el('div', 'main', [el('div', 'name', r.name + (r === here ? ' (you are here)' : '')),
+        el('div', 'sub', `${r === here ? 'here' : compass(r.cx - p.x, r.cy - p.y) + ' · ' + d + ' tiles'} · ` + (r.known ? `the dead: ${mutation_traits_text(r)}` : 'the dead: unknown'))]));
+      if (r.known && r.traits.length >= 3) row.append(el('div', 'tag', 'bad'));
+      body.append(row);
+    }
+  });
+}
+
 function openPlaces() {
   const g = game, p = g.player;
   openSheet('Known places', (body) => {
@@ -918,7 +936,7 @@ function openStatus() {
     if (p.infected) add('Infection', `${p.infection_timer} turns left (about ${Math.round(p.infection_timer / 10)} hours)`);
     if (g.deadline_days) add('Deadline', `the way out closes after day ${g.deadline_days}` + (g.lost_turns ? ` (the road has cost ${Math.round(g.lost_turns / 10)} hours)` : ''));
     add('The dead', `${g.profile.name}. ${profile_phase(g.profile, game_day(g)).name}.`);
-    add('The strain', g.mutations.length ? g.mutations.map((t) => t).join(', ') : 'unchanged so far');
+    { const r = mutation_here(g); add('This district', `${r.name}: ${mutation_traits_text(r)}`); }
     add('Seed', String(g.seed));
     body.append(kv);
   });
@@ -958,6 +976,7 @@ function openMenu() {
     tile('Documents', `${p.documents.length} found`, () => openDocs());
     tile('Skills', p.perk_points ? `${p.perk_points} point(s) to spend` : 'perks and mastery', () => openSkills());
     tile('Places', 'known buildings', () => openPlaces());
+    tile('Strain map', 'what the dead are becoming', () => openStrain());
     tile('Throw', 'bombs and decoys', () => { closeSheet(); const t = p.inventory.find((i) => g.item_def(i.id).kind === 'throw'); if (t) startAim('throw', t.id); else toast('Nothing to throw'); });
     tile('Sneak', p.sneaking ? 'on: quieter, slower' : 'off', () => { sheetAct(() => g.toggle_sneak()); openMenu(); }, p.sneaking);
     tile('Run', p.sprinting ? 'on: uses stamina' : 'off', () => { sheetAct(() => g.toggle_sprint()); openMenu(); }, p.sprinting);

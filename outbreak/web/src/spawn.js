@@ -31,13 +31,13 @@ function make_zombie(game, special_id, x, y, fresh = false) {
   };
   z.facing = DIRS8[z.uid % 8];                       // which way it looks (derived from the uid: the same for everyone)
   if (sp.flags.includes('boss') || sp.flags.includes('relentless')) z.speed = Math.max(z.speed, 1.0);
-  mutation_apply(game, z);
   return z;
 }
 
 function spawn_zombie(game, level, pos, special = null, dormant = true, fresh = false) {
-  const sid = special || pick_special(game.rng, game.profile, game_day(game), mutation_special_boost(game));
+  const sid = special || pick_special(game.rng, game.profile, game_day(game), mutation_boost_at(game, level, pos));
   const z = make_zombie(game, sid, pos[0], pos[1], fresh);
+  mutation_apply(game, z, level, pos);                     // what its district has become
   z.state = dormant && level.kind !== 'overworld' ? 'dormant' : 'idle';
   level.add_actor(z);
   return z;

@@ -105,12 +105,20 @@ they are dead. Only one base at a time; claiming another leaves the old one to t
 
 Patrol drones drift across the map and, if they get near you while you are not creeping, scan you and call the dead.
 
-**The strain changes.** Each plague has a `mutates` rate (Biohazard 1.0, Spore 0.6, Rage 0.35, Swarm 0.3, Slow rot 0.2,
-Classic and Nightstalkers 0.1); times the era's science, ramped over the first 12 days, it is the chance each day that the
-whole population gains a trait (faster, tougher, keener senses, harder hits; at most 5), announced when it happens and
-applied to the dead already walking. It also raises the share of the strange ones. So the same Classic dead in a medieval
-world hardly change in a month, while Biohazard in a sci-fi world has four or five new traits by day 15. The briefing says
-which of these you are playing.
+**The strain changes, district by district.** Each plague has a `mutates` rate (Biohazard 1.0, Spore 0.6, Rage 0.35,
+Swarm 0.3, Slow rot 0.2, Classic and Nightstalkers 0.1); times the era's science and ramped over the first 12 days, it is
+the daily chance that a district's dead gain a trait. The map is cut into districts (about 6 on the terminal map, up to 30
+on the big web one), named for their compass position and what stands in them ("North-East Garrison", "South Labs"). Labs,
+bases, hospitals and ground zero are **hot** and breed it up to 1.7x faster; each district runs its own dice, so they
+diverge. Eight traits exist, at most four per district, and not all are improvements: *faster, tougher, keener senses,
+harder hitting, hulking (big, slower), brittle but quick, howling (hears everything), swifter*. A trait applies to the
+dead already walking in that district and to every zombie born there afterwards; it also raises the share of the strange
+ones. Crossing into a district tells you what its dead are like (`You enter the South Labs. The dead here are faster,
+tougher.`), the status line and the web header show it, and the web menu has a **Strain map** listing every district with
+its direction, distance and what you know of it (only districts you have entered, or heard of, are known). So the same
+Classic dead in a medieval world hardly change in a month, while Biohazard in a sci-fi world has districts with four
+traits by day 20, and the road you choose is a choice of which mutations you meet. The briefing says which of these you
+are playing. (A horde that wanders between districts keeps the traits of where it was born.)
 
 **The records.** Every finished run (won, dead, turned, left behind) is kept on your machine
 (`records.json` next to the saves, or the browser's storage) and compared with your earlier runs of the same

@@ -34,6 +34,7 @@ function setup_game(game) {
   _make_player(game);
   if (!shared) _apply_opening(game, opening);          // shared: after the world is built, so the world never depends on who you are
   _setup_scenario(game);
+  mutation_build(game);
   _setup_documents(game);
   _populate(game);
   if (!game.profile.sun_burn && !shared) start_ring(game);

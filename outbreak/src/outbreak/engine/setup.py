@@ -48,6 +48,7 @@ def initialize(game) -> None:
     _make_player(game)
     _apply_opening(game, opening)
     _scenario(game)
+    mutation.build(game)
     _documents(game)
     _populate(game)
     if not game.profile.sun_burn:                           # nothing roams by day, so there is no opening tide

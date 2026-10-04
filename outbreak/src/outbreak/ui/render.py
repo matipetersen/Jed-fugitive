@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from outbreak.engine import ambience
+from outbreak.engine import ambience, mutation
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
 from outbreak.engine.model import Human, Zombie
@@ -144,6 +144,8 @@ def build_side(game: Game) -> List[Line]:
     weather = f"  {game.weather}" if game.weather != "clear" and game.level.kind == "overworld" else ""
     out.append((f"{c.stamp()}  {c.phase}{weather}", "cyan" if c.is_night else "yellow"))
     out.append((lv.name[:28], "grey"))
+    reg = mutation.here(game)
+    out.append((f"{reg.name[:20]}: {mutation.traits_text(reg)}"[:30], "red" if reg.traits else "grey"))
     out.append(("", "grey"))
     hp_color = "green" if p.hp > p.max_hp * 0.5 else "yellow" if p.hp > p.max_hp * 0.25 else "red"
     out.append((f"HP    {bar(p.hp, p.max_hp)} {p.hp}", hp_color))

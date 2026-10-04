@@ -60,7 +60,8 @@ class Game:
         self.deadline_days = 0                   # the way out closes after this day (set from the route)
         self.lost_turns = 0                      # time the road incidents cost: counts against the deadline
         self.incidents: List[dict] = []          # scripted road incidents: {x, y, event, done}
-        self.mutations: List[str] = []           # changes the strain has made so far (mutation.py)
+        self.regions: List = []                  # districts, each with its own run of mutations (mutation.py)
+        self.region_id = -1
         self.weather = "clear"                    # clear | rain | fog | storm (ambience.py)
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
@@ -303,6 +304,8 @@ class Game:
         self._heat()
         self._time_events()
         self.pings = [q for q in self.pings if t - q["turn"] <= 6]
+        if t % 5 == 0:
+            mutation.crossing(self)
         ambience.weather_tick(self)
         ambience.world_tick(self)
         self._base_tick()

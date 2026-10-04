@@ -117,27 +117,68 @@ class MutationTests(unittest.TestCase):
         days(a, 1)
         self.assertEqual(mutation.strength(a), 0.0)
 
-    def test_an_engineered_plague_in_a_world_of_labs_changes_a_lot_a_quiet_one_does_not(self):
-        hot, cold = world("scifi", "bio", seed=7), world("medieval", "classic", seed=7)
-        for g in (hot, cold):
-            for day in range(2, 40):
-                days(g, day)
-                mutation.daily(g)
-        self.assertGreaterEqual(len(hot.mutations), 4)
-        self.assertLessEqual(len(cold.mutations), 1)
+    def test_the_map_is_cut_into_named_districts_deterministically(self):
+        g, h = world("modern", "bio", seed=7), world("modern", "bio", seed=7)
+        self.assertGreaterEqual(len(g.regions), 6)
+        self.assertEqual([(r.name, r.cx, r.cy, r.heat) for r in g.regions], [(r.name, r.cx, r.cy, r.heat) for r in h.regions])
+        self.assertEqual(len({r.name for r in g.regions}), len(g.regions))
+        self.assertTrue(any(r.heat > 1.4 for r in g.regions))                 # labs, bases and ground zero run hot
+        r = mutation.region_of(g, *g.world.start)
+        self.assertEqual(mutation.here(g), r)
 
-    def test_traits_reach_old_and_new_zombies(self):
+    def test_districts_change_differently_and_hot_ones_faster(self):
+        g = world("scifi", "bio", seed=7)
+        for day in range(2, 40):
+            days(g, day)
+            mutation.daily(g)
+        sets = {tuple(sorted(r.traits)) for r in g.regions}
+        self.assertGreater(len(sets), 2)                                        # not everyone got the same
+        hot = [len(r.traits) for r in g.regions if r.heat >= 1.8]
+        cold = [len(r.traits) for r in g.regions if r.heat <= 1.1]
+        if hot and cold:
+            self.assertGreaterEqual(sum(hot) / len(hot), sum(cold) / len(cold))
+        self.assertGreaterEqual(max(len(r.traits) for r in g.regions), 4)
+
+    def test_a_quiet_plague_in_an_old_world_hardly_changes_anywhere(self):
+        g = world("medieval", "classic", seed=7)
+        for day in range(2, 40):
+            days(g, day)
+            mutation.daily(g)
+        self.assertLessEqual(sum(len(r.traits) for r in g.regions) / len(g.regions), 0.8)
+        self.assertLessEqual(max(len(r.traits) for r in g.regions), 3)
+
+    def test_zombies_get_their_district_traits_new_and_old(self):
         g = world("scifi", "bio")
-        old = spawn_zombie(g, g.world.level, g.world.level.free_spot_near(g.player.x + 8, g.player.y, 2), "walker", dormant=False)
-        hp, speed, hearing, dmg = old.max_hp, old.speed, old.hearing, old.dmg
+        lv = g.world.level
+        r = mutation.here(g)
+        old = spawn_zombie(g, lv, lv.free_spot_near(g.player.x + 8, g.player.y, 2), "walker", dormant=False)
+        before = (old.max_hp, old.speed, old.hearing, old.dmg)
         days(g, 20)
+        r.heat = 2.5
         for _ in range(60):
             mutation.daily(g)
-        self.assertTrue(g.mutations)
-        self.assertTrue(old.max_hp > hp or old.speed > speed or old.hearing > hearing or old.dmg != dmg)
-        z = make_zombie(g, "walker", 5, 5, True)
-        base = make_zombie(world("scifi", "bio"), "walker", 5, 5, True)
-        self.assertTrue(z.max_hp >= base.max_hp)
+        self.assertTrue(r.traits)
+        self.assertNotEqual((old.max_hp, old.speed, old.hearing, old.dmg), before)
+        fresh = make_zombie(g, "walker", 5, 5, True)
+        spawn = spawn_zombie(g, lv, lv.free_spot_near(g.player.x + 6, g.player.y + 3, 2), "walker", dormant=False, fresh=True)
+        self.assertTrue(spawn.max_hp >= fresh.max_hp)
+        other = next(x for x in g.regions if x is not r)
+        other.traits = []
+        far = lv.free_spot_near(other.cx, other.cy, 8)
+        z = spawn_zombie(g, lv, far, "walker", dormant=False, fresh=True)
+        self.assertEqual(z.max_hp, make_zombie(g, "walker", 5, 5, True).max_hp)   # a traitless district: nothing added
+
+    def test_crossing_into_a_changed_district_tells_you(self):
+        g = world("scifi", "bio")
+        r = mutation.here(g)
+        r.traits = ["fleet", "tough"]
+        g.region_id = -1
+        mutation.crossing(g)
+        self.assertTrue(any(r.name in t and "faster" in t for _, t, _ in g.log[-3:]))
+        n = len(g.log)
+        mutation.crossing(g)                                                  # still in it: nothing more
+        self.assertEqual(len(g.log), n)
+        self.assertTrue(r.known)
 
     def test_the_briefing_says_how_it_plays(self):
         g = world("modern", "bio")

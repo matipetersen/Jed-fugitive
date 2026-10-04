@@ -59,14 +59,40 @@ const zombie_near = (g, d) => { const z = OB.spawn_zombie(g, g.world.level, g.wo
   for (const g of [a, b, c]) days(g, 30);
   assert(OB.mutation_strength(a) > OB.mutation_strength(c)); assert(OB.mutation_strength(c) > OB.mutation_strength(b) * 10);
   days(a, 1); assert.strictEqual(OB.mutation_strength(a), 0);
-  const hot = world('scifi', 'bio', 7), cold = world('medieval', 'classic', 7);
-  for (const g of [hot, cold]) for (let d = 2; d < 40; d++) { days(g, d); OB.mutation_daily(g); }
-  assert(hot.mutations.length >= 4); assert(cold.mutations.length <= 1);
 }
-{ // traits reach old and new zombies
-  const g = world('scifi', 'bio'), old = zombie_near(g, 8), before = [old.max_hp, old.speed, old.hearing, old.dmg.join()];
-  days(g, 20); for (let i = 0; i < 60; i++) OB.mutation_daily(g);
-  assert(g.mutations.length); assert([old.max_hp, old.speed, old.hearing, old.dmg.join()].join('|') !== before.join('|'));
+{ // the map is cut into named districts, deterministically
+  const g = world('modern', 'bio', 7), h = world('modern', 'bio', 7);
+  assert(g.regions.length >= 6);
+  assert.deepStrictEqual(g.regions.map((r) => [r.name, r.cx, r.cy, r.heat]), h.regions.map((r) => [r.name, r.cx, r.cy, r.heat]));
+  assert.strictEqual(new Set(g.regions.map((r) => r.name)).size, g.regions.length);
+  assert(g.regions.some((r) => r.heat > 1.4));
+  assert.strictEqual(OB.mutation_here(g), OB.mutation_region_of(g, g.world.start[0], g.world.start[1]));
+}
+{ // districts change differently, hot ones faster; a quiet plague in an old world hardly changes anywhere
+  const g = world('scifi', 'bio', 7);
+  for (let d = 2; d < 40; d++) { days(g, d); OB.mutation_daily(g); }
+  assert(new Set(g.regions.map((r) => r.traits.slice().sort().join())).size > 2);
+  const hot = g.regions.filter((r) => r.heat >= 1.8).map((r) => r.traits.length), cold = g.regions.filter((r) => r.heat <= 1.1).map((r) => r.traits.length);
+  const avg = (v) => v.reduce((x, y) => x + y, 0) / v.length;
+  if (hot.length && cold.length) assert(avg(hot) >= avg(cold));
+  assert(Math.max(...g.regions.map((r) => r.traits.length)) >= 4);
+  const q = world('medieval', 'classic', 7);
+  for (let d = 2; d < 40; d++) { days(q, d); OB.mutation_daily(q); }
+  assert(q.regions.reduce((x, r) => x + r.traits.length, 0) / q.regions.length <= 0.8); assert(Math.max(...q.regions.map((r) => r.traits.length)) <= 3);
+}
+{ // zombies get their district's traits, new and old
+  const g = world('scifi', 'bio'), lv = g.world.level, r = OB.mutation_here(g), old = zombie_near(g, 8);
+  const before = [old.max_hp, old.speed, old.hearing, old.dmg.join()].join('|');
+  days(g, 20); r.heat = 2.5; for (let i = 0; i < 60; i++) OB.mutation_daily(g);
+  assert(r.traits.length); assert([old.max_hp, old.speed, old.hearing, old.dmg.join()].join('|') !== before);
+  const other = g.regions.find((x) => x !== r); other.traits = [];
+  const z = OB.spawn_zombie(g, lv, lv.free_spot_near(other.cx, other.cy, 8), 'walker', false, true);
+  assert.strictEqual(z.max_hp, OB.make_zombie(g, 'walker', 5, 5, true).max_hp);
+}
+{ // crossing into a changed district tells you, once
+  const g = world('scifi', 'bio'), r = OB.mutation_here(g); r.traits = ['fleet', 'tough']; g.region_id = -1;
+  OB.mutation_crossing(g); assert(g.log.slice(-3).some((m) => m[1].includes(r.name) && m[1].includes('faster')));
+  const n = g.log.length; OB.mutation_crossing(g); assert.strictEqual(g.log.length, n); assert(r.known);
 }
 { // the briefing says how it plays
   const g = world('modern', 'bio'), text = g.intro_pages.map((p) => p[1]).join('\n');

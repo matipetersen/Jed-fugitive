@@ -127,6 +127,24 @@ class AmbienceTests(unittest.TestCase):
         ambience.building_alarm(g, poi)
         self.assertEqual(len(g.sources), n)
 
+    def test_noise_leaves_rings_for_the_ui_and_rain_shrinks_them(self):
+        g = world_game()
+        g.weather = "clear"
+        g.emit_noise(g.player.pos, 10)
+        clear = g.pings[-1]["radius"]
+        g.weather = "rain"
+        g.emit_noise(g.player.pos, 10)
+        self.assertLess(g.pings[-1]["radius"], clear)
+        g.clock.turn += 10
+        g._tick()
+        self.assertEqual([q for q in g.pings if g.clock.turn - q["turn"] > 6], [])
+
+    def test_only_heard_alarms_are_marked(self):
+        g = world_game()
+        g.sources.append({"pos": (g.player.x + 5, g.player.y), "radius": 15, "every": 3, "left": 9, "kind": "car alarm"})
+        g.sources.append({"pos": (g.player.x + 60, g.player.y), "radius": 15, "every": 3, "left": 9, "kind": "car alarm"})
+        self.assertEqual(len(ambience.heard_sources(g)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

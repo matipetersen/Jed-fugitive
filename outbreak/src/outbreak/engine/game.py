@@ -64,6 +64,8 @@ class Game:
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
         self.last_step_note = -999
+        self.pings: List[dict] = []              # recent noises the UI draws as rings: {pos, radius, turn, kind, level}
+        self.flash_turn = -999                   # lightning
         self.base_id: Optional[str] = None       # the level you claimed as your base
         self.raid_next = 0                       # earliest turn of the next raid on it
         self.generation = 1                      # which survivor you are (living-world mode)
@@ -240,6 +242,9 @@ class Game:
         radius *= ambience.hearing_scale(self)                 # rain muffles, fog carries a little less
         if radius < 1:
             return
+        if radius >= 3:
+            self.pings.append({"pos": pos, "radius": radius, "turn": turn, "kind": source, "level": self.level.id})
+            del self.pings[:-12]
         for a in self.level.actors:
             if not isinstance(a, Zombie) or a.state == "hunt":
                 continue
@@ -296,6 +301,7 @@ class Game:
         self._rising_dead()
         self._heat()
         self._time_events()
+        self.pings = [q for q in self.pings if t - q["turn"] <= 6]
         ambience.weather_tick(self)
         ambience.world_tick(self)
         self._base_tick()

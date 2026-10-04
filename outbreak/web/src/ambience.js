@@ -46,6 +46,7 @@ function _thunder(game) {
   const p = game.player, lv = game.level;
   const pos = [Math.max(2, Math.min(lv.w - 3, p.x + game.rng.randint(-26, 26))), Math.max(2, Math.min(lv.h - 3, p.y + game.rng.randint(-26, 26)))];
   game.msg('Thunder cracks overhead.', 'info');
+  game.flash_turn = game.clock.turn;
   emit_on(game, lv, pos, 16, 'world');
 }
 
@@ -73,6 +74,12 @@ function emit_on(game, level, pos, radius, source = 'world') {              // n
   const prev = game.level;
   game.level = level;
   try { game.emit_noise(pos, radius, source); } finally { game.level = prev; }
+}
+
+// the sounding alarms you can hear from where you stand (the map marks them)
+function heard_sources(game) {
+  if (game.level.kind !== 'overworld') return [];
+  return game.sources.filter((s) => cheb(s.pos, [game.player.x, game.player.y]) <= s.radius * 1.3);
 }
 
 function _say_direction(game, pos, text) {

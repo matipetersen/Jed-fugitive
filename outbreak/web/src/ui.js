@@ -154,6 +154,7 @@ function draw() {
     drawActor(a, ox + a.x * ts, oy + a.y * ts, ts);
   }
   drawActor(p, ox + p.x * ts, oy + p.y * ts, ts);
+  drawSounds(t_ms, ox, oy, ts);
   // light: night tint and a pool of light around the player
   if (dark) {
     const night = lv.kind === 'overworld' ? (1 - game.clock.light) : 0.35;
@@ -168,6 +169,7 @@ function draw() {
     if (aim.kind === 'fire') for (const t of game.targets_in_range()) { ctx.beginPath(); ctx.arc(ox + (t.x + .5) * ts, oy + (t.y + .5) * ts, ts * .62, 0, 7); ctx.stroke(); }
     else { ctx.beginPath(); ctx.arc(ox + (p.x + .5) * ts, oy + (p.y + .5) * ts, 8.5 * ts, 0, 7); ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]); }
   }
+  drawWeather(t_ms, ox, oy, ts);
   drawMarkers(fr);
 }
 
@@ -294,6 +296,56 @@ function drawThreats(fr) {
   }
 }
 
+// ---------------------------------------------------------------- noise and weather you can see
+const pingSeen = new WeakMap();
+const PING_LIFE = 1500;
+function drawSounds(now, ox, oy, ts) {
+  const lv = game.level, p = game.player;
+  const ring = (cx, cy, r, alpha, col, w = 2) => { ctx.strokeStyle = col.replace('A', alpha.toFixed(2)); ctx.lineWidth = w; ctx.beginPath(); ctx.arc(cx, cy, Math.max(2, r), 0, 7); ctx.stroke(); };
+  for (const q of game.pings) {
+    if (q.level !== lv.id) continue;
+    if (!pingSeen.has(q)) pingSeen.set(q, now);
+    const age = now - pingSeen.get(q);
+    if (age > PING_LIFE) continue;
+    const grow = Math.min(1, age / 420), fade = 1 - age / PING_LIFE;
+    const col = q.kind === 'player' ? 'rgba(217,154,43,A)' : q.kind === 'fight' ? 'rgba(226,87,63,A)' : 'rgba(85,179,196,A)';
+    ring(ox + (q.pos[0] + .5) * ts, oy + (q.pos[1] + .5) * ts, q.radius * ts * (0.25 + 0.75 * grow), 0.55 * fade, col);
+  }
+  if (lv.kind !== 'overworld') return;
+  for (const s of heard_sources(game)) {                               // an alarm that is still sounding: pulse it, and point at it from the edge
+    const cx = ox + (s.pos[0] + .5) * ts, cy = oy + (s.pos[1] + .5) * ts, ph = (now % 900) / 900;
+    ring(cx, cy, ts * (0.4 + 1.6 * ph), 0.8 * (1 - ph), 'rgba(210,90,200,A)', 2.5);
+    ctx.fillStyle = '#d25ac8'; ctx.beginPath(); ctx.arc(cx, cy, ts * 0.14, 0, 7); ctx.fill();
+    if (cx < 0 || cx > W || cy < 0 || cy > H) {
+      const ex = Math.min(W - 14, Math.max(14, cx)), ey = Math.min(H - 14, Math.max(14, cy)), ang = Math.atan2(cy - ey, cx - ex);
+      ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang); ctx.fillStyle = '#d25ac8'; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+  }
+}
+
+let flashSeen = -999, flashUntil = 0;
+function drawWeather(now, ox, oy, ts) {
+  if (game.level.kind !== 'overworld' || game.weather === 'clear') return;
+  const w = game.weather, p = game.player;
+  if (w === 'fog') {
+    const cx = ox + (p.x + .5) * ts, cy = oy + (p.y + .5) * ts;
+    const g = ctx.createRadialGradient(cx, cy, ts * 2.5, cx, cy, ts * 9);
+    g.addColorStop(0, 'rgba(205,215,220,.18)'); g.addColorStop(1, 'rgba(205,215,220,.62)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    return;
+  }
+  if (w === 'storm') { ctx.fillStyle = 'rgba(8,12,24,.28)'; ctx.fillRect(0, 0, W, H); }
+  const n = w === 'storm' ? 170 : 90;
+  ctx.strokeStyle = w === 'storm' ? 'rgba(190,205,235,.42)' : 'rgba(180,200,225,.32)'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const sp = 0.55 + (i % 5) * 0.12, x = ((i * 73.7) % W + now * 0.06 * sp) % W, y = ((i * 131.3) % H + now * sp) % H;
+    ctx.moveTo(x, y); ctx.lineTo(x - 4, y + 12);
+  }
+  ctx.stroke();
+  if (game.flash_turn !== flashSeen) { flashSeen = game.flash_turn; if (game.flash_turn > 0) flashUntil = now + 180; }
+  if (now < flashUntil) { ctx.fillStyle = `rgba(235,240,255,${0.5 * (flashUntil - now) / 180})`; ctx.fillRect(0, 0, W, H); }
+}
+
 function drawMarkers(fr) {
   drawThreats(fr);
   if (game.level.kind !== 'overworld') return;
@@ -325,6 +377,7 @@ function frame() {
     if (Math.abs(p.x + .5 - camX) < 0.01 && Math.abs(p.y + .5 - camY) < 0.01) { camX = p.x + .5; camY = p.y + .5; }
     else dirty = true;
     if (game.level.hazards && Object.keys(game.level.hazards).length) dirty = true;
+    if (game.pings.length || (game.level.kind === 'overworld' && (game.weather !== 'clear' || game.sources.length))) dirty = true;      // rings, rain and alarms animate
   }
   if (dirty) { dirty = false; draw(); }
   requestAnimationFrame(frame);

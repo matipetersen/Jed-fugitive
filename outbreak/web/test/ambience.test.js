@@ -42,4 +42,10 @@ function far_zombie(g, dist) {
 { // rain washes the trail away
   const g = world_game(); g.scent[5] = 0; g.weather = 'rain'; g.clock.turn = 200; OB.weather_tick(g); assert(!(5 in g.scent));
 }
+{ // rings for the UI; rain shrinks them; only heard alarms are marked
+  const g = world_game(); g.weather = 'clear'; g.emit_noise([g.player.x, g.player.y], 10); const clear = g.pings[g.pings.length - 1].radius;
+  g.weather = 'rain'; g.emit_noise([g.player.x, g.player.y], 10); assert(g.pings[g.pings.length - 1].radius < clear);
+  g.sources.push({ pos: [g.player.x + 5, g.player.y], radius: 15, every: 3, left: 9, kind: 'car alarm' }, { pos: [g.player.x + 60, g.player.y], radius: 15, every: 3, left: 9, kind: 'car alarm' });
+  assert.strictEqual(OB.heard_sources(g).length, 1);
+}
 console.log('ambience: weather, loud ground, alarms and thunder');

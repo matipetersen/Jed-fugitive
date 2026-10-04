@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
+from outbreak.engine import ambience
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
 from outbreak.engine.model import Human, Zombie
@@ -57,6 +58,8 @@ def _glyph(game: Game, x: int, y: int, visible: bool) -> Cell:
             ch, color, bold = (POI_LETTER.get(poi.kind, "H") if poi else "H"), "white", True
     if t == T.LOCKED:
         ch, color, bold = "+", "red", True
+    if lv.kind == "overworld" and any(s["pos"] == (x, y) for s in ambience.heard_sources(game)):
+        return ("!", "magenta", True)                       # something is sounding there
     if not visible:
         return (ch, "grey", False)
     hz = lv.hazards.get((x, y))

@@ -68,6 +68,7 @@ def _thunder(game) -> None:
     ang_x, ang_y = game.rng.randint(-26, 26), game.rng.randint(-26, 26)
     pos = (max(2, min(lv.w - 3, p.x + ang_x)), max(2, min(lv.h - 3, p.y + ang_y)))
     game.msg("Thunder cracks overhead.", "info")
+    game.flash_turn = game.clock.turn
     emit_on(game, lv, pos, 16, "world")
 
 
@@ -183,6 +184,13 @@ def startle(game, tile: int) -> None:
     if game.rng.random() < 0.06:
         game.msg("A flock of crows bursts out of the brush!", "warn")
         game.emit_noise(game.player.pos, 9, "world")
+
+
+def heard_sources(game):
+    """The sounding alarms you can hear from where you stand (for the map)."""
+    if game.level.kind != "overworld":
+        return []
+    return [s for s in game.sources if cheb(s["pos"], game.player.pos) <= s["radius"] * 1.3]
 
 
 def status(game) -> str:

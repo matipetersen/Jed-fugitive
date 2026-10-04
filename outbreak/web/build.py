@@ -76,6 +76,19 @@ def engine_js() -> str:
     return "\n".join(parts)
 
 
+def sprite_data() -> str:
+    """The sprite atlas (art/build_atlas.py, Kenney CC0 packs) inlined as a data URI.  Without it the game draws vectors."""
+    import base64
+    png, meta = os.path.join(HERE, "art", "atlas.png"), os.path.join(HERE, "art", "atlas.json")
+    if not (os.path.exists(png) and os.path.exists(meta)):
+        return ""
+    with open(png, "rb") as fh:
+        src = "data:image/png;base64," + base64.b64encode(fh.read()).decode()
+    data = json.load(open(meta))
+    data["src"] = src
+    return "const SPRITE_DATA = " + json.dumps(data) + ";\n"
+
+
 def main() -> None:
     os.makedirs(os.path.join(HERE, "dist"), exist_ok=True)
     import re
@@ -86,6 +99,7 @@ def main() -> None:
     with open(os.path.join(HERE, "dist", "engine.js"), "w", encoding="utf8") as fh:
         fh.write(engine + export)
     ui = "\n".join(read("src", n + ".js") for n in UI_ORDER)
+    ui = sprite_data() + ui
     pieces = {
         "/*__CSS__*/": read("src", "style.css"),
         "/*__BODY__*/": read("src", "body.html"),

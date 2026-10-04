@@ -17,7 +17,7 @@ const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
 
 // ---------------------------------------------------------------- preferences and state
 const recordStore = { get: () => { const r = lsGet('outbreak.records.v1', []); return Array.isArray(r) ? r : []; }, set: (r) => lsSet('outbreak.records.v1', r) };
-const prefs = Object.assign({ zoom: 26, haptics: true, lefty: false, travel: true }, lsGet('outbreak.prefs.v1', {}));
+const prefs = Object.assign({ zoom: 26, haptics: true, lefty: false, travel: true, sprites: true }, lsGet('outbreak.prefs.v1', {}));
 const savePrefs = () => lsSet('outbreak.prefs.v1', prefs);
 let game = null, aim = null, travel = null, lastHp = 0, endingShown = false, modal = 0, sheetCloseCb = null, storageOk = true;
 let camX = 0, camY = 0, dirty = true, view = { ox: 0, oy: 0, ts: 26 }, W = 0, H = 0, dpr = 1, pathPreview = null;
@@ -109,8 +109,13 @@ function draw() {
       const k = y * lv.w + x, vis = game.visible.has(k);
       if (!vis && !lv.seen[k]) continue;
       const t = lv.tiles[k], st = TS[t], px = ox + x * ts, py = oy + y * ts;
-      ctx.fillStyle = st.bg; ctx.fillRect(px, py, ts + 0.5, ts + 0.5);
-      if (st.deco && st.deco !== 'portal') deco(st.deco, px, py, ts, vis);
+      if (sprOn()) {
+        spr(tileSprite(t, x, y), px, py, ts);
+        if (st.deco && st.deco !== 'portal' && !SPRITE_FULL.has(t)) deco(st.deco, px, py, ts, vis);
+      } else {
+        ctx.fillStyle = st.bg; ctx.fillRect(px, py, ts + 0.5, ts + 0.5);
+        if (st.deco && st.deco !== 'portal') deco(st.deco, px, py, ts, vis);
+      }
       if (t === T.PORTAL) {
         ctx.fillStyle = '#4a5860'; ctx.fillRect(px + 1, py + 1, ts - 2, ts - 2);
         ctx.fillStyle = '#f0e8d0'; ctx.font = `bold ${Math.floor(ts * .62)}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -166,7 +171,42 @@ function draw() {
   drawMarkers(fr);
 }
 
+// ---------------------------------------------------------------- sprites (Kenney, CC0): a tiny atlas, with the vector drawing as the fallback
+let SPR = null;
+function loadSprites() {
+  if (typeof SPRITE_DATA === 'undefined') return;
+  const img = new Image();
+  img.onload = () => { SPR = { img, map: SPRITE_DATA.sprites, s: SPRITE_DATA.size }; dirty = true; };
+  img.src = SPRITE_DATA.src;
+}
+const sprOn = () => !!SPR && prefs.sprites !== false;
+function spr(name, px, py, w, h = w) {
+  const m = SPR.map[name];
+  if (!m) return false;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(SPR.img, m[0] * SPR.s, m[1] * SPR.s, SPR.s, SPR.s, px, py, w + 0.5, h + 0.5);
+  return true;
+}
+const SPRITE_FULL = new Set([T.GRASS, T.ROAD, T.WATER, T.SHALLOW, T.WALL, T.BRUSH, T.TREE, T.RUBBLE, T.FENCE, T.CRATE, T.CRATE_OPEN, T.FLOOR]);
+function tileSprite(t, x, y) {
+  const h = (x * 7 + y * 13) & 3;
+  switch (t) {
+    case T.GRASS: return h & 1 ? 'grass_b' : 'grass_a';
+    case T.ROAD: return 'road'; case T.WATER: return 'water'; case T.SHALLOW: return 'shallow'; case T.WALL: return 'wall';
+    case T.BRUSH: return 'brush'; case T.TREE: return h & 1 ? 'tree_b' : 'tree'; case T.RUBBLE: return 'rubble'; case T.FENCE: return 'fence';
+    case T.CRATE: return 'crate'; case T.CRATE_OPEN: return 'crate_open'; case T.CAMPFIRE: return 'grass_a';
+    default: return h & 1 ? 'floor_b' : 'floor_a';          // floors, and the base under doors, beds, benches and the rest
+  }
+}
+function actorSprite(a) {
+  if (a.kind === 'player') return 'player';
+  if (a.kind === 'zombie') return SPR.map['z_' + a.special] ? 'z_' + a.special : 'z_walker';
+  if (a.hostile) return 'raider';
+  return SPR.map[a.role] ? a.role : 'human';
+}
+
 function drawActor(a, px, py, ts) {
+  if (sprOn()) return drawActorSprite(a, px, py, ts);
   const c = ctx, cx = px + ts / 2, cy = py + ts / 2;
   let fill, ink = '#fff', ring = null;
   if (a.kind === 'player') { fill = '#efe8d2'; ink = '#0d1214'; ring = '#d99a2b'; }
@@ -186,6 +226,42 @@ function drawActor(a, px, py, ts) {
   }
   if (a.kind === 'zombie') {                                           // awareness: ! hunting, ? it heard or half noticed you
     const al = a.alert || 0;
+    if (a.state === 'hunt') { c.fillStyle = '#e2573f'; c.font = `bold ${Math.floor(ts * .5)}px ${MONO}`; c.fillText('!', cx + ts * .36, cy - ts * .38); }
+    else if (al >= 25 || a.state === 'investigate') {
+      c.fillStyle = al >= 70 ? '#e2573f' : '#d99a2b'; c.font = `bold ${Math.floor(ts * .5)}px ${MONO}`; c.fillText('?', cx + ts * .36, cy - ts * .38);
+      if (al > 0) { c.fillStyle = '#000'; c.fillRect(px + 3, py + 1, ts - 6, 3); c.fillStyle = al >= 70 ? '#e2573f' : '#d99a2b'; c.fillRect(px + 3, py + 1, (ts - 6) * Math.min(1, al / 100), 3); }
+    }
+  }
+  if (a.kind !== 'player' && a.hp < a.max_hp) {
+    c.fillStyle = '#000'; c.fillRect(px + 3, py + ts - 5, ts - 6, 3);
+    c.fillStyle = '#e2573f'; c.fillRect(px + 3, py + ts - 5, (ts - 6) * Math.max(0, a.hp / a.max_hp), 3);
+  }
+}
+
+function drawActorSprite(a, px, py, ts) {
+  const c = ctx, cx = px + ts / 2, cy = py + ts / 2;
+  const big = a.kind === 'zombie' && (a.special === 'alpha' ? 1.3 : a.special === 'brute' ? 1.12 : 1.0), sz = ts * (big || 1);
+  if (a.kind === 'player') { c.strokeStyle = '#d99a2b'; c.lineWidth = 2; c.beginPath(); c.ellipse(cx, py + ts * .86, ts * .36, ts * .14, 0, 0, 7); c.stroke(); }
+  else if (a.kind !== 'zombie') { c.fillStyle = a.hostile ? 'rgba(226,87,63,.55)' : 'rgba(85,179,196,.5)'; c.beginPath(); c.ellipse(cx, py + ts * .86, ts * .34, ts * .12, 0, 0, 7); c.fill(); }
+  if (a.kind === 'zombie' && a.state === 'dormant') c.globalAlpha = 0.7;
+  spr(actorSprite(a), cx - sz / 2, cy - sz / 2 - (sz - ts) * .1, sz);
+  c.globalAlpha = 1;
+  if (a.kind === 'zombie' && a.flags.includes('boss')) { c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, ts * .52, 0, 7); c.stroke(); }
+  drawActorMarks(a, px, py, ts, cx, cy);
+}
+
+function drawActorMarks(a, px, py, ts, cx, cy) {
+  const c = ctx;
+  if (a.kind === 'zombie' && a.state !== 'hunt' && a.facing) {
+    const ang = Math.atan2(a.facing[1], a.facing[0]), r = ts * .42;
+    c.fillStyle = 'rgba(255,230,160,.9)'; c.beginPath();
+    c.moveTo(cx + Math.cos(ang) * (r + 4), cy + Math.sin(ang) * (r + 4));
+    c.lineTo(cx + Math.cos(ang + 2.4) * (r - 1), cy + Math.sin(ang + 2.4) * (r - 1));
+    c.lineTo(cx + Math.cos(ang - 2.4) * (r - 1), cy + Math.sin(ang - 2.4) * (r - 1)); c.closePath(); c.fill();
+  }
+  if (a.kind === 'zombie') {
+    const al = a.alert || 0;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
     if (a.state === 'hunt') { c.fillStyle = '#e2573f'; c.font = `bold ${Math.floor(ts * .5)}px ${MONO}`; c.fillText('!', cx + ts * .36, cy - ts * .38); }
     else if (al >= 25 || a.state === 'investigate') {
       c.fillStyle = al >= 70 ? '#e2573f' : '#d99a2b'; c.font = `bold ${Math.floor(ts * .5)}px ${MONO}`; c.fillText('?', cx + ts * .36, cy - ts * .38);
@@ -874,6 +950,7 @@ function openSettings(msg) {
     tg('Left-handed layout', 'lefty', 'Swap the pad and the buttons.');
     tg('Tap to travel', 'travel', 'Tap a far tile to walk there.');
     tg('Vibration', 'haptics', 'Buzz when you are hurt.');
+    if (typeof SPRITE_DATA !== 'undefined') tg2('Pixel sprites', 'Art by Kenney (CC0). Off draws plain shapes.', prefs.sprites !== false, () => { prefs.sprites = prefs.sprites === false; savePrefs(); dirty = true; openSettings(); });
     if (game && game.live && game.cfg.mode === 'living') tg2('Pause the world', 'The shared world cannot be paused; a private one can.', game.paused, () => { game.paused = !game.paused; openSettings(); });
     const acts = el('div', 'actionrow'); acts.style.marginTop = '14px';
     acts.append(btn('btn main', 'Save now', () => { openSettings(trySave() ? 'Saved on this device.' : 'This browser would not let the page store a save.'); }));
@@ -1279,6 +1356,7 @@ function boot() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) trySave(); });
   window.addEventListener('pagehide', () => { trySave(); });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
+  loadSprites();
   showTitle();
   requestAnimationFrame(frame);
   window.OB_DEBUG = { get game() { return game; }, get view() { return view; }, showEvent, showEnding, refresh, openDoc, afterAction, start: (cfg) => startGame(Object.assign(default_config(), cfg)), prefs, openMenu, openInventory, openDocs, openSkills, openPlaces, openCraft, openStatus };

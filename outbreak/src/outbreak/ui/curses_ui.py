@@ -9,7 +9,8 @@ from typing import Callable, List, Optional, Sequence, Tuple
 from outbreak.content import BRANCHES, PERKS, RECIPES
 from outbreak.content.perks import BRANCH_NAMES
 from outbreak.engine import cipher, combat, encounters, inventory_ops, services
-from outbreak.engine import save as savemod
+from outbreak import records
+from outbreak.engine import base, save as savemod
 from outbreak.engine.game import Game
 from outbreak.engine.model import Human
 from outbreak.ui import render
@@ -35,7 +36,7 @@ MOVE        arrows / hjkl / yubn / numpad     WAIT   .  or  5      REST   r
 FIGHT       walk into an enemy                FIRE   f (cycle targets with f, fire with Enter)
 THROW       t (pick an item, then a spot)     AMPUTATE   x  (only right after a limb bite)
 INTERACT    e (crates, bench, people, beds)   PICK UP   g
-INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m
+INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m   BASE   o (claim, then build)
 SNEAK       s   RUN   R   LIGHT   L   SMEAR WITH GORE   v
 BRIEFING    B   (re-read the story so far)
 SAVE & QUIT Q            HELP  ?
@@ -267,6 +268,8 @@ class UI:
             g.smear()
         elif key == ord("?"):
             self.text_screen("Help", HELP)
+        elif key == ord("o"):
+            self.base_screen()
         elif key == ord("B"):
             self.briefing()
         elif key == ord("Q"):
@@ -288,12 +291,57 @@ class UI:
         if r == 0:
             g.amputate()
 
+    # ------------------------------------------------------------ base
+    def base_screen(self) -> None:
+        g = self.g
+        if not base.in_base(g):
+            reason = base.can_claim(g)
+            if reason:
+                g.msg(reason, "warn")
+                return
+            r = self.pick(f"Claim {g.level.name} as your base?" + ("  (your current base is left to the dead)" if g.base_id else ""),
+                          [("Claim it", "green"), ("Not now", "grey")])
+            if r == 0:
+                g.claim_base()
+            return
+        pos = 0
+        while True:
+            rows, dis = [], []
+            for s in base.STRUCTURES:
+                ok, why = base.status(g, s)
+                need = ", ".join(f"{q}x {g.item_def(i).name.lower()}" for i, q in s.cost)
+                rows.append((f"{s.name:<10} {need:<26} {s.desc}" + ("" if ok else f"  ({why})"), "white" if ok else "grey"))
+                dis.append(not ok)
+            idx = self.pick("Build   (it goes on the clear floor beside you)", rows, start=pos, disabled=dis)
+            if idx is None:
+                return
+            pos = idx
+            g.build_structure(base.STRUCTURES[idx].id)
+
+    def locker_screen(self) -> None:
+        g, p = self.g, self.g.player
+        pos = 0
+        while True:
+            stash = g.level.stash
+            rows = [(f"take   {g.item_def(i.id).name} x{i.qty}", "cyan") for i in stash]
+            rows += [(f"store  {g.item_def(i.id).name} x{i.qty}", "white") for i in p.inventory]
+            idx = self.pick("Locker   (what you store here outlives you)", rows, start=pos)
+            if idx is None:
+                return
+            pos = idx
+            if idx < len(stash):
+                base.stash_take(g, idx)
+            else:
+                base.stash_put(g, idx - len(stash))
+
     # ------------------------------------------------------------ interaction
     def interact(self) -> None:
         g = self.g
         what = g.interact()
         if what == "npc":
             self.npc_screen(g.adjacent_npc())
+        elif what == "locker":
+            self.locker_screen()
         elif what == "bed":
             self.draw(status="Sleeping...")
             g.sleep()
@@ -514,7 +562,9 @@ class UI:
 
     def ending_screen(self) -> None:
         e = self.g.over
-        lines = [e.text, ""] + e.summary + ["", f"Score: {e.score}"]
+        record = records.submit(self.g) if not getattr(self.g, "record_saved", False) else []
+        self.g.record_saved = True
+        lines = [e.text, ""] + e.summary + ["", f"Score: {e.score}"] + ([""] + record if record else [])
         self.text_screen(("VICTORY - " if e.victory else "") + e.title, "\n".join(lines), "Any key to leave")
         if e.chronicle or e.last_moments:
             how = "How you survived" if e.victory else "How it went"

@@ -149,6 +149,8 @@ class Level:
         self.corpses: Dict[Pos, Tuple[int, int]] = {}      # pos -> (turn of death, 0/False | True human | 2 killed by the dead: always rises)
         self.hazards: Dict[Pos, Hazard] = {}
         self.door_hp: Dict[Pos, int] = {}
+        self.built: Dict[Pos, str] = {}                     # things the player built here: pos -> structure id
+        self.stash: List[Item] = []                         # what is in the player's locker
         self.docs: Dict[Pos, List[str]] = {}                # document ids lying on the floor
         self.entry: Pos = (1, 1)
         self.arrivals: Dict[str, Pos] = {}

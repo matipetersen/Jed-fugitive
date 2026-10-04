@@ -10,6 +10,7 @@ import re
 from typing import Optional
 
 from outbreak import content
+from outbreak.engine import base
 from outbreak.engine.model import Actor, Human, Zombie
 
 LEVEL_RE = re.compile(r" \(Lv\d+\)$")
@@ -102,11 +103,22 @@ def player_died(game, kind: str, cause: str) -> None:
     pos = world.free_spot_near(refuge.x, refuge.y + 2, 8) or world.free_spot_near(*game.world.start, 8)
     kept = set(rng.sample(sorted(game.know.known), int(len(game.know.known) * KEEP_KNOWLEDGE)))
     game.know.known = kept
-    game.level = world
+    home = game.levels.get(game.base_id) if game.base_id else None
+    if home is not None and not base.hostiles_in(home):             # your base is where the next one wakes
+        spot = home.free_spot_near(home.entry[0], home.entry[1], 4)
+        if spot:
+            game.level, pos = home, spot
+        else:
+            home = None
+    else:
+        home = None
+    if home is None:
+        game.level = world
     docs = list(p.documents)
     game.generation += 1
     game.current_origin = new_origin
     new = setup.make_player(game, new_origin, pos)
+    new.level_id = game.level.id
     new.documents = docs
     new.recipes = list(getattr(p, "recipes", new.recipes))
     new.level = max(1, p.level // 2)
@@ -128,7 +140,7 @@ def player_died(game, kind: str, cause: str) -> None:
     text = (f"{label} (level {p.level}, day {game.clock.day}) is gone: {why}.{killer_line}\n\n"
             f"Their gear lies where they fell, and the body will not stay down. Nothing else changes. The dead are where "
             f"they were, the vaults are as they left them, and the clock keeps running.\n\n"
-            f"{new_label} reaches {game.era.refuge}. They know part of what the journals say, and they start at "
+            f"{new_label} {'wakes in the base you built' if home is not None else 'reaches ' + game.era.refuge}. They know part of what the journals say, and they start at "
             f"level {new.level}.")
     game.death_notice = text
     game.msg(f"{label} has died. {new_label} takes up the search.", "bad", key=True)

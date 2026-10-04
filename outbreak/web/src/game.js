@@ -77,6 +77,7 @@ class Game {
     this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
     this.gen_day = 0; this.dead_uids = new Set(); this.deadline_days = 0; this.lost_turns = 0; this.incidents = [];
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
+    this.base_id = null; this.raid_next = 0;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
     this.visible = new Set(); this.on_autosave = null; this._field = null; this._field_key = ''; this._step_parity = 0; this._tired_parity = 0;
@@ -280,7 +281,7 @@ class Game {
     this._rising_dead();
     if (this.shared) this.shared.tick(this);
     this._heat();
-    this._time_events();
+    this._time_events(); this._base_tick();
     if (this.incidents.length && t % 5 === 0) this._check_incidents();
     if (this.final) this._final_tick();
     if (t % 40 === 0) this._maybe_event();
@@ -289,6 +290,33 @@ class Game {
     }
     if (t % 100 === 0 && this.on_autosave) { try { this.on_autosave(this); } catch (e) { /* storage unavailable */ } }
   }
+
+  // your base is safe while nothing hostile is in it; at night the dead find it and come in at the entrance
+  _base_tick() {
+    if (!in_base(this)) return;
+    const lv = this.level, p = this.player, hostile = hostiles_in(lv).length > 0;
+    lv.safe = !hostile && !this.final;
+    if (hostile || this.final || this.clock.turn < this.raid_next || !this.clock.is_night) return;
+    if (this.rng.random() >= 0.03) return;
+    const n = Math.min(10, Math.floor((3 + Math.floor(p.level / 3) + Math.floor(game_day(this) / 5)) * Math.max(1.0, this.pressure)));
+    const spots = [];
+    for (let y = lv.entry[1] - 5; y <= lv.entry[1] + 5; y++) for (let x = lv.entry[0] - 5; x <= lv.entry[0] + 5; x++) if (lv.free(x, y) && cheb([x, y], [p.x, p.y]) > 2) spots.push([x, y]);
+    for (let i = spots.length - 1; i > 0; i--) { const j = this.rng.randint(0, i); [spots[i], spots[j]] = [spots[j], spots[i]]; }
+    let placed = 0;
+    for (const spot of spots.slice(0, n)) {
+      if (!lv.free(spot[0], spot[1])) continue;
+      const z = spawn_zombie(this, lv, spot, null, false, true);
+      z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn; placed++;
+    }
+    if (!placed) return;
+    this.raid_next = this.clock.turn + RAID_GAP + this.rng.randint(0, 100);
+    lv.safe = false;
+    this.msg('The dead have found your base. They are coming in at the entrance!', 'bad', true);
+    this.emit_noise(lv.entry, 8, 'zombie');
+  }
+
+  claim_base() { if (!this._begin_action()) return false; const t = claim_base(this); this._spend(t); return t > 0; }
+  build_structure(sid) { if (!this._begin_action()) return false; const t = build_structure(this, sid); this._spend(t); return t > 0; }
 
   _infection_total() {
     if (this.scenario.start_infected && this.cfg.mode === 'normal') return Math.max(1, Math.floor(this.scenario.timer_turns * this.diff.timer));
@@ -658,6 +686,8 @@ class Game {
     }
     if (tile === T.BENCH) return this.use_bench(true);
     if (tile === T.BED) { this.msg('A bed. Use the SLEEP action beside it.', 'info'); return false; }
+    if (tile === T.WORKSHOP) { this.msg('Your workshop. Craft while you stand beside it.', 'info'); return false; }
+    if (tile === T.LOCKER) { this.msg('Your locker. Use the action beside it.', 'info'); return false; }
     if (lv.portals[k] && (tile === T.PORTAL || tile === T.STAIRS_UP || tile === T.STAIRS_DOWN)) return this._use_portal(nx, ny);
     if (!lv.walkable(nx, ny)) return false;
     lv.move_actor(p, nx, ny);
@@ -862,6 +892,7 @@ class Game {
   interact() {
     if (this.adjacent_npc()) return 'npc';
     if (this.adjacent_tile(T.BED)) return 'bed';
+    if (this.adjacent_tile(T.LOCKER)) return 'locker';
     if (this.adjacent_tile(T.BENCH)) { this.use_bench(true); return ''; }
     const crate = this.adjacent_tile(T.CRATE);
     if (crate) { this._spend(search_container(this, crate)); return ''; }
@@ -875,14 +906,23 @@ class Game {
     if (!lv.safe) { this.msg('It is not safe to sleep here.', 'warn'); return 0; }
     const turns = Math.min(80, this.clock.until_hour(6.0));
     if (this.live_started) { this.busy += turns; this.sleep_left = turns; this.rest_left = 0; this.msg('You lie down and sleep.', 'info'); return turns; }
-    this._spend(turns);
+    let slept = turns;
+    if (in_base(this)) {                                // a raid or a wound wakes you
+      slept = 0;
+      for (let i = 0; i < turns; i++) {
+        const hp0 = p.hp; this._spend(1); slept++;
+        if (this.over || p.hp < hp0 || hostiles_in(lv).length || this.pending_event) break;
+      }
+      if (!this.over && slept < turns) this.msg('You wake with a start.', 'warn');
+    } else this._spend(turns);
     if (!this.over) {
-      p.hp = Math.min(p.max_hp, p.hp + Math.floor(p.max_hp * 0.6));
+      const share = in_base(this) ? Math.min(1.0, slept / 60) : 1.0;
+      p.hp = Math.min(p.max_hp, p.hp + Math.floor(p.max_hp * 0.6 * share));
       p.stamina = p.max_stamina; p.panic = 0;
-      this.msg(`You sleep for ${Math.floor(turns / 10)} hours.`, 'info');
+      this.msg(`You sleep for ${Math.floor(slept / 10)} hours.`, 'info');
       if (p.infected) this.msg('You wake in a sweat. The fever has not broken.', 'warn');
     }
-    return turns;
+    return slept;
   }
 
   requirements() {
@@ -976,7 +1016,7 @@ class Game {
   _siege_spawn(near, n, radius = 2) {
     const lv = this.level, p = this.player;
     for (let i = 0; i < n; i++) {
-      const spot = lv.free_spot_near(near[0] + this.rng.randint(-1, 1), near[1], radius);
+      const spot = lv.free_spot_near(near[0] + this.rng.randint(-1, 1), near[1], radius + Math.floor(n / 5));
       if (spot && cheb(spot, [p.x, p.y]) > 1) {
         const z = spawn_zombie(this, lv, spot, null, false, true);
         z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn;
@@ -1034,7 +1074,7 @@ class Game {
       const k = lv.idx(nx, ny);
       if (!lv.seen[k] && !this.visible.has(k)) return false;
       const t = lv.tiles[k];
-      if (t === T.LOCKED || t === T.CRATE || t === T.CRATE_OPEN || t === T.BED || t === T.BENCH) return false;
+      if (t === T.LOCKED || t === T.CRATE || t === T.CRATE_OPEN || t === T.BED || t === T.BENCH || t === T.WORKSHOP || t === T.LOCKER) return false;
       const occ = lv.occ.get(k);
       if (occ && occ !== p && !(nx === x && ny === y)) return false;
       const hz = lv.hazards[k];

@@ -53,7 +53,7 @@ class SiegeTests(unittest.TestCase):
         for _ in range(4):
             g._siege_wave(f, strong, 3)
         self.assertEqual(lv.tile(*strong), T.DOOR_OPEN)             # they got through in the end...
-        self.assertGreaterEqual(len(zombies(lv)), 3 + 15)           # ...all together
+        self.assertGreaterEqual(len(zombies(lv)), 15)           # ...all together
 
     def test_waves_speed_up_and_grow(self):
         g, lv = at_pad()

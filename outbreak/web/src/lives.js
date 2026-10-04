@@ -64,10 +64,13 @@ function player_died(game, kind, cause) {
   const keep = Math.floor(known.length * KEEP_KNOWLEDGE), kept = [];
   for (let i = 0; i < keep; i++) kept.push(known.splice(rng.randint(0, known.length - 1), 1)[0]);
   game.know.known = new Set(kept);
-  game.level = world;
+  let home = game.base_id ? game.levels[game.base_id] : null, spawn_pos = pos;       // the next survivor wakes in your base
+  if (home && !hostiles_in(home).length) { const spot = home.free_spot_near(home.entry[0], home.entry[1], 4); if (spot) spawn_pos = spot; else home = null; } else home = null;
+  game.level = home || world;
   const docs = p.documents.slice();
   game.generation += 1; game.current_origin = new_origin;
-  const np = make_player(game, new_origin, pos);
+  const np = make_player(game, new_origin, spawn_pos);
+  np.level_id = game.level.id;
   np.documents = docs; np.recipes = (p.recipes || np.recipes).slice();
   np.level = Math.max(1, Math.floor(p.level / 2));
   np.perk_points = np.level - 1;
@@ -81,7 +84,7 @@ function player_died(game, kind, cause) {
   game.death_notice = `${label} (level ${p.level}, day ${game_day(game)}) is gone: ${why}.${killer_line}\n\n` +
     `Their gear lies where they fell, and the body will not stay down. Nothing else changes. The dead are where they were, ` +
     `the vaults are as they left them, and the clock keeps running.\n\n` +
-    `${new_label} reaches ${game.era.refuge}. They know part of what the journals say, and they start at level ${np.level}.`;
+    `${new_label} ${home ? 'wakes in the base you built' : 'reaches ' + game.era.refuge}. They know part of what the journals say, and they start at level ${np.level}.`;
   game.msg(`${label} has died. ${new_label} takes up the search.`, 'bad', true);
   if (game.shared) {
     game.shared.on_player_died({ label, level: p.level, x: death_pos[0], y: death_pos[1], level_id: death_level, key: death_key, cause: record.cause, record, killer,

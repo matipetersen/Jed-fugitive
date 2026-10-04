@@ -14,7 +14,7 @@ class TileInfo(NamedTuple):
 
 
 (FLOOR, GRASS, ROAD, BRUSH, TREE, WATER, SHALLOW, RUBBLE, WALL, DOOR, DOOR_OPEN, LOCKED, STAIRS_UP,
- STAIRS_DOWN, CRATE, CRATE_OPEN, PORTAL, FENCE, BED, BENCH, CAMPFIRE) = range(21)
+ STAIRS_DOWN, CRATE, CRATE_OPEN, PORTAL, FENCE, BED, BENCH, CAMPFIRE, WORKSHOP, LOCKER) = range(23)
 
 TILES = {
     FLOOR: TileInfo(".", True, False, "floor", "grey"),
@@ -38,6 +38,8 @@ TILES = {
     BED: TileInfo("b", False, False, "bed", "cyan"),
     BENCH: TileInfo("w", False, False, "workbench", "cyan"),
     CAMPFIRE: TileInfo("*", False, False, "campfire", "red"),
+    WORKSHOP: TileInfo("W", False, False, "workshop", "cyan"),
+    LOCKER: TileInfo("L", False, False, "locker", "yellow"),
 }
 
 # Precomputed lookups for the hot paths.

@@ -91,6 +91,16 @@ BASE_ITEMS: Tuple[ItemDef, ...] = (
        effect={"repair": 25}, poi=("industry", "military", "market")),
     _i("barricade_kit", "Barricade kit", "tool", "Reinforces the door next to you.", value=7, stackable=True,
        effect={"barricade": 40}, poi=("industry", "market")),
+    # things you make at a workshop (never found in loot)
+    ItemDef("nailbat", "Nail-studded club", "weapon", "A plank with nails through it. Ugly and effective.", style="blunt",
+            dmg=(4, 7), noise=5, durability=30, value=8, tags=("crafted",)),
+    ItemDef("shiv", "Ground-down blade", "weapon", "Scrap ground to an edge and wrapped for a grip.", style="blade",
+            dmg=(3, 6), noise=2, durability=36, accuracy=5, head=0.08, value=9, tags=("crafted",)),
+    ItemDef("pike", "Reinforced spear", "weapon", "A long haft with a proper head. Keeps them at arm's length.", style="polearm",
+            dmg=(5, 8), noise=3, durability=40, reach=2, value=11, tags=("crafted",)),
+    ItemDef("scrapbow", "Scrap bow", "weapon", "A bow of salvaged spring steel and cord.", style="bow",
+            dmg=(3, 7), noise=3, durability=45, reach=7, ammo="shaft", value=10, tags=("crafted",)),
+    ItemDef("shaft", "Improvised arrows", "ammo", "Ammunition: sharpened shafts.", value=1, stackable=True, tags=("crafted",)),
     _i("spike_trap", "Spike trap", "tool", "Set where you stand. The first of the dead to step on it takes a savage wound.",
        value=6, stackable=True, effect={"trap": 26}, poi=("industry", "market")),
 )

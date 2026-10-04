@@ -44,6 +44,7 @@ class VictoryTests(unittest.TestCase):
                 for _ in range(120):
                     if g.over:
                         break
+                    g.player.infected = False              # this checks the finale's clock, not the bites a passive player takes
                     g.wait(1)
                 self.assertIsNotNone(g.over, (era, scenario))
                 self.assertTrue(g.over.victory, (era, scenario, g.over.title))

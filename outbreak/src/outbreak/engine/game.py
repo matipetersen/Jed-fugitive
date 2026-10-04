@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, base, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -60,6 +60,8 @@ class Game:
         self.deadline_days = 0                   # the way out closes after this day (set from the route)
         self.lost_turns = 0                      # time the road incidents cost: counts against the deadline
         self.incidents: List[dict] = []          # scripted road incidents: {x, y, event, done}
+        self.base_id: Optional[str] = None       # the level you claimed as your base
+        self.raid_next = 0                       # earliest turn of the next raid on it
         self.generation = 1                      # which survivor you are (living-world mode)
         self.current_origin = cfg.origin
         self.fallen: List[dict] = []             # records of the survivors who died
@@ -286,6 +288,7 @@ class Game:
         self._rising_dead()
         self._heat()
         self._time_events()
+        self._base_tick()
         if self.incidents and t % 5 == 0:
             self._check_incidents()
         if self.final:
@@ -300,6 +303,34 @@ class Game:
                 save.save(self, self.autosave_path)
             except OSError:
                 pass
+
+    def _base_tick(self) -> None:
+        """Your base is safe while nothing hostile is in it; at night the dead find it and come in at the entrance."""
+        if not base.in_base(self):
+            return
+        lv, p = self.level, self.player
+        hostile = bool(base.hostiles_in(lv))
+        lv.safe = not hostile and not self.final
+        if hostile or self.final or self.clock.turn < self.raid_next or not self.clock.is_night:
+            return
+        if self.rng.random() >= 0.03:
+            return
+        n = min(10, int((3 + p.level // 3 + self.clock.day // 5) * max(1.0, self.pressure)))
+        placed = 0
+        spots = [(x, y) for y in range(lv.entry[1] - 5, lv.entry[1] + 6) for x in range(lv.entry[0] - 5, lv.entry[0] + 6)
+                 if lv.free(x, y) and cheb((x, y), p.pos) > 2]
+        self.rng.shuffle(spots)
+        for spot in spots[:n]:
+            if lv.free(*spot):
+                z = spawn_zombie(self, lv, spot, dormant=False, fresh=True)
+                z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn
+                placed += 1
+        if not placed:
+            return
+        self.raid_next = self.clock.turn + base.RAID_GAP + self.rng.randint(0, 100)
+        lv.safe = False
+        self.msg("The dead have found your base. They are coming in at the entrance!", "bad", key=True)
+        self.emit_noise(lv.entry, 8, "zombie")
 
     def _player_conditions(self) -> None:
         p = self.player
@@ -701,6 +732,12 @@ class Game:
         if tile == T.BED:
             self.msg("A bed. Press 'z' to sleep.", "info")
             return False
+        if tile == T.WORKSHOP:
+            self.msg("Your workshop. Craft (c) while you stand beside it.", "info")
+            return False
+        if tile == T.LOCKER:
+            self.msg("Your locker. Use the interact key beside it.", "info")
+            return False
         if (nx, ny) in lv.portals and tile in (T.PORTAL, T.STAIRS_UP, T.STAIRS_DOWN):
             return self._use_portal((nx, ny))
         if not lv.walkable(nx, ny):
@@ -918,6 +955,20 @@ class Game:
         self._spend(1 if spent else 0)
         return spent
 
+    def claim_base(self) -> bool:
+        if not self._begin_action():
+            return False
+        turns = base.claim(self)
+        self._spend(turns)
+        return turns > 0
+
+    def build_structure(self, sid: str) -> bool:
+        if not self._begin_action():
+            return False
+        turns = base.build(self, sid)
+        self._spend(turns)
+        return turns > 0
+
     def amputate(self) -> bool:
         if combat.can_amputate(self):
             self.msg(combat.can_amputate(self), "warn")
@@ -1013,6 +1064,8 @@ class Game:
             return "npc"
         if self.adjacent_tile(T.BED):
             return "bed"
+        if self.adjacent_tile(T.LOCKER):
+            return "locker"
         if self.adjacent_tile(T.BENCH):
             self.use_bench(True)
             return ""
@@ -1034,9 +1087,22 @@ class Game:
             self.msg("It is not safe to sleep here.", "warn")
             return 0
         turns = services.sleep(self)
-        self._spend(turns)
+        if base.in_base(self):                           # a raid or a wound wakes you
+            slept = 0
+            for _ in range(turns):
+                hp0 = p.hp
+                self._spend(1)
+                slept += 1
+                if self.over or p.hp < hp0 or base.hostiles_in(lv) or self.pending_event:
+                    break
+            if not self.over and slept < turns:
+                self.msg("You wake with a start.", "warn")
+            turns = slept
+        else:
+            self._spend(turns)
         if not self.over:
-            p.hp = min(p.max_hp, p.hp + int(p.max_hp * 0.6))
+            share = min(1.0, turns / 60) if base.in_base(self) else 1.0       # woken early, you heal less
+            p.hp = min(p.max_hp, p.hp + int(p.max_hp * 0.6 * share))
             p.stamina = p.max_stamina
             p.panic = 0.0
             self.msg(f"You sleep for {turns // 10} hours.", "info")
@@ -1145,7 +1211,7 @@ class Game:
     def _siege_spawn(self, spot_near: Pos, n: int, radius: int = 2) -> None:
         lv, p = self.level, self.player
         for _ in range(n):
-            spot = lv.free_spot_near(spot_near[0] + self.rng.randint(-1, 1), spot_near[1], radius)
+            spot = lv.free_spot_near(spot_near[0] + self.rng.randint(-1, 1), spot_near[1], radius + n // 5)
             if spot and cheb(spot, p.pos) > 1:
                 z = spawn_zombie(self, lv, spot, dormant=False, fresh=True)
                 z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn

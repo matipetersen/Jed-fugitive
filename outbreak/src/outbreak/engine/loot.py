@@ -34,6 +34,8 @@ def _pool(era_id: str, kind: str) -> Tuple[Tuple[ItemDef, float], ...]:
     table = CATEGORY_WEIGHTS.get(kind, CATEGORY_WEIGHTS["house"])
     out = []
     for it in era.items.values():
+        if "crafted" in it.tags:
+            continue                                              # made at a workshop, never lying around
         weight = table.get(it.kind, 0.0)
         if weight <= 0:
             continue

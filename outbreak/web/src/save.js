@@ -26,7 +26,7 @@ function _put_chunk(arr, lv, cx, cy, S, bytes) {
 function _serialize_level(lv, chunked = false) {
   return { id: lv.id, name: lv.name, w: lv.w, h: lv.h, kind: lv.kind, tiles: chunked ? '' : bytes_to_b64(lv.tiles), seen: chunked ? '' : bytes_to_b64(lv.seen),
            actors: lv.actors, items: lv.items, containers: lv.containers, portals: lv.portals, corpses: lv.corpses,
-           hazards: lv.hazards, door_hp: lv.door_hp, docs: lv.docs, entry: lv.entry, arrivals: lv.arrivals,
+           hazards: lv.hazards, door_hp: lv.door_hp, built: lv.built, stash: lv.stash, docs: lv.docs, entry: lv.entry, arrivals: lv.arrivals,
            vault_lock: lv.vault_lock, bench: lv.bench, dark: lv.dark, safe: lv.safe, poi_id: lv.poi_id };
 }
 function _deserialize_level(d) {
@@ -34,6 +34,7 @@ function _deserialize_level(d) {
   if (d.tiles !== '') { lv.tiles = b64_to_bytes(d.tiles); lv.seen = b64_to_bytes(d.seen); }
   for (const k of ['actors', 'items', 'containers', 'portals', 'corpses', 'hazards', 'door_hp', 'docs', 'entry', 'arrivals',
                    'vault_lock', 'bench', 'dark', 'safe', 'poi_id']) lv[k] = d[k];
+  lv.built = d.built || {}; lv.stash = d.stash || [];
   lv.rebuild_occ();
   return lv;
 }
@@ -49,7 +50,7 @@ function serialize_game(game) {
     for (const key of game.world.generated) { const [cx, cy] = key.split(',').map(Number); chunks[key] = { t: bytes_to_b64(_chunk_bytes(lv.tiles, lv, cx, cy, game.world.S)), s: bytes_to_b64(_chunk_bytes(lv.seen, lv, cx, cy, game.world.S)) }; }
   }
   const data = {
-    v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), chronicle: game.chronicle, over: game.over,
+    v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), chronicle: game.chronicle, base_id: game.base_id, raid_next: game.raid_next, over: game.over,
     pending_event: game.pending_event, recent_events: game.recent_events, hordes: game.hordes, ring: game.ring, heat: game.heat,
     stalker_uid: game.stalker ? game.stalker.uid : 0, stalker_ready: game.stalker_ready, last_moan: game.last_moan,
     followers: game.followers, final: game.final, formula_found: game.formula_found, applied_docs: Array.from(game.applied_docs),
@@ -74,7 +75,7 @@ function deserialize_game(json) {
   if (d.v !== SAVE_VERSION) throw new Error(`save version ${d.v} is not supported`);
   const g = new Game(null, true);
   g._init_state();
-  g.cfg = d.cfg; g.seed = d.seed; g._uid = d.uid; g.log = d.log; g.chronicle = d.chronicle || []; g.over = d.over; g.pending_event = d.pending_event;
+  g.cfg = d.cfg; g.seed = d.seed; g._uid = d.uid; g.log = d.log; g.chronicle = d.chronicle || []; g.base_id = d.base_id || null; g.raid_next = d.raid_next || 0; g.over = d.over; g.pending_event = d.pending_event;
   g.recent_events = d.recent_events; g.hordes = d.hordes; g.ring = d.ring; g.heat = d.heat; g.stalker_ready = d.stalker_ready;
   g.last_moan = d.last_moan; g.followers = d.followers; g.final = d.final; g.formula_found = d.formula_found;
   g.applied_docs = new Set(d.applied_docs); g.scent = d.scent; g._step_parity = d.step_parity; g._force_progress = d.force_progress;

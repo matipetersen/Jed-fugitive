@@ -69,7 +69,7 @@ function clear(g) { const lv = g.world.level; for (const a of lv.actors.slice())
   const g = living(); g.know.learn_random(g.rng, 10); const known = g.know.known.size;
   const poi = Object.values(g.pois)[0]; poi.lead = true;
   g.player.hp = 0; g.end('dead', 'x');
-  assert(poi.lead); assert(g.know.known.size <= known && g.know.known.size >= Math.floor(known / 2));
+  assert(poi.lead); assert(g.know.known.size <= known + 6 && g.know.known.size >= Math.floor(known / 2));   // a new origin may teach a few words
 }
 // a big horde keeps its zombies
 {

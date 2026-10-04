@@ -224,6 +224,8 @@ def recipe_status(game, r: Recipe) -> Tuple[bool, str]:
         return False, "needs firearms"
     if r.needs == "electricity" and not game.era.electricity:
         return False, "needs electricity"
+    if r.needs == "workshop" and not game.adjacent_tile(T.WORKSHOP):
+        return False, "stand beside a workshop (build one in your base)"
     if r.id not in getattr(game.player, "recipes", ()):
         return False, "you do not know how: find and decipher a manual"
     if game.know.fluency < r.fluency:

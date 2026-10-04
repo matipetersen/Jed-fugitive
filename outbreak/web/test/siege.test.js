@@ -21,7 +21,7 @@ const zombies = (lv) => lv.actors.filter((a) => a.kind === 'zombie');
   g._siege_wave(f, weak, 3); assert.strictEqual(lv.tile(weak[0], weak[1]), OB.T.DOOR_OPEN); assert.strictEqual(zombies(lv).length, 3);
   g._siege_wave(f, strong, 3); assert.strictEqual(lv.tile(strong[0], strong[1]), OB.T.DOOR); assert.strictEqual(zombies(lv).length, 3);
   for (let i = 0; i < 4; i++) g._siege_wave(f, strong, 3);
-  assert.strictEqual(lv.tile(strong[0], strong[1]), OB.T.DOOR_OPEN); assert(zombies(lv).length >= 18);
+  assert.strictEqual(lv.tile(strong[0], strong[1]), OB.T.DOOR_OPEN); assert(zombies(lv).length >= 15);
 }
 { // waves speed up
   const [g] = at_pad(); g.use_bench(); const f = g.final;

@@ -21,6 +21,7 @@ function _pool(era, kind) {
   const table = CATEGORY_WEIGHTS[kind] || CATEGORY_WEIGHTS.house;
   const out = [];
   for (const it of Object.values(era.items)) {
+    if (it.tags && it.tags.includes('crafted')) continue;                    // made at a workshop, never lying around
     let weight = table[it.kind] || 0;
     if (weight <= 0) continue;
     weight /= Math.pow(it.rarity, 1.4);

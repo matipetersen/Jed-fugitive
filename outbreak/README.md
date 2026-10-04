@@ -64,6 +64,23 @@ and you know the recipe for good (a new survivor in hardcore keeps what you lear
 needs the materials and, for the advanced ones, enough fluency in the cipher. The craft screen lists only
 what you know and says how many are still to find.
 
+**Weapons are made at a workshop.** Standing beside a workshop (you build one in your base) you can make a
+nail-studded club (known from the start), and, from manuals, a ground-down blade, a reinforced spear, a scrap bow
+and improvised arrows for it. They are never found in loot; they are the reason to have a base.
+
+**A base of your own** (`o` in the terminal game, *Base* in the web menu). Step into a building with nothing
+hostile left in it and claim it. Inside it you can build, on the clear floor beside you, a **workshop**, up to two
+**cots** (sleep there to heal; a raid or a wound wakes you early), a **locker** (a stash: what you store there
+stays, and in hardcore the next survivor wakes up in your base with the locker still full) and **barricades**
+(braced gates of 40 hp the dead must batter down; you cannot wall yourself in). At night, while you are in it, the
+dead find your base: a raid of several zombies comes in at the entrance, and the base stops being safe until
+they are dead. Only one base at a time; claiming another leaves the old one to the dead.
+
+**The records.** Every finished run (won, dead, turned, left behind) is kept on your machine
+(`records.json` next to the saves, or the browser's storage) and compared with your earlier runs of the same
+objective and mode: days survived first, points second. The end screen says whether it is a new record, and
+the title screen has a *Records* page with the best of each and the latest runs.
+
 **The siege.** The hold-out is not a countdown you stand through. The final site has a main entrance and three
 side doors. Waves arrive at a random one of them, get bigger, and come faster as the clock runs down. A side
 door that is not barricaded breaks on the first wave; a barricaded one (barricade kit, 40 hp) batters for a few

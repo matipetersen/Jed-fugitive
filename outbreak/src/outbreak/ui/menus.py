@@ -6,7 +6,7 @@ import random
 import textwrap
 from typing import List, Optional
 
-from outbreak import content
+from outbreak import content, records
 from outbreak.config import DIFFICULTIES, MODES, RANDOMIZABLE, GameConfig
 from outbreak.engine import save as savemod
 from outbreak.ui.curses_ui import ENTER, ESC, HELP, UI
@@ -176,7 +176,7 @@ def title_screen(ui: UI) -> str:
     """Returns 'continue', 'new' or 'quit'."""
     s = ui.s
     has_save = savemod.exists()
-    options = (["Continue"] if has_save else []) + ["New game", "How to play", "Quit"]
+    options = (["Continue"] if has_save else []) + ["New game", "Records", "How to play", "Quit"]
     idx = 0
     while True:
         s.erase()
@@ -197,6 +197,8 @@ def title_screen(ui: UI) -> str:
             choice = options[idx]
             if choice == "How to play":
                 ui.text_screen("How to play", HELP)
+            elif choice == "Records":
+                ui.text_screen("Records", "\n".join(records.summary()))
             else:
                 return {"Continue": "continue", "New game": "new", "Quit": "quit"}[choice]
         elif key in (ord("q"), ESC):

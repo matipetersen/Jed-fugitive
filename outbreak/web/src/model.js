@@ -2,7 +2,7 @@
 const T = {
   FLOOR: 0, GRASS: 1, ROAD: 2, BRUSH: 3, TREE: 4, WATER: 5, SHALLOW: 6, RUBBLE: 7, WALL: 8, DOOR: 9,
   DOOR_OPEN: 10, LOCKED: 11, STAIRS_UP: 12, STAIRS_DOWN: 13, CRATE: 14, CRATE_OPEN: 15, PORTAL: 16,
-  FENCE: 17, BED: 18, BENCH: 19, CAMPFIRE: 20,
+  FENCE: 17, BED: 18, BENCH: 19, CAMPFIRE: 20, WORKSHOP: 21, LOCKER: 22,
 };
 const TILES = [];
 function _tile(id, glyph, walk, opaque, name, color, masks_scent) {
@@ -29,6 +29,8 @@ _tile(T.FENCE, '=', false, false, 'fence', 'grey');
 _tile(T.BED, 'b', false, false, 'bed', 'cyan');
 _tile(T.BENCH, 'w', false, false, 'workbench', 'cyan');
 _tile(T.CAMPFIRE, '*', false, false, 'campfire', 'red');
+_tile(T.WORKSHOP, 'W', false, false, 'workshop', 'cyan');
+_tile(T.LOCKER, 'L', false, false, 'locker', 'yellow');
 const tile_info = (t) => TILES[t];
 const WALK = new Uint8Array(256), OPAQUE = new Uint8Array(256);
 TILES.forEach((t, i) => { WALK[i] = t.walk ? 1 : 0; OPAQUE[i] = t.opaque ? 1 : 0; });
@@ -67,7 +69,7 @@ class Level {
     this.actors = [];
     this.occ = new Map();
     this.items = {}; this.containers = {}; this.portals = {}; this.corpses = {}; this.hazards = {};
-    this.door_hp = {}; this.docs = {};
+    this.door_hp = {}; this.docs = {}; this.built = {}; this.stash = [];
     this.entry = [1, 1];
     this.arrivals = {};
     this.vault_lock = null;

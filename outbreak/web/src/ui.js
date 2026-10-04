@@ -16,6 +16,7 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); retu
 const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
 
 // ---------------------------------------------------------------- preferences and state
+const recordStore = { get: () => { const r = lsGet('outbreak.records.v1', []); return Array.isArray(r) ? r : []; }, set: (r) => lsSet('outbreak.records.v1', r) };
 const prefs = Object.assign({ zoom: 26, haptics: true, lefty: false, travel: true }, lsGet('outbreak.prefs.v1', {}));
 const savePrefs = () => lsSet('outbreak.prefs.v1', prefs);
 let game = null, aim = null, travel = null, lastHp = 0, endingShown = false, modal = 0, sheetCloseCb = null, storageOk = true;
@@ -29,7 +30,7 @@ _t(T.FLOOR, '#1b2225'); _t(T.GRASS, '#16241a'); _t(T.ROAD, '#262d30'); _t(T.BRUS
 _t(T.WATER, '#0d2a40', 'water'); _t(T.SHALLOW, '#134058', 'water'); _t(T.RUBBLE, '#2a2724', 'rubble'); _t(T.WALL, '#394249', 'wall');
 _t(T.DOOR, '#1b2225', 'door'); _t(T.DOOR_OPEN, '#1b2225', 'dooropen'); _t(T.LOCKED, '#1b2225', 'locked'); _t(T.STAIRS_UP, '#232c30', '<');
 _t(T.STAIRS_DOWN, '#232c30', '>'); _t(T.CRATE, '#1b2225', 'crate'); _t(T.CRATE_OPEN, '#1b2225', 'cratex'); _t(T.PORTAL, '#2e363b', 'portal');
-_t(T.FENCE, '#16241a', 'fence'); _t(T.BED, '#1b2225', 'bed'); _t(T.BENCH, '#1b2225', 'bench'); _t(T.CAMPFIRE, '#16241a', 'fire');
+_t(T.FENCE, '#16241a', 'fence'); _t(T.BED, '#1b2225', 'bed'); _t(T.BENCH, '#1b2225', 'bench'); _t(T.CAMPFIRE, '#16241a', 'fire'); _t(T.WORKSHOP, '#1b2225', 'workshop'); _t(T.LOCKER, '#1b2225', 'locker');
 const ZCOL = { walker: '#b94a3c', crawler: '#9b5a3a', brute: '#8e3f9e', bloater: '#6a9a32', screamer: '#d4a52a', leaper: '#cf5a2a',
                clicker: '#3f9aa8', stalker: '#9b2f9b', alpha: '#c43fa6' };
 const POI_LETTER = { medical: 'M', market: '$', guard: 'P', lab: 'L', transit: 'U', military: 'A', faith: 'C', industry: 'F', refuge: 'R', pad: 'E', house: 'h' };
@@ -51,6 +52,8 @@ function deco(kind, x, y, s, vis) {
       c.beginPath(); c.moveTo(x + s * .15, y + s * .2); c.lineTo(x + s * .85, y + s * .8); c.stroke(); break;
     case 'cratex': c.strokeStyle = '#5b5238'; c.lineWidth = 1.5; c.strokeRect(x + s * .15, y + s * .25, s * .7, s * .5); break;
     case 'bed': c.fillStyle = '#2f5b66'; c.fillRect(x + s * .12, y + s * .22, s * .76, s * .56); c.fillStyle = '#cfc8b4'; c.fillRect(x + s * .16, y + s * .27, s * .22, s * .2); break;
+    case 'workshop': c.fillStyle = '#6f5a2e'; c.fillRect(x + s * .1, y + s * .35, s * .8, s * .4); c.fillStyle = '#d4b062'; c.fillRect(x + s * .18, y + s * .22, s * .1, s * .2); c.fillRect(x + s * .55, y + s * .25, s * .26, s * .08); break;
+    case 'locker': c.fillStyle = '#5f6b2a'; c.fillRect(x + s * .22, y + s * .14, s * .56, s * .72); c.fillStyle = '#c9d26a'; c.fillRect(x + s * .6, y + s * .46, s * .08, s * .1); break;
     case 'bench': c.fillStyle = '#2e6f7c'; c.fillRect(x + s * .1, y + s * .3, s * .8, s * .45); c.fillStyle = '#55b3c4'; c.fillRect(x + s * .2, y + s * .2, s * .2, s * .2); break;
     case 'fence': c.strokeStyle = '#8a8f8a'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y + s * .35); c.lineTo(x + s, y + s * .35); c.moveTo(x, y + s * .65); c.lineTo(x + s, y + s * .65); c.stroke(); break;
     case 'fire': c.fillStyle = '#e2573f'; c.beginPath(); c.arc(x + s / 2, y + s / 2, s * .28, 0, 7); c.fill(); c.fillStyle = '#f0b445'; c.beginPath(); c.arc(x + s / 2, y + s * .55, s * .14, 0, 7); c.fill(); break;
@@ -367,6 +370,8 @@ function contextAction() {
   const npc = g.adjacent_npc();
   if (npc) return { label: 'Talk', sub: npc.name, run: () => openNpc(npc) };
   if (g.adjacent_tile(T.BED)) return { label: 'Sleep', sub: 'until morning', run: () => confirmSleep() };
+  if (g.adjacent_tile(T.LOCKER)) return { label: 'Locker', sub: 'store and take', run: () => openLocker() };
+  if (g.adjacent_tile(T.WORKSHOP)) return { label: 'Craft', sub: 'at your workshop', run: () => openCraft() };
   if (g.adjacent_tile(T.BENCH)) return { label: cap(g.scenario.final_verb), sub: 'final stand', run: () => g.use_bench(true) };
   if (g.adjacent_tile(T.CRATE)) return { label: 'Search', sub: 'crate', run: () => g.interact() };
   if (g.adjacent_tile(T.LOCKED)) return { label: 'Unlock', sub: g.poi_of_level(lv) && g.poi_of_level(lv).code_known ? 'code known' : 'force it', run: () => g.interact() };
@@ -427,7 +432,7 @@ function stepTravel() {
 function route(tx, ty) {
   const g = game, lv = g.level, p = g.player;
   const t = lv.tile(tx, ty);
-  const special = [T.CRATE, T.CRATE_OPEN, T.LOCKED, T.BED, T.BENCH].includes(t);
+  const special = [T.CRATE, T.CRATE_OPEN, T.LOCKED, T.BED, T.BENCH, T.WORKSHOP, T.LOCKER].includes(t);
   let path = special ? null : g.travel_path(tx, ty);
   if (special) {
     let best = null;
@@ -655,6 +660,40 @@ function openCraft() {
     if (hidden) body.append(el('p', 'note', `${hidden} more recipe${hidden > 1 ? 's' : ''} to find: they are written down in manuals out in the world. Decipher one to learn it.`));
   });
 }
+function openBase() {
+  const g = game;
+  openSheet(in_base(g) ? `Your base · ${g.level.name}` : 'A base of your own', (body) => {
+    if (!in_base(g)) {
+      const reason = can_claim(g);
+      body.append(el('p', 'event-text', 'A base is a building you have cleared and claimed. Fit it out with a workshop, a cot, a locker and barricades; at night the dead will come for it. If you die in hardcore, the next survivor wakes here, and the locker is still full.'));
+      if (reason) body.append(el('p', 'note', reason));
+      else body.append(el('div', 'actionrow', [btn('btn main', 'Claim ' + g.level.name, () => { closeSheet(); doAction(() => g.claim_base()); }), btn('btn', 'Not now', () => closeSheet())]));
+      return;
+    }
+    body.append(el('p', 'note', 'Each thing goes on the clear floor beside you. Barricades are braced gates the dead must batter down.'));
+    for (const s of STRUCTURES) {
+      const [ok, why] = structure_status(g, s);
+      const need = s.cost.map(([i, q]) => `${q}x ${g.item_def(i).name.toLowerCase()}`).join(', ');
+      const row = el('div', 'row tap' + (ok ? '' : ' off'));
+      row.append(el('div', 'main', [el('div', 'name', s.name), el('div', 'sub', `${need} · ${s.desc}` + (ok ? '' : ' · ' + why))]));
+      row.addEventListener('click', () => { if (ok) { const top = $('#sheet-body').scrollTop; sheetAct(() => g.build_structure(s.id)); if (!g.over) openSheetKeep(openBase, top); } else toast(why); });
+      body.append(row);
+    }
+  });
+}
+
+function openLocker() {
+  const g = game, lv = g.level;
+  openSheet('Locker', (body) => {
+    body.append(el('p', 'note', 'What you store here outlives you.'));
+    const redo = () => { const top = $('#sheet-body').scrollTop; openSheetKeep(openLocker, top); };
+    body.append(el('h3', null, 'In the locker'));
+    if (!lv.stash.length) body.append(el('p', 'note', 'Empty.'));
+    lv.stash.forEach((it, i) => { const r = el('div', 'row tap'); r.append(el('div', 'main', el('div', 'name', `${g.item_def(it.id).name} x${it.qty}`)), el('div', 'tag', 'take')); r.addEventListener('click', () => { stash_take(g, i); redo(); }); body.append(r); });
+    body.append(el('h3', null, 'In your pack'));
+    g.player.inventory.forEach((it, i) => { const r = el('div', 'row tap'); r.append(el('div', 'main', el('div', 'name', `${g.item_def(it.id).name} x${it.qty}`)), el('div', 'tag', 'store')); r.addEventListener('click', () => { stash_put(g, i); redo(); }); body.append(r); });
+  });
+}
 function openSheetKeep(fn, top) { fn(); $('#sheet-body').scrollTop = top; }
 
 function openDocs() {
@@ -780,6 +819,7 @@ function openMenu() {
     const tile = (title, sub, fn, on) => { const b = el('button', 'tile' + (on ? ' on' : ''), [el('b', null, title), el('span', null, sub)]); b.type = 'button'; b.addEventListener('click', fn); grid.append(b); };
     tile('Pack', 'items and gear', () => openInventory());
     tile('Craft', 'make supplies', () => openCraft());
+    tile('Base', in_base(g) ? 'build and fit out' : (can_claim(g) ? 'cannot claim here' : 'claim this place'), () => openBase());
     tile('Documents', `${p.documents.length} found`, () => openDocs());
     tile('Skills', p.perk_points ? `${p.perk_points} point(s) to spend` : 'perks and mastery', () => openSkills());
     tile('Places', 'known buildings', () => openPlaces());
@@ -959,11 +999,24 @@ function showTitle() {
   if (has_save()) m.append(btn('btn main', 'Continue', () => {
     try { startGame(null, load_game()); } catch (e) { toast('That save could not be loaded'); delete_save(); showTitle(); }
   }));
-  m.append(btn('btn', 'New game', showNewGame), btn('btn', 'Shared world', showSharedWorld), btn('btn', 'How to play', () => openHelp()));
+  m.append(btn('btn', 'New game', showNewGame), btn('btn', 'Shared world', showSharedWorld), btn('btn', 'Records', showRecords), btn('btn', 'How to play', () => openHelp()));
   w.append(m);
   w.append(el('p', 'note', 'A zombie survival roguelike. Turn based, one run, one life.'));
   if (!lsSet('outbreak.probe', 1)) w.append(el('p', 'note t-warn', 'This browser blocks storage, so saving will not work here.'));
   s.append(w);
+}
+function showRecords() {
+  hideAll(); const s = $('#newgame'); s.hidden = false; s.innerHTML = '';
+  const w = el('div', 'wrap form'), head = el('h2', 'logo', 'Records'); head.style.fontSize = '40px';
+  w.append(el('div', 'fileno', 'Hall of records · on this device'), head);
+  const { best, latest } = record_summary(recordStore.get());
+  const nm = (r) => `${r.scenario} · ${r.mode === 'living' ? 'hardcore' : r.mode}`;
+  if (!best.length) w.append(el('p', 'note', 'No finished runs yet. Your records appear here when a run ends.'));
+  else {
+    w.append(el('h3', null, 'Best of each'), el('div', 'sum', best.map((r) => el('div', null, `${nm(r)}: ${r.days} days, ${r.score} pts, level ${r.level}, ${r.kills} kills · ${r.title}`))));
+    w.append(el('h3', null, 'Latest'), el('div', 'sum', latest.map((r) => el('div', null, `${new Date(r.when).toISOString().slice(0, 10)} · ${r.scenario} · ${r.days} days, ${r.score} pts · ${r.title}`))));
+  }
+  w.append(btn('btn', 'Back', showTitle)); s.append(w); s.scrollTop = 0;
 }
 let sharedWorld = null, sharedCtx = null;
 let newCfg = null;
@@ -1053,6 +1106,8 @@ function showEnding() {
   w.append(el('div', 'fileno', e.victory ? 'Case closed' : e.kind === 'closed' ? 'The world is closed' : 'Case file: terminated'), el('h2', 'end-title ' + (e.victory ? 'win' : 'lose'), e.title), el('p', 'end-text', e.text));
   w.append(el('div', 'sum', e.summary.map((l) => el('div', null, l))));
   w.append(el('div', 'fileno', 'Score'), el('div', 'score', String(e.score)));
+  if (!g.record_saved) { g.record_saved = true; try { g.record_lines = submit_record(g, recordStore); } catch (err) { g.record_lines = []; } }
+  if (g.record_lines && g.record_lines.length) w.append(el('div', 'sum', g.record_lines.map((l) => el('div', null, l))));
   if (e.chronicle && e.chronicle.length) w.append(el('div', 'fileno', e.victory ? 'How you survived' : 'How it went'), el('ol', 'chron', e.chronicle.slice(-40).map((l) => el('li', null, l))));
   if (e.last_moments && e.last_moments.length) w.append(el('div', 'fileno', 'The last moments'), el('div', 'chron last', e.last_moments.map((l) => el('div', null, l))));
   const m = el('div', 'menu'); m.style.marginTop = '20px';

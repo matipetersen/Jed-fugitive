@@ -84,6 +84,7 @@ class ZombieProfile:
     stalker_heat: int = 100           # noise level at which the Stalker arrives
     human_threat: float = 1.0         # multiplier on raider/human events
     hp_mult: float = 1.0
+    mutates: float = 0.0              # how readily the strain changes over the days (x the era's lab: see engine/mutation.py)
     specials: Tuple[Tuple[str, float, int], ...] = ()     # (special id, weight, first day)
     phases: Tuple[Phase, ...] = ()
     names: Dict[str, str] = field(default_factory=dict)   # special id -> display name
@@ -102,7 +103,7 @@ class ZombieProfile:
 
 PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
     ZombieProfile(
-        id="classic", name="Classic - the slow dead",
+        id="classic", name="Classic - the slow dead", mutates=0.1,
         blurb="Slow, relentless, drawn to noise. Only a destroyed brain stops them. Whoever dies, rises.",
         inspired_by="Romero's Dead films",
         speed=0.55, sight=6, hearing=1.0, infect=0.28, incubation=360, kill_rule="head",
@@ -114,7 +115,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         lore="Nobody knows why. The dead simply got up, slowly, hungrily, and they do not stop. Whoever dies rises again, so every body matters. Only a destroyed brain ends one.",
     ),
     ZombieProfile(
-        id="rot", name="Slow rot - the long apocalypse",
+        id="rot", name="Slow rot - the long apocalypse", mutates=0.2,
         blurb="Slow, they track your scent, and they rot over the weeks. People are the real danger.",
         inspired_by="The Walking Dead",
         speed=0.6, sight=6, hearing=1.1, smell=4, infect=0.25, incubation=480, kill_rule="head",
@@ -127,7 +128,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         lore="They walk, and they smell the living from far off. They rot as the weeks pass, but the weeks are long, and the living are the worse danger now: everyone left is hungry and armed.",
     ),
     ZombieProfile(
-        id="rage", name="Rage - fast and furious",
+        id="rage", name="Rage - fast and furious", mutates=0.35,
         blurb="Sprinters. Infection is almost instant. They starve in a few weeks: can you outlast them?",
         inspired_by="28 Days Later",
         speed=1.7, sight=9, hearing=1.3, infect=0.18, incubation=55, kill_rule="any", density=0.8,
@@ -140,7 +141,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         lore="It is not the dead. It is the living, infected, and mad with rage. They run, they scream, and within a minute of a bite you are one of them. The rumour is they will starve in a few weeks, if you can last.",
     ),
     ZombieProfile(
-        id="spore", name="Spore bloom - the fungal plague",
+        id="spore", name="Spore bloom - the fungal plague", mutates=0.6,
         blurb="Fungus takes the host. Spore clouds in closed places infect you: filters matter. Blind brutes hunt by sound.",
         inspired_by="The Last of Us",
         speed=0.85, sight=5, hearing=1.3, vector="spore", infect=0.2, incubation=300, kill_rule="any",
@@ -151,7 +152,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         lore="A fungus has taken the dead. Where it grows in closed rooms the air itself is poison, and the blind ones hunt by sound. Filters matter. Silence matters more.",
     ),
     ZombieProfile(
-        id="bio", name="Biohazard - the engineered plague",
+        id="bio", name="Biohazard - the engineered plague", mutates=1.0,
         blurb="A weaponised pathogen. The longer it spreads the worse the mutations get, and something hunts you.",
         inspired_by="Resident Evil",
         speed=0.7, sight=7, hearing=1.0, infect=0.3, incubation=300, kill_rule="head", density=1.0,
@@ -164,7 +165,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         lore="It was made, not found. A weaponised pathogen escaped containment and it is still changing. The longer it spreads the worse the things it makes, and something has started to hunt survivors by name.",
     ),
     ZombieProfile(
-        id="swarm", name="Swarm - the tide",
+        id="swarm", name="Swarm - the tide", mutates=0.3,
         blurb="Frail but fast, and there are always more. They pile over fences and doors. Go quiet or die.",
         inspired_by="World War Z",
         speed=1.3, sight=8, hearing=1.5, infect=0.22, incubation=60, kill_rule="any", density=1.1,
@@ -175,7 +176,7 @@ PRESETS: Dict[str, ZombieProfile] = {p.id: p for p in (
         lore="They come in tides. Frail, fast, and endless, they climb fences and pile over doors. Alone, they are nothing; together, they are the end of cities. Go quiet or die.",
     ),
     ZombieProfile(
-        id="night", name="Nightstalkers - the vampiric dead",
+        id="night", name="Nightstalkers - the vampiric dead", mutates=0.1,
         blurb="Clever, hunt in packs, burn in sunlight. Safe by day outdoors; deadly by night and inside buildings.",
         inspired_by="I Am Legend",
         speed=0.5, sight=8, hearing=1.0, smell=6, infect=0.3, incubation=200, intel=2, kill_rule="any",

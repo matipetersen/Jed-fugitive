@@ -7,7 +7,7 @@ from typing import List
 
 from outbreak import content
 from outbreak.content.items import ItemDef
-from outbreak.engine import cipher, encounters, hordes
+from outbreak.engine import cipher, encounters, hordes, mutation
 from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
@@ -164,7 +164,7 @@ def intro_pages(game) -> list:
     """The briefing: the world, the scene you start in, and what you have to do."""
     era, sc, prof = game.era, game.scenario, game.profile
     opening = content.get_opening(game.opening_id)
-    world = f"{era.name} ({era.year}).\n\n{era.intro}\n\n{prof.lore}"
+    world = f"{era.name} ({era.year}).\n\n{era.intro}\n\n{prof.lore}\n\n{mutation.matchup(era, prof)}"
     scene = opening.scenes[era.id] + "\n\n" + content.openings.CONSEQUENCE.format(
         alarm=content.openings.ALARMS[era.id])
     premise = (sc.premise_living if game.cfg.mode == "living" else sc.premise).format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=game.deadline_days)

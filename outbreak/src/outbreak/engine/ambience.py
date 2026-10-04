@@ -141,28 +141,72 @@ def _random_spot(game, lo: int, hi: int):
     return None
 
 
+# what the world can do by itself, and how each thing sounds.  Which of them an era has is content/eras.py (EraRules.ambient).
+EVENTS = {
+    "car_alarm": dict(radius=15, every=3, left=24, text="A car alarm starts to wail somewhere out there."),
+    "siren": dict(radius=18, every=4, left=30, text="A siren wails across the rooftops."),
+    "klaxon": dict(radius=18, every=3, left=30, text="A klaxon blares from some dead facility."),
+    "phone": dict(radius=8, every=6, left=30, text="Somewhere close, a phone is ringing."),
+    "helicopter": dict(radius=26, every=2, left=12, text="A helicopter thunders overhead."),
+    "bell": dict(radius=20, every=8, left=40, text="A bell tolls in the distance. Someone, or the wind, is ringing it."),
+    "livestock": dict(radius=10, text="Animals panic somewhere out there: barking, lowing, hooves."),
+    "collapse": dict(radius=14, text="Something heavy collapses in the distance."),
+    "surge": dict(radius=16, text="A power surge cracks and sparks in the distance."),
+    "drone": dict(radius=10, every=2, left=44, drift=True, text="A patrol drone whines past, sweeping the streets."),
+}
+
+
+def _pulse(game, s) -> None:
+    emit_on(game, game.world.level, s["pos"], s["radius"], "world")
+
+
 def world_tick(game) -> None:
-    """Things that happen on their own: the pulses of an alarm that is still sounding, and now and then a new one."""
+    """Things that happen on their own: the pulses of anything still sounding, and now and then something new."""
     t = game.clock.turn
+    p = game.player
     for s in list(game.sources):
+        if s.get("drift") and t % 2 == 0:
+            lv = game.world.level
+            nx, ny = s["pos"][0] + s["drift"][0], s["pos"][1] + s["drift"][1]
+            if 2 < nx < lv.w - 2 and 2 < ny < lv.h - 2:
+                s["pos"] = (nx, ny)
+            else:
+                s["left"] = 0
         if t % s["every"] == 0:
-            emit_on(game, game.world.level, s["pos"], s["radius"], "world")
+            _pulse(game, s)
+        if s["kind"] == "drone" and not s.get("scanned") and game.level.kind == "overworld" and cheb(s["pos"], p.pos) <= 7 \
+                and not p.sneaking:
+            s["scanned"] = True                                  # it noticed you: the scan itself is a call
+            game.msg("The drone's scanner pings you!", "bad")
+            emit_on(game, game.world.level, p.pos, 14, "world")
         s["left"] -= 1
         if s["left"] <= 0:
             game.sources.remove(s)
+    rules = game.era.rules
     if game.level.kind != "overworld" or t % 20 != 0 or t < 100:
         return
-    if game.rng.random() >= 0.18 + 0.05 * min(6.0, game.pressure):
+    if game.rng.random() >= (0.18 + 0.05 * min(6.0, game.pressure)) * rules.ambient_rate:
         return
     pos = _random_spot(game, 12, 34)
     if pos is None:
         return
-    if game.rng.random() < 0.55:
-        game.sources.append({"pos": pos, "radius": 15, "every": 3, "left": 24, "kind": "car alarm"})
-        _say_direction(game, pos, "A car alarm starts to wail somewhere out there.")
+    options = rules.ambient
+    pick = game.rng.random() * sum(w for _, w in options)
+    kind = options[-1][0]
+    for name, w in options:
+        pick -= w
+        if pick <= 0:
+            kind = name
+            break
+    ev = EVENTS[kind]
+    if "every" in ev:
+        src = {"pos": pos, "radius": ev["radius"], "every": ev["every"], "left": ev["left"], "kind": kind}
+        if ev.get("drift"):
+            src["drift"] = (game.rng.choice((-1, 1)), game.rng.choice((-1, 0, 1)))
+        game.sources.append(src)
     else:
-        emit_on(game, game.world.level, pos, 14, "world")
-        _say_direction(game, pos, "Something heavy collapses in the distance.")
+        emit_on(game, game.world.level, pos, ev["radius"], "world")
+    _say_direction(game, pos, ev["text"])
 
 
 def building_alarm(game, poi) -> None:
@@ -170,7 +214,7 @@ def building_alarm(game, poi) -> None:
     if poi.id in game.alarmed or poi.kind not in ("market", "guard", "military", "lab"):
         return
     game.alarmed.add(poi.id)
-    if game.rng.random() >= 0.3:
+    if game.rng.random() >= game.era.rules.alarm_chance:
         return
     game.msg("An alarm shrieks through the building. They will hear that outside!", "bad", key=True)
     game.sources.append({"pos": poi.pos, "radius": 20, "every": 3, "left": 21, "kind": "building alarm"})

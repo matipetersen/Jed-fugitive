@@ -6,16 +6,17 @@ import random
 from typing import Optional
 
 from outbreak.content.zombies import SPECIALS, ZombieProfile
+from outbreak.engine import mutation
 from outbreak.engine.model import Human, Level, Zombie
 from outbreak.util import DIRS8, weighted_choice
 
 
-def pick_special(rng: random.Random, profile: ZombieProfile, day: int) -> str:
+def pick_special(rng: random.Random, profile: ZombieProfile, day: int, boost: float = 1.0) -> str:
     phase = profile.phase(day)
     pairs = [("walker", 10.0)]
     for sid, weight, first_day in profile.specials:
         if day >= first_day:
-            pairs.append((sid, weight * phase.special))
+            pairs.append((sid, weight * phase.special * boost))      # boost: how far the strain has run ahead (mutation.py)
     return weighted_choice(rng, pairs)
 
 
@@ -42,12 +43,13 @@ def make_zombie(game, special_id: str, x: int, y: int, fresh: bool = False) -> Z
     z.facing = DIRS8[z.uid % 8]                         # which way it looks (from the uid: the same for everyone)
     if "boss" in sp.flags or "relentless" in sp.flags:
         z.speed = max(z.speed, 1.0)
+    mutation.apply(game, z)
     return z
 
 
 def spawn_zombie(game, level: Level, pos, special: Optional[str] = None, dormant: bool = True,
                  fresh: bool = False) -> Zombie:
-    sid = special or pick_special(game.rng, game.profile, game.clock.day)
+    sid = special or pick_special(game.rng, game.profile, game.clock.day, mutation.special_boost(game))
     z = make_zombie(game, sid, pos[0], pos[1], fresh)
     z.state = "dormant" if (dormant and level.kind != "overworld") else "idle"
     level.add_actor(z)

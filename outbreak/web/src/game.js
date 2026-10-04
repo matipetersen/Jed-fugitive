@@ -77,6 +77,7 @@ class Game {
     this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
     this.gen_day = 0; this.dead_uids = new Set(); this.deadline_days = 0; this.lost_turns = 0; this.incidents = [];
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
+    this.mutations = [];
     this.weather = 'clear'; this.sources = []; this.alarmed = []; this.last_step_note = -999; this.pings = []; this.flash_turn = -999;
     this.base_id = null; this.raid_next = 0;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
@@ -156,7 +157,7 @@ class Game {
     else if (lv.dark) r = 7;
     else { const light = this.clock.light; r = (light > 0.7 ? 14 : light > 0.35 ? 10 : 5) + (WEATHER_PLAYER_SIGHT[this.weather] || 0); }      // fog and storms shorten your view
     if (this.is_dark()) {
-      r += Math.floor(p.mod('night_vision'));
+      r += Math.floor(p.mod('night_vision')) + this.era.rules.night_view;       // a visor, or a moonless medieval night
       if (player_lit(this)) r = Math.max(r, this.item_def(p.light.id).light);
     }
     return r;
@@ -499,6 +500,7 @@ class Game {
       if (day % 5 === 0) this.msg(`Day ${day}. You are still here. The dead are ${Math.round(this.pressure * 100)}% of what they were on day one.`, 'lore');
     }
     if (c.turn % 240 === 0) {
+      if (day > 1) mutation_daily(this);
       const ph = profile_phase(this.profile, day), prev = profile_phase(this.profile, day - 1);
       if (ph !== prev && ph.blurb) this.msg(`Day ${day}: ${ph.name}. ${ph.blurb}`, 'lore');
     }
@@ -725,6 +727,7 @@ class Game {
     if (p.sneaking) noise = tile === T.ROAD || tile === T.BRUSH ? 1 : tile === T.SHALLOW ? 3 : 0;      // a careful step on soft ground is silent
     else if (p.sprinting && p.stamina > 5) noise += 4;
     if (p.armor) noise += this.item_def(p.armor.id).stealth;
+    noise = Math.round(noise * this.era.rules.step_noise);          // soft ground vs hard floors
     noise = Math.max(0, noise + Math.trunc(p.mod('move_noise')));
     if (!p.sneaking) { noise += step_extra(this, tile); explain_step(this, tile); startle(this, tile); }     // gravel, glass, metal floors, the building you are in
     this.emit_noise([p.x, p.y], noise);

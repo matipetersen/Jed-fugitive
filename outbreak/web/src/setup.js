@@ -115,7 +115,7 @@ function _apply_opening(game, opening) {
 function intro_pages(game) {
   const era = game.era, sc = game.scenario, prof = game.profile, opening = CONTENT.openings[game.opening_id];
   const fill = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
-  const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}`;
+  const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}\n\n${mutation_matchup(era, prof)}`;
   const scene = opening.scenes[era.id] + '\n\n' + fill(CONTENT.opening_consequence, { alarm: CONTENT.opening_alarms[era.id] });
   const premise = fill(game.cfg.mode !== 'normal' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: game.deadline_days });
   return [[opening.name, scene], ['The world', world], ['What you must do', premise]];

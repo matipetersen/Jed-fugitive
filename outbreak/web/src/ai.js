@@ -8,11 +8,11 @@ function sight_range(game, z) {
   const prof = game.profile, p = game.player;
   let r = z.sight;
   if (game.is_dark()) {
-    r *= 0.6 * prof.night_sight;
-    if (player_lit(game)) r = Math.max(r, 6.0) * 1.7;
+    r *= Math.min(1.0, 0.6 * game.era.rules.dead_night) * prof.night_sight;      // sensors and heat vision ignore the dark
+    if (player_lit(game)) r = Math.max(r, 6.0) * game.era.rules.lit_visibility;   // a torch is a beacon; cold LEDs much less so
   }
   if (p.sneaking) r *= 0.5;
-  if (game.level.tile(p.x, p.y) === T.BRUSH) r *= 0.5;
+  if (game.level.tile(p.x, p.y) === T.BRUSH) r *= game.era.rules.cover;
   r *= sight_scale(game) * exposure_of_ground(game);          // weather, and an open road or splashing water
   if (p.disguise_turns > 0 && prof.intel < 2 && (z.uid * 37) % 100 < prof.disguise * 100) r = Math.min(r, 1.5);
   return r;

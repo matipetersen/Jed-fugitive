@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, mutation, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -60,6 +60,7 @@ class Game:
         self.deadline_days = 0                   # the way out closes after this day (set from the route)
         self.lost_turns = 0                      # time the road incidents cost: counts against the deadline
         self.incidents: List[dict] = []          # scripted road incidents: {x, y, event, done}
+        self.mutations: List[str] = []           # changes the strain has made so far (mutation.py)
         self.weather = "clear"                    # clear | rain | fog | storm (ambience.py)
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
@@ -207,7 +208,7 @@ class Game:
             r = 14 if light > 0.7 else 10 if light > 0.35 else 5
             r += ambience.PLAYER_SIGHT.get(self.weather, 0)         # fog and storms shorten your own view too
         if self.is_dark():
-            r += int(p.mod("night_vision"))
+            r += int(p.mod("night_vision")) + self.era.rules.night_view      # a visor, or a moonless medieval night
             if combat.player_lit(self):
                 r = max(r, self.item_def(p.light.id).light)
         return r
@@ -550,6 +551,8 @@ class Game:
             if c.day % 5 == 0:
                 self.msg(f"Day {c.day}. You are still here. The dead are {int(round(self.pressure * 100))}% of what they were on day one.", "lore")
         if c.turn % 240 == 0:
+            if c.day > 1:
+                mutation.daily(self)
             ph = self.profile.phase(c.day)
             prev = self.profile.phase(c.day - 1)
             if ph is not prev and ph.blurb:
@@ -797,6 +800,7 @@ class Game:
             noise += 4
         if p.armor:
             noise += self.item_def(p.armor.id).stealth
+        noise = int(round(noise * self.era.rules.step_noise))       # soft ground vs hard floors
         noise = max(0, noise + int(p.mod("move_noise")))
         if not p.sneaking:
             noise += ambience.step_extra(self, tile)           # gravel, glass, metal floors, the building you are in

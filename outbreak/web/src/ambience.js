@@ -96,30 +96,56 @@ function _random_spot(game, lo, hi) {
   return null;
 }
 
+const AMBIENT_EVENTS = {
+  car_alarm: { radius: 15, every: 3, left: 24, text: 'A car alarm starts to wail somewhere out there.' },
+  siren: { radius: 18, every: 4, left: 30, text: 'A siren wails across the rooftops.' },
+  klaxon: { radius: 18, every: 3, left: 30, text: 'A klaxon blares from some dead facility.' },
+  phone: { radius: 8, every: 6, left: 30, text: 'Somewhere close, a phone is ringing.' },
+  helicopter: { radius: 26, every: 2, left: 12, text: 'A helicopter thunders overhead.' },
+  bell: { radius: 20, every: 8, left: 40, text: 'A bell tolls in the distance. Someone, or the wind, is ringing it.' },
+  livestock: { radius: 10, text: 'Animals panic somewhere out there: barking, lowing, hooves.' },
+  collapse: { radius: 14, text: 'Something heavy collapses in the distance.' },
+  surge: { radius: 16, text: 'A power surge cracks and sparks in the distance.' },
+  drone: { radius: 10, every: 2, left: 44, drift: true, text: 'A patrol drone whines past, sweeping the streets.' },
+};
+
 function world_tick(game) {
-  const t = game.clock.turn;
+  const t = game.clock.turn, p = game.player;
   for (const s of game.sources.slice()) {
+    if (s.drift && t % 2 === 0) {
+      const lv = game.world.level, nx = s.pos[0] + s.drift[0], ny = s.pos[1] + s.drift[1];
+      if (nx > 2 && nx < lv.w - 2 && ny > 2 && ny < lv.h - 2) s.pos = [nx, ny]; else s.left = 0;
+    }
     if (t % s.every === 0) emit_on(game, game.world.level, s.pos, s.radius, 'world');
+    if (s.kind === 'drone' && !s.scanned && game.level.kind === 'overworld' && cheb(s.pos, [p.x, p.y]) <= 7 && !p.sneaking) {
+      s.scanned = true;                                            // it noticed you: the scan itself is a call
+      game.msg("The drone's scanner pings you!", 'bad');
+      emit_on(game, game.world.level, [p.x, p.y], 14, 'world');
+    }
     s.left -= 1;
     if (s.left <= 0) game.sources.splice(game.sources.indexOf(s), 1);
   }
+  const rules = game.era.rules;
   if (game.level.kind !== 'overworld' || t % 20 !== 0 || t < 100) return;
-  if (game.rng.random() >= 0.18 + 0.05 * Math.min(6.0, game.pressure)) return;
+  if (game.rng.random() >= (0.18 + 0.05 * Math.min(6.0, game.pressure)) * rules.ambient_rate) return;
   const pos = _random_spot(game, 12, 34);
   if (!pos) return;
-  if (game.rng.random() < 0.55) {
-    game.sources.push({ pos, radius: 15, every: 3, left: 24, kind: 'car alarm' });
-    _say_direction(game, pos, 'A car alarm starts to wail somewhere out there.');
-  } else {
-    emit_on(game, game.world.level, pos, 14, 'world');
-    _say_direction(game, pos, 'Something heavy collapses in the distance.');
-  }
+  const options = rules.ambient;
+  let pick = game.rng.random() * options.reduce((sum, o) => sum + o[1], 0), kind = options[options.length - 1][0];
+  for (const [name, w] of options) { pick -= w; if (pick <= 0) { kind = name; break; } }
+  const ev = AMBIENT_EVENTS[kind];
+  if (ev.every) {
+    const src = { pos, radius: ev.radius, every: ev.every, left: ev.left, kind };
+    if (ev.drift) src.drift = [game.rng.randint(0, 1) ? 1 : -1, game.rng.randint(-1, 1)];
+    game.sources.push(src);
+  } else emit_on(game, game.world.level, pos, ev.radius, 'world');
+  _say_direction(game, pos, ev.text);
 }
 
 function building_alarm(game, poi) {
   if (game.alarmed.includes(poi.id) || !['market', 'guard', 'military', 'lab'].includes(poi.kind)) return;
   game.alarmed.push(poi.id);
-  if (game.rng.random() >= 0.3) return;
+  if (game.rng.random() >= game.era.rules.alarm_chance) return;
   game.msg('An alarm shrieks through the building. They will hear that outside!', 'bad', true);
   const pos = poi_pos(poi);
   game.sources.push({ pos, radius: 20, every: 3, left: 21, kind: 'building alarm' });

@@ -17,6 +17,22 @@ FACTION_ROLES = ("military", "enclave", "raiders", "cult", "science")
 LEXICON_SLOTS = ("sickness", "cure", "dead", "place", "guard", "leader", "sample", "escape", "signal", "warning")
 
 
+@dataclass(frozen=True)
+class EraRules:
+    """How the era *plays*, beyond what it is called: how loud the world is, how far light and darkness carry, and how
+    much a plague can change in it.  Every number is a multiplier or a small offset; 1.0 / 0 means 'as before'."""
+    ambient: Tuple[Tuple[str, float], ...] = (("car_alarm", 3), ("collapse", 1))   # what makes noise by itself, and how often
+    ambient_rate: float = 1.0          # how often the world makes noise
+    alarm_chance: float = 0.3          # chance that a building's alarm is still live when you walk in
+    step_noise: float = 1.0            # your footsteps: soft ground and bare feet vs hard floors
+    night_view: int = 0                # tiles added to (or taken from) your own view in the dark
+    lit_visibility: float = 1.7        # how much a carried light shows you to the dead
+    dead_night: float = 1.0            # how well the dead see in the dark (x the usual 0.6 penalty; 1.7 = no penalty)
+    cover: float = 0.5                 # how much brush hides you (the dead's sight range is multiplied by this)
+    lab: float = 1.0                   # how far a plague can mutate in a world with this much science
+    feel: str = ""                     # one line for the briefing
+
+
 @dataclass
 class EraPack:
     id: str
@@ -43,6 +59,7 @@ class EraPack:
     intro: str
     radio: str                                 # how rumours travel
     ammo_names: Dict[str, str] = field(default_factory=dict)
+    rules: EraRules = field(default_factory=EraRules)
 
     def item(self, item_id: str) -> ItemDef:
         return self.items[item_id]
@@ -364,12 +381,31 @@ def _scifi() -> EraPack:
     )
 
 
+ERA_RULES: Dict[str, EraRules] = {
+    "medieval": EraRules(
+        ambient=(("bell", 3), ("livestock", 2), ("collapse", 2)), ambient_rate=0.8, alarm_chance=0.0, step_noise=0.8,
+        night_view=-1, lit_visibility=2.2, dead_night=1.0, cover=0.45, lab=0.3,
+        feel="A quiet world: no engines, no alarms, soft ground. The nights are truly dark, and a torch shows you to everything."),
+    "eighties": EraRules(
+        ambient=(("car_alarm", 3), ("siren", 2), ("collapse", 1)), ambient_rate=1.0, alarm_chance=0.2, step_noise=1.0,
+        night_view=0, lit_visibility=1.8, dead_night=1.0, cover=0.5, lab=0.7,
+        feel="Engines, burglar bells and sirens. Dark nights, and a good torch is a beacon."),
+    "modern": EraRules(
+        ambient=(("car_alarm", 4), ("phone", 2), ("helicopter", 1), ("collapse", 1)), ambient_rate=1.2, alarm_chance=0.3,
+        step_noise=1.1, night_view=1, lit_visibility=1.7, dead_night=1.0, cover=0.5, lab=1.0,
+        feel="A loud world: alarms, phones, helicopters, hard floors that ring. Streetlights and screens give you a little more night view."),
+    "scifi": EraRules(
+        ambient=(("klaxon", 3), ("drone", 3), ("surge", 2)), ambient_rate=1.3, alarm_chance=0.45, step_noise=1.15,
+        night_view=2, lit_visibility=1.3, dead_night=1.5, cover=0.65, lab=1.4,
+        feel="A watched world: klaxons, patrol drones and power surges. Your visor sees in the dark, but the dead sense heat and brush hides you less."),
+}
 ERAS: Dict[str, EraPack] = {}
 
 
 def _register() -> None:
     for build in (_medieval, _eighties, _modern, _scifi):
         era = build()
+        era.rules = ERA_RULES[era.id]
         _validate(era)
         ERAS[era.id] = era
 

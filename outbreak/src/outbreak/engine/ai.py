@@ -34,13 +34,13 @@ def sight_range(game, z: Zombie) -> float:
     prof, p = game.profile, game.player
     r = z.sight
     if game.is_dark():
-        r *= 0.6 * prof.night_sight
+        r *= min(1.0, 0.6 * game.era.rules.dead_night) * prof.night_sight         # sensors and heat vision ignore the dark
         if combat.player_lit(game):
-            r = max(r, 6.0) * 1.7
+            r = max(r, 6.0) * game.era.rules.lit_visibility            # a torch is a beacon; cold LEDs much less so
     if p.sneaking:
         r *= 0.5
     if game.level.tile(*p.pos) == T.BRUSH:
-        r *= 0.5
+        r *= game.era.rules.cover
     r *= ambience.sight_scale(game) * ambience.exposure_of_ground(game)      # weather, and an open road or splashing water
     if p.disguise_turns > 0 and prof.intel < 2 and (z.uid * 37) % 100 < prof.disguise * 100:
         r = min(r, 1.5)

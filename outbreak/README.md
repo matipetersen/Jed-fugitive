@@ -91,6 +91,27 @@ they are dead. Only one base at a time; claiming another leaves the old one to t
   All of these can be used: a distant alarm pulls zombies away from you, a storm covers a run, and a mistake in a
   glass-strewn market brings the street in.
 
+**Eras play differently** (`EraRules` in `content/eras.py`; every number is data):
+| | medieval | eighties | modern | sci-fi |
+|---|---|---|---|---|
+| the world makes noise | bells, livestock, collapses | car alarms, sirens | car alarms, phones, helicopters | klaxons, patrol drones, power surges |
+| building alarms | none | 20% | 30% | 45% |
+| your footsteps | x0.8 (soft ground) | x1 | x1.1 (hard floors) | x1.15 |
+| your own night view | -1 | 0 | +1 | +2 (visor) |
+| a carried light shows you | x2.2 (a beacon) | x1.8 | x1.7 | x1.3 |
+| the dead in the dark | as usual | as usual | as usual | no penalty (they sense heat) |
+| brush hides you | x0.45 | x0.5 | x0.5 | x0.65 |
+| how much the plague can mutate | x0.3 | x0.7 | x1.0 | x1.4 |
+
+Patrol drones drift across the map and, if they get near you while you are not creeping, scan you and call the dead.
+
+**The strain changes.** Each plague has a `mutates` rate (Biohazard 1.0, Spore 0.6, Rage 0.35, Swarm 0.3, Slow rot 0.2,
+Classic and Nightstalkers 0.1); times the era's science, ramped over the first 12 days, it is the chance each day that the
+whole population gains a trait (faster, tougher, keener senses, harder hits; at most 5), announced when it happens and
+applied to the dead already walking. It also raises the share of the strange ones. So the same Classic dead in a medieval
+world hardly change in a month, while Biohazard in a sci-fi world has four or five new traits by day 15. The briefing says
+which of these you are playing.
+
 **The records.** Every finished run (won, dead, turned, left behind) is kept on your machine
 (`records.json` next to the saves, or the browser's storage) and compared with your earlier runs of the same
 objective and mode: days survived first, points second. The end screen says whether it is a new record, and

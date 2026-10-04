@@ -52,7 +52,7 @@ def spawn_horde(game, pos: Pos, size: Optional[int] = None, target: Optional[Pos
         return None
     if size is None:
         size = game.rng.randint(*prof.horde_size)
-    size = max(2, int(size * prof.phase(game.clock.day).spawn * game.diff.zombies))
+    size = max(2, int(size * prof.phase(game.clock.day).spawn * game.diff.zombies * game.pressure))
     h = Horde(game.next_uid(), spot[0], spot[1], size, target, home_turn=game.clock.turn)
     game.hordes.append(h)
     return h
@@ -172,7 +172,7 @@ def wanderers(game) -> None:
     prof = game.profile
     if prof.sun_burn and game.clock.is_day:
         return
-    chance = 0.22 * prof.phase(game.clock.day).spawn * game.diff.zombies * prof.density
+    chance = 0.22 * prof.phase(game.clock.day).spawn * game.diff.zombies * prof.density * game.pressure
     if game.clock.is_night:
         chance *= 1.5
     chance += game.heat / 400.0

@@ -19,6 +19,11 @@ def pick_special(rng: random.Random, profile: ZombieProfile, day: int) -> str:
     return weighted_choice(rng, pairs)
 
 
+def _stronger(dmg, pressure: float):
+    k = 1.0 + (pressure - 1.0) * 0.4
+    return (int(dmg[0] * k), max(int(dmg[0] * k), int(dmg[1] * k))) if k > 1.0 else dmg
+
+
 def make_zombie(game, special_id: str, x: int, y: int, fresh: bool = False) -> Zombie:
     profile: ZombieProfile = game.profile
     sp = SPECIALS[special_id]
@@ -26,10 +31,11 @@ def make_zombie(game, special_id: str, x: int, y: int, fresh: bool = False) -> Z
     phase = profile.phase(day)
     age = 0 if fresh else game.rng.randint(0, max(0, day - 1))
     decay = max(0.4, 1.0 - profile.decay * age)
-    hp = max(1, int(sp.hp * profile.hp_mult * phase.hp * decay))
+    pressure = game.pressure
+    hp = max(1, int(sp.hp * profile.hp_mult * phase.hp * decay * (1.0 + (pressure - 1.0) * 0.6)))
     z = Zombie(
         uid=game.next_uid(), name=profile.name_of(special_id), glyph=sp.glyph, x=x, y=y, hp=hp, max_hp=hp,
-        special=special_id, dmg=sp.dmg, acc=sp.acc,
+        special=special_id, dmg=_stronger(sp.dmg, pressure), acc=sp.acc,
         speed=profile.speed * sp.speed * phase.speed * (0.85 if decay < 1 else 1.0),
         sight=profile.sight * sp.sight, hearing=profile.hearing * sp.hearing, xp=sp.xp, flags=sp.flags,
         birth_day=day - age)

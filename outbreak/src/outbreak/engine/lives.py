@@ -23,6 +23,8 @@ def living(game) -> bool:
 
 def level_cap(game) -> int:
     """Enemies cannot outgrow the calendar: day 1 caps at level 3."""
+    if game.scenario.escalates:
+        return min(40, 2 + game.clock.day)
     return min(MAX_ENEMY_LEVEL, 2 + game.clock.day)
 
 
@@ -106,6 +108,7 @@ def player_died(game, kind: str, cause: str) -> None:
     game.current_origin = new_origin
     new = setup.make_player(game, new_origin, pos)
     new.documents = docs
+    new.recipes = list(getattr(p, "recipes", new.recipes))
     new.level = max(1, p.level // 2)
     new.perk_points = new.level - 1
     new.max_hp += 3 * (new.level - 1)

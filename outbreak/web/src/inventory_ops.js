@@ -153,6 +153,7 @@ function recipe_status(game, r) {
   if (!out) return [false, 'not possible in this era'];
   if (r.needs === 'firearms' && !game.era.firearms) return [false, 'needs firearms'];
   if (r.needs === 'electricity' && !game.era.electricity) return [false, 'needs electricity'];
+  if (!(game.player.recipes || []).includes(r.id)) return [false, 'you do not know how: find and decipher a manual'];
   if (game.know.fluency < r.fluency) return [false, `needs ${Math.floor(r.fluency * 100)}% fluency in the ${game.era.cipher_name.toLowerCase()}`];
   const missing = r.inputs.filter(([i, q]) => game.player.count(i) < q).map(([i, q]) => `${q}x ${game.item_def(i).name.toLowerCase()}`);
   if (missing.length) return [false, 'missing ' + missing.join(', ')];

@@ -224,6 +224,8 @@ def recipe_status(game, r: Recipe) -> Tuple[bool, str]:
         return False, "needs firearms"
     if r.needs == "electricity" and not game.era.electricity:
         return False, "needs electricity"
+    if r.id not in getattr(game.player, "recipes", ()):
+        return False, "you do not know how: find and decipher a manual"
     if game.know.fluency < r.fluency:
         return False, f"needs {int(r.fluency * 100)}% fluency in the {game.era.cipher_name.lower()}"
     missing = [f"{q}x {game.item_def(i).name.lower()}" for i, q in r.inputs if game.player.count(i) < q]

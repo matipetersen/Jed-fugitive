@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from outbreak.content.perks import PERKS
+from outbreak.content.recipes import STARTERS
 from outbreak.engine.model import Actor, Item
 
 INVENTORY_SLOTS = 26
@@ -53,6 +54,7 @@ class Player(Actor):
     # records
     kills: int = 0
     documents: List[str] = field(default_factory=list)
+    recipes: List[str] = field(default_factory=lambda: list(STARTERS))    # what you know how to make
     stats: Dict[str, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------ modifiers

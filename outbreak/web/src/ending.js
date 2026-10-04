@@ -4,7 +4,7 @@ function _band(h) { return h >= 75 ? 'saint' : h >= 40 ? 'survivor' : h >= 15 ? 
 function build_ending(game, kind, cause = '') {
   const p = game.player, sc = game.scenario, days = game_day(game);
   const decoded = Object.values(game.docs).filter((d) => p.documents.includes(d.id) && is_decoded(d, game.know)).length;
-  const score = p.kills * 2 + days * 25 + p.humanity + decoded * 8 + p.level * 12 + (kind === 'won' ? 500 : 0);
+  const score = p.kills * 2 + days * (sc.escalates ? 40 : 25) + p.humanity + decoded * 8 + p.level * 12 + (kind === 'won' ? 500 : 0);
   const summary = [
     `Survived ${days} day${days !== 1 ? 's' : ''} (${game.clock.turn} turns)`,
     `Zombies destroyed: ${p.stats.zombies || 0}   People killed: ${p.stats.humans || 0}`,
@@ -15,7 +15,11 @@ function build_ending(game, kind, cause = '') {
   if (p.lost.length) summary.push('You lost your ' + p.lost.join(' and your ') + ' to survive.');
   let title, text;
   if (kind === 'won') [title, text] = CONTENT.win_endings[`${sc.id}|${_band(p.humanity)}`];
-  else if (kind === 'turned') {
+  else if (sc.escalates && (kind === 'dead' || kind === 'turned')) {
+    title = `Survived ${days} day${days !== 1 ? 's' : ''}`;
+    text = kind === 'dead' ? (cause ? cap(cause) + '.' : 'You did not make it.') : 'The fever peaks and the world goes quiet. When you open your eyes again, you are hungry.';
+    summary.push(`The dead were ${Math.round(game.pressure * 100)}% as strong as on day one when you fell.`);
+  } else if (kind === 'turned') {
     title = 'You turned';
     text = 'The fever peaks and the world goes quiet. When you open your eyes again, you are hungry, and the sounds of the living are very loud.';
   } else if (kind === 'left_behind') {

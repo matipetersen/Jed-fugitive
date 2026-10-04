@@ -409,16 +409,21 @@ class UI:
         pos = 0
         while True:
             rows, dis, ids = [], [], []
+            hidden = 0
             for r in RECIPES:
                 out = inventory_ops.recipe_output(g, r)
                 if out is None:
+                    continue
+                if r.id not in g.player.recipes:
+                    hidden += 1
                     continue
                 ok, why = inventory_ops.recipe_status(g, r)
                 need = ", ".join(f"{q}x {g.item_def(i).name.lower()}" for i, q in r.inputs)
                 rows.append((f"{g.item_def(out).name:<22} {need}" + ("" if ok else f"   ({why})"), "white" if ok else "grey"))
                 dis.append(not ok)
                 ids.append(r.id)
-            idx = self.pick(f"Craft   fluency {int(g.know.fluency * 100)}% in the {g.era.cipher_name.lower()}",
+            idx = self.pick(f"Craft   fluency {int(g.know.fluency * 100)}% in the {g.era.cipher_name.lower()}"
+                            + (f"   ({hidden} recipes still to find in manuals)" if hidden else ""),
                             rows, start=pos, disabled=dis)
             if idx is None:
                 return

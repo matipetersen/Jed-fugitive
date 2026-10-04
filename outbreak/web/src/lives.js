@@ -4,7 +4,7 @@
 const MAX_ENEMY_LEVEL = 15, KEEP_KNOWLEDGE = 0.5;
 const living = (game) => game.cfg.mode !== 'normal';
 // Enemies cannot outgrow the calendar: day 1 caps at level 3.
-const level_cap = (game) => Math.min(MAX_ENEMY_LEVEL, 2 + game_day(game));
+const level_cap = (game) => game.scenario.escalates ? Math.min(40, 2 + game_day(game)) : Math.min(MAX_ENEMY_LEVEL, 2 + game_day(game));
 const base_name = (a) => a.name.replace(/ \(Lv\d+\)$/, '');
 
 function level_up(game, a, announce = true) {
@@ -68,7 +68,7 @@ function player_died(game, kind, cause) {
   const docs = p.documents.slice();
   game.generation += 1; game.current_origin = new_origin;
   const np = make_player(game, new_origin, pos);
-  np.documents = docs;
+  np.documents = docs; np.recipes = (p.recipes || np.recipes).slice();
   np.level = Math.max(1, Math.floor(p.level / 2));
   np.perk_points = np.level - 1;
   np.max_hp += 3 * (np.level - 1); np.hp = np.max_hp;

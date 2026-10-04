@@ -41,6 +41,13 @@ speed, senses, how the infection spreads, intelligence, decay over the days, and
   tiles of real progress a day, plus time for every vault), never less than 10 days.
 * `dash` - no parts, only the road: get to the extraction point before the way closes and hold out. A shorter, more
   physical run, with five incidents on the way.
+* `endless` - no exit and no clock. Live as long as you can, or gather the three components and the formula
+  and make the cure at the refuge, which ends it with a win. Nobody starts bitten. Every day past the third the
+  world gets worse, without limit: the dead get +6% a day of health and damage (up to x3), hordes and ambient
+  spawns grow with it, and in hardcore the enemy level cap rises with the calendar (up to 40, not 15). To keep
+  a long life possible, vaults and containers you emptied refill (about half of them) every 4 days. Dying
+  is a survival result ("Survived 23 days") with a bigger score per day. Combined with `living` it is the eternal
+  hardcore world.
 
 On the road to the extraction point (`extraction` and `dash`) things happen: wrecked convoys, an abandoned checkpoint, a
 bridge that is out, a column of refugees, an ambush, the dead crossing the road. Each is placed on the route when the world
@@ -49,6 +56,13 @@ is created and fires once when you get close. Choices cost items, health, humani
 
 All three end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
 armed people who have heard about you if you did not.
+
+**Crafting.** You start knowing the five basics (bandage, splint, fire bomb, noisemaker, barricade kit). The
+rest (spike trap, repair kit, filter, medkit, suppressant, ammunition) are learned from a **manual**: one
+written page per recipe, hidden in buildings like any other document, in the era's cipher. Read and decipher it
+and you know the recipe for good (a new survivor in hardcore keeps what you learned). Using a recipe still
+needs the materials and, for the advanced ones, enough fluency in the cipher. The craft screen lists only
+what you know and says how many are still to find.
 
 **The siege.** The hold-out is not a countdown you stand through. The final site has a main entrance and three
 side doors. Waves arrive at a random one of them, get bigger, and come faster as the clock runs down. A side

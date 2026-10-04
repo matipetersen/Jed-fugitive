@@ -15,6 +15,7 @@ class Recipe:
     fluency: float = 0.0
     needs: str = ""                       # "" | "firearms" | "electricity"
     turns: int = 3
+    starter: bool = True                  # everyone knows it; the rest are learned from a manual you decipher
 
 
 RECIPES: Tuple[Recipe, ...] = (
@@ -23,13 +24,16 @@ RECIPES: Tuple[Recipe, ...] = (
     Recipe("molotov", "molotov", 1, (("fuel", 1), ("cloth", 1))),
     Recipe("noisemaker", "noisemaker", 1, (("parts", 1), ("scrap", 1))),
     Recipe("barricade", "barricade_kit", 1, (("wood", 2), ("scrap", 1))),
-    Recipe("spike_trap", "spike_trap", 1, (("wood", 1), ("scrap", 2))),
-    Recipe("repair", "repair_kit", 1, (("scrap", 2), ("parts", 1)), fluency=0.08),
-    Recipe("filter", "filter", 1, (("cloth", 1), ("chem", 1)), fluency=0.10),
-    Recipe("medkit", "medkit", 1, (("bandage", 2), ("chem", 1)), fluency=0.15),
-    Recipe("suppressant", "suppressant", 1, (("chem", 2), ("cloth", 1)), fluency=0.25, turns=5),
-    Recipe("ammo", "@ammo", 4, (("scrap", 1), ("chem", 1)), fluency=0.12),
+    Recipe("spike_trap", "spike_trap", 1, (("wood", 1), ("scrap", 2)), starter=False),
+    Recipe("repair", "repair_kit", 1, (("scrap", 2), ("parts", 1)), fluency=0.08, starter=False),
+    Recipe("filter", "filter", 1, (("cloth", 1), ("chem", 1)), fluency=0.10, starter=False),
+    Recipe("medkit", "medkit", 1, (("bandage", 2), ("chem", 1)), fluency=0.15, starter=False),
+    Recipe("suppressant", "suppressant", 1, (("chem", 2), ("cloth", 1)), fluency=0.25, turns=5, starter=False),
+    Recipe("ammo", "@ammo", 4, (("scrap", 1), ("chem", 1)), fluency=0.12, starter=False),
 )
+
+
+STARTERS: Tuple[str, ...] = tuple(r.id for r in RECIPES if r.starter)
 
 
 def by_id() -> Dict[str, Recipe]:

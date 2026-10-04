@@ -17,6 +17,9 @@ const TEMPLATES = {
   formula: [
     '{cure} formula, copy {n}. Combine the {sample} with the {sickness} {sample}. Add the catalyst slowly, then stabilise. ' +
     'The {cure} must not touch the {dead}. {warning}.'],
+  manual: [
+    '{leader} {name} wrote down how to build the {recipe}. Keep this page from the {dead}. {warning}.',
+    'How to make the {recipe}, as the {guard} taught it. {name} says it saves lives. {warning}.'],
   diary: [
     'Day {n}. The {sickness} spread faster than the {leader} said. We hear the {dead} at night. I will not leave {name} behind.',
     'The {guard} left at dawn. {name} says the {cure} is a lie. I think the {dead} are listening for the {signal}.',
@@ -25,7 +28,7 @@ const TEMPLATES = {
     'Day {n}. No word on the {escape}. The {signal} is silent. {name} coughs all night.'],
 };
 const DOC_TITLES = { research: 'Research note', code: 'Access code', evac: 'Evacuation log', formula: 'Formula sheet',
-                     diary: 'Diary page' };
+                     diary: 'Diary page', manual: 'Manual' };
 
 class Knowledge {
   constructor(vocab, glyphs) { this.vocab = vocab; this.glyphs = glyphs; this.known = new Set(); this.exposure = {}; }
@@ -53,6 +56,7 @@ function make_document(rng, era, doc_id, kind, poi_name = '', pad_name = '', pay
   const words = [];
   text = text.replace(/\{(\w+)\}/g, (m, key) => {
     if (era.lexicon[key]) { const w = rng.choice(era.lexicon[key]); words.push(w); return w; }
+    if (key === 'recipe') return payload.name || 'thing';
     if (key === 'poi') return poi_name;
     if (key === 'pad') return pad_name;
     if (key === 'name') return rng.choice(DOC_NAMES);
@@ -60,7 +64,7 @@ function make_document(rng, era, doc_id, kind, poi_name = '', pad_name = '', pay
     return key;
   });
   text = text.replace(/(^|[.!?]\s+)([a-z])/g, (m, a, b) => a + b.toUpperCase());
-  return { id: doc_id, kind, title: DOC_TITLES[kind], text, words, payload, studies: 0 };
+  return { id: doc_id, kind, title: kind === 'manual' ? 'Manual: ' + (payload.name || 'crafting').toLowerCase() : DOC_TITLES[kind], text, words, payload, studies: 0 };
 }
 
 const doc_tokens = (doc) => doc.text.match(/[A-Za-z][A-Za-z'-]*|\d+|[^\sA-Za-z\d]/g) || [];

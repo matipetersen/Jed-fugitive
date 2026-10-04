@@ -639,9 +639,11 @@ function openInventory(sel = -1) {
 function openCraft() {
   openSheet(`Craft · fluency ${Math.floor(game.know.fluency * 100)}%`, (body) => {
     body.append(el('p', 'note', `Better recipes need more of the ${game.era.cipher_name.toLowerCase()}. Crafting takes a few turns.`));
+    let hidden = 0;
     for (const r of CONTENT.recipes) {
       const out = recipe_output(game, r);
       if (!out) continue;
+      if (!game.player.recipes.includes(r.id)) { hidden++; continue; }
       const [ok, why] = recipe_status(game, r);
       const need = r.inputs.map(([i, q]) => `${q}x ${game.item_def(i).name.toLowerCase()}`).join(', ');
       const row = el('div', 'row tap' + (ok ? '' : ' off'));
@@ -650,6 +652,7 @@ function openCraft() {
       row.addEventListener('click', () => { if (ok) { const top = $('#sheet-body').scrollTop; sheetAct(() => game.craft(r.id)); if (!game.over) openSheetKeep(openCraft, top); } else toast(why); });
       body.append(row);
     }
+    if (hidden) body.append(el('p', 'note', `${hidden} more recipe${hidden > 1 ? 's' : ''} to find: they are written down in manuals out in the world. Decipher one to learn it.`));
   });
 }
 function openSheetKeep(fn, top) { fn(); $('#sheet-body').scrollTop = top; }

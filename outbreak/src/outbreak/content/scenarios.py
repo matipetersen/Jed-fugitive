@@ -31,6 +31,7 @@ class ScenarioDef:
     premise_living: str = ""       # the same, when the world goes on after you
     premise: str = ""              # story page shown after the opening scene (may use {refuge}/{pad}/{radio}/{days})
     incidents: int = 0             # scripted road incidents between the start and the final site
+    escalates: bool = False        # the world gets worse every day, without limit (stronger dead, bigger hordes)
 
 
 CURE = ScenarioDef(
@@ -114,4 +115,21 @@ DASH = ScenarioDef(
             "whatever is on it.",
 )
 
-SCENARIOS: Dict[str, ScenarioDef] = {s.id: s for s in (CURE, EXTRACTION, DASH)}
+ENDLESS = ScenarioDef(
+    id="endless", name="Endless - survive, or end it",
+    blurb="No way out and no clock. Live as long as you can while the dead grow bolder every day. Somewhere out "
+          "there are still three components and a formula: make the cure and it ends. Or never do.",
+    start_infected=False, timer_turns=0, deadline_days=0,
+    requirements=CURE.requirements,
+    final_site="refuge", final_turns=40, needs_formula=True, formula_fluency=0.30,
+    goal="Survive as long as you can, or gather the components and the formula and make the cure.",
+    final_verb="synthesise", escalates=True,
+    premise_living="There is no way out and nobody coming. {refuge} still stands, and someone there once made a cure: "
+                   "three components and a formula nobody can read. Until then there is only the next day, and it will be "
+                   "worse than this one. If you fall, another survivor walks out of the refuge behind you.",
+    premise="Nobody is coming, and nowhere is safe for long. {refuge} still stands, and someone there once made a cure: "
+            "three components and a formula nobody can read. You can chase it, or you can simply live, one more day, "
+            "and then one more. Every day the dead are a little bolder and the world a little emptier.",
+)
+
+SCENARIOS: Dict[str, ScenarioDef] = {s.id: s for s in (CURE, EXTRACTION, DASH, ENDLESS)}

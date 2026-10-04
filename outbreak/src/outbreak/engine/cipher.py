@@ -31,7 +31,7 @@ FUNCTION_WORDS = frozenset(
 @dataclass
 class Document:
     id: str
-    kind: str                         # research | code | evac | formula | diary
+    kind: str                         # research | code | evac | formula | diary | manual
     title: str
     text: str                         # template text, placeholders already filled
     words: List[str]                  # lexicon words in the text, in order
@@ -60,6 +60,10 @@ TEMPLATES: Dict[str, Tuple[str, ...]] = {
     "formula": (
         "{cure} formula, copy {n}. Combine the {sample} with the {sickness} {sample}. Add the catalyst slowly, "
         "then stabilise. The {cure} must not touch the {dead}. {warning}.",
+    ),
+    "manual": (
+        "{leader} {name} wrote down how to build the {recipe}. Keep this page from the {dead}. {warning}.",
+        "How to make the {recipe}, as the {guard} taught it. {name} says it saves lives. {warning}.",
     ),
     "diary": (
         "Day {n}. The {sickness} spread faster than the {leader} said. We hear the {dead} at night. "
@@ -115,13 +119,15 @@ def make_document(rng: random.Random, era: EraPack, doc_id: str, kind: str,
             w = rng.choice(era.lexicon[key])
             words.append(w)
             return w
-        return {"poi": poi_name, "pad": pad_name, "name": rng.choice(NAMES), "n": str(rng.randint(2, 9)) +
+        return {"recipe": (payload or {}).get("name", "thing"), "poi": poi_name, "pad": pad_name, "name": rng.choice(NAMES), "n": str(rng.randint(2, 9)) +
                 str(rng.randint(1, 9)) + str(rng.randint(1, 9))}.get(key, key)
 
     text = re.sub(r"\{(\w+)\}", fill, text)
     text = re.sub(r"(^|[.!?]\s+)([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
     title = {"research": "Research note", "code": "Access code", "evac": "Evacuation log",
-             "formula": "Formula sheet", "diary": "Diary page"}[kind]
+             "formula": "Formula sheet", "diary": "Diary page", "manual": "Manual"}[kind]
+    if kind == "manual":
+        title = "Manual: " + (payload or {}).get("name", "crafting").lower()
     return Document(doc_id, kind, title, text, words, payload or {})
 
 

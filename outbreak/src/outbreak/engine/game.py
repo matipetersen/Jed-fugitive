@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, services,
+from outbreak.engine import (ai, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -465,6 +465,29 @@ class Game:
                 if pos in self.visible:
                     self.msg("A body twitches, and rises.", "warn")
 
+    @property
+    def pressure(self) -> float:
+        """Endless worlds only: 1.0 for the first days, then +6% a day up to x3."""
+        if not self.scenario.escalates:
+            return 1.0
+        return min(3.0, 1.0 + 0.06 * max(0, self.clock.day - 3))
+
+    def _restock(self) -> None:
+        """Endless worlds: places you picked clean slowly fill up again, or nobody could live there for long."""
+        n = 0
+        for lv in self.levels.values():
+            if lv is self.world.level:
+                continue
+            for pos, c in lv.containers.items():
+                if c.opened and self.rng.random() < 0.5:
+                    c.opened = False
+                    c.loot = loot.roll_items(self.rng, self.era, self.poi_kind_of(lv), 1.0, self.diff.loot * 0.7)
+                    c.coins = self.rng.randint(0, 4)
+                    lv.set_tile(pos[0], pos[1], T.CRATE)
+                    n += 1
+        if n:
+            self.msg("Somebody has been through the old places; there is something left in them again.", "info")
+
     def _time_events(self) -> None:
         c, sc = self.clock, self.scenario
         if self.profile.sun_burn and c.turn % 240 == 200 and self.world.level.kind == "overworld":
@@ -474,6 +497,11 @@ class Game:
             self.end("left_behind", "")
         elif self.deadline_days and c.turn % 240 == 0 and day == self.deadline_days:
             self.msg("The last day. By nightfall the way out will be gone.", "warn")
+        if sc.escalates and c.turn % 240 == 0 and c.day > 1:
+            if c.day % 4 == 0:
+                self._restock()
+            if c.day % 5 == 0:
+                self.msg(f"Day {c.day}. You are still here. The dead are {int(round(self.pressure * 100))}% of what they were on day one.", "lore")
         if c.turn % 240 == 0:
             ph = self.profile.phase(c.day)
             prev = self.profile.phase(c.day - 1)
@@ -482,7 +510,7 @@ class Game:
 
     def _dusk_wave(self) -> None:
         lv, p = self.world.level, self.player
-        n = int(34 * self.profile.density * self.diff.zombies)
+        n = int(34 * self.profile.density * self.diff.zombies * self.pressure)
         for _ in range(n * 4):
             if n <= 0:
                 break
@@ -956,6 +984,9 @@ class Game:
             poi = self.pois[doc.payload["code"]]
             poi.code_known = True
             self.msg(f"Deciphered: you now know the vault code for {poi.name}.", "good")
+        if "recipe" in doc.payload and doc.payload["recipe"] not in self.player.recipes:
+            self.player.recipes.append(doc.payload["recipe"])
+            self.msg(f"Deciphered: you now know how to make the {doc.payload['name'].lower()}.", "good")
         if "formula" in doc.payload:
             self.formula_found = True
             self.msg("Deciphered: you now hold the formula.", "good")

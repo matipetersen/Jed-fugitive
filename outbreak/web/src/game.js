@@ -436,6 +436,25 @@ class Game {
     }
   }
 
+  // endless worlds only: 1.0 for the first days, then +6% a day up to x3
+  get pressure() { return this.scenario.escalates ? Math.min(3.0, 1.0 + 0.06 * Math.max(0, game_day(this) - 3)) : 1.0; }
+
+  // endless worlds: places you picked clean slowly fill up again
+  _restock() {
+    let n = 0;
+    for (const lv of Object.values(this.levels)) {
+      if (lv === this.world.level) continue;
+      for (const k of Object.keys(lv.containers)) {
+        const c = lv.containers[k];
+        if (c.opened && this.rng.random() < 0.5) {
+          c.opened = false; c.loot = roll_items(this.rng, this.era, this.poi_kind_of(lv), 1.0, this.diff.loot * 0.7); c.coins = this.rng.randint(0, 4);
+          const [x, y] = [+k % lv.w, Math.floor(+k / lv.w)]; lv.set_tile(x, y, T.CRATE); n++;
+        }
+      }
+    }
+    if (n) this.msg('Somebody has been through the old places; there is something left in them again.', 'info');
+  }
+
   _time_events() {
     const c = this.clock, sc = this.scenario;
     if (this.profile.sun_burn && c.turn % 240 === 200 && this.world.level.kind === 'overworld') this._dusk_wave();
@@ -443,6 +462,10 @@ class Game {
     const eff_day = day + Math.floor(this.lost_turns / 240);        // the road's lost time counts against the deadline
     if (this.deadline_days && eff_day > this.deadline_days && !this.final) this.end('left_behind', '');
     else if (this.deadline_days && c.turn % 240 === 0 && eff_day === this.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'warn');
+    if (sc.escalates && c.turn % 240 === 0 && day > 1) {
+      if (day % 4 === 0) this._restock();
+      if (day % 5 === 0) this.msg(`Day ${day}. You are still here. The dead are ${Math.round(this.pressure * 100)}% of what they were on day one.`, 'lore');
+    }
     if (c.turn % 240 === 0) {
       const ph = profile_phase(this.profile, day), prev = profile_phase(this.profile, day - 1);
       if (ph !== prev && ph.blurb) this.msg(`Day ${day}: ${ph.name}. ${ph.blurb}`, 'lore');
@@ -451,7 +474,7 @@ class Game {
 
   _dusk_wave() {
     const lv = this.world.level, p = this.player;
-    let n = Math.floor(34 * this.profile.density * this.diff.zombies);
+    let n = Math.floor(34 * this.profile.density * this.diff.zombies * this.pressure);
     for (let i = 0; i < n * 4; i++) {
       if (n <= 0) break;
       const pos = [this.rng.randint(3, lv.w - 4), this.rng.randint(3, lv.h - 4)];
@@ -817,6 +840,7 @@ class Game {
     this.player.gain_xp(10);
     if (doc.payload.reveal) { const poi = this.pois[doc.payload.reveal]; poi.revealed = true; poi.lead = true; this.msg(`Deciphered: ${poi.name} is now marked on your map.`, 'good'); }
     if (doc.payload.code) { const poi = this.pois[doc.payload.code]; poi.code_known = true; this.msg(`Deciphered: you now know the vault code for ${poi.name}.`, 'good'); }
+    if (doc.payload.recipe && !this.player.recipes.includes(doc.payload.recipe)) { this.player.recipes.push(doc.payload.recipe); this.msg(`Deciphered: you now know how to make the ${doc.payload.name.toLowerCase()}.`, 'good'); }
     if (doc.payload.formula) { this.formula_found = true; this.msg('Deciphered: you now hold the formula.', 'good'); }
   }
 

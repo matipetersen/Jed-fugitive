@@ -60,13 +60,14 @@ WIN = {
 
 
 WIN.update({("dash", band): text for (sid, band), text in list(WIN.items()) if sid == "extraction"})
+WIN.update({("endless", band): text for (sid, band), text in list(WIN.items()) if sid == "cure"})
 
 
 def build(game, kind: str, cause: str = "") -> Ending:
     p, sc = game.player, game.scenario
     days = game.clock.day
     decoded = sum(1 for d in game.docs.values() if d.id in p.documents and cipher.is_decoded(d, game.know))
-    score = (p.kills * 2 + days * 25 + p.humanity + decoded * 8 + p.level * 12 +
+    score = (p.kills * 2 + days * (40 if sc.escalates else 25) + p.humanity + decoded * 8 + p.level * 12 +
              (500 if kind == "won" else 0))
     summary = [
         f"Survived {days} day{'s' if days != 1 else ''} ({game.clock.turn} turns)",
@@ -80,6 +81,11 @@ def build(game, kind: str, cause: str = "") -> Ending:
         summary.append("You lost your " + " and your ".join(p.lost) + " to survive.")
     if kind == "won":
         title, text = WIN[(sc.id, _band(p.humanity))]
+    elif sc.escalates and kind in ("dead", "turned"):
+        title = f"Survived {days} day{'s' if days != 1 else ''}"
+        text = (cause[:1].upper() + cause[1:] + "." if cause else "You did not make it.") if kind == "dead" else \
+            "The fever peaks and the world goes quiet. When you open your eyes again, you are hungry."
+        summary.append(f"The dead were {int(round(game.pressure * 100))}% as strong as on day one when you fell.")
     elif kind == "turned":
         title = "You turned"
         text = ("The fever peaks and the world goes quiet. When you open your eyes again, you are hungry, and "

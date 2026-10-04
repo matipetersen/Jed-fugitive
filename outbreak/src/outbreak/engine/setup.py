@@ -266,6 +266,14 @@ def _documents(game) -> None:
     if sc.final_site == "pad":
         add("evac", {"reveal": pad.id}, host_for(near), pad_name=pad.name)
         add("evac", {"reveal": pad.id}, host_for(hosts), pad_name=pad.name)
+    from outbreak.content.recipes import RECIPES
+    from outbreak.engine import inventory_ops
+    for r in RECIPES:                                       # one manual per recipe you are not born knowing
+        out = inventory_ops.recipe_output(game, r)
+        if r.starter or out is None or (r.needs == "firearms" and not era.firearms) or \
+                (r.needs == "electricity" and not era.electricity):
+            continue
+        add("manual", {"recipe": r.id, "name": game.item_def(out).name}, host_for(near if rng.random() < 0.6 else hosts))
     for _ in range(9):
         add("diary", {}, host_for(hosts), rng.choice(hosts).name)
 
@@ -318,6 +326,8 @@ def _intro(game) -> None:
                  f"tiles away. They may have a way to make a cure.", "lore")
         if game.cfg.mode == "living":
             game.msg("The cure is for the world. If you fall, someone else will carry on.", "warn")
+        elif not sc.start_infected:
+            game.msg("There is no way out. Live as long as you can, or find the cure.", "warn")
         else:
             game.msg("You are bitten. The infection is slow, but it is in you. Find the three components "
                      "and the formula before it takes you.", "warn")

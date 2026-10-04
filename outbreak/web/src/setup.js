@@ -215,6 +215,11 @@ function _setup_documents(game) {
     add('evac', { reveal: pad.id }, host_for(near), '', pad.name);
     add('evac', { reveal: pad.id }, host_for(hosts), '', pad.name);
   }
+  for (const r of CONTENT.recipes) {                       // one manual per recipe you are not born knowing
+    const out = recipe_output(game, r);
+    if (r.starter || !out || (r.needs === 'firearms' && !era.firearms) || (r.needs === 'electricity' && !era.electricity)) continue;
+    add('manual', { recipe: r.id, name: game.item_def(out).name }, host_for(rng.random() < 0.6 ? near : hosts));
+  }
   for (let i = 0; i < 9; i++) add('diary', {}, host_for(hosts), rng.choice(hosts).name);
 }
 
@@ -243,6 +248,7 @@ function _intro(game) {
     const d = compass(refuge.x - p.x, refuge.y - p.y);
     game.msg(`Rumour on ${era.radio}: ${era.refuge} still stands, ${d} of here, about ${cheb(poi_pos(refuge), [p.x, p.y])} tiles away. They may have a way to make a cure.`, 'lore');
     if (game.cfg.mode !== 'normal') game.msg('The cure is for the world. If you fall, someone else will carry on.', 'warn');
+    else if (!sc.start_infected) game.msg('There is no way out. Live as long as you can, or find the cure.', 'warn');
     else game.msg('You are bitten. The infection is slow, but it is in you. Find the three components and the formula before it takes you.', 'warn');
   } else {
     const pad = game.pois[game.pad_id];

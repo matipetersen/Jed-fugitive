@@ -18,10 +18,12 @@ function make_zombie(game, special_id, x, y, fresh = false) {
   const day = game_day(game), phase = profile_phase(profile, day);
   const age = fresh ? 0 : game.rng.randint(0, Math.max(0, day - 1));
   const decay = Math.max(0.4, 1.0 - profile.decay * age);
-  const hp = Math.max(1, Math.floor(sp.hp * profile.hp_mult * phase.hp * decay));
+  const pressure = game.pressure, k = 1.0 + (pressure - 1.0) * 0.4;
+  const hp = Math.max(1, Math.floor(sp.hp * profile.hp_mult * phase.hp * decay * (1.0 + (pressure - 1.0) * 0.6)));
+  const dmg = k > 1.0 ? [Math.floor(sp.dmg[0] * k), Math.max(Math.floor(sp.dmg[0] * k), Math.floor(sp.dmg[1] * k))] : sp.dmg;
   const z = {
     kind: 'zombie', uid: game.next_uid(), name: profile_name_of(profile, special_id), glyph: sp.glyph, x, y, hp, max_hp: hp,
-    level_id: 'world', special: special_id, dmg: sp.dmg, acc: sp.acc,
+    level_id: 'world', special: special_id, dmg, acc: sp.acc,
     speed: profile.speed * sp.speed * phase.speed * (decay < 1 ? 0.85 : 1.0),
     sight: profile.sight * sp.sight, hearing: profile.hearing * sp.hearing, xp: sp.xp, flags: sp.flags,
     energy: 0, state: 'idle', target: null, stimulus_turn: 0, birth_day: day - age, cooldown: 0, horde: 0,

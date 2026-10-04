@@ -14,6 +14,7 @@ class Player {
     this.bleeding = 0; this.hemorrhage = false; this.fracture = false; this.filter_turns = 0; this.disguise_turns = 0;
     this.sneaking = false; this.sprinting = false; this.light_on = true;
     this.kills = 0; this.documents = []; this.stats = {};
+    this.recipes = CONTENT.recipes.filter((r) => r.starter).map((r) => r.id);   // what you know how to make
   }
   get alive() { return this.hp > 0; }
   mod(key) {

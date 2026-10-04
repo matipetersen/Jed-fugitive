@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, base, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -60,6 +60,10 @@ class Game:
         self.deadline_days = 0                   # the way out closes after this day (set from the route)
         self.lost_turns = 0                      # time the road incidents cost: counts against the deadline
         self.incidents: List[dict] = []          # scripted road incidents: {x, y, event, done}
+        self.weather = "clear"                    # clear | rain | fog | storm (ambience.py)
+        self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
+        self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
+        self.last_step_note = -999
         self.base_id: Optional[str] = None       # the level you claimed as your base
         self.raid_next = 0                       # earliest turn of the next raid on it
         self.generation = 1                      # which survivor you are (living-world mode)
@@ -199,6 +203,7 @@ class Game:
         else:
             light = self.clock.light
             r = 14 if light > 0.7 else 10 if light > 0.35 else 5
+            r += ambience.PLAYER_SIGHT.get(self.weather, 0)         # fog and storms shorten your own view too
         if self.is_dark():
             r += int(p.mod("night_vision"))
             if combat.player_lit(self):
@@ -232,6 +237,9 @@ class Game:
         if radius < 1:
             return
         turn = self.clock.turn
+        radius *= ambience.hearing_scale(self)                 # rain muffles, fog carries a little less
+        if radius < 1:
+            return
         for a in self.level.actors:
             if not isinstance(a, Zombie) or a.state == "hunt":
                 continue
@@ -288,6 +296,8 @@ class Game:
         self._rising_dead()
         self._heat()
         self._time_events()
+        ambience.weather_tick(self)
+        ambience.world_tick(self)
         self._base_tick()
         if self.incidents and t % 5 == 0:
             self._check_incidents()
@@ -687,6 +697,7 @@ class Game:
             poi.visited = True
             poi.revealed = True
             p.gain_xp(6 if poi.kind == "house" else 15)
+            ambience.building_alarm(self, poi)
             self._chronicle(f"You enter {target.name} for the first time.")
         self.msg(f"You enter {target.name}." if portal.target != "world" else "You step back outside.", "info")
         self._spend(1)
@@ -781,6 +792,10 @@ class Game:
         if p.armor:
             noise += self.item_def(p.armor.id).stealth
         noise = max(0, noise + int(p.mod("move_noise")))
+        if not p.sneaking:
+            noise += ambience.step_extra(self, tile)           # gravel, glass, metal floors, the building you are in
+            ambience.explain_step(self, tile)
+            ambience.startle(self, tile)
         self.emit_noise(p.pos, noise)
         if not T.TILES[tile].masks_scent:
             self.scent[p.pos] = self.clock.turn

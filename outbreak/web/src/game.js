@@ -77,6 +77,7 @@ class Game {
     this.live_started = false; this.paused = false; this.busy = 0; this.rest_left = 0; this.sleep_left = 0; this.live_acc = 0; this.live_last = 0; this.invuln_until = 0;
     this.gen_day = 0; this.dead_uids = new Set(); this.deadline_days = 0; this.lost_turns = 0; this.incidents = [];
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
+    this.weather = 'clear'; this.sources = []; this.alarmed = []; this.last_step_note = -999;
     this.base_id = null; this.raid_next = 0;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
     this.followers = []; this.final = null; this.formula_found = false; this.applied_docs = new Set(); this.scent = {};
@@ -153,7 +154,7 @@ class Game {
     let r;
     if (lv.kind === 'haven' && !this.final) r = 12;
     else if (lv.dark) r = 7;
-    else { const light = this.clock.light; r = light > 0.7 ? 14 : light > 0.35 ? 10 : 5; }
+    else { const light = this.clock.light; r = (light > 0.7 ? 14 : light > 0.35 ? 10 : 5) + (WEATHER_PLAYER_SIGHT[this.weather] || 0); }      // fog and storms shorten your view
     if (this.is_dark()) {
       r += Math.floor(p.mod('night_vision'));
       if (player_lit(this)) r = Math.max(r, this.item_def(p.light.id).light);
@@ -181,6 +182,7 @@ class Game {
   zombie_sees_player(z) { return sees_player(this, z); }
 
   emit_noise(pos, radius, source = 'player') {
+    radius *= hearing_scale(this);                        // rain muffles, fog carries a little less
     if (radius < 1) return;
     const turn = this.clock.turn;
     for (const a of this.level.actors) {
@@ -281,7 +283,7 @@ class Game {
     this._rising_dead();
     if (this.shared) this.shared.tick(this);
     this._heat();
-    this._time_events(); this._base_tick();
+    this._time_events(); weather_tick(this); world_tick(this); this._base_tick();
     if (this.incidents.length && t % 5 === 0) this._check_incidents();
     if (this.final) this._final_tick();
     if (t % 40 === 0) this._maybe_event();
@@ -648,6 +650,7 @@ class Game {
     if (portal.target !== 'world' && poi && !poi.visited) {
       poi.visited = true; poi.revealed = true; this._chronicle(`You enter ${target.name} for the first time.`);
       p.gain_xp(poi.kind === 'house' ? 6 : 15);
+      building_alarm(this, poi);
     }
     this.msg(portal.target !== 'world' ? `You enter ${target.name}.` : 'You step back outside.', 'info');
     this._spend(1);
@@ -721,6 +724,7 @@ class Game {
     else if (p.sprinting && p.stamina > 5) noise += 4;
     if (p.armor) noise += this.item_def(p.armor.id).stealth;
     noise = Math.max(0, noise + Math.trunc(p.mod('move_noise')));
+    if (!p.sneaking) { noise += step_extra(this, tile); explain_step(this, tile); startle(this, tile); }     // gravel, glass, metal floors, the building you are in
     this.emit_noise([p.x, p.y], noise);
     if (!TILES[tile].masks_scent) this.scent[k] = this.clock.turn;
     let cost = 1;

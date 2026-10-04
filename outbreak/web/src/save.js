@@ -50,11 +50,11 @@ function serialize_game(game) {
     for (const key of game.world.generated) { const [cx, cy] = key.split(',').map(Number); chunks[key] = { t: bytes_to_b64(_chunk_bytes(lv.tiles, lv, cx, cy, game.world.S)), s: bytes_to_b64(_chunk_bytes(lv.seen, lv, cx, cy, game.world.S)) }; }
   }
   const data = {
-    v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), chronicle: game.chronicle, base_id: game.base_id, raid_next: game.raid_next, over: game.over,
+    v: SAVE_VERSION, cfg: game.cfg, seed: game.seed, uid: game._uid, log: game.log.slice(-200), chronicle: game.chronicle, base_id: game.base_id, raid_next: game.raid_next, weather: game.weather, sources: game.sources, alarmed: game.alarmed, last_step_note: game.last_step_note, over: game.over,
     pending_event: game.pending_event, recent_events: game.recent_events, hordes: game.hordes, ring: game.ring, heat: game.heat,
     stalker_uid: game.stalker ? game.stalker.uid : 0, stalker_ready: game.stalker_ready, last_moan: game.last_moan,
     followers: game.followers, final: game.final, formula_found: game.formula_found, applied_docs: Array.from(game.applied_docs),
-    scent: game.scent, step_parity: game._step_parity, force_progress: game._force_progress, clock: game.clock.turn,
+    scent: game.scent, step_parity: game._step_parity, tired_parity: game._tired_parity, force_progress: game._force_progress, clock: game.clock.turn,
     rng: game.rng.state, refuge_id: game.refuge_id, pad_id: game.pad_id, final_site_id: game.final_site_id, rep: game.rep,
     docs: game.docs, know: { known: Array.from(game.know.known), exposure: game.know.exposure },
     player: Object.assign({}, game.player), pois: game.pois,
@@ -75,10 +75,10 @@ function deserialize_game(json) {
   if (d.v !== SAVE_VERSION) throw new Error(`save version ${d.v} is not supported`);
   const g = new Game(null, true);
   g._init_state();
-  g.cfg = d.cfg; g.seed = d.seed; g._uid = d.uid; g.log = d.log; g.chronicle = d.chronicle || []; g.base_id = d.base_id || null; g.raid_next = d.raid_next || 0; g.over = d.over; g.pending_event = d.pending_event;
+  g.cfg = d.cfg; g.seed = d.seed; g._uid = d.uid; g.log = d.log; g.chronicle = d.chronicle || []; g.base_id = d.base_id || null; g.raid_next = d.raid_next || 0; g.weather = d.weather || 'clear'; g.sources = d.sources || []; g.alarmed = d.alarmed || []; g.last_step_note = d.last_step_note === undefined ? -999 : d.last_step_note; g.over = d.over; g.pending_event = d.pending_event;
   g.recent_events = d.recent_events; g.hordes = d.hordes; g.ring = d.ring; g.heat = d.heat; g.stalker_ready = d.stalker_ready;
   g.last_moan = d.last_moan; g.followers = d.followers; g.final = d.final; g.formula_found = d.formula_found;
-  g.applied_docs = new Set(d.applied_docs); g.scent = d.scent; g._step_parity = d.step_parity; g._force_progress = d.force_progress;
+  g.applied_docs = new Set(d.applied_docs); g.scent = d.scent; g._step_parity = d.step_parity; g._tired_parity = d.tired_parity || 0; g._force_progress = d.force_progress;
   g.clock = new Clock(d.clock);
   g.rng = new RNG(1); g.rng.state = d.rng;
   g.patrol_goals = d.patrol_goals || {}; g.patrol_nodes = d.patrol_nodes || []; g.distress = d.distress || {}; g.aided = d.aided || {};

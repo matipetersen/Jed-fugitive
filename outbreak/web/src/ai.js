@@ -13,6 +13,7 @@ function sight_range(game, z) {
   }
   if (p.sneaking) r *= 0.5;
   if (game.level.tile(p.x, p.y) === T.BRUSH) r *= 0.5;
+  r *= sight_scale(game) * exposure_of_ground(game);          // weather, and an open road or splashing water
   if (p.disguise_turns > 0 && prof.intel < 2 && (z.uid * 37) % 100 < prof.disguise * 100) r = Math.min(r, 1.5);
   return r;
 }

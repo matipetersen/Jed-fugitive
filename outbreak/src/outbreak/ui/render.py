@@ -138,7 +138,8 @@ def build_side(game: Game) -> List[Line]:
     lv = game.level
     out: List[Line] = []
     out.append((f"{game.era.origin_names[game.cfg.origin]}  Lv{p.level}", "white"))
-    out.append((f"{c.stamp()}  {c.phase}", "cyan" if c.is_night else "yellow"))
+    weather = f"  {game.weather}" if game.weather != "clear" and game.level.kind == "overworld" else ""
+    out.append((f"{c.stamp()}  {c.phase}{weather}", "cyan" if c.is_night else "yellow"))
     out.append((lv.name[:28], "grey"))
     out.append(("", "grey"))
     hp_color = "green" if p.hp > p.max_hp * 0.5 else "yellow" if p.hp > p.max_hp * 0.25 else "red"

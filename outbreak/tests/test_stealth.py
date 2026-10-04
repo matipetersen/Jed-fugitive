@@ -28,6 +28,9 @@ def trial(seed, sneak, from_behind, facing=(1, 0)):
             break
     if not spot:
         return None
+    for i in range(16):                                   # the strip is grass: an open road makes you easier to see
+        for j in range(-2, 3):
+            lv.set_tile(spot[0] + i, spot[1] + j, T.GRASS)
     del lv.occ[p.pos]
     z = spawn_zombie(g, lv, (spot[0] + 12, spot[1]), "walker", dormant=False)
     z.state, z.facing = "idle", facing

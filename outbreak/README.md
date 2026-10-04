@@ -76,6 +76,21 @@ stays, and in hardcore the next survivor wakes up in your base with the locker s
 dead find your base: a raid of several zombies comes in at the entrance, and the base stops being safe until
 they are dead. Only one base at a time; claiming another leaves the old one to the dead.
 
+**The world plays its part** (`ambience.py` / `ambience.js`). Noise is no longer only yours:
+* *Ground and places.* Stairs, open doors and, inside buildings, the kind of place make every step louder: broken
+  glass in markets and labs, loose metal in industrial sites, echoing platforms and halls, creaking house floors.
+  Sneaking is silent on all of it. On an open road or splashing through shallows you are also easier to see.
+* *Weather* (outdoors; rolled every half day): **rain** muffles noise (x0.7), washes your scent trail away and shortens
+  sight; **fog** halves what the dead see and shortens your own view; **storms** do all of that, harder, and add
+  thunder claps that pull the dead toward wherever they landed. Indoors weather does not matter. The weather
+  shows in the clock line.
+* *Things that go off on their own.* Now and then a car alarm starts to wail somewhere out of sight, or something
+  collapses in the distance; the dead go to see. The first time you enter a market, guard post, military site or lab
+  its alarm may still have power (30%) and shriek for a while, loud enough for the street to hear it. Pushing through
+  brush by day can flush a flock of crows.
+  All of these can be used: a distant alarm pulls zombies away from you, a storm covers a run, and a mistake in a
+  glass-strewn market brings the street in.
+
 **The records.** Every finished run (won, dead, turned, left behind) is kept on your machine
 (`records.json` next to the saves, or the browser's storage) and compared with your earlier runs of the same
 objective and mode: days survived first, points second. The end screen says whether it is a new record, and

@@ -354,7 +354,7 @@ const setBar = (id, v, m, color) => { const f = $(id); f.style.width = pct(v, m)
 function updateHud() {
   const g = game, p = g.player, c = g.clock;
   $('#h-place').innerHTML = ''; $('#h-place').append(el('b', null, g.level.name));
-  $('#h-time').textContent = `${stampOf(g)} · ${c.phase}`;
+  $('#h-time').textContent = `${stampOf(g)} · ${c.phase}` + (g.weather !== 'clear' && g.level.kind === 'overworld' ? ` · ${g.weather}` : '');
   $('#v-hp').textContent = p.hp;
   setBar('#b-hp', p.hp, p.max_hp, p.hp > p.max_hp * .5 ? '#58b878' : p.hp > p.max_hp * .25 ? '#d99a2b' : '#e2573f');
   setBar('#b-sta', p.stamina, p.max_stamina, '#55b3c4');

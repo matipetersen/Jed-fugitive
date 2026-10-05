@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, mutation, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -228,7 +228,7 @@ class Game:
                     self.msg(f"You notice a building ahead: {poi.name}.", "info")
 
     def visible_actors(self) -> List:
-        return [a for a in self.level.actors if a.pos in self.visible]
+        return [a for a in self.level.actors if a.pos in self.visible and not getattr(a, "hidden", False)]
 
     def visible_hostiles(self) -> List:
         return [a for a in self.visible_actors()
@@ -424,6 +424,22 @@ class Game:
                     del lv.hazards[pos]
                     continue
             victim = lv.occ.get(pos)
+            if hz.kind == "snare":
+                if victim is p:
+                    del lv.hazards[pos]
+                    self.msg("You step into a hidden snare! Something clatters loudly.", "bad")
+                    p.bleeding = min(3, p.bleeding + 1)
+                    self.emit_noise(pos, 12, "world")
+                    raiders.alert_near(self, pos, 14)
+                    combat.damage_player(self, hz.power, "caught in a raider's snare")
+                    if self.over:
+                        return
+                elif isinstance(victim, Zombie):
+                    del lv.hazards[pos]
+                    victim.hp -= hz.power
+                    if victim.hp <= 0:
+                        combat.kill_zombie(self, victim, by_player=False)
+                continue
             if hz.kind == "spikes":
                 if isinstance(victim, Zombie):
                     del lv.hazards[pos]
@@ -781,8 +797,19 @@ class Game:
             return self._use_portal((nx, ny))
         if not lv.walkable(nx, ny):
             return False
+        snare = lv.hazards.get((nx, ny))
+        if snare is not None and snare.kind == "snare" and not snare.hidden:
+            if not p.sneaking:
+                self.msg("A snare lies there. Creep (sneak) to disarm it, or go around.", "warn")
+                return False
+            del lv.hazards[(nx, ny)]
+            self.give_item(Item("scrap", 1))
+            self.msg("You carefully disarm the snare and keep the scrap.", "good")
+            self._spend(2)
+            return True
         lv.move_actor(p, nx, ny)
         self._after_step(tile)
+        raiders.notice_snares(self)
         return True
 
     def push(self, target=None) -> bool:
@@ -803,6 +830,8 @@ class Game:
         if isinstance(target, Human) and not target.hostile:
             self.msg(f"{target.name} is here. Press 'e' to talk.", "info")
             return False
+        if getattr(target, "hidden", False):                  # you walked into someone lying in wait
+            raiders.spring(self, target, "You stumble onto a hidden raider!")
         turns = 1 if combat.player_attack(self, target) else 0
         self._spend(turns)
         return bool(turns)

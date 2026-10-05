@@ -60,11 +60,12 @@ function _populate_chunk(game, cx, cy) {
       }
     }
     for (const [cx2, cy2] of entry.camps) {
-      const n = rng.randint(2, 4);
+      const n = rng.randint(2, 4), crew = [];
       for (let i = 0; i < n; i++) {
         const spot = lv.free_spot_near(cx2 + rng.randint(-2, 2), cy2 + rng.randint(-1, 1), 3);
-        if (spot) { const r = make_raider(game, spot[0], spot[1]); r.state = 'idle'; lv.add_actor(r); keep(r); }
+        if (spot) { const r = make_raider(game, spot[0], spot[1]); r.state = 'idle'; lv.add_actor(r); keep(r); crew.push(r); }
       }
+      raiders_setup_camp(game, lv, [cx2, cy2], crew.filter((r) => lv.actors.includes(r)), rng);
       lv.containers[lv.idx(cx2 + 2, cy2 - 1)] = { loot: roll_items(rng, game.era, 'camp', 3.0, game.diff.loot), docs: [],
                                                    coins: rng.randint(2, 8), opened: false, note: '' };
     }

@@ -7,7 +7,7 @@ from typing import List
 
 from outbreak import content
 from outbreak.content.items import ItemDef
-from outbreak.engine import cipher, encounters, hordes, mutation
+from outbreak.engine import cipher, encounters, hordes, mutation, raiders
 from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
@@ -308,12 +308,15 @@ def _populate(game) -> None:
                 if spot and cheb(spot, start) > 12:
                     spawn_zombie(game, lv, spot, dormant=False)
     for cx, cy in game.world.camps:
+        crew = []
         for _ in range(rng.randint(2, 4)):
             spot = lv.free_spot_near(cx + rng.randint(-2, 2), cy + rng.randint(-1, 1), 3)
             if spot:
                 r = make_raider(game, *spot)
                 r.state = "idle"
                 lv.add_actor(r)
+                crew.append(r)
+        raiders.setup_camp(game, lv, (cx, cy), crew)
         crate = (cx + 2, cy - 1)
         lv.containers[crate] = Container(loot=loot.roll_items(rng, game.era, "camp", 3.0, game.diff.loot),
                                          coins=rng.randint(2, 8))

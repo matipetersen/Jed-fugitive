@@ -37,7 +37,8 @@ class Portal:
 class Hazard:
     kind: str                        # fire | spore | spikes
     ttl: int
-    power: int = 0                   # spikes: the damage the first victim takes
+    power: int = 0                   # spikes / snare: the damage the first victim takes
+    hidden: bool = False             # a snare nobody has spotted yet
 
 
 @dataclass
@@ -131,6 +132,14 @@ class Human(Actor):
     talked: bool = False
     group: int = 0                   # patrol group id (0 = none)
     stuck: int = 0
+    # raider tactics
+    squad: int = 0                   # camp the raider belongs to (0 = none): they act together
+    flank: int = 0                   # -1 / +1: which side it works round to; 0: comes straight on
+    mag: int = 0                     # shots per magazine (0 = melee only)
+    ammo: int = 0
+    reload: int = 0                  # turns left reloading
+    morale: int = 100                # falls as its friends die; it runs when it breaks
+    hidden: bool = False             # lying in wait: not seen, not targeted, until it springs
 
 
 class Level:

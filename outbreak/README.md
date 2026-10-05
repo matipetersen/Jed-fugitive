@@ -57,6 +57,21 @@ is created and fires once when you get close. Choices cost items, health, humani
 All three end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
 armed people who have heard about you if you did not.
 
+**Raiders are a squad, not a target.** Camps are no longer a clearing with some men standing in it:
+* *Ambushes.* Half of a camp's raiders lie hidden in cover 4-9 tiles round it. They are not drawn, not targeted and not
+  counted as enemies in sight until they spring: when you come within 3 tiles (2 if you creep), when one of their squad
+  starts hunting you, or when you bump into one. They all spring together (`Raiders burst out of cover!`). A creeping player
+  can spot one first (25% a turn within 3 tiles): it has not seen you and you can avoid it or strike first.
+* *Snares.* Five hidden snares are laid on the approaches of every camp. Stepping on one costs 8 health and a bleed, makes
+  a clatter (noise 12) and alerts every raider within 14 tiles. You may spot one as you walk next to it (35%; 70% and from
+  2 tiles if you creep): it shows as a red X. A spotted snare will not let you step on it unless you creep, in which case
+  you disarm it and keep a scrap. The dead trip them too, so camps thin out zombie hordes.
+* *Fire discipline.* Gunmen and archers carry a magazine (6 shots, 5 arrows) and must reload (3 turns, from cover if
+  they can), they back off to range when you close in instead of standing still, and take cover between bursts a third of
+  the time. In pairs one side works round to your flank instead of walking into the barrel.
+* *Morale.* Raiders no longer run on contact. They run when below 30% health or when their morale breaks: each friend
+  killed near them costs 25. Out of sight it recovers 2 a turn, and they come back.
+
 **Push and run.** The web controls have a **PUSH** button (keyboard V; terminal `P`) next to **SNEAK** and a new **RUN** button
 (keyboard X; terminal `R`; sneak is H on the web). Push shoves the nearest hostile within reach: it staggers back a tile (two if
 you are level 4 or more and it is not a brute), loses two turns, and wakes up hunting you. A wall or a solid thing behind it

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
-from outbreak.engine import lives
+from outbreak.engine import lives, raiders
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Hazard, Human, Item, Zombie
@@ -267,6 +267,7 @@ def _attack_human(game, h: Human, w: ItemDef, item: Optional[Item]) -> bool:
 
 def kill_human(game, h: Human) -> None:
     level = game.level
+    raiders.shaken(game, h)
     level.remove_actor(h)
     level.corpses[h.pos] = (game.clock.turn, True)
     for item in h.loot:
@@ -519,6 +520,7 @@ def _distress(game, h: Human) -> None:
 def kill_human_other(game, h: Human, killer: Actor) -> None:
     """A human dies to something other than the player.  Zombie victims rise again."""
     level = game.level
+    raiders.shaken(game, h)
     lives.grant_xp(game, killer, 12)
     level.remove_actor(h)
     level.corpses[h.pos] = (game.clock.turn, 2 if isinstance(killer, Zombie) else True)

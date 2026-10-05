@@ -249,7 +249,9 @@ function _human(game, h, humans) {
   if (h.stun > 0) { h.stun -= 1; return; }
   const p = game.player, level = game.level;
   const d = cheb(apos(h), apos(p));
+  if (h.hidden) { raiders_spring_check(game, h, humans, d); return; }          // lying in wait
   const seen = h.hostile && d <= 11 && has_los(level, apos(h), apos(p));
+  if (h.hostile && !seen && h.morale < 100) h.morale = Math.min(100, h.morale + 2);   // it pulls itself together out of sight
   const foe = nearest_foe(game, h, _foes_of(h, game, humans), h.reach > 1 ? HUMAN_SIGHT : FOE_SIGHT);
   const target_foe = h.state === 'follow' && d > 10 ? null : foe;     // a companion does not chase far from you
   if (target_foe !== null && !(seen && d < cheb(apos(h), apos(target_foe)))) { _human_fight(game, h, target_foe); return; }
@@ -257,6 +259,7 @@ function _human(game, h, humans) {
   if (h.state === 'follow') { _follow_step(game, h); return; }
   if (h.state === 'patrol') { _patrol_step(game, h); return; }
   if (h.state !== 'hunt' || !h.hostile) return;
+  if (h.role === 'raider') { _raider_hunt(game, h, seen, d); return; }
   if (h.hp < h.max_hp * 0.3 && seen) { _flee(game, h, apos(p)); return; }
   if (h.reach > 1 && seen && d >= 2 && d <= h.reach) { human_attack(game, h); return; }
   if (d === 1) { human_attack(game, h); return; }
@@ -377,6 +380,54 @@ function _abstract_fight(game, members) {
     if (m.hp <= 0) kill_human_other(game, m, killer);
   }
   return killed;
+}
+
+// a neighbouring tile where the player cannot see it (behind a wall, a corner, a door post)
+function _cover_step(game, h, p) {
+  const level = game.level;
+  for (const [dx, dy] of DIRS8) {
+    const n = [h.x + dx, h.y + dy];
+    if (level.free(n[0], n[1]) && !NO_ENTRY.has(level.tile(n[0], n[1])) && cheb(n, apos(p)) >= 2 && !has_los(level, n, apos(p))) return n;
+  }
+  return null;
+}
+function _away_step(game, h, p) {
+  const level = game.level;
+  let best = null, best_d = cheb(apos(h), apos(p));
+  for (const [dx, dy] of DIRS8) {
+    const n = [h.x + dx, h.y + dy];
+    if (level.free(n[0], n[1]) && !NO_ENTRY.has(level.tile(n[0], n[1])) && cheb(n, apos(p)) > best_d) { best = n; best_d = cheb(n, apos(p)); }
+  }
+  return best;
+}
+
+// a raider fights like a small squad: it shoots in bursts and reloads, backs off when you close in, takes cover between
+// bursts, works round to your flank, and runs only when it is hurt or its friends have died, not on contact
+function _raider_hunt(game, h, seen, d) {
+  const p = game.player, level = game.level;
+  if ((h.hp < h.max_hp * 0.3 || h.morale < 30) && seen) { _flee(game, h, apos(p)); return; }
+  if (h.reload > 0) {                                                  // reloading, from cover if it can
+    h.reload -= 1; if (h.reload === 0) h.ammo = h.mag;
+    const cover = seen ? _cover_step(game, h, p) : null;
+    if (cover) _human_move(game, h, cover);
+    return;
+  }
+  if (h.mag && seen && d >= 2 && d <= h.reach) {
+    if (h.ammo <= 0) { h.reload = 3; if (game.is_visible(h.x, h.y)) game.msg(`The ${h.name.toLowerCase()} ducks to reload.`, 'info'); return; }
+    if (d <= 2) { const away = _away_step(game, h, p); if (away) { _human_move(game, h, away); return; } }     // too close for comfort: back off and shoot from range
+    if (game.rng.random() < 0.35) { const cover = _cover_step(game, h, p); if (cover) { _human_move(game, h, cover); return; } }     // not every turn: take cover between bursts
+    h.ammo -= 1; human_attack(game, h); return;
+  }
+  if (d === 1) { human_attack(game, h); return; }
+  let goal = apos(p), nxt = null;
+  if (h.flank && d > 4) {                                              // work round to the side instead of walking into the barrel
+    const vx = p.x - h.x, vy = p.y - h.y, wx = -vy, wy = vx, norm = Math.max(1, Math.abs(wx) + Math.abs(wy));
+    const gx = p.x + Math.round(h.flank * wx * 4 / norm), gy = p.y + Math.round(h.flank * wy * 4 / norm);
+    if (level.in_bounds(gx, gy) && level.walkable(gx, gy)) goal = [gx, gy];
+  }
+  if (goal[0] === p.x && goal[1] === p.y) { const field = game.get_field(); nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null; }
+  if (nxt === null) nxt = greedy_step(level, apos(h), goal, game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+  _human_move(game, h, nxt);
 }
 
 function _flee(game, h, away_from) {

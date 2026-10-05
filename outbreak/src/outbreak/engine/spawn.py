@@ -62,6 +62,8 @@ def make_raider(game, x: int, y: int) -> Human:
     hp = int(18 * (1.0 + 0.04 * game.player.level))
     h = Human(uid=game.next_uid(), name="Raider", glyph="R", x=x, y=y, hp=hp, max_hp=hp, role="raider",
               faction="raiders", hostile=True, dmg=(3, 6), acc=48, reach=reach)
+    if reach > 1:
+        h.mag = h.ammo = 6 if era.firearms else 5                  # a magazine, or a quiver: then they have to reload
     if game.rng.random() < 0.7:
         from outbreak.engine import loot
         h.loot = loot.roll_items(game.rng, era, "camp", 1.6, game.diff.loot)

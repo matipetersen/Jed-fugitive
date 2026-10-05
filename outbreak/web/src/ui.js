@@ -136,7 +136,8 @@ function draw() {
       }
       if (vis) {
         const hz = lv.hazards[k];
-        if (hz && hz.kind === 'spikes') { ctx.strokeStyle = '#e8d48a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px + ts * .2, py + ts * .8); ctx.lineTo(px + ts * .35, py + ts * .25); ctx.lineTo(px + ts * .5, py + ts * .8); ctx.lineTo(px + ts * .65, py + ts * .25); ctx.lineTo(px + ts * .8, py + ts * .8); ctx.stroke(); }
+        if (hz && hz.kind === 'snare') { if (!hz.hidden) { ctx.strokeStyle = '#e2573f'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(px + ts * .22, py + ts * .22); ctx.lineTo(px + ts * .78, py + ts * .78); ctx.moveTo(px + ts * .78, py + ts * .22); ctx.lineTo(px + ts * .22, py + ts * .78); ctx.stroke(); } }
+        else if (hz && hz.kind === 'spikes') { ctx.strokeStyle = '#e8d48a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px + ts * .2, py + ts * .8); ctx.lineTo(px + ts * .35, py + ts * .25); ctx.lineTo(px + ts * .5, py + ts * .8); ctx.lineTo(px + ts * .65, py + ts * .25); ctx.lineTo(px + ts * .8, py + ts * .8); ctx.stroke(); }
         else if (hz) { ctx.fillStyle = hz.kind === 'fire' ? `rgba(240,120,40,${0.45 + 0.2 * Math.sin(t_ms / 120 + x)})` : 'rgba(110,200,80,.35)'; ctx.fillRect(px, py, ts, ts); }
         if (lv.corpses[k]) { ctx.fillStyle = '#6a6a62'; ctx.font = `${Math.floor(ts * .6)}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('x', px + ts / 2, py + ts / 2); }
         if (lv.docs[k]) { ctx.fillStyle = '#55b3c4'; ctx.fillRect(px + ts * .3, py + ts * .25, ts * .4, ts * .5); }
@@ -163,7 +164,7 @@ function draw() {
   }
   // actors
   for (const a of lv.actors) {
-    if (!game.visible.has(lv.idx(a.x, a.y))) continue;
+    if (!game.visible.has(lv.idx(a.x, a.y)) || a.hidden) continue;
     drawActor(a, ox + a.x * ts, oy + a.y * ts, ts);
   }
   drawActor(p, ox + p.x * ts, oy + p.y * ts, ts);
@@ -238,11 +239,11 @@ function drawActor(a, px, py, ts) {
   c.fillStyle = ink; c.font = `bold ${Math.floor(ts * .56)}px ${MONO}`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(a.glyph, cx, cy + 1);
   if (a.kind === 'zombie' && a.state !== 'hunt' && a.facing) {         // where it is looking: sneak up on the other side
-    const ang = Math.atan2(a.facing[1], a.facing[0]), r = ts * .42;
-    c.fillStyle = 'rgba(255,230,160,.9)'; c.beginPath();
-    c.moveTo(cx + Math.cos(ang) * (r + 4), cy + Math.sin(ang) * (r + 4));
-    c.lineTo(cx + Math.cos(ang + 2.4) * (r - 1), cy + Math.sin(ang + 2.4) * (r - 1));
-    c.lineTo(cx + Math.cos(ang - 2.4) * (r - 1), cy + Math.sin(ang - 2.4) * (r - 1)); c.closePath(); c.fill();
+    const ang = Math.atan2(a.facing[1], a.facing[0]), r = ts * .46;          // out on the tile's edge, thin: it must not hide the sprite
+    c.strokeStyle = 'rgba(255,230,160,.6)'; c.lineWidth = 1.6; c.lineCap = 'round'; c.beginPath();        // an open chevron, not a filled wedge
+    c.moveTo(cx + Math.cos(ang + 0.55) * (r + 1), cy + Math.sin(ang + 0.55) * (r + 1));
+    c.lineTo(cx + Math.cos(ang) * (r + 5), cy + Math.sin(ang) * (r + 5));
+    c.lineTo(cx + Math.cos(ang - 0.55) * (r + 1), cy + Math.sin(ang - 0.55) * (r + 1)); c.stroke();
   }
   if (a.kind === 'zombie') {                                           // awareness: ! hunting, ? it heard or half noticed you
     const al = a.alert || 0;
@@ -273,11 +274,11 @@ function drawActorSprite(a, px, py, ts) {
 function drawActorMarks(a, px, py, ts, cx, cy) {
   const c = ctx;
   if (a.kind === 'zombie' && a.state !== 'hunt' && a.facing) {
-    const ang = Math.atan2(a.facing[1], a.facing[0]), r = ts * .42;
-    c.fillStyle = 'rgba(255,230,160,.9)'; c.beginPath();
-    c.moveTo(cx + Math.cos(ang) * (r + 4), cy + Math.sin(ang) * (r + 4));
-    c.lineTo(cx + Math.cos(ang + 2.4) * (r - 1), cy + Math.sin(ang + 2.4) * (r - 1));
-    c.lineTo(cx + Math.cos(ang - 2.4) * (r - 1), cy + Math.sin(ang - 2.4) * (r - 1)); c.closePath(); c.fill();
+    const ang = Math.atan2(a.facing[1], a.facing[0]), r = ts * .46;          // out on the tile's edge, thin: it must not hide the sprite
+    c.strokeStyle = 'rgba(255,230,160,.6)'; c.lineWidth = 1.6; c.lineCap = 'round'; c.beginPath();        // an open chevron, not a filled wedge
+    c.moveTo(cx + Math.cos(ang + 0.55) * (r + 1), cy + Math.sin(ang + 0.55) * (r + 1));
+    c.lineTo(cx + Math.cos(ang) * (r + 5), cy + Math.sin(ang) * (r + 5));
+    c.lineTo(cx + Math.cos(ang - 0.55) * (r + 1), cy + Math.sin(ang - 0.55) * (r + 1)); c.stroke();
   }
   if (a.kind === 'zombie') {
     const al = a.alert || 0;

@@ -178,7 +178,7 @@ class Game {
     }
   }
   is_visible(x, y) { return this.visible.has(this.level.idx(x, y)); }
-  visible_actors() { return this.level.actors.filter((a) => this.is_visible(a.x, a.y)); }
+  visible_actors() { return this.level.actors.filter((a) => this.is_visible(a.x, a.y) && !a.hidden); }
   visible_hostiles() { return this.visible_actors().filter((a) => a.kind === 'zombie' || (a.kind === 'human' && a.hostile)); }
   zombie_sees_player(z) { return sees_player(this, z); }
 
@@ -381,6 +381,21 @@ class Game {
       const hz = lv.hazards[k];
       if (hz.ttl < 1e8) { hz.ttl -= 1; if (hz.ttl <= 0) { delete lv.hazards[k]; continue; } }
       const victim = lv.occ.get(+k);
+      if (hz.kind === 'snare') {
+        if (victim === p) {
+          delete lv.hazards[k];
+          this.msg('You step into a hidden snare! Something clatters loudly.', 'bad');
+          p.bleeding = Math.min(3, p.bleeding + 1);
+          this.emit_noise([p.x, p.y], 12, 'world');
+          raiders_alert_near(this, [p.x, p.y], 14);
+          damage_player(this, hz.power, "caught in a raider's snare");
+          if (this.over) return;
+        } else if (victim && victim.kind === 'zombie') {
+          delete lv.hazards[k]; victim.hp -= hz.power;
+          if (victim.hp <= 0) kill_zombie(this, victim, false, false);
+        }
+        continue;
+      }
       if (hz.kind === 'spikes') {
         if (victim && victim.kind === 'zombie') {
           delete lv.hazards[k]; victim.hp -= hz.power;
@@ -713,8 +728,15 @@ class Game {
     if (tile === T.LOCKER) { this.msg('Your locker. Use the action beside it.', 'info'); return false; }
     if (lv.portals[k] && (tile === T.PORTAL || tile === T.STAIRS_UP || tile === T.STAIRS_DOWN)) return this._use_portal(nx, ny);
     if (!lv.walkable(nx, ny)) return false;
+    const snare = lv.hazards[k];
+    if (snare && snare.kind === 'snare' && !snare.hidden) {
+      if (!p.sneaking) { this.msg('A snare lies there. Creep (sneak) to disarm it, or go around.', 'warn'); return false; }
+      delete lv.hazards[k]; this.give_item({ id: 'scrap', qty: 1, dur: null });
+      this.msg('You carefully disarm the snare and keep the scrap.', 'good'); this._spend(2); return true;
+    }
     lv.move_actor(p, nx, ny);
     this._after_step(tile);
+    raiders_notice_snares(this);
     return true;
   }
 
@@ -733,6 +755,7 @@ class Game {
 
   _bump_actor(target) {
     if (target.kind === 'human' && !target.hostile) { this.msg(`${target.name} is here. Use TALK.`, 'info'); return false; }
+    if (target.hidden) raiders_spring(this, target, 'You stumble onto a hidden raider!');      // you walked into someone lying in wait
     const turns = player_attack(this, target) ? 1 : 0;
     this._spend(turns);
     return turns > 0;

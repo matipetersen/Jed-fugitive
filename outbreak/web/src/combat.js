@@ -176,6 +176,7 @@ function _attack_human(game, h, w, item) {
 }
 
 function kill_human(game, h) {
+  raiders_shaken(game, h);
   const level = game.level;
   if (game.shared) game.shared.on_enemy_death(h);
   level.remove_actor(h);
@@ -364,6 +365,7 @@ function _distress(game, h) {
 
 // A human dies to something other than the player. Victims of the dead rise again (corpse flag 2).
 function kill_human_other(game, h, killer) {
+  raiders_shaken(game, h);
   const level = game.level;
   grant_xp(game, killer, 12);
   if (game.shared) game.shared.on_enemy_death(h);

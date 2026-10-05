@@ -67,6 +67,10 @@ def _glyph(game: Game, x: int, y: int, visible: bool) -> Cell:
     if not visible:
         return (ch, "grey", False)
     hz = lv.hazards.get((x, y))
+    if hz is not None and hz.kind == "snare":
+        if not hz.hidden:
+            return ("x", "red", True)
+        hz = None
     if hz is not None:
         if hz.kind == "spikes":
             return ("*", "yellow", True)
@@ -120,7 +124,7 @@ def build_map(game: Game, w: int, h: int, cursor: Optional[Pos] = None) -> Tuple
             elif 0 <= sx < w and 0 <= sy < h and poi.pos not in game.visible:
                 rows[sy][sx] = (POI_LETTER.get(poi.kind, "H"), "magenta", True)
     for a in lv.actors:
-        if a.pos in game.visible:
+        if a.pos in game.visible and not getattr(a, "hidden", False):
             sx, sy = a.x - ox, a.y - oy
             if 0 <= sx < w and 0 <= sy < h:
                 rows[sy][sx] = _actor_cell(a)

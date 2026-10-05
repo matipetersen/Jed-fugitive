@@ -49,7 +49,8 @@ function make_raider(game, x, y) {
   const hp = Math.floor(18 * (1.0 + 0.04 * (game.gen_day ? 1 : game.player.level)));
   const h = { kind: 'human', uid: game.next_uid(), name: 'Raider', glyph: 'R', x, y, hp, max_hp: hp, level_id: 'world',
               role: 'raider', faction: 'raiders', hostile: true, dmg: [3, 6], acc: 48, reach, energy: 0, state: 'idle',
-              target: null, loot: [], talked: false };
+              target: null, loot: [], talked: false, stun: 0, squad: 0, flank: 0, mag: 0, ammo: 0, reload: 0, morale: 100, hidden: false };
+  if (reach > 1) h.mag = h.ammo = era.firearms ? 6 : 5;               // a magazine, or a quiver: then they have to reload
   if (game.rng.random() < 0.7) h.loot = roll_items(game.rng, era, 'camp', 1.6, game.diff.loot);
   return h;
 }

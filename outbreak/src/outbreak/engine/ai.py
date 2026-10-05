@@ -7,8 +7,9 @@ a small state machine: ``dormant`` (still until disturbed) -> ``idle`` (wanders)
 from __future__ import annotations
 
 import math
+from typing import Optional, Tuple
 
-from outbreak.engine import ambience, combat, lives
+from outbreak.engine import ambience, combat, lives, raiders
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Human, Zombie
@@ -333,7 +334,12 @@ def _human(game, h: Human, humans) -> None:
         return
     p, level = game.player, game.level
     d = cheb(h.pos, p.pos)
+    if h.hidden:                                                  # lying in wait
+        raiders.spring_check(game, h, humans, d)
+        return
     seen = h.hostile and d <= 11 and has_los(level, h.pos, p.pos)
+    if h.hostile and not seen and h.morale < 100:
+        h.morale = min(100, h.morale + 2)                         # it pulls itself together out of sight
     foe = nearest_foe(game, h, _foes_of(h, game, humans), HUMAN_SIGHT if h.reach > 1 else FOE_SIGHT)
     if h.state == "follow" and d > 10:
         foe = None                                                # a companion does not chase far from you
@@ -350,6 +356,9 @@ def _human(game, h: Human, humans) -> None:
         return
     if h.state != "hunt" or not h.hostile:
         return
+    if h.role == "raider":
+        _raider_hunt(game, h, seen, d)
+        return
     if h.hp < h.max_hp * 0.3 and seen:
         _flee(game, h, p.pos)
         return
@@ -363,6 +372,79 @@ def _human(game, h: Human, humans) -> None:
     nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
     if nxt is None:
         nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+    _human_move(game, h, nxt)
+
+
+def _cover_step(game, h: Human, p) -> Optional[Tuple[int, int]]:
+    """A neighbouring tile where the player cannot see it (behind a wall, a corner, a door post)."""
+    level = game.level
+    for dx, dy in DIRS8:
+        n = (h.x + dx, h.y + dy)
+        if level.free(*n) and level.tile(*n) not in NO_ENTRY and cheb(n, p.pos) >= 2 and not has_los(level, n, p.pos):
+            return n
+    return None
+
+
+def _away_step(game, h: Human, p) -> Optional[Tuple[int, int]]:
+    level, best, best_d = game.level, None, cheb(h.pos, p.pos)
+    for dx, dy in DIRS8:
+        n = (h.x + dx, h.y + dy)
+        if level.free(*n) and level.tile(*n) not in NO_ENTRY and cheb(n, p.pos) > best_d:
+            best, best_d = n, cheb(n, p.pos)
+    return best
+
+
+def _raider_hunt(game, h: Human, seen: bool, d: int) -> None:
+    """A raider fights like a small squad: it shoots in bursts and reloads, backs off when you close in, takes cover between
+    bursts, works round to your flank, and runs only when it is hurt or its friends have died, not on contact."""
+    p, level = game.player, game.level
+    if (h.hp < h.max_hp * 0.3 or h.morale < 30) and seen:
+        _flee(game, h, p.pos)
+        return
+    if h.reload > 0:                                              # reloading, from cover if it can
+        h.reload -= 1
+        if h.reload == 0:
+            h.ammo = h.mag
+        cover = _cover_step(game, h, p) if seen else None
+        if cover:
+            _human_move(game, h, cover)
+        return
+    if h.mag and seen and 2 <= d <= h.reach:
+        if h.ammo <= 0:
+            h.reload = 3
+            if h.pos in game.visible:
+                game.msg(f"The {h.name.lower()} ducks to reload.", "info")
+            return
+        if d <= 2:                                                # too close for comfort: back off and shoot from range
+            away = _away_step(game, h, p)
+            if away:
+                _human_move(game, h, away)
+                return
+        if game.rng.random() < 0.35:                              # not every turn: take cover between bursts
+            cover = _cover_step(game, h, p)
+            if cover:
+                _human_move(game, h, cover)
+                return
+        h.ammo -= 1
+        combat.human_attack(game, h)
+        return
+    if d == 1:
+        combat.human_attack(game, h)
+        return
+    goal = p.pos
+    if h.flank and d > 4:                                         # work round to the side instead of walking into the barrel
+        vx, vy = p.x - h.x, p.y - h.y
+        wx, wy = -vy, vx
+        norm = max(1, abs(wx) + abs(wy))
+        gx, gy = p.x + int(round(h.flank * wx * 4 / norm)), p.y + int(round(h.flank * wy * 4 / norm))
+        if level.in_bounds(gx, gy) and level.walkable(gx, gy):
+            goal = (gx, gy)
+    nxt = None
+    if goal == p.pos:
+        field = game.get_field()
+        nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
+    if nxt is None:
+        nxt = greedy_step(level, h.pos, goal, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
     _human_move(game, h, nxt)
 
 

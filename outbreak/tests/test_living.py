@@ -129,7 +129,7 @@ class LivingWorld(unittest.TestCase):
         g.player.hp = 0
         g.end("dead", "x")
         self.assertTrue(lead_poi.lead)
-        self.assertLessEqual(len(g.know.known), known)
+        self.assertLessEqual(len(g.know.known), known + 6)            # a new origin may teach a few words
         self.assertGreaterEqual(len(g.know.known), known // 2)
 
     def test_big_horde_does_not_lose_zombies(self):

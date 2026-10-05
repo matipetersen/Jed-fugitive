@@ -633,6 +633,20 @@ class Game:
                     and self.clock.turn - self.distress.get(a.group, -999) < 300:
                 self.aided.setdefault(a.group, False)
 
+    def _unread_in(self, level) -> int:
+        ids = [d for lst in level.docs.values() for d in lst] + [d for c in level.containers.values() for d in c.docs]
+        return sum(1 for d in ids if d not in self.player.documents)
+
+    def reveal_paper_leads(self, n: int = 2) -> List:
+        """The nearest buildings that still hold pages you have not read."""
+        p = self.player
+        pool = [q for q in self.pois.values() if not q.papers and q.kind not in ("breach", "refuge", "pad")
+                and any(d not in p.documents for d in q.docs)]
+        pool.sort(key=lambda q: cheb(q.pos, p.pos))
+        for q in pool[:n]:
+            q.revealed = q.papers = True
+        return pool[:n]
+
     def reveal_random_lead(self) -> bool:
         pois = [q for q in self.pois.values() if q.component and not q.lead]
         if not pois:
@@ -710,6 +724,8 @@ class Game:
             poi.revealed = True
             p.gain_xp(6 if poi.kind == "house" else 15)
             ambience.building_alarm(self, poi)
+            if self._unread_in(target):
+                self.msg("You glimpse written pages somewhere in here.", "lore")
             self._chronicle(f"You enter {target.name} for the first time.")
         self.msg(f"You enter {target.name}." if portal.target != "world" else "You step back outside.", "info")
         self._spend(1)
@@ -768,6 +784,20 @@ class Game:
         lv.move_actor(p, nx, ny)
         self._after_step(tile)
         return True
+
+    def push(self, target=None) -> bool:
+        """Shove the nearest hostile within reach (or a given one)."""
+        if not self._begin_action():
+            return False
+        near = combat.pushable(self)
+        if target is None:
+            if not near:
+                self.msg("There is nothing within reach to push.", "info")
+                return False
+            target = near[0]
+        turns = 1 if combat.push(self, target) else 0
+        self._spend(turns)
+        return bool(turns)
 
     def _bump_actor(self, target) -> bool:
         if isinstance(target, Human) and not target.hostile:

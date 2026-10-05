@@ -587,3 +587,65 @@ def amputate(game) -> bool:
     game.msg(f"You cut off your {limb}. The infection goes with it, and so does a great deal of blood. "
              "It will not stop by itself: bind it now.", "warn", key=True)
     return True
+
+# ------------------------------------------------------------------ shoving
+PUSH_STAMINA = 8
+NO_KNOCKBACK = (T.PORTAL, T.STAIRS_UP, T.STAIRS_DOWN)
+
+
+def pushable(game) -> list:
+    """Hostiles within arm's reach, nearest first."""
+    p = game.player
+    out = [a for a in game.level.actors if a.hp > 0 and cheb(a.pos, p.pos) == 1
+           and (isinstance(a, Zombie) or (isinstance(a, Human) and a.hostile))]
+    return out
+
+
+def push(game, target) -> bool:
+    """Shove something away: it staggers back a tile (two if you are strong and it is light) and loses a turn or two.  Good
+    for making room, for steering the dead onto a trap or into a fire, for breaking off.  Returns True if a turn was spent."""
+    p, lv = game.player, game.level
+    if cheb(p.pos, target.pos) != 1:
+        return False
+    if p.stamina < PUSH_STAMINA:
+        game.msg("You are too winded to shove anything.", "warn")
+        return False
+    p.stamina -= PUSH_STAMINA
+    game.emit_noise(p.pos, 3, "player")
+    name = target.name.lower()
+    resist = 0.0
+    if isinstance(target, Zombie):
+        if "boss" in target.flags:
+            game.msg(f"The {name} does not budge.", "warn")
+            return True
+        resist = 0.45 if target.special == "brute" else 0.0
+    chance = (0.9 - resist) * (0.7 if "arm" in p.lost else 1.0)
+    if game.rng.random() >= chance:
+        game.msg(f"You shove the {name}, but it holds its ground.", "info")
+        return True
+    dx, dy = (target.x > p.x) - (target.x < p.x), (target.y > p.y) - (target.y < p.y)
+    reach = 2 if p.level >= 4 and resist == 0.0 else 1
+    moved = 0
+    for _ in range(reach):
+        nx, ny = target.x + dx, target.y + dy
+        if lv.free(nx, ny) and lv.tile(nx, ny) not in NO_KNOCKBACK:
+            lv.move_actor(target, nx, ny)
+            moved += 1
+        else:
+            break
+    target.stun = 2 + (1 if moved < reach else 0)
+    if isinstance(target, Zombie) and target.state != "hunt":
+        target.state, target.target, target.stimulus_turn = "hunt", p.pos, game.clock.turn
+        target.alert = 100.0
+    if moved < reach:                                          # something solid behind it
+        hurt = game.rng.randint(2, 4)
+        target.hp -= hurt
+        game.msg(f"You slam the {name} into something solid.", "good")
+        if target.hp <= 0:
+            if isinstance(target, Zombie):
+                kill_zombie(game, target, by_player=True)
+            else:
+                kill_human(game, target)
+        return True
+    game.msg(f"You shove the {name} back. It staggers.", "good")
+    return True

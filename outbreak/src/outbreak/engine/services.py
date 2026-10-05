@@ -9,6 +9,7 @@ HEAL_COST = 6
 TEACH_COST = 5
 TEACH_WORDS = 3
 LEAD_COST = 15
+PAPERS_COST = 4
 STOCK = ("bandage", "painkiller", "food", "medkit", "filter", "repair_kit", "molotov", "suppressant")
 
 
@@ -117,6 +118,23 @@ def buy_lead(game) -> str:
         return "They have nothing new to tell you."
     game.player.coins -= LEAD_COST
     return "They tell you where to look."
+
+
+def ask_papers(game) -> str:
+    """The archivist knows where written pages were left: the nearest buildings that still hold some."""
+    r = refuses(game)
+    if r:
+        return r
+    p = game.player
+    if p.coins < PAPERS_COST:
+        return f"That costs {PAPERS_COST} {game.era.coin}."
+    found = game.reveal_paper_leads(2)
+    if not found:
+        return "They know of no more pages that you have not read."
+    p.coins -= PAPERS_COST
+    from outbreak.util import cheb, compass
+    lines = [f"the {q.name}, {compass(q.x - p.x, q.y - p.y)}, about {cheb(q.pos, p.pos)} tiles" for q in found]
+    return "Pages were left in " + " and in ".join(lines) + ". They are marked on your map."
 
 
 def sleep(game, max_turns: int = 80) -> int:

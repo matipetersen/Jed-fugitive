@@ -415,3 +415,46 @@ function amputate(game) {
   game.msg(`You cut off your ${limb}. The infection goes with it, and so does a great deal of blood. It will not stop by itself: bind it now.`, 'warn', true);
   return true;
 }
+
+
+// ---------------------------------------------------------------- shoving (see engine/combat.py)
+const PUSH_STAMINA = 8;
+const NO_KNOCKBACK = [T.PORTAL, T.STAIRS_UP, T.STAIRS_DOWN];
+
+// hostiles within arm's reach
+function pushable(game) {
+  const p = game.player;
+  return game.level.actors.filter((a) => a.hp > 0 && cheb(apos(a), [p.x, p.y]) === 1 && (a.kind === 'zombie' || (a.kind === 'human' && a.hostile)));
+}
+
+function push(game, target) {
+  const p = game.player, lv = game.level;
+  if (cheb(apos(target), [p.x, p.y]) !== 1) return false;
+  if (p.stamina < PUSH_STAMINA) { game.msg('You are too winded to shove anything.', 'warn'); return false; }
+  p.stamina -= PUSH_STAMINA;
+  game.emit_noise([p.x, p.y], 3, 'player');
+  const name = target.name.toLowerCase();
+  let resist = 0.0;
+  if (target.kind === 'zombie') {
+    if (target.flags.includes('boss')) { game.msg(`The ${name} does not budge.`, 'warn'); return true; }
+    resist = target.special === 'brute' ? 0.45 : 0.0;
+  }
+  const chance = (0.9 - resist) * (p.lost.includes('arm') ? 0.7 : 1.0);
+  if (game.rng.random() >= chance) { game.msg(`You shove the ${name}, but it holds its ground.`, 'info'); return true; }
+  const dx = Math.sign(target.x - p.x), dy = Math.sign(target.y - p.y), reach = p.level >= 4 && resist === 0.0 ? 2 : 1;
+  let moved = 0;
+  for (let i = 0; i < reach; i++) {
+    const nx = target.x + dx, ny = target.y + dy;
+    if (lv.free(nx, ny) && !NO_KNOCKBACK.includes(lv.tile(nx, ny))) { lv.move_actor(target, nx, ny); moved++; } else break;
+  }
+  target.stun = 2 + (moved < reach ? 1 : 0);
+  if (target.kind === 'zombie' && target.state !== 'hunt') { target.state = 'hunt'; target.target = [p.x, p.y]; target.stimulus_turn = game.clock.turn; target.alert = 100; }
+  if (moved < reach) {                                          // something solid behind it
+    target.hp -= game.rng.randint(2, 4);
+    game.msg(`You slam the ${name} into something solid.`, 'good');
+    if (target.hp <= 0) { if (target.kind === 'zombie') kill_zombie(game, target, false, true); else kill_human(game, target); }
+    return true;
+  }
+  game.msg(`You shove the ${name} back. It staggers.`, 'good');
+  return true;
+}

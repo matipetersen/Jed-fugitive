@@ -81,6 +81,7 @@ function ai_run(game) {
 function _zombie(game, z, humans) {
   const prof = game.profile, level = game.level;
   if (z.cooldown > 0) z.cooldown -= 1;
+  if (z.stun > 0) { z.stun -= 1; return; }                       // shoved: it staggers and loses its turn
   if (prof.sun_burn && level.kind === 'overworld' && game.clock.is_day) {
     z.hp -= 2;
     if (z.hp <= 0) { kill_zombie(game, z, false, false); return; }
@@ -245,6 +246,7 @@ function _foes_of(h, game, humans) {
 
 function _human(game, h, humans) {
   if (!FIGHTERS.includes(h.role)) return;                       // shopkeepers and healers keep out of it
+  if (h.stun > 0) { h.stun -= 1; return; }
   const p = game.player, level = game.level;
   const d = cheb(apos(h), apos(p));
   const seen = h.hostile && d <= 11 && has_los(level, apos(h), apos(p));

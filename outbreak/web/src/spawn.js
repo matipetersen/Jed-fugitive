@@ -27,7 +27,7 @@ function make_zombie(game, special_id, x, y, fresh = false) {
     speed: profile.speed * sp.speed * phase.speed * (decay < 1 ? 0.85 : 1.0),
     sight: profile.sight * sp.sight, hearing: profile.hearing * sp.hearing, xp: sp.xp, flags: sp.flags,
     energy: 0, state: 'idle', target: null, stimulus_turn: 0, birth_day: day - age, cooldown: 0, horde: 0,
-    carries: [], fresh_human: false, alert: 0, facing: null,
+    carries: [], fresh_human: false, alert: 0, facing: null, stun: 0,
   };
   z.facing = DIRS8[z.uid % 8];                       // which way it looks (derived from the uid: the same for everyone)
   if (sp.flags.includes('boss') || sp.flags.includes('relentless')) z.speed = Math.max(z.speed, 1.0);

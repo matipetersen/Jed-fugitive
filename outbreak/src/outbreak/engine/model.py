@@ -57,6 +57,7 @@ class POI:
     docs: List[str] = field(default_factory=list)     # document ids placed inside
     code_known: bool = False         # the vault code has been deciphered
     done: bool = False
+    papers: bool = False             # an archivist told you written pages were left here
 
     @property
     def pos(self) -> Pos:
@@ -81,6 +82,7 @@ class Actor:
     lvl: int = 1                     # enemy level (living-world mode); the player uses ``Player.level``
     lvl_xp: int = 0
     title: str = ""                  # earned name, e.g. "Killer of Paramedic #1"
+    stun: int = 0                    # turns it loses to a shove or a blow
 
     @property
     def pos(self) -> Pos:

@@ -37,13 +37,14 @@ FIGHT       walk into an enemy                FIRE   f (cycle targets with f, fi
 THROW       t (pick an item, then a spot)     AMPUTATE   x  (only right after a limb bite)
 INTERACT    e (crates, bench, people, beds)   PICK UP   g
 INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m   BASE   o (claim, then build)
-SNEAK       s   RUN   R   LIGHT   L   SMEAR WITH GORE   v
+SNEAK       s   RUN   R   PUSH   P (shove what is next to you)   LIGHT   L   SMEAR WITH GORE   v
 BRIEFING    B   (re-read the story so far)
 SAVE & QUIT Q            HELP  ?
 
 Noise draws the dead. Guns are loud; sneaking and blades are quiet.
 Head shots drop most dead. Bite on an arm or leg? Cut it off (x) fast, with a blade.
-Documents are written in a cipher: read them, study them, learn words.
+Documents are written in a cipher: read them, study them, learn words. Pages lie in crates and on the floors
+of buildings (houses most of all); the Archivist at the refuge sells words and tells you where pages were left.
 Components are in locked vaults at the bottom of certain buildings.
 """
 
@@ -270,6 +271,8 @@ class UI:
             self.text_screen("Help", HELP)
         elif key == ord("o"):
             self.base_screen()
+        elif key == ord("P"):
+            self.push_prompt()
         elif key == ord("B"):
             self.briefing()
         elif key == ord("Q"):
@@ -290,6 +293,18 @@ class UI:
                       [("Cut it off", "red"), ("Not yet", "grey")])
         if r == 0:
             g.amputate()
+
+    def push_prompt(self) -> None:
+        g = self.g
+        near = combat.pushable(g)
+        if not near:
+            g.msg("There is nothing within reach to push.", "info")
+        elif len(near) == 1:
+            g.push(near[0])
+        else:
+            r = self.pick("Push which?", [(f"{a.name}  hp {a.hp}", "white") for a in near])
+            if r is not None:
+                g.push(near[r])
 
     # ------------------------------------------------------------ base
     def base_screen(self) -> None:
@@ -375,12 +390,15 @@ class UI:
             rows = [(f"Teach me the {g.era.cipher_name.lower()} ({services.TEACH_COST} {g.era.coin}, "
                      f"{services.TEACH_WORDS} words)", "white"),
                     (f"Buy a lead on a building ({services.LEAD_COST} {g.era.coin})", "white"),
+                    (f"Ask where written pages were left ({services.PAPERS_COST} {g.era.coin})", "white"),
                     ("Never mind", "grey")]
             r = self.pick(f"{npc.name}", rows)
             if r == 0:
                 self.message(services.teach(g))
             elif r == 1:
                 self.message(services.buy_lead(g))
+            elif r == 2:
+                self.message(services.ask_papers(g))
 
     def trade_screen(self) -> None:
         g = self.g

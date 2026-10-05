@@ -585,6 +585,20 @@ class Game {
       }
     }
   }
+  _unread_in(level) {
+    const ids = [].concat(...Object.values(level.docs), ...Object.values(level.containers).map((c) => c.docs || []));
+    return ids.filter((d) => !this.player.documents.includes(d)).length;
+  }
+  // the nearest buildings that still hold pages you have not read
+  reveal_paper_leads(n = 2) {
+    const p = this.player;
+    const pool = Object.values(this.pois).filter((q) => !q.papers && !['breach', 'refuge', 'pad'].includes(q.kind) && q.docs.some((d) => !p.documents.includes(d)));
+    pool.sort((a, b) => cheb(poi_pos(a), [p.x, p.y]) - cheb(poi_pos(b), [p.x, p.y]));
+    const found = pool.slice(0, n);
+    for (const q of found) { q.revealed = true; q.papers = true; }
+    return found;
+  }
+
   reveal_random_lead() {
     const all = Object.values(this.pois);
     let pois = all.filter((q) => q.component && !q.lead);
@@ -656,6 +670,7 @@ class Game {
       poi.visited = true; poi.revealed = true; this._chronicle(`You enter ${target.name} for the first time.`);
       p.gain_xp(poi.kind === 'house' ? 6 : 15);
       building_alarm(this, poi);
+      if (this._unread_in(target)) this.msg('You glimpse written pages somewhere in here.', 'lore');
     }
     this.msg(portal.target !== 'world' ? `You enter ${target.name}.` : 'You step back outside.', 'info');
     this._spend(1);
@@ -701,6 +716,19 @@ class Game {
     lv.move_actor(p, nx, ny);
     this._after_step(tile);
     return true;
+  }
+
+  // shove the nearest hostile within reach (or a given one)
+  push(target = null) {
+    if (!this._begin_action()) return false;
+    if (!target) {
+      const near = pushable(this);
+      if (!near.length) { this.msg('There is nothing within reach to push.', 'info'); return false; }
+      target = near[0];
+    }
+    const t = push(this, target) ? 1 : 0;
+    this._spend(t);
+    return t > 0;
   }
 
   _bump_actor(target) {

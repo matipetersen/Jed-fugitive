@@ -138,6 +138,9 @@ def _zombie(game, z: Zombie, humans) -> None:
     prof, level = game.profile, game.level
     if z.cooldown > 0:
         z.cooldown -= 1
+    if z.stun > 0:                                             # shoved: it staggers and loses its turn
+        z.stun -= 1
+        return
     if prof.sun_burn and level.kind == "overworld" and game.clock.is_day:
         z.hp -= 2
         if z.hp <= 0:
@@ -325,6 +328,9 @@ def _foes_of(h: Human, game, humans):
 def _human(game, h: Human, humans) -> None:
     if h.role not in FIGHTERS:
         return                                                    # shopkeepers and healers keep out of it
+    if h.stun > 0:
+        h.stun -= 1
+        return
     p, level = game.player, game.level
     d = cheb(h.pos, p.pos)
     seen = h.hostile and d <= 11 and has_los(level, h.pos, p.pos)

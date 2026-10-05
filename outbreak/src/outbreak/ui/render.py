@@ -241,6 +241,8 @@ def places(game: Game) -> List[Tuple[str, str]]:
             continue
         d = cheb(poi.pos, p.pos)
         mark = "visited" if poi.visited else "known"
+        if poi.papers and not poi.visited:
+            mark += ", papers rumoured"
         out.append((f"{POI_LETTER.get(poi.kind, 'H')}  {poi.name:<28} {compass(poi.x - p.x, poi.y - p.y):<11} {d:>3} tiles  {mark}",
                     "magenta" if poi.id == game.final_site_id else "white"))
     return out

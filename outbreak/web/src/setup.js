@@ -221,7 +221,13 @@ function _setup_documents(game) {
     if (r.starter || !out || (r.needs === 'firearms' && !era.firearms) || (r.needs === 'electricity' && !era.electricity)) continue;
     add('manual', { recipe: r.id, name: game.item_def(out).name }, host_for(rng.random() < 0.6 ? near : hosts));
   }
-  for (let i = 0; i < 9; i++) add('diary', {}, host_for(hosts), rng.choice(hosts).name);
+  // pages to read: they scale with the size of the world, and the first ones are close to where you start
+  const n_diary = Math.max(9, Math.round(hosts.length / 5));
+  for (let i = 0; i < n_diary; i++) {
+    const pool = i < Math.max(3, Math.floor(n_diary / 4)) ? ranked.slice(0, Math.max(6, Math.floor(ranked.length / 12)))
+      : i < Math.floor(n_diary / 2) ? ranked.slice(0, Math.max(12, Math.floor(ranked.length / 3))) : hosts;
+    add('diary', {}, host_for(pool), rng.choice(hosts).name);
+  }
 }
 
 // The world is planned already; paint the start, scatter the roaming hordes and list the places patrols walk between.

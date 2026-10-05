@@ -57,6 +57,29 @@ is created and fires once when you get close. Choices cost items, health, humani
 All three end with a hold-out finale. Who shows up depends on your **humanity**: the Alpha if you stayed human,
 armed people who have heard about you if you did not.
 
+**Push and run.** The web controls have a **PUSH** button (keyboard V; terminal `P`) next to **SNEAK** and a new **RUN** button
+(keyboard X; terminal `R`; sneak is H on the web). Push shoves the nearest hostile within reach: it staggers back a tile (two if
+you are level 4 or more and it is not a brute), loses two turns, and wakes up hunting you. A wall or a solid thing behind it
+costs it 2-4 health and a third lost turn. Brutes resist (45% less likely to move), the Alpha and other bosses never budge, a
+missing arm makes your shove 30% less likely to work, it costs 8 stamina and is quiet (noise 3). Use it to make room, to
+break off, or to steer the dead onto a spike trap or into a fire. The button lights up and names the target when something is
+within reach.
+
+**Learning the language.** Everything written (research notes, vault codes, the formula, crafting manuals, diary pages)
+is in the era's cipher. Where it comes from:
+* *Pages* lie in the crates and on the floors of buildings, houses above all (a loose page shows as a teal mark; crates must
+  be searched). Reading a page exposes you to its unknown words (a word sinks in after four exposures); *studying* it
+  (three tries per page) decodes words on purpose. A page is *deciphered* once about 60% of its key words are known, and
+  only then does it act (marks a vault, gives a code, teaches a recipe).
+* The *diary pages* are the practice material. They scale with the world (about one for every five buildings: ~50 on the web
+  map, 9 on the terminal one) and the first quarter are placed within about 30 tiles of where you start, the next quarter
+  within the nearest third of the map, so the language can be picked up from the first day.
+* Stepping into a building that still holds pages you have not read tells you so (`You glimpse written pages somewhere in
+  here.`).
+* The **Archivist** at the refuge teaches 3 words for 5 coins, and for 4 more marks the two nearest buildings that still hold
+  unread pages (*papers rumoured* in the places list).
+* Your origin and your opening scene start you with a few words, and some road events teach more.
+
 **Crafting.** You start knowing the five basics (bandage, splint, fire bomb, noisemaker, barricade kit). The
 rest (spike trap, repair kit, filter, medkit, suppressant, ammunition) are learned from a **manual**: one
 written page per recipe, hidden in buildings like any other document, in the era's cipher. Read and decipher it

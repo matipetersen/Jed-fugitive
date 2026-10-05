@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------- safe-haven services
-const HEAL_COST = 6, TEACH_COST = 5, TEACH_WORDS = 3, LEAD_COST = 15;
+const HEAL_COST = 6, TEACH_COST = 5, TEACH_WORDS = 3, LEAD_COST = 15, PAPERS_COST = 4;
 const STOCK = ['bandage', 'painkiller', 'food', 'medkit', 'filter', 'repair_kit', 'molotov', 'suppressant'];
 
 function refuses(game) {
@@ -71,6 +71,18 @@ function buy_lead(game) {
   if (!game.reveal_random_lead()) return 'They have nothing new to tell you.';
   game.player.coins -= LEAD_COST;
   return 'They tell you where to look.';
+}
+
+// the archivist knows where written pages were left: the nearest buildings that still hold some
+function ask_papers(game) {
+  const r = refuses(game);
+  if (r) return r;
+  const p = game.player;
+  if (p.coins < PAPERS_COST) return `That costs ${PAPERS_COST} ${game.era.coin}.`;
+  const found = game.reveal_paper_leads(2);
+  if (!found.length) return 'They know of no more pages that you have not read.';
+  p.coins -= PAPERS_COST;
+  return 'Pages were left in ' + found.map((q) => `the ${q.name}, ${compass(q.x - p.x, q.y - p.y)}, about ${cheb(poi_pos(q), [p.x, p.y])} tiles`).join(' and in ') + '. They are marked on your map.';
 }
 
 const PATROL_LINES = {

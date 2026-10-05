@@ -425,6 +425,8 @@ function updateHud() {
   if (p.stamina <= 0) add('Exhausted', 'danger'); else if (p.stamina < TIRED_BELOW) add('Winded', 'warn');
   if (p.sneaking) add('Sneaking', 'info');
   { const sb = document.querySelector('.act.sneak'); if (sb) { sb.classList.toggle('on', !!p.sneaking); $('#sneak-sub').textContent = p.sneaking ? 'on' : 'off'; } }
+  { const rb = document.querySelector('.act.run'); if (rb) { rb.classList.toggle('on', !!p.sprinting); $('#run-sub').textContent = p.sprinting ? 'on' : 'off'; } }
+  { const pb = document.querySelector('.act.push'); if (pb) { const n = pushable(g); pb.classList.toggle('ready', n.length > 0); $('#push-sub').textContent = n.length ? n[0].name.toLowerCase().slice(0, 14) : 'shove it back'; } }
   if (p.sprinting) add('Running', 'info');
   if (g.cfg.mode !== 'normal') add(`Survivor #${g.generation}`, 'info');
   if (g.paused) add('PAUSED', 'warn');
@@ -675,9 +677,11 @@ function buildControls() {
   const mk = (cls, html, fn) => { const b = el('button', 'pad act ' + cls); b.type = 'button'; b.innerHTML = html; b.addEventListener('click', fn); act.append(b); return b; };
   mk('primary', '<span id="act-label">Rest</span><small id="act-sub"></small>', () => { if (game && !game.over && !modal) { const c = contextAction(); doAction(c.run); } });
   mk('', '<span>Fire</span><small id="fire-sub"></small>', () => { if (game && !game.over && !modal) startAim('fire'); });
-  mk('', '<span>Bag</span><small>items</small>', () => { if (game && !modal) openInventory(); });
-  mk('', '<span>Menu</span><small>more</small>', () => { if (game && !modal) openMenu(); });
-  mk('sneak', '<span id="sneak-label">Sneak</span><small id="sneak-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sneak(); afterAction(); } });
+  mk('short', '<span>Bag</span><small>items</small>', () => { if (game && !modal) openInventory(); });
+  mk('short', '<span>Menu</span><small>more</small>', () => { if (game && !modal) openMenu(); });
+  mk('mini sneak', '<span id="sneak-label">Sneak</span><small id="sneak-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sneak(); afterAction(); } });
+  mk('mini run', '<span id="run-label">Run</span><small id="run-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sprint(); afterAction(); } });
+  mk('mini wide push', '<span>Push</span><small id="push-sub">shove it back</small>', () => { if (game && !game.over && !modal) { if (!pushable(game).length) toast('Nothing within reach to push'); else doAction(() => game.push()); } });
   $('#controls').classList.toggle('lefty', prefs.lefty);
 }
 
@@ -690,6 +694,9 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'r') doAction(() => game.rest());
   else if (k === 'g') { const c = contextAction(); doAction(c.run); }
   else if (k === 'f') startAim('fire');
+  else if (k === 'v') { if (pushable(game).length) doAction(() => game.push()); else toast('Nothing within reach to push'); }
+  else if (k === 'x') { game.toggle_sprint(); afterAction(); }
+  else if (k === 'h') { game.toggle_sneak(); afterAction(); }
   else if (k === 'i' || k === 'b') openInventory();
   else if (k === 'm') openMenu();
   else if (k === 'Escape') { endAim(); cancelTravel(); }
@@ -906,7 +913,7 @@ function openPlaces() {
       const row = el('div', 'row tap');
       const goal = q.id === g.final_site_id;
       row.append(el('div', 'badge', POI_LETTER[q.kind] || 'H'), el('div', 'main', [el('div', 'name', q.name + (goal ? ' (goal)' : '')),
-        el('div', 'sub', `${compass(q.x - p.x, q.y - p.y)} · ${cheb(poi_pos(q), [p.x, p.y])} tiles · ${q.visited ? 'visited' : 'unvisited'}${q.lead && q.component && p.count(q.component) === 0 ? ' · holds a component' : ''}`)]));
+        el('div', 'sub', `${compass(q.x - p.x, q.y - p.y)} · ${cheb(poi_pos(q), [p.x, p.y])} tiles · ${q.visited ? 'visited' : 'unvisited'}${q.papers && !q.visited ? ' · papers rumoured' : ''}${q.lead && q.component && p.count(q.component) === 0 ? ' · holds a component' : ''}`)]));
       row.addEventListener('click', () => {
         if (g.level.kind !== 'overworld') { toast('Go outside first'); return; }
         const path = player_path(g.level, [p.x, p.y], [q.x, q.y], () => true);
@@ -954,11 +961,14 @@ function openHelp() {
     li('Move', 'Hold the pad, or tap a tile to walk there. Walking stops when an enemy appears. Tap an adjacent enemy to hit it.');
     li('ACT button', 'It changes with what is next to you: pick up, search a crate, talk, sleep, unlock, rest. Tap yourself for the same.');
     li('Fire', 'With a ranged weapon equipped: one target fires at once; with several, tap the one you want.');
+    li('Push', 'Shove the dead (or a raider) next to you: it staggers back a tile (two if you are level 4+) and loses a turn or two. Make room, break off, or steer it onto a trap or a fire. Brutes resist, the big one does not budge, a wall behind it hurts it. Costs stamina; keyboard V.');
+    li('Run', 'The RUN button toggles a sprint: faster, but loud and tiring (keyboard X; SNEAK is H).');
     li('Sneak up on them', 'Zombies look where they walk (the pale wedge on them). Toggle SNEAK, come from behind or from the side, and hit them before the ? bar fills: an unaware zombie dies to one blow. In front of it, or running, it notices you fast. A red ! means it hunts you. Sneaking costs half your speed and you cannot run; it ends the moment you fight a zombie that has noticed you, or get hit. Fights are loud (heavy blunt weapons the loudest) and bring the dead from far away.');
     li('Stamina', 'Every step tires you, running much more. Marching nonstop makes you winded (slower) and then exhausted (half speed, no running). Resting, standing still and creeping recover it. Fast dead will catch a tired walker.');
     li('Noise is the game', 'Every action makes noise. Guns are loud; blades, bows and sneaking are quiet. Too much noise brings a Stalker.');
     li('Bitten?', 'On an arm or leg, cut it off (red button) within the window, with a blade. Torso bites only buy time with suppressants.');
     li('Documents', 'They are written in a cipher. Read and study them to learn words. Deciphering reveals vault locations, codes and the formula.');
+    li('Where the pages are', 'In crates and on the floors of buildings, houses most of all. A loose page shows as a teal mark; crates must be searched. When you step into a building that still holds pages, you are told. The Archivist at the refuge teaches words for coins and, for a few more, tells you which nearby buildings still hold pages.');
     li('Vaults', 'Components lie in locked vaults on the lowest floor. Use the code, or force the door (loud).');
     li('Long press', 'Hold on a tile to see what it is. Pinch to zoom.');
     li('Humanity', 'Your choices on the road decide who trades with you and who you face at the end.');
@@ -1067,6 +1077,7 @@ function openNpc(npc) {
       const acts = el('div', 'actionrow');
       acts.append(btn('btn main', `Teach me (${TEACH_COST} ${g.era.coin})`, () => say(teach(g))));
       acts.append(btn('btn', `Buy a lead (${LEAD_COST})`, () => say(buy_lead(g))));
+      acts.append(btn('btn', `Where are written pages? (${PAPERS_COST})`, () => say(ask_papers(g))));
       body.append(acts);
     }
     body.append(el('p', 'note', `You have ${g.player.coins} ${g.era.coin}.`));

@@ -275,8 +275,17 @@ def _documents(game) -> None:
                 (r.needs == "electricity" and not era.electricity):
             continue
         add("manual", {"recipe": r.id, "name": game.item_def(out).name}, host_for(near if rng.random() < 0.6 else hosts))
-    for _ in range(9):
-        add("diary", {}, host_for(hosts), rng.choice(hosts).name)
+    # pages to read: they scale with the size of the world (a big map with 26 papers would be a desert), and the first
+    # ones are close to where you start, so the language can be picked up from the first day
+    n = max(9, round(len(hosts) / 5))
+    for i in range(n):
+        if i < max(3, n // 4):
+            pool = ranked[:max(6, len(ranked) // 12)]
+        elif i < n // 2:
+            pool = ranked[:max(12, len(ranked) // 3)]
+        else:
+            pool = hosts
+        add("diary", {}, host_for(pool), rng.choice(hosts).name)
 
 
 # ------------------------------------------------------------------ population

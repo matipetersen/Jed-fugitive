@@ -58,6 +58,10 @@ def _glyph(game: Game, x: int, y: int, visible: bool) -> Cell:
             ch, color, bold = (POI_LETTER.get(poi.kind, "H") if poi else "H"), "white", True
     if t == T.LOCKED:
         ch, color, bold = "+", "red", True
+    elif t == T.STAIRS_UP:
+        ch, color, bold = "<", "green", True                  # stairs must not hide among floor tiles
+    elif t == T.STAIRS_DOWN:
+        ch, color, bold = ">", "magenta", True
     if lv.kind == "overworld" and any(s["pos"] == (x, y) for s in ambience.heard_sources(game)):
         return ("!", "magenta", True)                       # something is sounding there
     if not visible:

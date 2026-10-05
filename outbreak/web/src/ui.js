@@ -20,7 +20,7 @@ const recordStore = { get: () => { const r = lsGet('outbreak.records.v1', []); r
 const prefs = Object.assign({ zoom: 26, haptics: true, lefty: false, travel: true, sprites: true }, lsGet('outbreak.prefs.v1', {}));
 const savePrefs = () => lsSet('outbreak.prefs.v1', prefs);
 let game = null, aim = null, travel = null, lastHp = 0, endingShown = false, modal = 0, sheetCloseCb = null, storageOk = true;
-let camX = 0, camY = 0, dirty = true, view = { ox: 0, oy: 0, ts: 26 }, W = 0, H = 0, dpr = 1, pathPreview = null;
+let animTiles = false, camX = 0, camY = 0, dirty = true, view = { ox: 0, oy: 0, ts: 26 }, W = 0, H = 0, dpr = 1, pathPreview = null;
 const cv = $('#map'), ctx = cv.getContext('2d');
 
 // ---------------------------------------------------------------- map drawing
@@ -57,7 +57,19 @@ function deco(kind, x, y, s, vis) {
     case 'bench': c.fillStyle = '#2e6f7c'; c.fillRect(x + s * .1, y + s * .3, s * .8, s * .45); c.fillStyle = '#55b3c4'; c.fillRect(x + s * .2, y + s * .2, s * .2, s * .2); break;
     case 'fence': c.strokeStyle = '#8a8f8a'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y + s * .35); c.lineTo(x + s, y + s * .35); c.moveTo(x, y + s * .65); c.lineTo(x + s, y + s * .65); c.stroke(); break;
     case 'fire': c.fillStyle = '#e2573f'; c.beginPath(); c.arc(x + s / 2, y + s / 2, s * .28, 0, 7); c.fill(); c.fillStyle = '#f0b445'; c.beginPath(); c.arc(x + s / 2, y + s * .55, s * .14, 0, 7); c.fill(); break;
-    case '<': case '>': c.fillStyle = '#cfc8b4'; c.font = `bold ${Math.floor(s * .8)}px ${MONO}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(kind, x + s / 2, y + s / 2 + 1); break;
+    case '<': case '>': {                                   // stairs: a lit staircase with an arrow and a slow pulse, unmistakable among floors
+      const up = kind === '<', col = up ? '#3fd0d8' : '#f5a83c', pulse = 0.5 + 0.5 * Math.sin(performance.now() / 380);
+      animTiles = true;
+      c.fillStyle = up ? '#123c46' : '#4a2a0a'; c.fillRect(x + 1, y + 1, s - 2, s - 2);
+      c.fillStyle = col;
+      for (let i = 0; i < 4; i++) { const w = s * (0.72 - i * 0.16), yy = up ? y + s * (0.74 - i * 0.15) : y + s * (0.14 + i * 0.15); c.fillRect(x + s * 0.14 + (up ? i * s * 0.16 : 0), yy, w, s * 0.11); }
+      c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(2, s * 0.09); c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
+      if (up) { c.moveTo(x + s * 0.18, y + s * 0.38); c.lineTo(x + s * 0.34, y + s * 0.2); c.lineTo(x + s * 0.5, y + s * 0.38); }
+      else { c.moveTo(x + s * 0.2, y + s * 0.66); c.lineTo(x + s * 0.36, y + s * 0.82); c.lineTo(x + s * 0.52, y + s * 0.66); }
+      c.stroke();
+      c.strokeStyle = col; c.globalAlpha = 0.35 + 0.5 * pulse; c.lineWidth = 2; c.strokeRect(x + 1.5, y + 1.5, s - 3, s - 3); c.globalAlpha = 1;
+      break;
+    }
     default: break;
   }
 }
@@ -92,6 +104,7 @@ function layoutOverlays() {
 }
 
 function draw() {
+  animTiles = false;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = '#0a0e0f'; ctx.fillRect(0, 0, W, H);
   if (!game) return;
@@ -377,6 +390,7 @@ function frame() {
     if (Math.abs(p.x + .5 - camX) < 0.01 && Math.abs(p.y + .5 - camY) < 0.01) { camX = p.x + .5; camY = p.y + .5; }
     else dirty = true;
     if (game.level.hazards && Object.keys(game.level.hazards).length) dirty = true;
+    if (animTiles) dirty = true;                                   // pulsing stairs
     if (game.pings.length || (game.level.kind === 'overworld' && (game.weather !== 'clear' || game.sources.length))) dirty = true;      // rings, rain and alarms animate
   }
   if (dirty) { dirty = false; draw(); }

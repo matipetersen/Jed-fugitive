@@ -634,13 +634,7 @@ class Game:
                 return
 
     def spawn_raiders_near_player(self, n: int) -> None:
-        p, lv = self.player, self.level
-        for _ in range(n):
-            spot = lv.free_spot_near(p.x + self.rng.randint(-6, 6), p.y + self.rng.randint(-6, 6), 4)
-            if spot and cheb(spot, p.pos) >= 3:
-                r = make_raider(self, *spot)
-                r.state = "hunt"
-                lv.add_actor(r)
+        raiders.ambush(self, self.level, n)
 
     def note_assist(self, pos: Pos) -> None:
         """You killed something near a patrol that had called for help: they will remember."""
@@ -1282,12 +1276,15 @@ class Game:
             f.boss_done = True
             if p.humanity < 40:
                 self.msg("People step out of the dark with weapons. 'We have heard about you.'", "bad", key=True)
+                crew = []
                 for _ in range(3):
                     spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4)
                     if spot and cheb(spot, p.pos) > 2:
                         r = make_raider(self, *spot)
                         r.state = "hunt"
                         lv.add_actor(r)
+                        crew.append(r)
+                raiders.squad_up(self, crew)
             else:
                 spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4)
                 if spot:

@@ -581,15 +581,7 @@ class Game {
     }
   }
   spawn_raiders_near_player(n) {
-    const p = this.player, lv = this.level;
-    for (let i = 0; i < n; i++) {
-      const spot = lv.free_spot_near(p.x + this.rng.randint(-6, 6), p.y + this.rng.randint(-6, 6), 4);
-      if (spot && cheb(spot, [p.x, p.y]) >= 3) {
-        const r = make_raider(this, spot[0], spot[1]);
-        r.state = 'hunt';
-        lv.add_actor(r);
-      }
-    }
+    raiders_ambush(this, this.level, n);
   }
   // You killed something near a patrol that had called for help: they will remember.
   note_assist(pos) {
@@ -1059,10 +1051,12 @@ class Game {
       f.boss_done = true;
       if (p.humanity < 40) {
         this.msg("People step out of the dark with weapons. 'We have heard about you.'", 'bad', true);
+        const crew = [];
         for (let i = 0; i < 3; i++) {
           const spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4);
-          if (spot && cheb(spot, [p.x, p.y]) > 2) { const r = make_raider(this, spot[0], spot[1]); r.state = 'hunt'; lv.add_actor(r); }
+          if (spot && cheb(spot, [p.x, p.y]) > 2) { const r = make_raider(this, spot[0], spot[1]); r.state = 'hunt'; lv.add_actor(r); crew.push(r); }
         }
+        raiders_squad_up(this, crew);
       } else {
         const spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4);
         if (spot) {

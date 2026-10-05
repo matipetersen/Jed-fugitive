@@ -56,4 +56,18 @@ const dist = (g, r) => Math.max(Math.abs(r.x - g.player.x), Math.abs(r.y - g.pla
   const [g, lv] = field(); const r = raider_at(g, lv, 11, 0, { mag: 0, ammo: 0, reach: 1, flank: 1 }); const ys = new Set();
   for (let i = 0; i < 6; i++) { OB._human(g, r, [r]); ys.add(r.y); } assert(ys.size > 1);
 }
+{ // events ambush you with hidden men and snares, anywhere
+  const [g, lv] = field(); const n = OB.raiders_ambush(g, lv, 4); assert(n >= 3);
+  const mine = lv.actors.filter((a) => a.kind === 'human');
+  assert(mine.some((a) => a.hidden)); assert(mine.some((a) => !a.hidden && a.state === 'hunt')); assert.strictEqual(new Set(mine.map((a) => a.squad)).size, 1);
+  assert(Object.values(lv.hazards).some((h) => h.kind === 'snare' && h.hidden)); g.update_fov(); assert(g.visible_actors().every((a) => !a.hidden));
+  const [h, hl] = field(); h.spawn_raiders_near_player(4); assert(hl.actors.some((a) => a.kind === 'human' && a.hidden));
+  const [s, sl] = field(); const crew = [raider_at(s, sl, 6), raider_at(s, sl, 7), raider_at(s, sl, 8)]; OB.raiders_squad_up(s, crew); assert.strictEqual(new Set(crew.map((r) => r.squad)).size, 1);
+}
+{ // tripwires are scattered along the roads as chunks are painted
+  const g = make({ seed: 3 }), lv = g.world.level, [sx, sy] = g.world.start;
+  for (const [dx, dy] of [[40, 0], [-40, 0], [0, 40], [0, -40], [70, 30], [-70, -30], [30, 70], [-30, -70]]) { try { OB.gen_near(g, sx + dx, sy + dy); } catch (e) { /* edge of the map */ } }
+  const far = Object.entries(lv.hazards).filter(([k, h]) => h.kind === 'snare' && lv.tiles[k] === OB.T.ROAD && Math.max(Math.abs(k % lv.w - sx), Math.abs(Math.floor(k / lv.w) - sy)) >= 30);
+  assert(far.length >= 2, 'tripwires: ' + far.length); assert(far.every(([, h]) => h.hidden));
+}
 console.log('raiders: ambushes, snares, reloads, cover, flanking and morale');

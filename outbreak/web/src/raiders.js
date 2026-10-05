@@ -53,3 +53,43 @@ function raiders_setup_camp(game, lv, camp, crew, rng) {
     if (d >= 4 && d <= 9 && lv.free(x, y) && [T.GRASS, T.ROAD, T.BRUSH].includes(lv.tile(x, y)) && !lv.hazards[lv.idx(x, y)]) { lv.hazards[lv.idx(x, y)] = { kind: 'snare', ttl: 1e9, power: SNARE_POWER, hidden: true }; placed++; }
   }
 }
+
+// ---------------------------------------------------------------- raiders anywhere
+const RAIDER_SPOT_TILES = [T.GRASS, T.BRUSH, T.ROAD, T.FLOOR];
+
+function raiders_squad_up(game, group) {                                      // one squad: shared id, alternating flanks
+  const squad = game.next_uid();
+  group.forEach((r, i) => { r.squad = squad; r.flank = i % 2 === 0 ? 1 : -1; });
+  return squad;
+}
+
+function _raider_spot(game, lv, centre, lo, hi, brush_first = false) {
+  let best = null;
+  for (let i = 0; i < 40; i++) {
+    const x = centre[0] + game.rng.randint(-hi, hi), y = centre[1] + game.rng.randint(-hi, hi), d = cheb([x, y], centre);
+    if (d >= lo && d <= hi && lv.free(x, y) && RAIDER_SPOT_TILES.includes(lv.tile(x, y))) {
+      if (!brush_first || lv.tile(x, y) === T.BRUSH) return [x, y];
+      best = best || [x, y];
+    }
+  }
+  return best;
+}
+
+// raiders waiting for you wherever you are (a road event, a toll gone wrong): half lie hidden close by, the rest stand off
+// at range, and a few snares are laid between you and them
+function raiders_ambush(game, lv, n) {
+  const p = game.player, group = [];
+  for (let i = 0; i < n; i++) {
+    const hide = i % 2 === 1, spot = hide ? _raider_spot(game, lv, [p.x, p.y], 4, 8, true) : _raider_spot(game, lv, [p.x, p.y], 7, 11);
+    if (!spot || cheb(spot, [p.x, p.y]) < 3) continue;
+    const r = make_raider(game, spot[0], spot[1]);
+    r.hidden = hide; r.state = hide ? 'idle' : 'hunt';
+    lv.add_actor(r); group.push(r);
+  }
+  raiders_squad_up(game, group);
+  for (let i = 0; i < 3; i++) {
+    const spot = _raider_spot(game, lv, [p.x, p.y], 2, 6);
+    if (spot && !lv.hazards[lv.idx(spot[0], spot[1])] && lv.tile(spot[0], spot[1]) !== T.FLOOR) lv.hazards[lv.idx(spot[0], spot[1])] = { kind: 'snare', ttl: 1e9, power: SNARE_POWER, hidden: true };
+  }
+  return group.length;
+}

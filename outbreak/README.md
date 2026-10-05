@@ -71,6 +71,8 @@ armed people who have heard about you if you did not.
   the time. In pairs one side works round to your flank instead of walking into the barrel.
 * *Morale.* Raiders no longer run on contact. They run when below 30% health or when their morale breaks: each friend
   killed near them costs 25. Out of sight it recovers 2 a turn, and they come back.
+* *Everywhere.* Ambushes are not only for camps: raider road events and the Dash finale spring the same hidden squad
+  (half in cover, three hidden snares round you), and lone tripwires are scattered along the far roads.
 
 **Push and run.** The web controls have a **PUSH** button (keyboard V; terminal `P`) next to **SNEAK** and a new **RUN** button
 (keyboard X; terminal `R`; sneak is H on the web). Push shoves the nearest hostile within reach: it staggers back a tile (two if

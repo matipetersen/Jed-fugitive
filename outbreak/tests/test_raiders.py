@@ -159,5 +159,42 @@ class RaiderTactics(unittest.TestCase):
         self.assertGreater(len(ys), 1)                           # it drifted off the straight line to you
 
 
+class RaidersEverywhere(unittest.TestCase):
+    def test_events_ambush_you_with_hidden_men_and_snares(self):
+        g, lv = field()
+        n = raiders.ambush(g, lv, 4)
+        self.assertGreaterEqual(n, 3)
+        mine = [a for a in lv.actors if isinstance(a, Human)]
+        self.assertTrue(any(a.hidden for a in mine))
+        self.assertTrue(any(not a.hidden and a.state == "hunt" for a in mine))
+        self.assertEqual(len({a.squad for a in mine}), 1)
+        self.assertTrue(any(h.kind == "snare" and h.hidden for h in lv.hazards.values()))
+        # the visible ones are targets, the hidden ones are not
+        g.update_fov()
+        self.assertTrue(all(not a.hidden for a in g.visible_actors()))
+
+    def test_the_road_event_effect_uses_it(self):
+        g, lv = field()
+        g.spawn_raiders_near_player(4)
+        self.assertTrue(any(isinstance(a, Human) and a.hidden for a in lv.actors))
+
+    def test_final_stand_raiders_are_a_squad(self):
+        g, lv = field()
+        crew = [raider_at(g, lv, 6 + i) for i in range(3)]
+        raiders.squad_up(g, crew)
+        self.assertEqual(len({r.squad for r in crew}), 1)
+        self.assertEqual({r.flank for r in crew}, {1, -1})
+
+    def test_tripwires_are_scattered_on_far_roads(self):
+        g = helpers.make_game(seed=3)
+        lv = g.world.level
+        sx, sy = g.world.start
+        snares = [pos for pos, h in lv.hazards.items() if h.kind == "snare"]
+        camps = g.world.camps
+        far = [pos for pos in snares if lv.tile(*pos) == T.ROAD and max(abs(pos[0] - sx), abs(pos[1] - sy)) >= 30]
+        self.assertGreaterEqual(len(far), 2)
+        self.assertTrue(all(lv.hazards[pos].hidden for pos in far))
+
+
 if __name__ == "__main__":
     unittest.main()

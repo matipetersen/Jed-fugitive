@@ -51,6 +51,7 @@ def initialize(game) -> None:
     mutation.build(game)
     _documents(game)
     _populate(game)
+    raiders.scatter_snares(game)
     if not game.profile.sun_burn:                           # nothing roams by day, so there is no opening tide
         hordes.start_ring(game)
     _intro(game)

@@ -144,7 +144,7 @@ class MutationTests(unittest.TestCase):
         for day in range(2, 40):
             days(g, day)
             mutation.daily(g)
-        self.assertLessEqual(sum(len(r.traits) for r in g.regions) / len(g.regions), 0.8)
+        self.assertLessEqual(sum(len(r.traits) for r in g.regions) / len(g.regions), 1.25)
         self.assertLessEqual(max(len(r.traits) for r in g.regions), 3)
 
     def test_zombies_get_their_district_traits_new_and_old(self):

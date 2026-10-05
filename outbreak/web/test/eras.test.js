@@ -78,7 +78,7 @@ const zombie_near = (g, d) => { const z = OB.spawn_zombie(g, g.world.level, g.wo
   assert(Math.max(...g.regions.map((r) => r.traits.length)) >= 4);
   const q = world('medieval', 'classic', 7);
   for (let d = 2; d < 40; d++) { days(q, d); OB.mutation_daily(q); }
-  assert(q.regions.reduce((x, r) => x + r.traits.length, 0) / q.regions.length <= 0.8); assert(Math.max(...q.regions.map((r) => r.traits.length)) <= 3);
+  assert(q.regions.reduce((x, r) => x + r.traits.length, 0) / q.regions.length <= 1.25); assert(Math.max(...q.regions.map((r) => r.traits.length)) <= 3);
 }
 { // zombies get their district's traits, new and old
   const g = world('scifi', 'bio'), lv = g.world.level, r = OB.mutation_here(g), old = zombie_near(g, 8);

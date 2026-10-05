@@ -97,3 +97,69 @@ def setup_camp(game, lv, camp, raiders) -> None:
                 and (x, y) not in lv.hazards:
             lv.hazards[(x, y)] = Hazard("snare", 10 ** 9, SNARE_POWER, hidden=True)
             placed += 1
+
+
+# ------------------------------------------------------------------ raiders anywhere
+SPOT_TILES = (T.GRASS, T.BRUSH, T.ROAD, T.FLOOR)
+
+
+def squad_up(game, group) -> int:
+    """Make a bunch of raiders one squad: shared id, alternating flanks."""
+    squad = game.next_uid()
+    for i, r in enumerate(group):
+        r.squad = squad
+        r.flank = 1 if i % 2 == 0 else -1
+    return squad
+
+
+def _spot(game, lv, centre, lo: int, hi: int, brush_first: bool = False):
+    rng = game.rng
+    best = None
+    for _ in range(40):
+        x, y = centre[0] + rng.randint(-hi, hi), centre[1] + rng.randint(-hi, hi)
+        if lo <= cheb((x, y), centre) <= hi and lv.free(x, y) and lv.tile(x, y) in SPOT_TILES:
+            if not brush_first or lv.tile(x, y) == T.BRUSH:
+                return (x, y)
+            best = best or (x, y)
+    return best
+
+
+def ambush(game, lv, n: int) -> int:
+    """Raiders waiting for you wherever you are (a road event, a toll gone wrong): half lie hidden close by, the rest stand
+    off at range, and a few snares are laid between you and them.  Returns how many raiders were placed."""
+    from outbreak.engine.spawn import make_raider
+    p = game.player
+    group = []
+    for i in range(n):
+        hide = i % 2 == 1
+        spot = _spot(game, lv, p.pos, 4, 8, brush_first=True) if hide else _spot(game, lv, p.pos, 7, 11)
+        if spot is None or cheb(spot, p.pos) < 3:
+            continue
+        r = make_raider(game, *spot)
+        r.hidden, r.state = hide, ("idle" if hide else "hunt")
+        lv.add_actor(r)
+        group.append(r)
+    squad_up(game, group)
+    for _ in range(3):
+        spot = _spot(game, lv, p.pos, 2, 6)
+        if spot and spot not in lv.hazards and lv.tile(*spot) != T.FLOOR:
+            lv.hazards[spot] = Hazard("snare", 10 ** 9, SNARE_POWER, hidden=True)
+    return len(group)
+
+
+def scatter_snares(game) -> int:
+    """Tripwires on the roads, here and there: raiders do not only defend camps."""
+    lv = game.world.level
+    sx, sy = game.world.start
+    roads = [(x, y) for y in range(2, lv.h - 2) for x in range(2, lv.w - 2)
+             if lv.tile(x, y) == T.ROAD and cheb((x, y), (sx, sy)) >= 30]
+    n = max(2, len(roads) // 250)
+    game.rng.shuffle(roads)
+    placed = 0
+    for pos in roads:
+        if placed >= n:
+            break
+        if pos not in lv.hazards and pos not in lv.occ:
+            lv.hazards[pos] = Hazard("snare", 10 ** 9, SNARE_POWER, hidden=True)
+            placed += 1
+    return placed

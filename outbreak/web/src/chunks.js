@@ -69,6 +69,16 @@ function _populate_chunk(game, cx, cy) {
       lv.containers[lv.idx(cx2 + 2, cy2 - 1)] = { loot: roll_items(rng, game.era, 'camp', 3.0, game.diff.loot), docs: [],
                                                    coins: rng.randint(2, 8), opened: false, note: '' };
     }
+    // tripwires on the highway, here and there: raiders do not only defend camps
+    const wr = chunk_rng(world.seed, cx, cy, 29);
+    if (wr.random() < 0.4 && cheb([x0 + S / 2, y0 + S / 2], start) >= 30) {
+      const wires = wr.randint(1, 2);
+      for (let i = 0; i < wires; i++) {
+        const sx = wr.random() < 0.5 ? x0 : x0 + wr.randint(2, S - 2), sy = sx === x0 ? y0 + wr.randint(2, S - 2) : y0;
+        const k = lv.idx(sx, sy);
+        if (lv.in_bounds(sx, sy) && lv.tile(sx, sy) === T.ROAD && !lv.hazards[k]) lv.hazards[k] = { kind: 'snare', ttl: 1e9, power: SNARE_POWER, hidden: true };
+      }
+    }
     // a patrol group now and then, standing on the chunk's highway
     if (rng.random() < 0.5 && cheb([x0 + S / 2, y0 + S / 2], start) >= 30) {
       const base = rng.random() < 0.5 ? [x0 + rng.randint(2, S - 2), y0] : [x0, y0 + rng.randint(2, S - 2)];

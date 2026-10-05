@@ -140,6 +140,10 @@ class Human(Actor):
     reload: int = 0                  # turns left reloading
     morale: int = 100                # falls as its friends die; it runs when it breaks
     hidden: bool = False             # lying in wait: not seen, not targeted, until it springs
+    # soldiers
+    corrupt: bool = False            # can be bought, and pockets what it confiscates
+    cp: int = 0                      # checkpoint it guards (0 = none)
+    post: Optional[Pos] = None
 
 
 class Level:

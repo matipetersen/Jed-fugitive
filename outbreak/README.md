@@ -74,6 +74,22 @@ armed people who have heard about you if you did not.
 * *Everywhere.* Ambushes are not only for camps: raider road events and the Dash finale spring the same hidden squad
   (half in cover, three hidden snares round you), and lone tripwires are scattered along the far roads.
 
+**Checkpoints and corrupt soldiers.** The far roads (at least 35 tiles from the start) have military checkpoints: three
+soldiers holding the highway (two on the small map, more on a big one). Come within 7 tiles in sight of one (3 if you are
+creeping) and it stops you, once per 500 turns. Roaming military patrols do the same, but only half the time and at most
+once per 300 turns. They are looking for **contraband**: medicine (medkit, suppressant, painkiller), thrown explosives and
+in the firearm eras every gun and bullet (in 1348, crossbows). Quest items are never taken. If you carry nothing they
+wave you on; a corrupt one may stop you for a road tax instead. A bite you cannot hide (40% chance per stop) is the worst
+thing they can find. You choose:
+* *Submit* - they take it all. An honest soldier means to hand it in; a corrupt one pockets it. Either way the **leader
+  carries it**: kill him and it drops. If you are infected, they shoot.
+* *Bribe* - 4 + 2 per contraband item (+8 if sick; sick pays double). A corrupt soldier takes it 90% of the time (75% if
+  you are sick); an honest one 15% (never if sick), and when it fails he keeps the money and takes the goods.
+* *Talk* - 22% + humanity/220 + military reputation/250 (less if sick). Failing it is a search.
+* *Draw* - the whole crew turns on you and military reputation drops 40. At -50 every checkpoint shoots on sight.
+About 38% of soldiers are corrupt (decided by their id, so it is the same on every run of a seed). Hostile soldiers fight like
+raider squads: magazines, reloads, cover.
+
 **Push and run.** The web controls have a **PUSH** button (keyboard V; terminal `P`) next to **SNEAK** and a new **RUN** button
 (keyboard X; terminal `R`; sneak is H on the web). Push shoves the nearest hostile within reach: it staggers back a tile (two if
 you are level 4 or more and it is not a brute), loses two turns, and wakes up hunting you. A wall or a solid thing behind it

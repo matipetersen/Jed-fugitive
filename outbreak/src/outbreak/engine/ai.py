@@ -354,9 +354,14 @@ def _human(game, h: Human, humans) -> None:
     if h.state == "patrol":
         _patrol_step(game, h)
         return
+    if h.state == "guard":
+        if h.post and h.pos != h.post and game.clock.turn % 3 == 0:
+            nxt = greedy_step(level, h.pos, h.post, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+            _human_move(game, h, nxt)
+        return
     if h.state != "hunt" or not h.hostile:
         return
-    if h.role == "raider":
+    if h.role == "raider" or (h.role == "soldier" and h.mag):
         _raider_hunt(game, h, seen, d)
         return
     if h.hp < h.max_hp * 0.3 and seen:

@@ -258,8 +258,15 @@ function _human(game, h, humans) {
   if (seen) { h.state = 'hunt'; h.target = apos(p); }
   if (h.state === 'follow') { _follow_step(game, h); return; }
   if (h.state === 'patrol') { _patrol_step(game, h); return; }
+  if (h.state === 'guard') {
+    if (h.post && (h.x !== h.post[0] || h.y !== h.post[1]) && game.clock.turn % 3 === 0) {
+      const nxt = greedy_step(level, apos(h), h.post, game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+      _human_move(game, h, nxt);
+    }
+    return;
+  }
   if (h.state !== 'hunt' || !h.hostile) return;
-  if (h.role === 'raider') { _raider_hunt(game, h, seen, d); return; }
+  if (h.role === 'raider' || (h.role === 'soldier' && h.mag)) { _raider_hunt(game, h, seen, d); return; }
   if (h.hp < h.max_hp * 0.3 && seen) { _flee(game, h, apos(p)); return; }
   if (h.reach > 1 && seen && d >= 2 && d <= h.reach) { human_attack(game, h); return; }
   if (d === 1) { human_attack(game, h); return; }

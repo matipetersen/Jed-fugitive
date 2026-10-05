@@ -64,6 +64,11 @@ const PATROL_NAMES = {
 function make_patrol(game, role, x, y, group) {
   const era = game.era, reach = (era.firearms || era.tech === 0) ? 6 : 1;
   const [hp, dmg, acc, faction] = role === 'scout' ? [24, [3, 6], 52, 'enclave'] : [32, [4, 8], 60, 'military'];
-  return { kind: 'human', uid: game.next_uid(), name: PATROL_NAMES[role][era.id], glyph: 'f', x, y, hp, max_hp: hp, level_id: 'world',
-           role, faction, hostile: false, dmg, acc, reach, energy: 0, state: 'patrol', target: null, loot: [], talked: false, group, stuck: 0 };
+  const h = { kind: 'human', uid: game.next_uid(), name: PATROL_NAMES[role][era.id], glyph: 'f', x, y, hp, max_hp: hp, level_id: 'world',
+              role, faction, hostile: false, dmg, acc, reach, energy: 0, state: 'patrol', target: null, loot: [], talked: false, group, stuck: 0 };
+  if (role === 'soldier') {
+    h.corrupt = military_corrupt_of(h.uid);
+    if (reach > 1) { h.mag = 8; h.ammo = 8; }
+  }
+  return h;
 }

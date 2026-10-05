@@ -79,6 +79,17 @@ function _populate_chunk(game, cx, cy) {
         if (lv.in_bounds(sx, sy) && lv.tile(sx, sy) === T.ROAD && !lv.hazards[k]) lv.hazards[k] = { kind: 'snare', ttl: 1e9, power: SNARE_POWER, hidden: true };
       }
     }
+    // a military checkpoint on the highway now and then: three soldiers who stop travellers and search them
+    const mr = chunk_rng(world.seed, cx, cy, 31);
+    if (mr.random() < 0.22 && cheb([x0 + S / 2, y0 + S / 2], start) >= 35) {
+      const bx = x0 + mr.randint(8, S - 8), by = y0;
+      if (lv.in_bounds(bx, by) && lv.tile(bx, by) === T.ROAD) {
+        const cp = military_register(game, cx + cy * world.nx + 1, bx, by);
+        const before = lv.actors.length;
+        military_post_guards(game, lv, cp);
+        for (const a of lv.actors.slice(before)) keep(a);
+      }
+    }
     // a patrol group now and then, standing on the chunk's highway
     if (rng.random() < 0.5 && cheb([x0 + S / 2, y0 + S / 2], start) >= 30) {
       const base = rng.random() < 0.5 ? [x0 + rng.randint(2, S - 2), y0] : [x0, y0 + rng.randint(2, S - 2)];

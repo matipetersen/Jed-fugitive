@@ -19,7 +19,7 @@ function can_afford(game, choice) {
 function pick_event(game) {
   const pairs = [];
   for (const ev of EVENTS) {
-    if (ev.id.startsWith('road_')) continue;                       // scripted, not random
+    if (ev.id.startsWith('road_') || ev.id.startsWith('mil_')) continue;                       // scripted, not random
     if (game_day(game) < ev.min_day || (game.recent_events[ev.id] !== undefined ? game.recent_events[ev.id] : -999) > game.clock.turn - 600) continue;
     const w = ['toll', 'prisoner', 'bait'].includes(ev.id) ? ev.weight * game.profile.human_threat : ev.weight;
     if (ev.id === 'radio' && !game.era.electricity && game.era.tech > 0) continue;
@@ -28,12 +28,13 @@ function pick_event(game) {
   return pairs.length ? weighted_choice(game.rng, pairs) : null;
 }
 
-function start_event(game, ev) {
+function start_event(game, ev, text = '', data = null) {
   game.recent_events[ev.id] = game.clock.turn;
-  return { event_id: ev.id, text: fmt(ev.text, event_context(game)), result: '', resolved: false };
+  return { event_id: ev.id, text: text || fmt(ev.text, event_context(game)), result: '', resolved: false, data: data || {} };
 }
 
 function resolve_event(game, active, index) {
+  if (active.event_id === 'mil_checkpoint') return military_resolve(game, active, index);
   const choice = EVENT_BY_ID[active.event_id].choices[index];
   if (!can_afford(game, choice)) return 'You cannot afford that.';
   const outcome = weighted_choice(game.rng, choice.outcomes.map((o) => [o, o.weight]));

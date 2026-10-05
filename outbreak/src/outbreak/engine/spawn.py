@@ -6,7 +6,7 @@ import random
 from typing import Optional
 
 from outbreak.content.zombies import SPECIALS, ZombieProfile
-from outbreak.engine import mutation
+from outbreak.engine import military, mutation
 from outbreak.engine.model import Human, Level, Zombie
 from outbreak.util import DIRS8, weighted_choice
 
@@ -81,6 +81,11 @@ def make_patrol(game, role: str, x: int, y: int, group: int) -> Human:
     era = game.era
     reach = 6 if (era.firearms or era.tech == 0) else 1
     hp, dmg, acc, faction = (24, (3, 6), 52, "enclave") if role == "scout" else (32, (4, 8), 60, "military")
-    return Human(uid=game.next_uid(), name=PATROL_NAMES[role][era.id], glyph="f", x=x, y=y, hp=hp, max_hp=hp,
-                 role=role, faction=faction, hostile=False, dmg=dmg, acc=acc, reach=reach, state="patrol",
-                 group=group)
+    h = Human(uid=game.next_uid(), name=PATROL_NAMES[role][era.id], glyph="f", x=x, y=y, hp=hp, max_hp=hp,
+              role=role, faction=faction, hostile=False, dmg=dmg, acc=acc, reach=reach, state="patrol",
+              group=group)
+    if role == "soldier":
+        h.corrupt = military.corrupt_of(h.uid)
+        if reach > 1:
+            h.mag = h.ammo = 8
+    return h

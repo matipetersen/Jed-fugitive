@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, military, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -194,6 +194,7 @@ class Game:
             h.hostile = True
             self.rep[h.faction or "enclave"] = self.rep.get(h.faction or "enclave", 0) - 20
             self.msg(f"The {h.name.lower()} turns on you!", "bad", key=True)
+            military.rally(self, h)
             if h.role in ("trader", "healer", "scholar"):
                 self.rep["enclave"] = self.rep.get("enclave", 0) - 40
 
@@ -309,6 +310,7 @@ class Game:
         ambience.weather_tick(self)
         ambience.world_tick(self)
         self._base_tick()
+        military.tick(self)
         if self.incidents and t % 5 == 0:
             self._check_incidents()
         if self.final:

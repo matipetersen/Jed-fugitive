@@ -177,6 +177,11 @@ ROAD_EVENTS: Tuple[EventDef, ...] = (
                  items={"noisemaker": 1}))),
 )
 EVENTS = EVENTS + ROAD_EVENTS
+# the checkpoint event is interpreted by military.resolve; the four labels are fixed, the text and prices are not
+EVENTS = EVENTS + (EventDef("mil_checkpoint", "A checkpoint", "Soldiers hold the road.",
+                            (_c("Submit to the search", _o("")), _c("Offer a bribe", _o("")),
+                             _c("Talk your way through", _o("")), _c("Draw on them", _o("")))),)
+
 BY_ID: Dict[str, EventDef] = {e.id: e for e in EVENTS}
 
 
@@ -186,6 +191,7 @@ class ActiveEvent:
     text: str
     result: str = ""
     resolved: bool = False
+    data: dict = field(default_factory=dict)          # event-specific state (the checkpoint's contraband and price)
 
     @property
     def definition(self) -> EventDef:
@@ -210,7 +216,7 @@ def can_afford(game, choice: Choice) -> bool:
 def pick(game) -> Optional[EventDef]:
     pairs = []
     for ev in EVENTS:
-        if ev.id.startswith("road_"):
+        if ev.id.startswith(("road_", "mil_")):
             continue                                      # scripted, not random
         if game.clock.day < ev.min_day or game.recent_events.get(ev.id, -999) > game.clock.turn - 600:
             continue
@@ -221,12 +227,15 @@ def pick(game) -> Optional[EventDef]:
     return weighted_choice(game.rng, pairs) if pairs else None
 
 
-def start(game, ev: EventDef) -> ActiveEvent:
+def start(game, ev: EventDef, text: str = "", data: Optional[dict] = None) -> ActiveEvent:
     game.recent_events[ev.id] = game.clock.turn
-    return ActiveEvent(ev.id, ev.text.format(**context(game)))
+    return ActiveEvent(ev.id, text or ev.text.format(**context(game)), data=data or {})
 
 
 def resolve(game, active: ActiveEvent, index: int) -> str:
+    if active.event_id == "mil_checkpoint":
+        from outbreak.engine import military
+        return military.resolve(game, active, index)
     choice = active.definition.choices[index]
     if not can_afford(game, choice):
         return "You cannot afford that."

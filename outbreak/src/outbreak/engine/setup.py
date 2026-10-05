@@ -7,7 +7,7 @@ from typing import List
 
 from outbreak import content
 from outbreak.content.items import ItemDef
-from outbreak.engine import cipher, encounters, hordes, mutation, raiders
+from outbreak.engine import cipher, encounters, hordes, military, mutation, raiders
 from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
@@ -322,6 +322,7 @@ def _populate(game) -> None:
         lv.containers[crate] = Container(loot=loot.roll_items(rng, game.era, "camp", 3.0, game.diff.loot),
                                          coins=rng.randint(2, 8))
     _patrols(game)
+    military.build(game)
     for _ in range(3 + (lv.w * lv.h) // 3500):
         for _try in range(30):
             pos = (rng.randint(4, lv.w - 5), rng.randint(4, lv.h - 5))

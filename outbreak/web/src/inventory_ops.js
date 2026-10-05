@@ -48,6 +48,7 @@ function use_item(game, index) {
   if (d.kind === 'tool' && 'repair' in eff) return _repair(game, item, d);
   if (d.kind === 'tool' && 'barricade' in eff) return _barricade(game, item, d);
   if (d.kind === 'tool' && 'trap' in eff) return _set_trap(game, item, d);
+  if (d.kind === 'tool' && 'fish' in eff) { game.msg('Stand beside water and use the gather key to fish.', 'info'); return 0; }
   if (d.kind === 'throw') { game.msg('Use THROW from the actions menu and pick a target.', 'warn'); return 0; }
   game.msg(`You cannot use the ${d.name.toLowerCase()} like that.`, 'warn');
   return 0;

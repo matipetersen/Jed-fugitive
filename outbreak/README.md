@@ -83,6 +83,15 @@ armed people who have heard about you if you did not.
   for **cooked meat**, which feeds 58.
 * *Foraging.* Terminal `F`, web **Forage** button (key `z`): 5 turns on grass (50%) or brush (80%) for 1-3 wild greens
   (feed 12); +10% in rain or fog, -25% at night. A patch (radius 2) stays picked for 800 turns. Something hunting you stops it.
+* *Gather* is one key for living off the land (terminal `F`, web **Gather** button or `z`; the button names what it will do):
+  - **Chop**: with a blade (6 turns) or something heavy (9) next to a tree. 2-4 planks, a stump-free clearing where it stood
+    (it opens sightlines), and noise 8 every third turn. Not on the rim of the map, not bare-handed.
+  - **Fish**: next to water with a **rod** (wood + cloth + scrap; 8 turns, 55%, one fish, 4% to snap) or a **net**
+    (3 cloth + wood; 12 turns, 70%, up to 3 fish, 35% to tear). Quiet. Raw fish feeds 20 (12% cramps); cook it with a plank
+    (`cook_fish`) for grilled fish (46). +10% in rain or fog, -20% at night.
+  - **Forage** otherwise, as above.
+* *Nail bomb* (chem + 2 scrap + cloth, no workshop; throw it): 11-18 to everything in radius 2 with line of sight, loud (16),
+  and it hurts you too if you are inside the radius. All of these recipes are known from the start.
 * Checkpoints take only the most valuable **three stacks** of contraband, not your whole kit.
 
 **Checkpoints and corrupt soldiers.** The far roads (at least 35 tiles from the start) have military checkpoints: three

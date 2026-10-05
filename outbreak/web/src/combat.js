@@ -244,6 +244,19 @@ function throw_item(game, item_id, pos) {
       else if (is_human(victim)) { victim.hp -= game.rng.randint(lo, hi); if (victim.hp <= 0) kill_human(game, victim); }
     }
     game.emit_noise(pos, 8, 'player');
+  } else if (eff.blast) {
+    game.msg(`The ${d.name.toLowerCase()} goes off in a spray of nails!`, 'info');
+    const radius = eff.radius === undefined ? 2 : eff.radius;
+    const [lo, hi] = eff.damage || [10, 16];
+    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+      const x = pos[0] + dx, y = pos[1] + dy;
+      const victim = lv.in_bounds(x, y) ? lv.actor_at(x, y) : null;
+      if (!victim || !has_los(lv, pos, [x, y])) continue;
+      if (is_zombie(victim)) hurt_zombie(game, victim, game.rng.randint(lo, hi), game.rng.random() < 0.3, 'blade');
+      else if (is_human(victim)) { victim.hp -= game.rng.randint(lo, hi); if (victim.hp <= 0) kill_human(game, victim); }
+    }
+    if (cheb(apos(p), pos) <= radius) { game.msg('The nails reach you too.', 'bad'); damage_player(game, Math.floor(game.rng.randint(lo, hi) / 2), 'caught in your own nail bomb'); }
+    game.emit_noise(pos, Math.floor(eff.noise || 16), 'player');
   } else if (eff.noise) {
     game.msg(`The ${d.name.toLowerCase()} clatters and screams where it lands.`, 'info');
     game.emit_noise(pos, Math.floor(eff.noise), 'decoy');

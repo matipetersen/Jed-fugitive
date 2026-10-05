@@ -52,4 +52,26 @@ function animal(g, lv, dx, species = 'deer') { const a = OB.wild_make(g, g.playe
 { // saves keep the picked patches
   const [g] = field(); g.foraged.push([1, 2, 3]); const g2 = OB.deserialize_game(OB.serialize_game(g)); assert.deepStrictEqual(g2.foraged, [[1, 2, 3]]);
 }
+const blade = (g) => Object.keys(g.items).find((i) => g.items[i].style === 'blade');
+{ // a tree falls to a blade and leaves a clearing; not bare-handed, not the rim
+  const [g, lv] = field(), p = g.player; lv.set_tile(p.x + 1, p.y, OB.T.TREE); p.weapon = { id: blade(g), qty: 1, dur: null, key: false };
+  const w0 = p.count('wood'), t0 = g.clock.turn; assert.strictEqual(OB.wild_target(g), 'chop'); assert(g.gather());
+  assert(p.count('wood') > w0 + 1); assert.strictEqual(lv.tile(p.x + 1, p.y), OB.T.GRASS); assert(g.clock.turn - t0 >= 6);
+  const [h, hl] = field(); hl.set_tile(h.player.x + 1, h.player.y, OB.T.TREE); h.player.weapon = null; assert(!OB.wild_chop(h)); assert.strictEqual(hl.tile(h.player.x + 1, h.player.y), OB.T.TREE);
+  const [r, rl] = field(); r.player.x = 1; r.player.y = 5; rl.tiles[5 * rl.w] = OB.T.TREE; assert.strictEqual(OB.wild_tree_beside(r), null);
+}
+{ // fishing needs water and gear, and the net tears
+  const [g, lv] = field(), p = g.player; lv.set_tile(p.x + 1, p.y, OB.T.WATER); p.inventory = p.inventory.filter((i) => i.id !== 'rod' && i.id !== 'net'); p.weapon = null;
+  assert(!g.gather() || !p.count('fish'));
+  p.inventory.push({ id: 'rod', qty: 1, dur: null, key: false }); g.rng.random = () => 0.0; assert.strictEqual(OB.wild_target(g), 'fish'); assert(g.gather()); assert(p.count('fish') >= 1);
+  p.inventory = p.inventory.filter((i) => i.id !== 'rod'); p.inventory.push({ id: 'net', qty: 1, dur: null, key: false }); g.gather(); assert.strictEqual(p.count('net'), 0);
+  const [h] = field(); h.player.inventory.push({ id: 'rod', qty: 1, dur: null, key: false }); assert.strictEqual(OB.wild_water_beside(h), null); assert.notStrictEqual(OB.wild_target(h), 'fish');
+}
+{ // recipes exist and a nail bomb blasts a crowd and hurts you if close
+  const rec = OB.CONTENT.recipes; for (const k of ['rod', 'net', 'cook_fish', 'nailbomb']) { const r = rec.find((x) => x.id === k); assert(r && r.starter && !r.needs); }
+  const [g, lv] = field(), p = g.player; p.inventory.push({ id: 'nailbomb', qty: 2, dur: null, key: false });
+  const zs = []; for (const dx of [0, 1]) for (const dy of [0, 1]) zs.push(OB.spawn_zombie(g, lv, [p.x + 6 + dx, p.y + dy], 'walker', false)); g.update_fov();
+  const hp = zs.map((z) => z.hp); g.rng.random = () => 0.9; assert(OB.throw_item(g, 'nailbomb', [p.x + 6, p.y]));
+  assert(zs.every((z, i) => z.hp < hp[i] || !lv.actors.includes(z))); const hp0 = p.hp; OB.throw_item(g, 'nailbomb', [p.x + 2, p.y]); assert(p.hp < hp0);
+}
 console.log('wild: game bolts, boars gore, meat cooks, patches get picked clean');

@@ -83,6 +83,9 @@ def use(game, index: int) -> int:
         return _barricade(game, item, d)
     if d.kind == "tool" and "trap" in eff:
         return _set_trap(game, item, d)
+    if d.kind == "tool" and "fish" in eff:
+        game.msg("Stand beside water and use the gather key to fish.", "info")
+        return 0
     if d.kind == "throw":
         game.msg("Use the throw command (t) and pick a target.", "warn")
         return 0

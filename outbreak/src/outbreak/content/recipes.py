@@ -21,6 +21,10 @@ class Recipe:
 RECIPES: Tuple[Recipe, ...] = (
     Recipe("bandage", "bandage", 2, (("cloth", 2),)),
     Recipe("cook", "meat", 1, (("raw_meat", 1), ("wood", 1)), turns=4),
+    Recipe("cook_fish", "grilled_fish", 1, (("fish", 1), ("wood", 1)), turns=3),
+    Recipe("rod", "rod", 1, (("wood", 1), ("cloth", 1), ("scrap", 1)), turns=4),
+    Recipe("net", "net", 1, (("cloth", 3), ("wood", 1)), turns=5),
+    Recipe("nailbomb", "nailbomb", 1, (("chem", 1), ("scrap", 2), ("cloth", 1)), turns=4),
     Recipe("splint", "splint", 1, (("wood", 1), ("cloth", 1))),
     Recipe("molotov", "molotov", 1, (("fuel", 1), ("cloth", 1))),
     Recipe("noisemaker", "noisemaker", 1, (("parts", 1), ("scrap", 1))),

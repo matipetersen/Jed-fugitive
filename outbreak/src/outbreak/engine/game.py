@@ -812,6 +812,9 @@ class Game:
     def forage(self) -> bool:
         return wild.forage(self)
 
+    def gather(self) -> bool:
+        return wild.gather(self)
+
     def push(self, target=None) -> bool:
         """Shove the nearest hostile within reach (or a given one)."""
         if not self._begin_action():

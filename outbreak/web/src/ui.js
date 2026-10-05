@@ -442,6 +442,7 @@ function updateHud() {
   if (p.sneaking) add('Sneaking', 'info');
   { const sb = document.querySelector('.act.sneak'); if (sb) { sb.classList.toggle('on', !!p.sneaking); $('#sneak-sub').textContent = p.sneaking ? 'on' : 'off'; } }
   { const rb = document.querySelector('.act.run'); if (rb) { rb.classList.toggle('on', !!p.sprinting); $('#run-sub').textContent = p.sprinting ? 'on' : 'off'; } }
+  { const fs = document.querySelector('#forage-sub'); if (fs) { const w = wild_target(g); fs.textContent = ({ chop: 'chop tree', fish: 'fish', forage: 'forage' })[w] || 'gather'; } }
   { const pb = document.querySelector('.act.push'); if (pb) { const n = pushable(g); pb.classList.toggle('ready', n.length > 0); $('#push-sub').textContent = n.length ? n[0].name.toLowerCase().slice(0, 14) : 'shove'; } }
   if (p.sprinting) add('Running', 'info');
   if (g.cfg.mode !== 'normal') add(`Survivor #${g.generation}`, 'info');
@@ -697,7 +698,7 @@ function buildControls() {
   mk('short', '<span>Menu</span><small>more</small>', () => { if (game && !modal) openMenu(); });
   mk('mini sneak', '<span id="sneak-label">Sneak</span><small id="sneak-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sneak(); afterAction(); } });
   mk('mini run', '<span id="run-label">Run</span><small id="run-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sprint(); afterAction(); } });
-  mk('mini forage', '<span>Forage</span><small id="forage-sub">gather food</small>', () => { if (game && !game.over && !modal) { const why = wild_can_forage(game); if (why) toast(why); else doAction(() => game.forage()); } });
+  mk('mini forage', '<span>Gather</span><small id="forage-sub">forage</small>', () => { if (game && !game.over && !modal) doAction(() => game.gather()); });
   mk('mini push', '<span>Push</span><small id="push-sub">shove</small>', () => { if (game && !game.over && !modal) { if (!pushable(game).length) toast('Nothing within reach to push'); else doAction(() => game.push()); } });
   $('#controls').classList.toggle('lefty', prefs.lefty);
 }
@@ -711,7 +712,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'r') doAction(() => game.rest());
   else if (k === 'g') { const c = contextAction(); doAction(c.run); }
   else if (k === 'f') startAim('fire');
-  else if (k === 'z') { const why = wild_can_forage(game); if (why) toast(why); else doAction(() => game.forage()); }
+  else if (k === 'z') doAction(() => game.gather());
   else if (k === 'v') { if (pushable(game).length) doAction(() => game.push()); else toast('Nothing within reach to push'); }
   else if (k === 'x') { game.toggle_sprint(); afterAction(); }
   else if (k === 'h') { game.toggle_sneak(); afterAction(); }

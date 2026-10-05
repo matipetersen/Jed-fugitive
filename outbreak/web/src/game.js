@@ -747,6 +747,7 @@ class Game {
   }
 
   forage() { return wild_forage(this); }
+  gather() { return wild_gather(this); }
   _bump_actor(target) {
     if (target.kind === 'human' && !target.hostile) { this.msg(`${target.name} is here. Use TALK.`, 'info'); return false; }
     if (target.hidden) raiders_spring(this, target, 'You stumble onto a hidden raider!');      // you walked into someone lying in wait

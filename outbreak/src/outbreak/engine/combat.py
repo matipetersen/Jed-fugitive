@@ -369,6 +369,24 @@ def throw(game, item_id: str, pos) -> bool:
                     if victim.hp <= 0:
                         kill_human(game, victim)
         game.emit_noise(pos, 8, "player")
+    elif eff.get("blast"):
+        game.msg(f"The {d.name.lower()} goes off in a spray of nails!", "info")
+        radius = int(eff.get("radius", 2))
+        lo, hi = eff.get("damage", (10, 16))
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                q = (pos[0] + dx, pos[1] + dy)
+                victim = game.level.actor_at(*q) if game.level.in_bounds(*q) else None
+                if isinstance(victim, Zombie) and has_los(game.level, pos, q):
+                    hurt_zombie(game, victim, game.rng.randint(lo, hi), game.rng.random() < 0.3, "blade")
+                elif isinstance(victim, Human) and has_los(game.level, pos, q):
+                    victim.hp -= game.rng.randint(lo, hi)
+                    if victim.hp <= 0:
+                        kill_human(game, victim)
+        if cheb(p.pos, pos) <= radius:
+            game.msg("The nails reach you too.", "bad")
+            damage_player(game, game.rng.randint(lo, hi) // 2, "caught in your own nail bomb")
+        game.emit_noise(pos, int(eff.get("noise", 16)), "player")
     elif eff.get("noise"):
         game.msg(f"The {d.name.lower()} clatters and screams where it lands.", "info")
         game.emit_noise(pos, int(eff["noise"]), "decoy")

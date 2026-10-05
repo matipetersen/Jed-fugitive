@@ -77,10 +77,14 @@ function fresh(cfg) { const g = make(Object.assign({ era: 'modern', zombies: 'cl
 }
 // patrols exist, are friendly, and walk
 {
-  const g = make({ era: 'modern', seed: 7 });
-  const pats = g.world.level.actors.filter((a) => a.kind === 'human' && (a.role === 'scout' || a.role === 'soldier'));
-  assert(pats.length >= 4); assert(pats.every((a) => !a.hostile));
-  assert.deepStrictEqual(new Set(pats.map((a) => a.faction)), new Set(['enclave', 'military']));
+  const seen = new Set();
+  for (const seed of [7, 8, 9, 10]) {                         // which patrols sit in the painted chunks depends on the seed: look across a few
+    const g = make({ era: 'modern', seed });
+    const pats = g.world.level.actors.filter((a) => a.kind === 'human' && (a.role === 'scout' || a.role === 'soldier'));
+    assert(pats.length >= 4); assert(pats.every((a) => !a.hostile));
+    for (const a of pats) seen.add(a.faction);
+  }
+  assert.deepStrictEqual(seen, new Set(['enclave', 'military']));
   const [g2, lv, base] = fresh();
   const h = put(g2, lv, OB.make_patrol(g2, 'scout', 0, 0, 9), base);
   const goal = [h.x + 14, h.y]; g2.patrol_goals[9] = goal;

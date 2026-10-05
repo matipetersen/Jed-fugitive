@@ -184,3 +184,139 @@ def forage(game) -> bool:
     else:
         game.msg("You find nothing worth eating here.", "info")
     return True
+
+
+# ------------------------------------------------------------------ trees and water
+CHOP_TURNS = {"blade": 6, "blunt": 9, "polearm": 9}
+CHOP_NOISE = 8
+
+
+def _neighbours(p, lv):
+    for dx, dy in DIRS8:
+        n = (p.x + dx, p.y + dy)
+        if lv.in_bounds(*n):
+            yield n
+
+
+def tree_beside(game):
+    p, lv = game.player, game.level
+    if lv.kind != "overworld":
+        return None
+    for n in _neighbours(p, lv):
+        if lv.tile(*n) == T.TREE and 0 < n[0] < lv.w - 1 and 0 < n[1] < lv.h - 1:      # the rim of the world is not for felling
+            return n
+    return None
+
+
+def water_beside(game):
+    p, lv = game.player, game.level
+    if lv.kind != "overworld":
+        return None
+    if lv.tile(*p.pos) == T.SHALLOW:
+        return p.pos
+    for n in _neighbours(p, lv):
+        if lv.tile(*n) in (T.WATER, T.SHALLOW):
+            return n
+    return None
+
+
+def chop(game) -> bool:
+    """Fell the tree beside you: planks for the price of time and noise.  It needs an edge or some weight."""
+    if not game._begin_action():
+        return False
+    tree = tree_beside(game)
+    p, lv = game.player, game.level
+    if tree is None:
+        game.msg("There is no tree within reach.", "info")
+        return False
+    w = game.item_def(p.weapon.id) if p.weapon else None
+    turns = CHOP_TURNS.get(w.style) if w else None
+    if turns is None:
+        game.msg("You need something with an edge or some weight to cut with.", "info")
+        return False
+    if game.visible_hostiles():
+        game.msg("Not with something hunting you.", "info")
+        return False
+    for i in range(turns):
+        game._spend(1)
+        if game.over:
+            return True
+        if i % 3 == 0:
+            game.emit_noise(p.pos, CHOP_NOISE, "player")
+        if game.visible_hostiles():
+            game.msg("You stop chopping: something is coming.", "warn")
+            return True
+    lv.set_tile(tree[0], tree[1], T.GRASS)
+    n = game.rng.randint(2, 4)
+    game.give_item(Item("wood", n))
+    game.msg(f"The tree comes down. {n} planks, and a clearing where it stood.", "good")
+    return True
+
+
+def fish(game) -> bool:
+    """Fish the water beside you with a rod or a net.  Quiet, slow, and the net wears out."""
+    if not game._begin_action():
+        return False
+    p, lv = game.player, game.level
+    gear = next((i for i in p.inventory if "fish" in game.item_def(i.id).effect), None)
+    if gear is None:
+        game.msg("You have nothing to fish with. Craft a rod or a net.", "info")
+        return False
+    if game.visible_hostiles():
+        game.msg("Not with something hunting you.", "info")
+        return False
+    eff = game.item_def(gear.id).effect
+    turns, most = (8, 1) if most_is_rod(eff) else (12, int(eff["fish"]))
+    for _ in range(turns):
+        game._spend(1)
+        if game.over:
+            return True
+        if game.visible_hostiles():
+            game.msg("You stop fishing: something is coming.", "warn")
+            return True
+    chance = 0.55 if most == 1 else 0.7
+    if game.weather in ("rain", "fog"):
+        chance += 0.1
+    if not game.clock.is_day:
+        chance -= 0.2
+    if game.rng.random() < chance:
+        n = game.rng.randint(1, most)
+        game.give_item(Item("fish", n))
+        game.msg(f"You land {n} fish." if n > 1 else "You land a fish.", "good")
+    else:
+        game.msg("Nothing bites.", "info")
+    if game.rng.random() < float(eff.get("tear", 0)):
+        p.take(gear.id, 1)
+        game.msg(f"Your {game.item_def(gear.id).name.lower()} {'tears apart' if most > 1 else 'snaps'}.", "warn")
+    return True
+
+
+def most_is_rod(eff) -> bool:
+    return int(eff.get("fish", 1)) == 1
+
+
+def target(game) -> str:
+    """What the gather key would do here: chop | fish | forage | '' (nothing possible)."""
+    if tree_beside(game) is not None and game.player.weapon is not None:
+        return "chop"
+    if water_beside(game) is not None and any("fish" in game.item_def(i.id).effect for i in game.player.inventory):
+        return "fish"
+    return "forage" if not can_forage(game) else ""
+
+
+def gather(game) -> bool:
+    """One key for living off the land: fell a tree, fish the water, or forage the ground."""
+    what = target(game)
+    if what == "chop":
+        return chop(game)
+    if what == "fish":
+        return fish(game)
+    if what == "forage":
+        return forage(game)
+    if tree_beside(game) is not None:
+        game.msg("You need a weapon with an edge or some weight to fell a tree.", "info")
+    elif water_beside(game) is not None:
+        game.msg("You have nothing to fish with. Craft a rod or a net.", "info")
+    else:
+        game.msg(can_forage(game) or "Nothing to gather here.", "info")
+    return False

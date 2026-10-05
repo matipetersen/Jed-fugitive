@@ -148,5 +148,86 @@ class Foraging(unittest.TestCase):
         self.assertNotEqual(wild.can_forage(g), "")
 
 
+class Living_off_the_land(unittest.TestCase):
+    def test_a_tree_falls_to_a_blade_and_leaves_a_clearing(self):
+        g, lv = field()
+        p = g.player
+        lv.set_tile(p.x + 1, p.y, T.TREE)
+        p.weapon = Item("hatchet" if "hatchet" in g.items else next(i for i, d in g.items.items() if d.style == "blade"))
+        w0 = p.count("wood")
+        t0 = g.clock.turn
+        self.assertEqual(wild.target(g), "chop")
+        self.assertTrue(g.gather())
+        self.assertGreater(p.count("wood"), w0 + 1)
+        self.assertEqual(lv.tile(p.x + 1, p.y), T.GRASS)
+        self.assertGreaterEqual(g.clock.turn - t0, 6)
+
+    def test_you_cannot_chop_bare_handed_or_the_rim_of_the_world(self):
+        g, lv = field()
+        p = g.player
+        lv.set_tile(p.x + 1, p.y, T.TREE)
+        p.weapon = None
+        self.assertFalse(wild.chop(g))
+        self.assertEqual(lv.tile(p.x + 1, p.y), T.TREE)
+        p.x, p.y = 1, 5
+        lv.tiles[5][0] = T.TREE
+        self.assertIsNone(wild.tree_beside(g))
+
+    def test_chopping_is_loud(self):
+        g, lv = field()
+        p = g.player
+        lv.set_tile(p.x + 1, p.y, T.TREE)
+        p.weapon = Item(next(i for i, d in g.items.items() if d.style == "blade"))
+        n0 = len(g.pings)
+        g.gather()
+        self.assertTrue(len(g.pings) > n0 or g.heat > 0)
+
+    def test_fishing_needs_water_and_gear_and_the_net_tears(self):
+        g, lv = field()
+        p = g.player
+        lv.set_tile(p.x + 1, p.y, T.WATER)
+        p.inventory = [i for i in p.inventory if i.id not in ("rod", "net")]
+        p.weapon = None
+        self.assertFalse(g.gather() and p.count("fish"))
+        p.inventory.append(Item("rod", 1))
+        g.rng.random = lambda: 0.0
+        self.assertEqual(wild.target(g), "fish")
+        self.assertTrue(g.gather())
+        self.assertGreaterEqual(p.count("fish"), 1)
+        p.inventory = [i for i in p.inventory if i.id != "rod"]
+        p.inventory.append(Item("net", 1))
+        g.gather()
+        self.assertEqual(p.count("net"), 0, "the net tears on a low roll")
+
+    def test_no_fish_away_from_water(self):
+        g, lv = field()
+        g.player.inventory.append(Item("rod", 1))
+        self.assertIsNone(wild.water_beside(g))
+        self.assertNotEqual(wild.target(g), "fish")
+
+    def test_recipes_for_rod_net_fish_and_nail_bomb(self):
+        from outbreak.content.recipes import RECIPES
+        ids = {r.id: r for r in RECIPES}
+        for k in ("rod", "net", "cook_fish", "nailbomb"):
+            self.assertTrue(ids[k].starter)
+            self.assertEqual(ids[k].needs, "")
+
+    def test_a_nail_bomb_blasts_a_crowd_and_hurts_you_if_close(self):
+        from outbreak.engine import combat
+        from outbreak.engine.spawn import spawn_zombie
+        g, lv = field()
+        p = g.player
+        p.inventory.append(Item("nailbomb", 2))
+        zs = [spawn_zombie(g, lv, (p.x + 6 + dx, p.y + dy), "walker", False) for dx in (0, 1) for dy in (0, 1)]
+        g.update_fov()
+        hp = [z.hp for z in zs]
+        g.rng.random = lambda: 0.9
+        self.assertTrue(combat.throw(g, "nailbomb", (p.x + 6, p.y)))
+        self.assertTrue(all(z.hp < h or z not in lv.actors for z, h in zip(zs, hp)))
+        hp0 = p.hp
+        combat.throw(g, "nailbomb", (p.x + 2, p.y))
+        self.assertLess(p.hp, hp0)
+
+
 if __name__ == "__main__":
     unittest.main()

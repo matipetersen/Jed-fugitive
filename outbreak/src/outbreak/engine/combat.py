@@ -9,10 +9,10 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
-from outbreak.engine import lives, raiders
+from outbreak.engine import lives, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
-from outbreak.engine.model import Actor, Hazard, Human, Item, Zombie
+from outbreak.engine.model import Actor, Animal, Hazard, Human, Item, Zombie
 from outbreak.util import cheb, clamp, compass
 
 FISTS = ItemDef("fists", "Fists", "weapon", style="unarmed", dmg=(1, 3), noise=2)
@@ -222,11 +222,17 @@ def player_attack(game, target: Actor) -> bool:
     p.stamina = max(0.0, p.stamina - STAMINA_PER_ATTACK)
     # judge surprise *before* making noise: the blow itself must not give you away
     sneak = isinstance(target, Zombie) and _sneak_ok(game, target)
+    unaware = isinstance(target, Animal) and p.sneaking and not target.alert      # a stalked animal never saw it coming
     game.emit_noise(p.pos, attack_noise(game, w, sneak), "player")
-    if not sneak:
+    if not (sneak or unaware):
         _drop_cover(game)                                   # a fair fight is not a stealth strike
     if isinstance(target, Human):
         return _attack_human(game, target, w, item)
+    if isinstance(target, Animal):
+        done = wild.attack(game, target, unaware, _accuracy(game, w, 0), _damage(game, w, item, False))
+        _wear_weapon(game, item, w)
+        _train(game, w)
+        return done
     z: Zombie = target
     if sneak:
         hit = True

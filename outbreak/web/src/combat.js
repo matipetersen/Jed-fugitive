@@ -143,9 +143,11 @@ function player_attack(game, target) {
   if (d > w.reach || (d > 1 && !has_los(game.level, apos(p), apos(target)))) return false;
   p.stamina = Math.max(0, p.stamina - STAMINA_PER_ATTACK);
   const sneak = is_zombie(target) && _sneak_ok(game, target);
+  const unaware = target.kind === 'animal' && p.sneaking && !target.alert;       // a stalked animal never saw it coming
   game.emit_noise(apos(p), attack_noise(game, w, sneak), 'player');
-  if (!sneak) _drop_cover(game);                                     // a fair fight is not a stealth strike
+  if (!(sneak || unaware)) _drop_cover(game);                        // a fair fight is not a stealth strike
   if (is_human(target)) return _attack_human(game, target, w, item);
+  if (target.kind === 'animal') { const done = wild_attack(game, target, unaware, _accuracy(game, w, 0), _damage(game, w, item, false)); _wear_weapon(game, item, w); _train(game, w); return done; }
   const z = target;
   const hit = sneak ? true : game.rng.random() * 100 < _accuracy(game, w, 0);
   if (!hit) {

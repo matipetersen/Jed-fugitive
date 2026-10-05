@@ -38,6 +38,7 @@ THROW       t (pick an item, then a spot)     AMPUTATE   x  (only right after a 
 INTERACT    e (crates, bench, people, beds)   PICK UP   g
 INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m   BASE   o (claim, then build)
 SNEAK       s   RUN   R   PUSH   P (shove what is next to you)   LIGHT   L   SMEAR WITH GORE   v
+FORAGE      F   (gather wild greens on grass or brush)   HUNT   walk into game (r d b); sneak up for a triple blow
 BRIEFING    B   (re-read the story so far)
 SAVE & QUIT Q            HELP  ?
 
@@ -273,6 +274,8 @@ class UI:
             self.base_screen()
         elif key == ord("P"):
             self.push_prompt()
+        elif key == ord("F"):
+            g.forage()
         elif key == ord("B"):
             self.briefing()
         elif key == ord("Q"):

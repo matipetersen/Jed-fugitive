@@ -75,6 +75,7 @@ function ai_run(game) {
     if (a.hp <= 0 || level.occ.get(level.idx(a.x, a.y)) !== a || cheb(apos(a), apos(p)) > ACTIVE_RADIUS) continue;
     if (a.kind === 'zombie') _zombie(game, a, humans);
     else if (a.kind === 'human') _human(game, a, humans);
+    else if (a.kind === 'animal') wild_tick(game, a);
   }
 }
 

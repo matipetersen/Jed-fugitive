@@ -63,6 +63,10 @@ function _eat(game, item, d) {
   p.hunger = Math.max(0, p.hunger - (d.effect.food || 30));
   _consume(game, item);
   game.msg(`You eat the ${d.name.toLowerCase()}.`, 'info');
+  if (d.effect.sick && game.rng.random() < d.effect.sick) {
+    p.hp = Math.max(1, p.hp - 4); p.hunger = Math.min(100, p.hunger + 12); game.add_panic(6, true);
+    game.msg('Your stomach cramps and you bring half of it back up. Cook it next time.', 'warn');
+  }
   return 2;
 }
 

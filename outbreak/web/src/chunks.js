@@ -90,6 +90,12 @@ function _populate_chunk(game, cx, cy) {
         for (const a of lv.actors.slice(before)) keep(a);
       }
     }
+    // game on the open ground: rabbits, deer, boar (own rng, own spots: they never depend on who was painted first)
+    const gr = chunk_rng(world.seed, cx, cy, 37);
+    for (let i = gr.randint(2, 4); i > 0; i--) {
+      const gx = gr.randint(Math.max(x0 + 1, 3), Math.min(x1 - 2, lv.w - 4)), gy = gr.randint(Math.max(y0 + 1, 3), Math.min(y1 - 2, lv.h - 4)), sp = wild_pick_species(gr);
+      if (wild_grazing(lv.tile(gx, gy)) && cheb([gx, gy], start) >= 14 && !lv.occ.has(lv.idx(gx, gy))) { const an = wild_make(game, gx, gy, sp); lv.add_actor(an); keep(an); }
+    }
     // a patrol group now and then, standing on the chunk's highway
     if (rng.random() < 0.5 && cheb([x0 + S / 2, y0 + S / 2], start) >= 30) {
       const base = rng.random() < 0.5 ? [x0 + rng.randint(2, S - 2), y0] : [x0, y0 + rng.randint(2, S - 2)];

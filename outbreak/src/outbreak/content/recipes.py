@@ -20,6 +20,7 @@ class Recipe:
 
 RECIPES: Tuple[Recipe, ...] = (
     Recipe("bandage", "bandage", 2, (("cloth", 2),)),
+    Recipe("cook", "meat", 1, (("raw_meat", 1), ("wood", 1)), turns=4),
     Recipe("splint", "splint", 1, (("wood", 1), ("cloth", 1))),
     Recipe("molotov", "molotov", 1, (("fuel", 1), ("cloth", 1))),
     Recipe("noisemaker", "noisemaker", 1, (("parts", 1), ("scrap", 1))),

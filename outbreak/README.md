@@ -74,6 +74,17 @@ armed people who have heard about you if you did not.
 * *Everywhere.* Ambushes are not only for camps: raider road events and the Dash finale spring the same hidden squad
   (half in cover, three hidden snares round you), and lone tripwires are scattered along the far roads.
 
+**Food: hunting, foraging, cooking.** Rations are no longer the only meal.
+* *Game.* Rabbits (`r`), deer (`d`) and boar (`b`) graze on grass and brush, away from the start. They notice you from 5, 7 and
+  4 tiles (3 tiles less if you creep, and then only 40% of the time per turn), and bolt on two of every three turns, so a chase
+  can end. A creeping hunter can walk up and stab an unaware animal for **triple damage**. A boar does not run: it charges and
+  gores (3-7). Walk into game to attack (melee only for now: they are not shot at). A kill drops 1-3 **raw meat**.
+* *Raw meat* feeds 24 but has a 35% chance of cramps (-4 health, hungrier). **Cook** it (craft menu, `cook`: raw meat + a plank)
+  for **cooked meat**, which feeds 58.
+* *Foraging.* Terminal `F`, web **Forage** button (key `z`): 5 turns on grass (50%) or brush (80%) for 1-3 wild greens
+  (feed 12); +10% in rain or fog, -25% at night. A patch (radius 2) stays picked for 800 turns. Something hunting you stops it.
+* Checkpoints take only the most valuable **three stacks** of contraband, not your whole kit.
+
 **Checkpoints and corrupt soldiers.** The far roads (at least 35 tiles from the start) have military checkpoints: three
 soldiers holding the highway (two on the small map, more on a big one). Come within 7 tiles in sight of one (3 if you are
 creeping) and it stops you, once per 500 turns. Roaming military patrols do the same, but only half the time and at most

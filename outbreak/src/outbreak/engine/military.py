@@ -142,8 +142,13 @@ def _leader(game, h: Human) -> Human:
     return (crew(game, h) or [h])[0]
 
 
+MAX_TAKEN = 3                    # a checkpoint takes the most valuable few stacks, not your whole kit
+
+
 def _seize(game, h: Human, contra: List[Item]) -> str:
     p, lead = game.player, _leader(game, h)
+    contra = sorted(contra, key=lambda i: (i is p.weapon, -game.item_def(i.id).value * i.qty))[:MAX_TAKEN]
+    names = _names(game, contra)
     for it in contra:
         if p.weapon is it:
             p.weapon = None
@@ -151,8 +156,8 @@ def _seize(game, h: Human, contra: List[Item]) -> str:
             p.take(it.id, it.qty)
         lead.loot.append(Item(it.id, it.qty, it.dur))
     if h.corrupt:
-        return "He drops it all into his own pack and looks past you. It will not be going into any evidence locker."
-    return "A soldier bags it all and stamps a slip you are not allowed to keep."
+        return f"He takes your {names} and drops it into his own pack, looking past you. It will not be going into any evidence locker."
+    return f"A soldier bags your {names} and stamps a slip you are not allowed to keep."
 
 
 # ------------------------------------------------------------------ the stop

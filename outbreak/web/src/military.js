@@ -58,14 +58,18 @@ function military_contraband(game) {
 
 function military_leader(game, h) { const c = military_crew(game, h); return c.length ? c[0] : h; }
 
+const MIL_MAX_TAKEN = 3;                            // a checkpoint takes the most valuable few stacks, not your whole kit
+
 function military_seize(game, h, contra) {
   const p = game.player, lead = military_leader(game, h);
+  contra = contra.slice().sort((a, b) => ((a === p.weapon) - (b === p.weapon)) || (game.item_def(b.id).value * b.qty - game.item_def(a.id).value * a.qty)).slice(0, MIL_MAX_TAKEN);
+  const names = contra.map((i) => game.item_def(i.id).name.toLowerCase() + (i.qty > 1 ? ` x${i.qty}` : '')).join(', ');
   for (const it of contra) {
     if (p.weapon === it) p.weapon = null; else p.take(it.id, it.qty);
     lead.loot.push({ id: it.id, qty: it.qty, dur: it.dur === undefined ? null : it.dur, key: false });
   }
-  return h.corrupt ? 'He drops it all into his own pack and looks past you. It will not be going into any evidence locker.'
-                   : 'A soldier bags it all and stamps a slip you are not allowed to keep.';
+  return h.corrupt ? `He takes your ${names} and drops it into his own pack, looking past you. It will not be going into any evidence locker.`
+                   : `A soldier bags your ${names} and stamps a slip you are not allowed to keep.`;
 }
 
 function military_finish(game, active, text) { active.result = text; active.resolved = true; game.msg(text, 'lore'); return text; }

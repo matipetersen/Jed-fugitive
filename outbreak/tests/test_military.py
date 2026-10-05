@@ -86,6 +86,8 @@ class Checkpoints(unittest.TestCase):
 
     def test_submitting_hands_it_over_and_killing_the_leader_returns_it(self):
         g, lv = field()
+        g.player.inventory = [i for i in g.player.inventory if i.id not in military.banned_ids(g)]
+        g.player.weapon = None
         arm(g)
         cp, guards = post(g, lv)
         ev = stop(g)
@@ -97,9 +99,21 @@ class Checkpoints(unittest.TestCase):
         self.assertTrue(any(i.id == "medkit" for i in guards[0].loot))
         self.assertFalse(any(a.hostile for a in guards))
 
+    def test_a_checkpoint_takes_only_a_few_stacks_not_the_whole_kit(self):
+        g, lv = field()
+        for i, name in enumerate(("medkit", "painkiller", "suppressant", "molotov", "pistol", "bullet")):
+            g.player.inventory.append(Item(name, 1))
+        cp, guards = post(g, lv)
+        stop(g)
+        before = len(military.contraband(g))
+        g.resolve_event(0)
+        self.assertEqual(before - len(military.contraband(g)), military.MAX_TAKEN)
+
     def test_a_corrupt_soldier_takes_the_bribe_an_honest_one_does_not(self):
         for corrupt, ends_hostile_free in ((True, True), (False, False)):
             g, lv = field()
+            g.player.inventory = [i for i in g.player.inventory if i.id not in military.banned_ids(g)]
+            g.player.weapon = None
             arm(g)
             g.player.coins = 50
             cp, guards = post(g, lv, corrupt=corrupt)

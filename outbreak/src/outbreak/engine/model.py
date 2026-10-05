@@ -95,6 +95,14 @@ class Actor:
 
 
 @dataclass(eq=False)
+class Animal(Actor):
+    """Game: it grazes, bolts when it notices you, and is worth hunting for its meat.  A boar fights back."""
+    species: str = "rabbit"
+    state: str = "graze"             # graze | flee | charge
+    alert: bool = False              # has noticed you (a creeping hunter can still stab it unaware)
+
+
+@dataclass(eq=False)
 class Zombie(Actor):
     special: str = "walker"
     dmg: Tuple[int, int] = (3, 6)

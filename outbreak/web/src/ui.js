@@ -227,11 +227,12 @@ function actorSprite(a) {
 }
 
 function drawActor(a, px, py, ts) {
-  if (sprOn()) return drawActorSprite(a, px, py, ts);
+  if (sprOn() && a.kind !== 'animal') return drawActorSprite(a, px, py, ts);
   const c = ctx, cx = px + ts / 2, cy = py + ts / 2;
   let fill, ink = '#fff', ring = null;
   if (a.kind === 'player') { fill = '#efe8d2'; ink = '#0d1214'; ring = '#d99a2b'; }
   else if (a.kind === 'zombie') { fill = ZCOL[a.special] || '#b94a3c'; if (a.flags.includes('boss')) ring = '#fff'; if (a.state === 'dormant') c.globalAlpha = 0.7; }
+  else if (a.kind === 'animal') { fill = a.state === 'charge' ? '#c47a3a' : '#7aa35a'; ink = '#0d1214'; }
   else { fill = a.hostile ? '#c9992a' : '#55b3c4'; ink = '#0d1214'; }
   c.fillStyle = fill; c.beginPath(); c.arc(cx, cy, ts * .42, 0, 7); c.fill();
   if (ring) { c.strokeStyle = ring; c.lineWidth = 2; c.stroke(); }
@@ -441,7 +442,7 @@ function updateHud() {
   if (p.sneaking) add('Sneaking', 'info');
   { const sb = document.querySelector('.act.sneak'); if (sb) { sb.classList.toggle('on', !!p.sneaking); $('#sneak-sub').textContent = p.sneaking ? 'on' : 'off'; } }
   { const rb = document.querySelector('.act.run'); if (rb) { rb.classList.toggle('on', !!p.sprinting); $('#run-sub').textContent = p.sprinting ? 'on' : 'off'; } }
-  { const pb = document.querySelector('.act.push'); if (pb) { const n = pushable(g); pb.classList.toggle('ready', n.length > 0); $('#push-sub').textContent = n.length ? n[0].name.toLowerCase().slice(0, 14) : 'shove it back'; } }
+  { const pb = document.querySelector('.act.push'); if (pb) { const n = pushable(g); pb.classList.toggle('ready', n.length > 0); $('#push-sub').textContent = n.length ? n[0].name.toLowerCase().slice(0, 14) : 'shove'; } }
   if (p.sprinting) add('Running', 'info');
   if (g.cfg.mode !== 'normal') add(`Survivor #${g.generation}`, 'info');
   if (g.paused) add('PAUSED', 'warn');
@@ -696,7 +697,8 @@ function buildControls() {
   mk('short', '<span>Menu</span><small>more</small>', () => { if (game && !modal) openMenu(); });
   mk('mini sneak', '<span id="sneak-label">Sneak</span><small id="sneak-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sneak(); afterAction(); } });
   mk('mini run', '<span id="run-label">Run</span><small id="run-sub">off</small>', () => { if (game && !game.over && !modal) { game.toggle_sprint(); afterAction(); } });
-  mk('mini wide push', '<span>Push</span><small id="push-sub">shove it back</small>', () => { if (game && !game.over && !modal) { if (!pushable(game).length) toast('Nothing within reach to push'); else doAction(() => game.push()); } });
+  mk('mini forage', '<span>Forage</span><small id="forage-sub">gather food</small>', () => { if (game && !game.over && !modal) { const why = wild_can_forage(game); if (why) toast(why); else doAction(() => game.forage()); } });
+  mk('mini push', '<span>Push</span><small id="push-sub">shove</small>', () => { if (game && !game.over && !modal) { if (!pushable(game).length) toast('Nothing within reach to push'); else doAction(() => game.push()); } });
   $('#controls').classList.toggle('lefty', prefs.lefty);
 }
 
@@ -709,6 +711,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'r') doAction(() => game.rest());
   else if (k === 'g') { const c = contextAction(); doAction(c.run); }
   else if (k === 'f') startAim('fire');
+  else if (k === 'z') { const why = wild_can_forage(game); if (why) toast(why); else doAction(() => game.forage()); }
   else if (k === 'v') { if (pushable(game).length) doAction(() => game.push()); else toast('Nothing within reach to push'); }
   else if (k === 'x') { game.toggle_sprint(); afterAction(); }
   else if (k === 'h') { game.toggle_sneak(); afterAction(); }

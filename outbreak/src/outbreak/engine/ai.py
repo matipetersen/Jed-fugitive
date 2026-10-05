@@ -9,10 +9,10 @@ from __future__ import annotations
 import math
 from typing import Optional, Tuple
 
-from outbreak.engine import ambience, combat, lives, raiders
+from outbreak.engine import ambience, combat, lives, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
-from outbreak.engine.model import Human, Zombie
+from outbreak.engine.model import Animal, Human, Zombie
 from outbreak.engine.pathing import descend, greedy_step
 from outbreak.util import DIRS8, cheb, dist
 
@@ -133,6 +133,8 @@ def run(game) -> None:
             _zombie(game, a, humans)
         elif isinstance(a, Human):
             _human(game, a, humans)
+        elif isinstance(a, Animal):
+            wild.tick(game, a)
 
 
 def _zombie(game, z: Zombie, humans) -> None:

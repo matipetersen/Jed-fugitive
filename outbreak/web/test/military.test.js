@@ -36,12 +36,12 @@ function stop(g) { g.clock.turn += g.clock.turn % 2; OB.military_tick(g); return
 }
 { const [g, lv] = field(); arm(g); post(g, lv, 6); g.player.sneaking = true; assert(!stop(g)); g.player.sneaking = false; assert(stop(g)); }   // creeping
 { // submitting hands it over; the leader carries it
-  const [g, lv] = field(); arm(g); const [cp, guards] = post(g, lv); stop(g);
+  const [g, lv] = field(); clean(g); arm(g); const [cp, guards] = post(g, lv); stop(g);
   g.resolve_event(0); assert.strictEqual(g.player.count('medkit'), 0); assert.strictEqual(g.player.count('molotov'), 0);
   assert(guards[0].loot.some((i) => i.id === 'medkit')); assert(!guards.some((a) => a.hostile));
 }
 for (const [corrupt, keeps] of [[true, true], [false, false]]) { // corrupt soldiers can be bought; honest ones keep the coins and the goods
-  const [g, lv] = field(); arm(g); g.player.coins = 50; post(g, lv, 5, corrupt); stop(g); g.rng.random = () => 0.5;
+  const [g, lv] = field(); clean(g); arm(g); g.player.coins = 50; post(g, lv, 5, corrupt); stop(g); g.rng.random = () => 0.5;
   g.resolve_event(1); assert.strictEqual(g.player.count('medkit') > 0, keeps); assert(g.player.coins < 50);
 }
 { const [g, lv] = field(); arm(g); g.player.coins = 0; post(g, lv, 5, true); stop(g); assert.strictEqual(g.resolve_event(1), 'You cannot afford that.'); assert(g.pending_event); }
@@ -71,3 +71,8 @@ for (const [corrupt, keeps] of [[true, true], [false, false]]) { // corrupt sold
   assert.strictEqual(g2.checkpoints[77].pass_until, 999);
 }
 console.log('military: checkpoints search, tax, take bribes, and shoot the sick');
+{ // a checkpoint takes only a few stacks, not the whole kit
+  const [g, lv] = field(); for (const id of ['medkit', 'painkiller', 'suppressant', 'molotov', 'pistol', 'bullet']) g.player.inventory.push({ id, qty: 1 });
+  post(g, lv); stop(g); const before = OB.military_contraband(g).length; g.resolve_event(0);
+  assert.strictEqual(before - OB.military_contraband(g).length, 3);
+}

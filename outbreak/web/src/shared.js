@@ -99,7 +99,7 @@ function apply_taken(game, comp_id) {
 // the deterministic part of "enemies level while you are away": each enemy of the seeded world has its own appetite
 function catch_up_actor(game, a) {
   const cap = level_cap(game);
-  if (a.kind === 'player' || a.hp <= 0 || !is_world_uid(game, a.uid)) return;
+  if (a.kind === 'player' || a.kind === 'animal' || a.hp <= 0 || !is_world_uid(game, a.uid)) return;
   const target = 1 + Math.floor((cap - 1) * (0.2 + 0.7 * hash01(a.uid, game.seed)));
   while ((a.lvl || 1) < target) level_up(game, a, false);
 }

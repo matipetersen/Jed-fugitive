@@ -101,6 +101,12 @@ def _eat(game, item: Item, d: ItemDef) -> int:
     p.hunger = max(0.0, p.hunger - float(d.effect.get("food", 30)))
     _consume(game, item)
     game.msg(f"You eat the {d.name.lower()}.", "info")
+    sick = float(d.effect.get("sick", 0))
+    if sick and game.rng.random() < sick:
+        p.hp = max(1, p.hp - 4)
+        p.hunger = min(100.0, p.hunger + 12)
+        game.add_panic(6, raw=True)
+        game.msg("Your stomach cramps and you bring half of it back up. Cook it next time.", "warn")
     return 2
 
 

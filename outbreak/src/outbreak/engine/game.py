@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, military, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, military, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -66,6 +66,7 @@ class Game:
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
         self.last_step_note = -999
+        self.foraged: Dict[Pos, int] = {}        # where you gathered wild food, and when
         self.pings: List[dict] = []              # recent noises the UI draws as rings: {pos, radius, turn, kind, level}
         self.flash_turn = -999                   # lightning
         self.base_id: Optional[str] = None       # the level you claimed as your base
@@ -807,6 +808,9 @@ class Game:
         self._after_step(tile)
         raiders.notice_snares(self)
         return True
+
+    def forage(self) -> bool:
+        return wild.forage(self)
 
     def push(self, target=None) -> bool:
         """Shove the nearest hostile within reach (or a given one)."""

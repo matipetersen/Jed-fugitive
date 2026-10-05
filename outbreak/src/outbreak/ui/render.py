@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 from outbreak.engine import ambience, mutation
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
-from outbreak.engine.model import Human, Zombie
+from outbreak.engine.model import Animal, Human, Zombie
 from outbreak.util import Pos, cheb, compass
 
 Cell = Tuple[str, str, bool]          # glyph, colour name, bold
@@ -91,6 +91,8 @@ def _actor_cell(a) -> Cell:
         return (a.glyph, ZOMBIE_COLOR.get(a.special, "red"), "boss" in a.flags)
     if isinstance(a, Human):
         return (a.glyph, "yellow" if a.hostile else "cyan", True)
+    if isinstance(a, Animal):
+        return (a.glyph, "green", False)
     return ("?", "white", False)
 
 

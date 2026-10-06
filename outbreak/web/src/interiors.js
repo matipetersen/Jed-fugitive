@@ -346,12 +346,12 @@ function generate_cave(rng, poi, ctx) {
   }
   let crates = 0;
   const placed = [];
-  for (const pos of far.slice().sort((a, b) => cheb(b, level.entry) - cheb(a, level.entry)).slice(0, 40)) {
-    if (crates >= 4) break;
+  for (const pos of far.slice().sort((a, b) => cheb(b, level.entry) - cheb(a, level.entry)).slice(0, 90)) {
+    if (crates >= 7) break;
     const walls = DIRS4.filter(([dx, dy]) => !floor.has((pos[1] + dy) * w + pos[0] + dx)).length;
-    if (walls >= 2 && level.free(pos[0], pos[1]) && placed.every((c) => cheb(pos, c) >= 6)) {
+    if (walls >= 2 && level.free(pos[0], pos[1]) && placed.every((c) => cheb(pos, c) >= 5)) {
       level.set_tile(pos[0], pos[1], T.CRATE);
-      level.containers[level.idx(pos[0], pos[1])] = { loot: roll_items(rng, ctx.era, 'cave', rng.uniform(2.0, 3.4), ctx.loot_mult), docs: [], coins: roll_coins(rng, ctx.loot_mult), opened: false, note: '' };
+      level.containers[level.idx(pos[0], pos[1])] = { loot: roll_items(rng, ctx.era, 'cave', rng.uniform(3.0, 4.6), ctx.loot_mult), docs: [], coins: roll_coins(rng, ctx.loot_mult), opened: false, note: '' };
       placed.push(pos); crates++;
     }
   }

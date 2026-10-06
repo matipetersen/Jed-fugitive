@@ -37,10 +37,12 @@ class Hunting(unittest.TestCase):
         g, lv = field()
         a = animal(g, lv, 5)
         d0 = abs(a.x - g.player.x)
-        for i in range(12):
-            g.clock.turn = i + 1
-            wild.tick(g, a)
+        g.clock.turn = 1
+        wild.tick(g, a)
         self.assertEqual(a.state, "flee")
+        for i in range(2, 8):
+            g.clock.turn = i
+            wild.tick(g, a)
         self.assertGreater(abs(a.x - g.player.x), d0)
 
     def test_a_chase_can_catch_it_but_not_for_free(self):
@@ -95,7 +97,7 @@ class Hunting(unittest.TestCase):
         p.inventory.append(cooked)
         inventory_ops.use(g, p.inventory.index(cooked))
         self.assertEqual(p.hp, 50)
-        self.assertLess(p.hunger, 80 - 40)
+        self.assertLessEqual(p.hunger, 80 - 40)
 
     def test_cooking_needs_a_plank(self):
         from outbreak.content.recipes import RECIPES

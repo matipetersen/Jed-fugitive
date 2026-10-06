@@ -409,13 +409,13 @@ def generate_cave(rng: random.Random, poi: POI, ctx: GenContext) -> Level:
                 ctx.spawn(level, spot, None, True)
     # crates sit in dead ends and far chambers
     crates = 0
-    for pos in sorted(far, key=lambda t: -cheb(t, level.entry))[:40]:
-        if crates >= 4:
+    for pos in sorted(far, key=lambda t: -cheb(t, level.entry))[:90]:
+        if crates >= 7:
             break
         walls = sum(1 for dx, dy in DIRS4 if (pos[0] + dx, pos[1] + dy) not in floor)
-        if walls >= 2 and level.free(*pos) and all(cheb(pos, c) >= 6 for c in level.containers):
+        if walls >= 2 and level.free(*pos) and all(cheb(pos, c) >= 5 for c in level.containers):
             level.set_tile(pos[0], pos[1], T.CRATE)
-            level.containers[pos] = Container(loot=loot.roll_items(rng, ctx.era, "cave", rng.uniform(2.0, 3.4), ctx.loot_mult),
+            level.containers[pos] = Container(loot=loot.roll_items(rng, ctx.era, "cave", rng.uniform(3.0, 4.6), ctx.loot_mult),
                                               coins=loot.roll_coins(rng, ctx.loot_mult))
             crates += 1
     for pos in rng.sample(sorted(floor), min(len(floor), 7)):                      # pale mushrooms on the damp floor

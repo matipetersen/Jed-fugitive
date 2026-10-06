@@ -22,13 +22,16 @@ SPECIES = {
     "wolf": (12, "w", (1, 2), 7, (3, 6), 0),            # packs in the deep woods only
 }
 NAMES = {"rabbit": "Rabbit", "deer": "Deer", "boar": "Boar", "wolf": "Wolf"}
+WOLF_BURST = 4                                        # every fourth turn a charging wolf takes two steps
+FLEE_BURST = 3                                        # every third turn a fleeing animal takes two steps
+SNEAK_NOTICE = 0.3                                    # chance per turn a creeping hunter is noticed inside the animal's range
 FIGHTERS = ("boar", "wolf")                           # these turn on you instead of running
 FOREST_TREES = 7                                      # trees in the 5x5 round you that make it deep woods
 FOREST_SIGHT = 0.75                                   # the dead see this much less far from inside it
 GRAZING = (T.GRASS, T.BRUSH)
 FORAGE_TURNS = 5
 PATCH_TURNS = 800
-FORAGE_CHANCE = {T.BRUSH: 0.8, T.GRASS: 0.5}
+FORAGE_CHANCE = {T.BRUSH: 0.65, T.GRASS: 0.4}
 SNEAK_BLOW = 3.0
 
 
@@ -93,12 +96,18 @@ def forest_note(game) -> None:
 
 # ------------------------------------------------------------------ behaviour
 def _step_away(game, a: Animal) -> Optional[Tuple[int, int]]:
+    """Run from the player, sliding along obstacles and preferring open ground over dead ends; None if cornered."""
     lv, p = game.level, game.player
-    best, best_d = None, cheb(a.pos, p.pos)
+    here = (a.x - p.x) ** 2 + (a.y - p.y) ** 2
+    best, best_score = None, here - 0.5
     for dx, dy in DIRS8:
         n = (a.x + dx, a.y + dy)
-        if lv.free(*n) and lv.tile(*n) in GRAZING + (T.ROAD,) and cheb(n, p.pos) > best_d:
-            best, best_d = n, cheb(n, p.pos)
+        if not (lv.free(*n) and lv.tile(*n) in GRAZING + (T.ROAD,)):
+            continue
+        open_ = sum(1 for ddx, ddy in DIRS8 if lv.free(n[0] + ddx, n[1] + ddy) and lv.tile(n[0] + ddx, n[1] + ddy) in GRAZING + (T.ROAD,))
+        score = (n[0] - p.x) ** 2 + (n[1] - p.y) ** 2 + 0.6 * open_ + game.rng.random() * 0.3
+        if score > best_score:
+            best, best_score = n, score
     return best
 
 
@@ -113,7 +122,7 @@ def tick(game, a: Animal) -> None:
     if p.sneaking:
         radius = max(2, radius - 3)
     # a creeping player is only noticed now and then, which is what makes a stalk possible
-    if not a.alert and d <= radius and has_los(lv, a.pos, p.pos) and (not p.sneaking or game.rng.random() < 0.4):
+    if not a.alert and d <= radius and has_los(lv, a.pos, p.pos) and (not p.sneaking or game.rng.random() < SNEAK_NOTICE):
         a.alert = True
         a.state = "charge" if (a.species == "wolf" or (a.species == "boar" and d <= 3)) else "flee"
         if a.species == "wolf":                                          # the pack hears it
@@ -123,7 +132,7 @@ def tick(game, a: Animal) -> None:
     if a.alert and d > radius + 6:
         a.alert, a.state = False, "graze"                               # it calms down once you are well away
     if a.state == "flee":
-        if t % 3:                                                       # it is quick, but not as quick as you
+        for _ in range(1 + (t % FLEE_BURST == 0)):                      # it runs a little faster than you can: walking one down fails
             nxt = _step_away(game, a)
             if nxt:
                 lv.move_actor(a, *nxt)
@@ -133,16 +142,16 @@ def tick(game, a: Animal) -> None:
             a.alert, a.state = False, "graze"
             return
         if d == 1:
-            lo, hi = SPECIES[a.species][4]
-            if game.rng.random() < (0.65 if a.species == "wolf" else 0.7):
-                dmg = game.rng.randint(lo, hi)
-                game.msg(f"The {a.name.lower()} gores you for {dmg}.", "combat")
-                _hurt(game, dmg, a.species)
-        elif d <= (14 if a.species == "wolf" else 8) and (a.species != "wolf" or t % 4):
+            _bite(game, a)
+        elif d <= (14 if a.species == "wolf" else 8):
             from outbreak.engine.pathing import greedy_step
-            nxt = greedy_step(lv, a.pos, p.pos, game.rng, can_pass=lambda n: lv.tile(*n) in GRAZING + (T.ROAD,))
-            if nxt and lv.free(*nxt):
-                lv.move_actor(a, *nxt)
+            for _ in range(1 + (a.species == "wolf" and t % WOLF_BURST == 0)):   # a wolf cannot be outwalked: a doorway can stop it
+                if cheb(a.pos, p.pos) <= 1:
+                    _bite(game, a)                                       # its spare step is a bite at your heels
+                    break
+                nxt = greedy_step(lv, a.pos, p.pos, game.rng, can_pass=lambda n: lv.tile(*n) in GRAZING + (T.ROAD,))
+                if nxt and lv.free(*nxt):
+                    lv.move_actor(a, *nxt)
         return
     if game.rng.random() < 0.18:                                        # graze: drift about
         dx, dy = game.rng.choice(DIRS8)
@@ -151,11 +160,30 @@ def tick(game, a: Animal) -> None:
             lv.move_actor(a, *n)
 
 
-def _hurt(game, dmg: int, cause: str = "boar") -> None:
+BITE_ACC = {"wolf": 65, "boar": 70}
+
+
+def _bite(game, a: Animal) -> None:
+    """A wolf or boar strikes: it can miss, armour takes the edge off and wears, and a deep wound can bleed."""
+    from outbreak.engine import combat
+    from outbreak.util import clamp
     p = game.player
-    p.hp -= dmg
-    if p.hp <= 0:
-        game.end("dead", "mauled by wolves" if cause == "wolf" else "gored by a boar")
+    if game.rng.random() * 100 >= clamp(BITE_ACC.get(a.species, 60) - p.evade, 15, 92):
+        game.msg(f"The {a.name.lower()} snaps and misses.", "combat")
+        return
+    lo, hi = SPECIES[a.species][4]
+    armor = game.item_def(p.armor.id) if p.armor else None
+    dmg = max(1, int(round(game.rng.randint(lo, hi) * game.diff.damage - (armor.defense if armor else 0))))
+    if armor and p.armor.dur is not None:
+        p.armor.dur -= 1
+        if p.armor.dur <= 0:
+            game.msg(f"Your {armor.name.lower()} falls apart!", "bad")
+            p.armor = None
+    game.msg(f"The {a.name.lower()} {'mauls' if a.species == 'wolf' else 'gores'} you for {dmg}.", "bad")
+    combat.damage_player(game, dmg, "mauled by wolves" if a.species == "wolf" else "gored by a boar", a)
+    if p.alive and dmg >= 4 and game.rng.random() < 0.2 * (1.0 - p.mod("bleed_resist")):
+        p.bleeding = min(3, p.bleeding + 1)
+        game.msg("You are bleeding.", "bad")
 
 
 # ------------------------------------------------------------------ the hunt
@@ -231,7 +259,7 @@ def forage(game) -> bool:
     if not game.clock.is_day:
         chance -= 0.25
     if game.rng.random() < chance:
-        n = game.rng.randint(1, 3)
+        n = game.rng.randint(1, 2)
         if deep and game.rng.random() < 0.25:
             game.give_item(Item("herbs", n))
             game.msg(f"You find wild herbs growing in the shade ({n}).", "good")
@@ -331,7 +359,7 @@ def fish(game) -> bool:
         if game.visible_hostiles():
             game.msg("You stop fishing: something is coming.", "warn")
             return True
-    chance = 0.55 if most == 1 else 0.7
+    chance = 0.5 if most == 1 else 0.65
     if game.weather in ("rain", "fog"):
         chance += 0.1
     if not game.clock.is_day:

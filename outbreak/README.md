@@ -76,19 +76,22 @@ armed people who have heard about you if you did not.
 
 **Food: hunting, foraging, cooking.** Rations are no longer the only meal.
 * *Game.* Rabbits (`r`), deer (`d`) and boar (`b`) graze on grass and brush, away from the start. They notice you from 5, 7 and
-  4 tiles (3 tiles less if you creep, and then only 40% of the time per turn), and bolt on two of every three turns, so a chase
-  can end. A creeping hunter can walk up and stab an unaware animal for **triple damage**. A boar does not run: it charges and
-  gores (3-7). Walk into game to attack (melee only for now: they are not shot at). A kill drops 1-3 **raw meat**.
-* *Raw meat* feeds 24 but has a 35% chance of cramps (-4 health, hungrier). **Cook** it (craft menu, `cook`: raw meat + a plank)
-  for **cooked meat**, which feeds 58.
-* *Foraging.* Terminal `F`, web **Forage** button (key `z`): 5 turns on grass (50%) or brush (80%) for 1-3 wild greens
-  (feed 12); +10% in rain or fog, -25% at night. A patch (radius 2) stays picked for 800 turns. Something hunting you stops it.
+  4 tiles (3 tiles less if you creep, and then only 30% of the time per turn). Once they have noticed you they run, a little
+  faster than you can walk (a second step every third turn), sliding round obstacles, so **walking one down mostly fails**
+  (about 15% for a deer and 30% for a rabbit in open country, in the balance probe). A creeping hunter can walk up and stab
+  an unaware animal for **triple damage**, which works about 40% (deer) to 60% (rabbit) of the time. A boar does not run when
+  you are close: it charges and gores (3-7, through armour). Walk into game to attack (melee only for now: they are not shot
+  at). A kill drops 1-3 **raw meat**.
+* *Raw meat* feeds 16 but has a 35% chance of cramps (-4 health, hungrier). **Cook** it (craft menu, `cook`: raw meat + a plank)
+  for **cooked meat**, which feeds 40 (a deer is about three days of hunger; a day is 28.8).
+* *Foraging.* Terminal `F`, web **Forage** button (key `z`): 5 turns on grass (40%) or brush (65%) for 1-2 wild greens
+  (feed 6, about 13-20% of a day's hunger per action); +10% in rain or fog, -25% at night. A patch (radius 2) stays picked for 800 turns. Something hunting you stops it.
 * *Gather* is one key for living off the land (terminal `F`, web **Gather** button or `z`; the button names what it will do):
   - **Chop**: with a blade (6 turns) or something heavy (9) next to a tree. 2-4 planks, a stump-free clearing where it stood
     (it opens sightlines), and noise 8 every third turn. Not on the rim of the map, not bare-handed.
-  - **Fish**: next to water with a **rod** (wood + cloth + scrap; 8 turns, 55%, one fish, 4% to snap) or a **net**
-    (3 cloth + wood; 12 turns, 70%, up to 3 fish, 35% to tear). Quiet. Raw fish feeds 20 (12% cramps); cook it with a plank
-    (`cook_fish`) for grilled fish (46). +10% in rain or fog, -20% at night.
+  - **Fish**: next to water with a **rod** (wood + cloth + scrap; 8 turns, 50%, one fish, 4% to snap) or a **net**
+    (3 cloth + wood; 12 turns, 65%, up to 2 fish, 35% to tear). Quiet. Raw fish feeds 12 (12% cramps); cook it with a plank
+    (`cook_fish`) for grilled fish (30). +10% in rain or fog, -20% at night.
   - **Forage** otherwise, as above.
 * *Nail bomb* (chem + 2 scrap + cloth, no workshop; throw it): 11-18 to everything in radius 2 with line of sight, loud (16),
   and it hurts you too if you are inside the radius. All of these recipes are known from the start.
@@ -100,13 +103,21 @@ armed people who have heard about you if you did not.
   big one). Inside is a winding system of chambers (a cellular-automaton cave, the same every run of a seed), **black**: unlit
   you see 3 tiles, and a torch or lantern is what lets you see further (a light is also a beacon to the dead). Nests of 2-4
   dormant dead sleep in the far chambers, 3-4 rich crates sit in dead ends (scrap, parts, chemicals, fuel), pale
-  **mushrooms** lie on the floor (food 16, 10% cramps), and with a spore plague there are spore beds. Caves hold no documents
+  **mushrooms** lie on the floor (food 10, 10% cramps), and with a spore plague there are spore beds. Caves hold no documents
   and are never a quest host. One way in, one way out.
 * *Deep woods*: where at least 7 of the 25 tiles round you are trees. You are told once when you walk under the canopy.
   The dead see you from 25% less far; forage pays +20% and a quarter of what you find is **wild herbs** (heal 4, calm).
 * *Wolves* (`w`) hunt in packs of 2-3 in the deep woods only: they notice you from 7 tiles (10 at night; a creeping player
-  is noticed 40% of the time per turn), charge, and call the whole pack within 9 tiles. They bite for 3-6, are slowed one turn
-  in four, and lose interest if you get 8 tiles beyond their notice range. Kill one for 1-2 raw meat.
+  is noticed 30% of the time per turn), charge, and call the whole pack within 9 tiles. They bite for 3-6 (armour counts and
+  wears, a deep bite can bleed) and take a **second step every fourth turn**, which is a bite at your heels if you run: you
+  cannot outwalk them, but they cannot enter a building or a cave, and they lose interest if you get 8 tiles beyond their
+  notice range. Kill one for 1-2 raw meat.
+
+**Balance probes.** `PYTHONPATH=src python3 tools/balance.py [wolves|hunt|caves|food|bot|cave|market|military|all]` measures the
+newer systems (fights against wolves and boar, how often a chase or a stalk works, cave versus building loot and danger,
+food per action, what kills the bot, bot runs inside a cave). Last numbers: two wolves cost about 15-20 of 80 health with
+the best loose weapon and three about 38; caves hold about 1.3 times the loot of a building floor for about 1.4 times the
+dead, and a torch matters (the bot lives 40% of 500-turn cave runs with one and 17% without).
 
 **Checkpoints and corrupt soldiers.** The far roads (at least 35 tiles from the start) have military checkpoints: three
 soldiers holding the highway (two on the small map, more on a big one). Come within 7 tiles in sight of one (3 if you are

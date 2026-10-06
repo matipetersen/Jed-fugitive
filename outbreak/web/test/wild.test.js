@@ -16,8 +16,8 @@ function animal(g, lv, dx, species = 'deer') { const a = OB.wild_make(g, g.playe
 }
 { // game bolts when it notices you, and a chase is not free
   const [g, lv] = field(); const a = animal(g, lv, 5), d0 = Math.abs(a.x - g.player.x);
-  for (let i = 0; i < 12; i++) { g.clock.turn = i + 1; OB.wild_tick(g, a); }
-  assert.strictEqual(a.state, 'flee'); assert(Math.abs(a.x - g.player.x) > d0);
+  g.clock.turn = 1; OB.wild_tick(g, a); assert.strictEqual(a.state, 'flee');
+  for (let i = 2; i < 8; i++) { g.clock.turn = i; OB.wild_tick(g, a); } assert(Math.abs(a.x - g.player.x) > d0);
 }
 { // creeping hides you; a stalked animal takes a triple blow
   const [g, lv] = field(); g.player.sneaking = true; g.rng.random = () => 0.99; const a = animal(g, lv, 3);
@@ -32,7 +32,7 @@ function animal(g, lv, dx, species = 'deer') { const a = OB.wild_make(g, g.playe
   const raw = { id: 'raw_meat', qty: 1, dur: null, key: false }; p.inventory.push(raw); OB.use_item ? OB.use_item(g, p.inventory.indexOf(raw)) : OB.use(g, p.inventory.indexOf(raw));
   assert(p.hp < 50);
   p.hp = 50; p.hunger = 80; const cooked = { id: 'meat', qty: 1, dur: null, key: false }; p.inventory.push(cooked); OB.use_item ? OB.use_item(g, p.inventory.indexOf(cooked)) : OB.use(g, p.inventory.indexOf(cooked));
-  assert.strictEqual(p.hp, 50); assert(p.hunger < 40);
+  assert.strictEqual(p.hp, 50); assert(p.hunger <= 40);
 }
 { // a boar fights back
   const [g, lv] = field(); const a = animal(g, lv, 1, 'boar'); a.alert = true; a.state = 'charge'; g.rng.random = () => 0.1; g.clock.turn = 1;

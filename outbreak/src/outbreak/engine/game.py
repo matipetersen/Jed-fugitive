@@ -205,7 +205,7 @@ class Game:
         if lv.kind == "haven" and not self.final:
             r = 12
         elif lv.dark:
-            r = 7
+            r = 3 if self.poi_kind_of(lv) == "cave" else 7              # a cave is black: you see what your light shows
         else:
             light = self.clock.light
             r = 14 if light > 0.7 else 10 if light > 0.35 else 5
@@ -227,7 +227,7 @@ class Game:
                 if not poi.revealed and poi.kind != "breach" and cheb(poi.pos, p.pos) <= sense \
                         and poi.kind != "house":
                     poi.revealed = True
-                    self.msg(f"You notice a building ahead: {poi.name}.", "info")
+                    self.msg(f"You notice {'a way underground' if poi.kind == 'cave' else 'a building'} ahead: {poi.name}.", "info")
 
     def visible_actors(self) -> List:
         return [a for a in self.level.actors if a.pos in self.visible and not getattr(a, "hidden", False)]
@@ -872,6 +872,7 @@ class Game:
             ambience.explain_step(self, tile)
             ambience.startle(self, tile)
         self.emit_noise(p.pos, noise)
+        wild.forest_note(self)
         if not T.TILES[tile].masks_scent:
             self.scent[p.pos] = self.clock.turn
         cost = 1

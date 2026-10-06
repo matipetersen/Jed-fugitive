@@ -18,7 +18,7 @@ from outbreak.engine import loot
 from outbreak.util import cheb, compass, weighted_choice
 
 BASE_HP = 80
-SPECIAL_KINDS = ("breach", "refuge", "pad")
+SPECIAL_KINDS = ("breach", "refuge", "pad", "cave")
 ZONE_DENSITY = (0.004, 0.015, 0.03)       # zombies per land tile: rural, suburb, city
 
 

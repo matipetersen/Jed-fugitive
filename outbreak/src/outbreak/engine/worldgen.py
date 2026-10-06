@@ -13,7 +13,9 @@ from outbreak.util import DIRS4, Pos, cheb
 
 UNSET: Pos = (-1, -1)          # portal arrival "use the level's entry point"
 
-FLOORS = {"medical": 3, "market": 2, "guard": 2, "lab": 3, "transit": 3, "military": 3, "faith": 2,
+CAVE_NAMES = ("Cave", "Old mine", "Sinkhole", "Quarry tunnel")
+CAVE_SIZE = (4, 2)
+FLOORS = {"cave": 1, "medical": 3, "market": 2, "guard": 2, "lab": 3, "transit": 3, "military": 3, "faith": 2,
           "industry": 2, "refuge": 1, "pad": 1, "house": 1}
 SIZES = {"faith": (9, 7), "industry": (13, 7), "refuge": (13, 8), "pad": (13, 8)}
 DEFAULT_SIZE = (11, 7)
@@ -161,6 +163,7 @@ def generate_overworld(rng: random.Random, era: EraPack, w: int, h: int) -> Worl
     _place_pois(rng, canvas, era, world)
     _place_houses(rng, canvas, era, world)
     _place_camps(rng, canvas, world)
+    _place_caves(rng, canvas, world)
     _link_roads(rng, level, world, sites)
     _ensure_connected(level, world)
     return world
@@ -306,6 +309,35 @@ def _place_houses(rng, canvas, era, world) -> None:
             name = era.houses[count % len(era.houses)]
             _poi(world, "house", name, door, (x, y, w, h), danger=round(rng.uniform(0.6, 1.1), 2))
             count += 1
+
+
+def _trees_near(lv: Level, x: int, y: int, r: int = 5) -> int:
+    return sum(1 for yy in range(max(0, y - r), min(lv.h, y + r + 1)) for xx in range(max(0, x - r), min(lv.w, x + r + 1))
+               if lv.tiles[yy][xx] == T.TREE)
+
+
+def _place_caves(rng, canvas, world) -> None:
+    """A few cave mouths, out in the woods and far from the start: small rock outcrops with a dark doorway."""
+    lv = canvas.level
+    wanted = min(8, max(2, (lv.w * lv.h) // 5000))
+    w, h = CAVE_SIZE
+    for tries in range(1, 6000):
+        if sum(1 for p in world.pois.values() if p.kind == "cave") >= wanted:
+            return
+        x, y = rng.randint(9, lv.w - w - 10), rng.randint(9, lv.h - h - 11)
+        door = (x + w // 2, y + h - 1)
+        near, spacing = (24, 12) if tries < 2000 else (16, 6)                  # a crowded small map relaxes the distances
+        if cheb(door, world.start) < near or any(cheb(door, p.pos) < spacing for p in world.pois.values() if p.kind != "breach"):
+            continue
+        if world.zone[y + 1][x + 1] != 0 or not canvas.region_ok(x, y, w, h, 1):
+            continue
+        if tries < 3000 and _trees_near(lv, x, y) < 7:                      # prefer the woods; relax if the map has none left
+            continue
+        n = sum(1 for p in world.pois.values() if p.kind == "cave")
+        canvas.claim(x, y, w, h, 1)
+        canvas.block(x, y, w, h, door)
+        _poi(world, "cave", CAVE_NAMES[n % len(CAVE_NAMES)] + (f" {n // len(CAVE_NAMES) + 1}" if n >= len(CAVE_NAMES) else ""),
+             door, (x, y, w, h), danger=round(rng.uniform(1.1, 1.6), 2))
 
 
 def _place_camps(rng, canvas, world) -> None:

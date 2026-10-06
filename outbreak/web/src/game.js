@@ -155,7 +155,7 @@ class Game {
     const p = this.player, lv = this.level;
     let r;
     if (lv.kind === 'haven' && !this.final) r = 12;
-    else if (lv.dark) r = 7;
+    else if (lv.dark) r = this.poi_kind_of(lv) === 'cave' ? 3 : 7;                 // a cave is black: you see what your light shows
     else { const light = this.clock.light; r = (light > 0.7 ? 14 : light > 0.35 ? 10 : 5) + (WEATHER_PLAYER_SIGHT[this.weather] || 0); }      // fog and storms shorten your view
     if (this.is_dark()) {
       r += Math.floor(p.mod('night_vision')) + this.era.rules.night_view;       // a visor, or a moonless medieval night
@@ -173,7 +173,7 @@ class Game {
       for (const poi of Object.values(this.pois)) {
         if (!poi.revealed && poi.kind !== 'breach' && poi.kind !== 'house' && cheb(poi_pos(poi), [p.x, p.y]) <= sense) {
           poi.revealed = true;
-          this.msg(`You notice a building ahead: ${poi.name}.`, 'info');
+          this.msg(`You notice ${poi.kind === 'cave' ? 'a way underground' : 'a building'} ahead: ${poi.name}.`, 'info');
         }
       }
     }
@@ -778,6 +778,7 @@ class Game {
     noise = Math.max(0, noise + Math.trunc(p.mod('move_noise')));
     if (!p.sneaking) { noise += step_extra(this, tile); explain_step(this, tile); startle(this, tile); }     // gravel, glass, metal floors, the building you are in
     this.emit_noise([p.x, p.y], noise);
+    wild_forest_note(this);
     if (!TILES[tile].masks_scent) this.scent[k] = this.clock.turn;
     let cost = 1;
     if (p.sneaking) cost = 2;

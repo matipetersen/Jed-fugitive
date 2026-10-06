@@ -294,8 +294,85 @@ function generate_haven(rng, poi, ctx) {
   return level;
 }
 
+// ---- caves: a dark system of chambers, nests of the dormant dead, rich crates, mushrooms, spore beds
+const CAVE_LEVEL_SIZE = [44, 30];
+function _cave_floor(rng, w, h) {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    let floor = new Set();
+    for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) if (rng.random() < 0.47) floor.add(y * w + x);
+    for (let it = 0; it < 4; it++) {
+      const nxt = new Set();
+      for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
+        let n = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && floor.has((y + dy) * w + x + dx)) n++;
+        if (n >= 4) nxt.add(y * w + x);
+      }
+      floor = nxt;
+    }
+    let best = [];
+    const seen = new Set();
+    for (const s of floor) {
+      if (seen.has(s)) continue;
+      const comp = [s], stack = [s]; seen.add(s);
+      while (stack.length) {
+        const c = stack.pop(), cx = c % w, cy = Math.floor(c / w);
+        for (const [dx, dy] of DIRS4) { const q = (cy + dy) * w + cx + dx; if (floor.has(q) && !seen.has(q)) { seen.add(q); comp.push(q); stack.push(q); } }
+      }
+      if (comp.length > best.length) best = comp;
+    }
+    if (best.length >= 330) return best.map((i) => [i % w, Math.floor(i / w)]);
+  }
+  const plain = []; for (let y = 8; y < h - 8; y++) for (let x = 8; x < w - 8; x++) plain.push([x, y]);
+  return plain;
+}
+
+function generate_cave(rng, poi, ctx) {
+  const [w, h] = CAVE_LEVEL_SIZE, level = new Level(poi_level_id(poi), poi.name, w, h, 'interior');
+  const cells = _cave_floor(rng, w, h), floor = new Set(cells.map(([x, y]) => y * w + x));
+  for (const [x, y] of cells) level.set_tile(x, y, T.FLOOR);
+  const [ex, ey] = max_by(cells, ([x, y]) => y * 1000 - Math.abs(x - w / 2));
+  const door = [ex, ey + 1];
+  level.set_tile(door[0], door[1], T.PORTAL);
+  level.portals[level.idx(door[0], door[1])] = { target: 'world', pos: poi_pos(poi), label: 'outside', arrive: 'entry' };
+  level.entry = [ex, ey]; level.arrivals.entry = level.entry;
+  const far = rng.shuffle(cells.filter((c) => cheb(c, level.entry) >= 9));
+  const nests = Math.max(2, Math.round(3 * poi.danger * ctx.zombie_mult * ctx.profile.density));
+  for (let i = 0; i < nests && far.length; i++) {
+    const [cx, cy] = far.pop();
+    for (let m = rng.randint(2, 4); m > 0; m--) {
+      const spot = level.free_spot_near(cx, cy, 2);
+      if (spot && floor.has(spot[1] * w + spot[0])) ctx.spawn(level, spot, null, true);
+    }
+  }
+  let crates = 0;
+  const placed = [];
+  for (const pos of far.slice().sort((a, b) => cheb(b, level.entry) - cheb(a, level.entry)).slice(0, 40)) {
+    if (crates >= 4) break;
+    const walls = DIRS4.filter(([dx, dy]) => !floor.has((pos[1] + dy) * w + pos[0] + dx)).length;
+    if (walls >= 2 && level.free(pos[0], pos[1]) && placed.every((c) => cheb(pos, c) >= 6)) {
+      level.set_tile(pos[0], pos[1], T.CRATE);
+      level.containers[level.idx(pos[0], pos[1])] = { loot: roll_items(rng, ctx.era, 'cave', rng.uniform(2.0, 3.4), ctx.loot_mult), docs: [], coins: roll_coins(rng, ctx.loot_mult), opened: false, note: '' };
+      placed.push(pos); crates++;
+    }
+  }
+  for (const pos of rng.sample(cells, Math.min(cells.length, 7))) {
+    if (!(pos[0] === level.entry[0] && pos[1] === level.entry[1]) && !level.containers[level.idx(pos[0], pos[1])]) level.drop(pos, make_item('mushroom', rng.randint(1, 2)));
+  }
+  if (ctx.profile.vector === 'spore') {
+    for (let i = 0; i < 3; i++) {
+      const [cx, cy] = rng.choice(cells);
+      if (cheb([cx, cy], level.entry) < 8) continue;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -2; dx <= 2; dx++) if (floor.has((cy + dy) * w + cx + dx) && rng.random() < 0.7) level.hazards[level.idx(cx + dx, cy + dy)] = { kind: 'spore', ttl: 1e9 };
+    }
+  }
+  const occ = level.occ.get(level.idx(level.entry[0], level.entry[1]));
+  if (occ) level.remove_actor(occ);
+  return level;
+}
+
 function generate_interior(poi, floor, seed, ctx, docs) {
   const rng = new RNG(`${seed}:${poi.id}:${floor}`);
+  if (poi.kind === 'cave') return generate_cave(rng, poi, ctx);
   if (poi.kind === 'refuge' || poi.kind === 'pad') return generate_haven(rng, poi, ctx);
   if (poi.kind === 'house') return generate_house(rng, poi, ctx, docs);
   return generate_floor(rng, poi, floor, ctx, docs);

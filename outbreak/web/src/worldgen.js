@@ -176,6 +176,29 @@ function _place_houses(rng, world, era) {
   }
 }
 
+// A few cave mouths, out in the woods and far from the start: small rock outcrops with a dark doorway.
+const CAVE_NAMES = ['Cave', 'Old mine', 'Sinkhole', 'Quarry tunnel'], CAVE_SIZE = [4, 2];
+function _wooded(world, x, y) {
+  const T_ = world.terrain; let n = 0;
+  for (const [dx, dy] of [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4], [3, 3], [-3, -3], [3, -3], [-3, 3]]) if (T_.wood(x + dx, y + dy) > T_.wood_thr) n++;
+  return n;
+}
+function _place_caves(rng, world) {
+  const lv = world.level, [w, h] = CAVE_SIZE, wanted = Math.min(8, Math.max(2, Math.floor(lv.w * lv.h / 5000)));
+  const caves = () => Object.values(world.pois).filter((p) => p.kind === 'cave');
+  for (let tries = 1; tries < 9000; tries++) {
+    if (caves().length >= wanted) return;
+    const x = rng.randint(9, lv.w - w - 10), y = rng.randint(9, lv.h - h - 11), door = [x + Math.floor(w / 2), y + h - 1];      // well off the rim: its lane runs to a highway
+    const [near, spacing] = tries < 3000 ? [24, 12] : [16, 6];                  // a crowded small map relaxes the distances
+    if (cheb(door, world.start) < near || Object.values(world.pois).some((p) => p.kind !== 'breach' && cheb(door, poi_pos(p)) < spacing)) continue;
+    if (world.terrain.zone_at(x + 1, y + 1) !== 0 || !region_ok(world, x, y, w, h, 1)) continue;
+    if (tries < 5000 && _wooded(world, x, y) < 5) continue;                      // prefer the woods; relax if the map has none left
+    const n = caves().length;
+    _claim(world, x, y, w, h, 1);
+    _poi(world, 'cave', CAVE_NAMES[n % CAVE_NAMES.length] + (n >= CAVE_NAMES.length ? ` ${Math.floor(n / CAVE_NAMES.length) + 1}` : ''), door, [x, y, w, h], Math.round(rng.uniform(1.1, 1.6) * 100) / 100);
+  }
+}
+
 function _place_camps(rng, world) {
   const lv = world.level, wanted = Math.max(3, Math.floor(lv.w * lv.h / 2600));
   for (let n = 0; n < 1500; n++) {
@@ -202,6 +225,7 @@ function generate_overworld(seed, era, w, h) {
   _place_pois(rng, world, era);
   _place_houses(rng, world, era);
   _place_camps(rng, world);
+  _place_caves(rng, world);
   delete world.claims; delete world.placed;
   return world;
 }

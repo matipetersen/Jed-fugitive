@@ -96,6 +96,19 @@ function _populate_chunk(game, cx, cy) {
       const gx = gr.randint(Math.max(x0 + 1, 3), Math.min(x1 - 2, lv.w - 4)), gy = gr.randint(Math.max(y0 + 1, 3), Math.min(y1 - 2, lv.h - 4)), sp = wild_pick_species(gr);
       if (wild_grazing(lv.tile(gx, gy)) && cheb([gx, gy], start) >= 14 && !lv.occ.has(lv.idx(gx, gy))) { const an = wild_make(game, gx, gy, sp); lv.add_actor(an); keep(an); }
     }
+    // a wolf pack in the deep woods (own rng again)
+    const wr2 = chunk_rng(world.seed, cx, cy, 41);
+    if (wr2.random() < 0.55) {
+      for (let tries = 0; tries < 30; tries++) {
+        const wx = wr2.randint(Math.max(x0 + 3, 4), Math.min(x1 - 4, lv.w - 5)), wy = wr2.randint(Math.max(y0 + 3, 4), Math.min(y1 - 4, lv.h - 5));
+        if (cheb([wx, wy], start) < 20 || !wild_in_forest_at(lv, [wx, wy]) || lv.tile(wx, wy) === T.TREE) continue;
+        for (let m = wr2.randint(2, 3); m > 0; m--) {
+          const sp = [wx + wr2.randint(-2, 2), wy + wr2.randint(-2, 2)];
+          if (lv.in_bounds(sp[0], sp[1]) && wild_grazing(lv.tile(sp[0], sp[1])) && !lv.occ.has(lv.idx(sp[0], sp[1]))) { const an = wild_make(game, sp[0], sp[1], 'wolf'); lv.add_actor(an); keep(an); }
+        }
+        break;
+      }
+    }
     // a patrol group now and then, standing on the chunk's highway
     if (rng.random() < 0.5 && cheb([x0 + S / 2, y0 + S / 2], start) >= 30) {
       const base = rng.random() < 0.5 ? [x0 + rng.randint(2, S - 2), y0] : [x0, y0 + rng.randint(2, S - 2)];

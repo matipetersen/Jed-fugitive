@@ -33,7 +33,7 @@ _t(T.STAIRS_DOWN, '#232c30', '>'); _t(T.CRATE, '#1b2225', 'crate'); _t(T.CRATE_O
 _t(T.FENCE, '#16241a', 'fence'); _t(T.BED, '#1b2225', 'bed'); _t(T.BENCH, '#1b2225', 'bench'); _t(T.CAMPFIRE, '#16241a', 'fire'); _t(T.WORKSHOP, '#1b2225', 'workshop'); _t(T.LOCKER, '#1b2225', 'locker');
 const ZCOL = { walker: '#b94a3c', crawler: '#9b5a3a', brute: '#8e3f9e', bloater: '#6a9a32', screamer: '#d4a52a', leaper: '#cf5a2a',
                clicker: '#3f9aa8', stalker: '#9b2f9b', alpha: '#c43fa6' };
-const POI_LETTER = { medical: 'M', market: '$', guard: 'P', lab: 'L', transit: 'U', military: 'A', faith: 'C', industry: 'F', refuge: 'R', pad: 'E', house: 'h' };
+const POI_LETTER = { medical: 'M', market: '$', guard: 'P', lab: 'L', transit: 'U', military: 'A', faith: 'C', industry: 'F', refuge: 'R', pad: 'E', house: 'h', cave: 'n' };
 
 function deco(kind, x, y, s, vis) {
   const c = ctx;
@@ -232,7 +232,7 @@ function drawActor(a, px, py, ts) {
   let fill, ink = '#fff', ring = null;
   if (a.kind === 'player') { fill = '#efe8d2'; ink = '#0d1214'; ring = '#d99a2b'; }
   else if (a.kind === 'zombie') { fill = ZCOL[a.special] || '#b94a3c'; if (a.flags.includes('boss')) ring = '#fff'; if (a.state === 'dormant') c.globalAlpha = 0.7; }
-  else if (a.kind === 'animal') { fill = a.state === 'charge' ? '#c47a3a' : '#7aa35a'; ink = '#0d1214'; }
+  else if (a.kind === 'animal') { fill = a.species === 'wolf' ? '#8a8f9a' : a.state === 'charge' ? '#c47a3a' : '#7aa35a'; ink = '#0d1214'; }
   else { fill = a.hostile ? '#c9992a' : '#55b3c4'; ink = '#0d1214'; }
   c.fillStyle = fill; c.beginPath(); c.arc(cx, cy, ts * .42, 0, 7); c.fill();
   if (ring) { c.strokeStyle = ring; c.lineWidth = 2; c.stroke(); }

@@ -14,7 +14,7 @@ from outbreak.util import Pos, cheb, compass
 Cell = Tuple[str, str, bool]          # glyph, colour name, bold
 Line = Tuple[str, str]                # text, colour name
 
-POI_LETTER = {"medical": "M", "market": "$", "guard": "P", "lab": "L", "transit": "U", "military": "A",
+POI_LETTER = {"cave": "n", "medical": "M", "market": "$", "guard": "P", "lab": "L", "transit": "U", "military": "A",
               "faith": "C", "industry": "F", "refuge": "R", "pad": "E", "house": "h"}
 ZOMBIE_COLOR = {"walker": "red", "crawler": "red", "brute": "magenta", "bloater": "green", "screamer": "yellow",
                 "leaper": "red", "clicker": "cyan", "stalker": "magenta", "alpha": "magenta"}

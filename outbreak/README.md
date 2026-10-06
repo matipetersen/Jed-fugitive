@@ -94,6 +94,20 @@ armed people who have heard about you if you did not.
   and it hurts you too if you are inside the radius. All of these recipes are known from the start.
 * Checkpoints take only the most valuable **three stacks** of contraband, not your whole kit.
 
+**Caves and the deep woods.**
+* *Cave mouths* (`n` on the map; "Cave", "Old mine", "Sinkhole", "Quarry tunnel"): small rock outcrops with a dark doorway, placed
+  out in the woods at least 24 tiles from the start (16 on a crowded small map) and well off the edge of the map (two on the small map, up to eight on a
+  big one). Inside is a winding system of chambers (a cellular-automaton cave, the same every run of a seed), **black**: unlit
+  you see 3 tiles, and a torch or lantern is what lets you see further (a light is also a beacon to the dead). Nests of 2-4
+  dormant dead sleep in the far chambers, 3-4 rich crates sit in dead ends (scrap, parts, chemicals, fuel), pale
+  **mushrooms** lie on the floor (food 16, 10% cramps), and with a spore plague there are spore beds. Caves hold no documents
+  and are never a quest host. One way in, one way out.
+* *Deep woods*: where at least 7 of the 25 tiles round you are trees. You are told once when you walk under the canopy.
+  The dead see you from 25% less far; forage pays +20% and a quarter of what you find is **wild herbs** (heal 4, calm).
+* *Wolves* (`w`) hunt in packs of 2-3 in the deep woods only: they notice you from 7 tiles (10 at night; a creeping player
+  is noticed 40% of the time per turn), charge, and call the whole pack within 9 tiles. They bite for 3-6, are slowed one turn
+  in four, and lose interest if you get 8 tiles beyond their notice range. Kill one for 1-2 raw meat.
+
 **Checkpoints and corrupt soldiers.** The far roads (at least 35 tiles from the start) have military checkpoints: three
 soldiers holding the highway (two on the small map, more on a big one). Come within 7 tiles in sight of one (3 if you are
 creeping) and it stops you, once per 500 turns. Roaming military patrols do the same, but only half the time and at most

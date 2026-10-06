@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- building a new game
 const BASE_HP = 80;
-const SPECIAL_KINDS = ['breach', 'refuge', 'pad'];
+const SPECIAL_KINDS = ['breach', 'refuge', 'pad', 'cave'];
 const ZONE_DENSITY = [0.004, 0.015, 0.03];
 
 function _resolve_token(game, token) {

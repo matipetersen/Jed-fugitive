@@ -3,8 +3,11 @@ const WILD_SPECIES = {                 // hp, glyph, meat [min, max], notice rad
   rabbit: [4, 'r', [1, 1], 5, [0, 0], 50],
   deer: [14, 'd', [2, 3], 7, [0, 0], 35],
   boar: [20, 'b', [2, 3], 4, [3, 7], 15],
+  wolf: [12, 'w', [1, 2], 7, [3, 6], 0],             // packs in the deep woods only
 };
-const WILD_NAMES = { rabbit: 'Rabbit', deer: 'Deer', boar: 'Boar' };
+const WILD_NAMES = { rabbit: 'Rabbit', deer: 'Deer', boar: 'Boar', wolf: 'Wolf' };
+const WILD_FIGHTERS = ['boar', 'wolf'];                // these turn on you instead of running
+const WILD_FOREST_TREES = 7, WILD_FOREST_SIGHT = 0.75;
 const WILD_FORAGE_TURNS = 5, WILD_PATCH_TURNS = 800, WILD_SNEAK_BLOW = 3.0;
 const wild_grazing = (t) => t === T.GRASS || t === T.BRUSH;
 
@@ -16,8 +19,26 @@ function wild_make(game, x, y, species) {
 
 function wild_pick_species(rng) {
   let r = rng.random() * 100;
-  for (const [k, v] of Object.entries(WILD_SPECIES)) { r -= v[5]; if (r < 0) return k; }
+  for (const [k, v] of Object.entries(WILD_SPECIES)) { if (!v[5]) continue; r -= v[5]; if (r < 0) return k; }
   return 'rabbit';
+}
+
+// ---- the deep woods
+function wild_in_forest_at(lv, pos) {
+  if (lv.kind !== 'overworld') return false;
+  let n = 0;
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (lv.in_bounds(pos[0] + dx, pos[1] + dy) && lv.tile(pos[0] + dx, pos[1] + dy) === T.TREE) n++;
+  return n >= WILD_FOREST_TREES;
+}
+function wild_forest_here(game) {           // cached for the turn: perception asks once per zombie
+  const p = game.player, key = `${game.clock.turn}:${p.x}:${p.y}:${game.level.id}`;
+  if (!game._forest_cache || game._forest_cache[0] !== key) game._forest_cache = [key, wild_in_forest_at(game.level, [p.x, p.y])];
+  return game._forest_cache[1];
+}
+function wild_forest_note(game) {
+  const inside = wild_forest_here(game), was = !!game.in_forest;
+  game.in_forest = inside;
+  if (inside && !was) game.msg('The canopy closes over you. It is quieter here, and the dead will not see you from far. Wolves hunt in woods like this.', 'info');
 }
 
 function wild_step_away(game, a) {
@@ -35,9 +56,11 @@ function wild_tick(game, a) {
   if (lv.kind !== 'overworld') return;
   const d = cheb(apos(a), apos(p));
   let radius = WILD_SPECIES[a.species][3];
+  if (a.species === 'wolf' && !game.clock.is_day) radius += 3;
   if (p.sneaking) radius = Math.max(2, radius - 3);
   if (!a.alert && d <= radius && has_los(lv, apos(a), apos(p)) && (!p.sneaking || game.rng.random() < 0.4)) {
-    a.alert = true; a.state = (a.species === 'boar' && d <= 3) ? 'charge' : 'flee';
+    a.alert = true; a.state = (a.species === 'wolf' || (a.species === 'boar' && d <= 3)) ? 'charge' : 'flee';
+    if (a.species === 'wolf') for (const m of lv.actors) if (m.kind === 'animal' && m.species === 'wolf' && cheb(apos(m), apos(a)) <= 9) { m.alert = true; m.state = 'charge'; }   // the pack hears it
   }
   if (a.alert && d > radius + 6) { a.alert = false; a.state = 'graze'; }
   if (a.state === 'flee') {
@@ -45,15 +68,16 @@ function wild_tick(game, a) {
     return;
   }
   if (a.state === 'charge') {
+    if (a.species === 'wolf' && d > radius + 8) { a.alert = false; a.state = 'graze'; return; }
     if (d === 1) {
       const [lo, hi] = WILD_SPECIES[a.species][4];
-      if (game.rng.random() < 0.7) {
+      if (game.rng.random() < (a.species === 'wolf' ? 0.65 : 0.7)) {
         const dmg = game.rng.randint(lo, hi);
         game.msg(`The ${a.name.toLowerCase()} gores you for ${dmg}.`, 'combat');
         p.hp -= dmg;
-        if (p.hp <= 0) game.end('dead', 'gored by a boar');
+        if (p.hp <= 0) game.end('dead', a.species === 'wolf' ? 'mauled by wolves' : 'gored by a boar');
       }
-    } else if (d <= 8) {
+    } else if (d <= (a.species === 'wolf' ? 14 : 8) && (a.species !== 'wolf' || t % 4)) {
       const nxt = greedy_step(lv, apos(a), apos(p), game.rng, (n) => wild_grazing(lv.tile(n[0], n[1])) || lv.tile(n[0], n[1]) === T.ROAD);
       if (nxt && lv.free(nxt[0], nxt[1])) lv.move_actor(a, nxt[0], nxt[1]);
     }
@@ -68,13 +92,13 @@ function wild_tick(game, a) {
 function wild_attack(game, a, unaware, acc, dmg) {
   if (!unaware && game.rng.random() * 100 >= acc) {
     game.msg(`You swing at the ${a.name.toLowerCase()} and miss.`, 'combat');
-    a.alert = true; a.state = a.species === 'boar' ? 'charge' : 'flee';
+    a.alert = true; a.state = WILD_FIGHTERS.includes(a.species) ? 'charge' : 'flee';
     return true;
   }
   const hurt = Math.max(1, Math.trunc(dmg * (unaware ? WILD_SNEAK_BLOW : 1.0)));
   a.hp -= hurt;
   if (a.hp <= 0) { wild_kill(game, a); return true; }
-  a.alert = true; a.state = a.species === 'boar' ? 'charge' : 'flee';
+  a.alert = true; a.state = WILD_FIGHTERS.includes(a.species) ? 'charge' : 'flee';
   game.msg(`You hit the ${a.name.toLowerCase()} for ${hurt}.`, 'combat');
   return true;
 }
@@ -111,13 +135,14 @@ function wild_forage(game) {
   }
   game.emit_noise(apos(p), 2, 'player');
   patches.push([p.x, p.y, t]);
-  let chance = lv.tile(p.x, p.y) === T.BRUSH ? 0.8 : 0.5;
+  const deep = wild_forest_here(game);
+  let chance = (lv.tile(p.x, p.y) === T.BRUSH ? 0.8 : 0.5) + (deep ? 0.2 : 0);
   if (game.weather === 'rain' || game.weather === 'fog') chance += 0.1;
   if (!game.clock.is_day) chance -= 0.25;
   if (game.rng.random() < chance) {
     const n = game.rng.randint(1, 3);
-    game.give_item(make_item('forage', n));
-    game.msg(`You gather wild greens and berries (${n}).`, 'good');
+    if (deep && game.rng.random() < 0.25) { game.give_item(make_item('herbs', n)); game.msg(`You find wild herbs growing in the shade (${n}).`, 'good'); }
+    else { game.give_item(make_item('forage', n)); game.msg(`You gather wild greens and berries (${n}).`, 'good'); }
   } else game.msg('You find nothing worth eating here.', 'info');
   return true;
 }

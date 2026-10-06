@@ -42,6 +42,8 @@ def sight_range(game, z: Zombie) -> float:
         r *= 0.5
     if game.level.tile(*p.pos) == T.BRUSH:
         r *= game.era.rules.cover
+    if wild.forest_here(game):
+        r *= wild.FOREST_SIGHT                                       # deep woods hide you from the dead
     r *= ambience.sight_scale(game) * ambience.exposure_of_ground(game)      # weather, and an open road or splashing water
     if p.disguise_turns > 0 and prof.intel < 2 and (z.uid * 37) % 100 < prof.disguise * 100:
         r = min(r, 1.5)

@@ -10,7 +10,7 @@ from outbreak.content.eras import EraPack
 from outbreak.content.zombies import ZombieProfile
 from outbreak.engine import loot
 from outbreak.engine import tiles as T
-from outbreak.engine.model import POI, Container, Hazard, Level, Portal
+from outbreak.engine.model import POI, Container, Hazard, Item, Level, Portal
 from outbreak.engine.worldgen import UNSET
 from outbreak.util import DIRS4, Pos, cheb
 
@@ -342,9 +342,105 @@ def generate_haven(rng: random.Random, poi: POI, ctx: GenContext) -> Level:
     return level
 
 
+# ------------------------------------------------------------------ caves
+CAVE_SIZE = (44, 30)
+
+
+def _cave_floor(rng: random.Random, w: int, h: int) -> set:
+    """Cellular automaton: random rock, smoothed into winding chambers; the largest connected part is the cave."""
+    for _try in range(12):
+        floor = {(x, y) for y in range(2, h - 2) for x in range(2, w - 2) if rng.random() < 0.47}
+        for _ in range(4):
+            nxt = set()
+            for y in range(2, h - 2):
+                for x in range(2, w - 2):
+                    n = sum(1 for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dx or dy) and (x + dx, y + dy) in floor)
+                    if n >= 4:
+                        nxt.add((x, y))
+            floor = nxt
+        best: set = set()
+        seen: set = set()
+        for start in floor:
+            if start in seen:
+                continue
+            comp, queue = {start}, [start]
+            seen.add(start)
+            while queue:
+                cx, cy = queue.pop()
+                for dx, dy in DIRS4:
+                    q = (cx + dx, cy + dy)
+                    if q in floor and q not in seen:
+                        seen.add(q)
+                        comp.add(q)
+                        queue.append(q)
+            if len(comp) > len(best):
+                best = comp
+        if len(best) >= 330:
+            return best
+    return {(x, y) for y in range(8, h - 8) for x in range(8, w - 8)}          # a plain chamber if the dice never gave a cave
+
+
+def generate_cave(rng: random.Random, poi: POI, ctx: GenContext) -> Level:
+    """A dark system of chambers: unlit you see three tiles.  Dormant dead in nests, rich crates, mushrooms, and
+    spore beds when the plague is a spore.  The way out is where you came in."""
+    w, h = CAVE_SIZE
+    level = Level(poi.level_id, poi.name, w, h, "interior")
+    floor = _cave_floor(rng, w, h)
+    for x, y in floor:
+        level.set_tile(x, y, T.FLOOR)
+    # the mouth: the floor tile lowest on the map, with the doorway in the wall beneath it
+    ex, ey = max(floor, key=lambda t: (t[1], -abs(t[0] - w // 2)))
+    door = (ex, ey + 1)
+    level.set_tile(door[0], door[1], T.PORTAL)
+    level.portals[door] = Portal("world", poi.pos, "outside")
+    level.entry = (ex, ey)
+    level.arrivals["entry"] = level.entry
+    far = [t for t in floor if cheb(t, level.entry) >= 9]
+    rng.shuffle(far)
+    # dormant dead sleep in nests of two to four, so waking one is a decision
+    nests = max(2, int(round(3 * poi.danger * ctx.zombie_mult * ctx.profile.density)))
+    for _ in range(nests):
+        if not far:
+            break
+        cx, cy = far.pop()
+        for _m in range(rng.randint(2, 4)):
+            spot = level.free_spot_near(cx, cy, 2)
+            if spot and spot in floor:
+                ctx.spawn(level, spot, None, True)
+    # crates sit in dead ends and far chambers
+    crates = 0
+    for pos in sorted(far, key=lambda t: -cheb(t, level.entry))[:40]:
+        if crates >= 4:
+            break
+        walls = sum(1 for dx, dy in DIRS4 if (pos[0] + dx, pos[1] + dy) not in floor)
+        if walls >= 2 and level.free(*pos) and all(cheb(pos, c) >= 6 for c in level.containers):
+            level.set_tile(pos[0], pos[1], T.CRATE)
+            level.containers[pos] = Container(loot=loot.roll_items(rng, ctx.era, "cave", rng.uniform(2.0, 3.4), ctx.loot_mult),
+                                              coins=loot.roll_coins(rng, ctx.loot_mult))
+            crates += 1
+    for pos in rng.sample(sorted(floor), min(len(floor), 7)):                      # pale mushrooms on the damp floor
+        if pos != level.entry and pos not in level.containers:
+            level.drop(pos, Item("mushroom", rng.randint(1, 2)))
+    if ctx.profile.vector == "spore":                                               # spore beds: the dark suits them
+        for _ in range(3):
+            cx, cy = rng.choice(sorted(floor))
+            if cheb((cx, cy), level.entry) < 8:
+                continue
+            for dy in range(-1, 2):
+                for dx in range(-2, 3):
+                    if (cx + dx, cy + dy) in floor and rng.random() < 0.7:
+                        level.hazards[(cx + dx, cy + dy)] = Hazard("spore", 10 ** 9)
+    occ = level.occ.get(level.entry)
+    if occ is not None:
+        level.remove_actor(occ)
+    return level
+
+
 def generate(poi: POI, floor: int, seed: int, ctx: GenContext, docs: List[str]) -> Level:
     """Entry point: deterministic per (seed, building, floor)."""
     rng = random.Random(f"{seed}:{poi.id}:{floor}")
+    if poi.kind == "cave":
+        return generate_cave(rng, poi, ctx)
     if poi.kind in ("refuge", "pad"):
         return generate_haven(rng, poi, ctx)
     if poi.kind == "house":

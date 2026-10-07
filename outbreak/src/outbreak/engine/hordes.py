@@ -172,7 +172,8 @@ def wanderers(game) -> None:
     prof = game.profile
     if prof.sun_burn and game.clock.is_day:
         return
-    chance = 0.22 * prof.phase(game.clock.day).spawn * game.diff.zombies * prof.density * game.pressure
+    from outbreak.engine import director
+    chance = 0.22 * prof.phase(game.clock.day).spawn * game.diff.zombies * prof.density * game.pressure * director.scale(game)
     if game.clock.is_night:
         chance *= 1.5
     chance += game.heat / 400.0

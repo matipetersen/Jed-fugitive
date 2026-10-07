@@ -12,11 +12,11 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, companion, military, objective, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, companion, director, pets, military, objective, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
-from outbreak.engine.model import POI, Human, Item, Level, Zombie
+from outbreak.engine.model import POI, Animal, Human, Item, Level, Zombie
 from outbreak.engine.pathing import distance_field
 from outbreak.engine.spawn import make_raider, spawn_zombie
 from outbreak.engine.worldgen import UNSET
@@ -25,7 +25,7 @@ from outbreak.util import DIRS8, Pos, cheb
 WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.4, 3.0, 20
 LOG_LIMIT = 600
 CHRONICLE_TAGS = ("good", "lore")
-STORY_TAGS = ("obj", "ally", "lore")          # what the default log shows: where you are going and who is with you
+STORY_TAGS = ("obj", "ally", "lore", "dir")          # what the default log shows: where you are going and who is with you
 CHRONICLE_LIMIT, CHRONICLE_KEEP = 160, 25   # when full, drop the entry at index KEEP (head and tail survive)
 SCENT_KEEP = 60
 FORCE_TURNS = 6
@@ -67,6 +67,7 @@ class Game:
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
         self.last_step_note = -999
+        self.pet_uid = 0                         # the animal that travels with you (engine/pets.py)
         self.companion_uid = 0                   # the one person who travels with you (engine/companion.py)
         self.fallen_allies: List[Tuple[str, str]] = []
         self.story: List[Tuple[int, str, str]] = []          # the log that matters: objectives, companions, key events
@@ -326,6 +327,8 @@ class Game:
         military.tick(self)
         companion.tick(self)
         objective.watch(self)
+        director.tick(self)
+        pets.tick(self)
         if self.incidents and t % 5 == 0:
             self._check_incidents()
         if self.final:
@@ -610,7 +613,7 @@ class Game:
     def _maybe_event(self) -> None:
         if self.pending_event or self.final or self.level is not self.world.level:
             return
-        if (self.ring and self.ring.active) or self.clock.turn < 160 or self.rng.random() > 0.3:
+        if (self.ring and self.ring.active) or self.clock.turn < 160 or self.rng.random() > 0.3 * director.scale(self):
             return
         if any(cheb(a.pos, self.player.pos) < 11 for a in self.level.actors if isinstance(a, Zombie)):
             return
@@ -736,6 +739,7 @@ class Game:
             dest = target.free_spot_near(dest[0], dest[1], 4) or dest
         if portal.target != "world":
             companion.on_enter(self, target)
+            pets.on_enter(self, target)
         if self.stalker and self.stalker.hp > 0 and self.stalker in old.actors \
                 and cheb(self.stalker.pos, p.pos) <= 10 and self.stalker.state == "hunt":
             old.remove_actor(self.stalker)
@@ -759,6 +763,7 @@ class Game:
         self.msg(f"You enter {target.name}." if portal.target != "world" else "You step back outside.", "info")
         if portal.target == "world":
             companion.on_return(self)
+            pets.on_return(self)
         self._spend(1)
         return True
 
@@ -848,6 +853,19 @@ class Game:
         return bool(turns)
 
     def _bump_actor(self, target) -> bool:
+        if isinstance(target, Animal) and (target.pet or target.stray):
+            if target.pet:                                    # a pet in the way: you swap places
+                p, lv = self.player, self.level
+                a_pos, b_pos = p.pos, target.pos
+                del lv.occ[a_pos]
+                del lv.occ[b_pos]
+                p.x, p.y = b_pos
+                target.x, target.y = a_pos
+                lv.occ[p.pos], lv.occ[target.pos] = p, target
+                self._spend(1)
+                return True
+            self.msg(f"The {target.species} watches you. Press 'e' to offer it food.", "info")
+            return False
         if isinstance(target, Human) and not target.hostile:
             self.msg(f"{target.name} is here. Press 'e' to talk.", "info")
             return False
@@ -1152,6 +1170,14 @@ class Game:
             self.msg("Deciphered: you now hold the formula.", "good")
 
     # ----------------------------------------------------------------- havens
+    def adjacent_pet(self) -> Optional[Animal]:
+        p = self.player
+        for dx, dy in DIRS8:
+            a = self.level.occ.get((p.x + dx, p.y + dy))
+            if isinstance(a, Animal) and (a.pet or a.stray):
+                return a
+        return None
+
     def adjacent_npc(self) -> Optional[Human]:
         p = self.player
         for dx, dy in DIRS8:
@@ -1168,9 +1194,11 @@ class Game:
         return None
 
     def interact(self) -> str:
-        """Context action. Returns 'npc' or 'bed' when the UI must open a menu, else ''."""
+        """Context action. Returns 'npc', 'pet' or 'bed' when the UI must open a menu, else ''."""
         if self.adjacent_npc():
             return "npc"
+        if self.adjacent_pet():
+            return "pet"
         if self.adjacent_tile(T.BED):
             return "bed"
         if self.adjacent_tile(T.LOCKER):

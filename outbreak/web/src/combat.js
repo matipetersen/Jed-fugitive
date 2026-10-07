@@ -345,7 +345,7 @@ function _seen(game, ...actors) { return actors.some((a) => game.is_visible(a.x,
 
 // One actor (zombie or human) strikes another that is not the player.
 // how the log names someone: a companion by name, anyone else as 'the zombie'
-const ref = (a) => (a.trait ? a.name : `the ${a.name.toLowerCase()}`);
+const ref = (a) => (a.trait || a.pet ? a.name : `the ${a.name.toLowerCase()}`);
 const Ref = (a) => { const r = ref(a); return r[0].toUpperCase() + r.slice(1); };
 
 function attack_actor(game, attacker, defender, ranged = false) {
@@ -360,12 +360,18 @@ function attack_actor(game, attacker, defender, ranged = false) {
   if (defender.kind === 'zombie') {
     const head = game.rng.random() < (ranged ? 0.25 : 0.2);
     defender.hp -= zombie_damage(game, defender, raw, head);
-    if (defender.hp <= 0) { kill_zombie(game, defender, head, false, attacker); if (attacker.kind === 'human' && attacker.trait) comp_on_ally_kill(game, attacker, defender); return; }
+    if (defender.hp <= 0) { kill_zombie(game, defender, head, false, attacker); if (attacker.kind === 'human' && attacker.trait) comp_on_ally_kill(game, attacker, defender); else if (attacker.kind === 'animal' && attacker.pet) pets_on_kill(game, attacker, defender); return; }
     defender.state = 'hunt'; defender.target = apos(attacker); defender.stimulus_turn = game.clock.turn;
     if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} hits ${victim}.`, 'combat');
     return;
   }
   defender.hp -= raw;
+  if (defender.kind === 'animal') {                                       // a pet the dead have caught
+    if (defender.hp <= 0) { pets_on_death(game, defender, attacker); return; }
+    if (defender.pet) pets_on_hurt(game, defender);
+    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} bites ${victim}.`, 'combat');
+    return;
+  }
   if (defender.hp <= 0) { kill_human_other(game, defender, attacker); return; }
   if (defender.kind === 'human') {
     if (defender.state !== 'follow' && defender.state !== 'wait') { defender.state = 'hunt'; defender.target = apos(attacker); }

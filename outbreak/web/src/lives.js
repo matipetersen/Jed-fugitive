@@ -79,7 +79,7 @@ function player_died(game, kind, cause) {
   game.ring = null; game.final = null; game.pending_event = null; game.followers = [];
   game.heat = Math.min(game.heat, 30.0);
   for (const a of world.actors) if (a.kind === 'human' && (a.state === 'follow' || a.state === 'wait')) a.state = 'patrol';
-  game.companion_uid = 0;
+  game.companion_uid = 0; game.pet_uid = 0;
   const new_label = label_of(game, game.generation, new_origin);
   const why = cause || (kind === 'turned' ? 'The fever won.' : '');
   game.death_notice = `${label} (level ${p.level}, day ${game_day(game)}) is gone: ${why}.${killer_line}\n\n` +

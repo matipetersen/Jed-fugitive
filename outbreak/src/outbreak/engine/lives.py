@@ -131,6 +131,7 @@ def player_died(game, kind: str, cause: str) -> None:
     game.pending_event = None
     game.followers = []
     game.companion_uid = 0
+    game.pet_uid = 0
     game.heat = min(game.heat, 30.0)
     game._field_key = (-1, None)
     for a in world.actors:

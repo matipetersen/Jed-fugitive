@@ -100,6 +100,17 @@ class Animal(Actor):
     species: str = "rabbit"
     state: str = "graze"             # graze | flee | charge
     alert: bool = False              # has noticed you (a creeping hunter can still stab it unaware)
+    # a stray that might take to you, or a pet that has (engine/pets.py)
+    stray: bool = False
+    pet: bool = False
+    bond: int = 0
+    fed: int = 0                     # the turn it last ate
+    dmg: Tuple[int, int] = (0, 0)
+    acc: int = 50
+    kills: int = 0
+    nextfx: int = 0
+    lasttalk: int = -999
+    since: int = 0
 
 
 @dataclass(eq=False)

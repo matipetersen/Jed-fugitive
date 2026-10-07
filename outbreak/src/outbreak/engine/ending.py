@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
-from outbreak.engine import cipher, companion
+from outbreak.engine import cipher, companion, pets
 
 
 @dataclass
@@ -75,6 +75,9 @@ def build(game, kind: str, cause: str = "") -> Ending:
         f"Level {p.level}   Humanity {p.humanity}   Fluency {int(game.know.fluency * 100)}%",
         f"Documents read: {len(p.documents)}   Words known: {len(game.know.known)}/{len(game.know.vocab)}",
     ]
+    pet = pets.current(game)
+    if pet is not None:
+        summary.append(f"Travelling with {pet.name} the {pet.species}, {pet.kills} kills together")
     ally = companion.current(game)
     if ally is not None:
         summary.append(f"Travelling with {ally.name} ({companion.bond_word(ally)}), {ally.kills} kills together")

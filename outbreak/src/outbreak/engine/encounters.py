@@ -61,6 +61,12 @@ EVENTS: Tuple[EventDef, ...] = (
                     horde=False, items={"bandage": -1}), items={"bandage": 1}),
               _c("End it quickly", _o("A mercy. Your hands shake for a long time.", humanity=0, panic=10, xp=4)),
               _c("Walk away", _o("Their pleading follows you down the street.", humanity=-6, panic=6)))),
+    EventDef("stray", "A stray",
+             "A thin stray stands at the edge of the road, ribs showing, watching your pack the way only the hungry watch.",
+             (_c("Share some food", _o("It takes it from your hand, hesitates, and falls in behind you.", 0.7, items={"food": -1},
+                                       pet=1.0, humanity=3, xp=4),
+                 _o("It snatches the food and is gone.", 0.3, items={"food": -1}, humanity=1), items={"food": 1}),
+              _c("Leave it be", _o("It watches you go.")))),
     EventDef("toll", "A roadblock",
              "Three {raiders} stand across the road. 'Toll's five {coin}. Or you can leave it all behind.'",
              (_c("Pay the toll", _o("They wave you through, laughing.", humanity=0, coins=-5, rep={"raiders": 3}),
@@ -221,6 +227,8 @@ def pick(game) -> Optional[EventDef]:
         if game.clock.day < ev.min_day or game.recent_events.get(ev.id, -999) > game.clock.turn - 600:
             continue
         w = ev.weight * game.profile.human_threat if ev.id in ("toll", "prisoner", "bait") else ev.weight
+        from outbreak.engine import director
+        w *= director.event_bias(game, ev.id)
         if ev.id == "radio" and not game.era.electricity and game.era.tech > 0:
             continue
         pairs.append((ev, w))
@@ -278,6 +286,9 @@ def apply_fx(game, fx: Dict[str, object]) -> None:
         game.spawn_horde_near_player()
     if fx.get("raiders"):
         game.spawn_raiders_near_player(int(fx["raiders"]))
+    if fx.get("pet"):
+        from outbreak.engine import pets
+        pets.offer_pet(game, float(fx["pet"]))
     if fx.get("recruit"):
         from outbreak.engine import companion
         companion.offer_stranger(game, float(fx["recruit"]))

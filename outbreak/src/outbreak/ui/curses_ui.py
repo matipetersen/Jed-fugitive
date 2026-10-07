@@ -8,7 +8,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 from outbreak.content import BRANCHES, PERKS, RECIPES
 from outbreak.content.perks import BRANCH_NAMES
-from outbreak.engine import cipher, combat, companion, encounters, inventory_ops, services
+from outbreak.engine import cipher, combat, companion, encounters, pets, inventory_ops, services
 from outbreak import records
 from outbreak.engine import base, save as savemod
 from outbreak.engine.game import Game
@@ -361,11 +361,43 @@ class UI:
         what = g.interact()
         if what == "npc":
             self.npc_screen(g.adjacent_npc())
+        elif what == "pet":
+            self.pet_screen(g.adjacent_pet())
         elif what == "locker":
             self.locker_screen()
         elif what == "bed":
             self.draw(status="Sleeping...")
             g.sleep()
+
+    def pet_screen(self, a) -> None:
+        g = self.g
+        if a.stray:
+            r = self.pick(f"A stray {a.species}", [("Offer it food", "white"), ("Never mind", "grey")])
+            if r == 0:
+                self.message(pets.befriend(g, a))
+            return
+        while True:
+            r = self.pick(f"{a.name}   {pets.describe(a)}   ({pets.hunger_of(g, a)}, hp {a.hp}/{a.max_hp})",
+                          [("Pet it", "white"), ("Feed it", "white"),
+                           ("Ask it to follow you again" if a.state == "wait" else "Ask it to wait here", "white"),
+                           ("Send it away", "white"), ("Never mind", "grey")])
+            if r == 0:
+                self.message(pets.pet_it(g, a))
+            elif r == 1:
+                idxs = [n for n, i in enumerate(g.player.inventory) if g.item_def(i.id).kind == "food"]
+                if not idxs:
+                    self.message("You have nothing to feed it.")
+                    continue
+                k = self.pick("Feed", [(f"{g.item_def(g.player.inventory[n].id).name} x{g.player.inventory[n].qty}", "white") for n in idxs])
+                if k is not None:
+                    self.message(pets.feed(g, a, idxs[k]))
+            elif r == 2:
+                self.message(pets.toggle_wait(g, a))
+            elif r == 3:
+                self.message(pets.dismiss(g, a))
+                return
+            else:
+                return
 
     def companion_screen(self, c: Human) -> None:
         g = self.g

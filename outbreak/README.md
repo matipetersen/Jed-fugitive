@@ -74,6 +74,34 @@ armed people who have heard about you if you did not.
 * *Everywhere.* Ambushes are not only for camps: raider road events and the Dash finale spring the same hidden squad
   (half in cover, three hidden snares round you), and lone tripwires are scattered along the far roads.
 
+**The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
+much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
+picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/
+Allies/Enemies, Approach to the Inmost Cave, the Ordeal, the Reward, the Road Back, the Resurrection, the Return), each with a
+target intensity, a length of quiet, and a one-time beat: the call reveals a lead, the mentor another, the threshold sends a first
+real test, the tests bring a stray animal to follow you, the approach shows you where the final site is, the **ordeal** sends one
+large thing (the strongest special the strain has, 30% tougher, with company) after a warning, the reward hands you supplies, the
+road back sends a pursuing horde. *Tension* (enemies in view, damage taken, panic, noise, decaying) says how hard it is pressing
+now. It runs **build, peak, release**: after a quiet stretch with tension low it schedules a horde, an ambush or a hunting special,
+**announces it ten turns before it lands** (a cue in the log, then a compass direction), then eases for a stretch. When you are in
+trouble (under 35% health, or bleeding with nothing to bandage with) it releases instead of piling on. It also scales the world's
+own wanderers and random events by phase and tilts which events you get: relief (a stranger, a cache, a stray) in the release,
+trouble (a toll, bait) at the peak. The first four acts are always gentle. Each new act is announced in the log (`ACT 5: ...`), and
+your companion remarks on it. The sidebar shows `Act 5/12 ... [###..] build`.
+
+**Pets.** Strays live in the world: dogs and cats near buildings, crows and foxes out in the open (one or two of each on a small map,
+roughly one in three chunks on the big one). They are curious, not tame: a dog or cat will come to within three tiles and wait; a
+crow or fox keeps its distance. **Stand next to one and offer it food** (terminal `e`, web tap it): a dog accepts 85% of the time, a
+cat 50%, a crow 45%, a fox 40%, plus 15% if you are creeping and 10% if you are decent. A failed try loses the food and sends it
+off. Some road events (`A stray`) and the Director's "tests" act can also send one. **One pet at a time, alongside your human
+companion**; it waits outside buildings and caves, and you swap places with it in a corridor.
+* *Dog* (16 hp): fights beside you, growls at ambushers and at dead you cannot yet see; barks at the wrong time.
+* *Cat* (8 hp): calms your panic; sometimes finds scraps when you leave a building; runs from fights; wanders off if ignored.
+* *Crow* (5 hp): marks a building on your map every 300 turns; sometimes brings coins; caws, and the dead listen.
+* *Fox* (10 hp): brings you a rabbit now and then; bolts from fights.
+* They need feeding: hungry after 500 turns, starving after 900, when the bond starts to fray; at 0 it leaves. Petting and feeding
+  raise the bond. The dead go for a pet like anyone else; **a dead pet stays dead**, and the log says so.
+
 **A companion, and a log that follows the story.**
 * *You start with one person at your side*, drawn at random from a pool of eight (veteran, medic, scavenger, hunter, mechanic,
   preacher, brute, gambler), each with a personal name, **one strength and one flaw**:

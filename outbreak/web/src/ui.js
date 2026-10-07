@@ -232,7 +232,7 @@ function drawActor(a, px, py, ts) {
   let fill, ink = '#fff', ring = null;
   if (a.kind === 'player') { fill = '#efe8d2'; ink = '#0d1214'; ring = '#d99a2b'; }
   else if (a.kind === 'zombie') { fill = ZCOL[a.special] || '#b94a3c'; if (a.flags.includes('boss')) ring = '#fff'; if (a.state === 'dormant') c.globalAlpha = 0.7; }
-  else if (a.kind === 'animal') { fill = a.species === 'wolf' ? '#8a8f9a' : a.state === 'charge' ? '#c47a3a' : '#7aa35a'; ink = '#0d1214'; }
+  else if (a.kind === 'animal') { fill = a.pet ? '#c79bf2' : a.stray ? '#68c0c8' : a.species === 'wolf' ? '#8a8f9a' : a.state === 'charge' ? '#c47a3a' : '#7aa35a'; ink = '#0d1214'; }
   else { fill = a.hostile ? '#c9992a' : '#55b3c4'; ink = '#0d1214'; }
   c.fillStyle = fill; c.beginPath(); c.arc(cx, cy, ts * .42, 0, 7); c.fill();
   if (ring) { c.strokeStyle = ring; c.lineWidth = 2; c.stroke(); }
@@ -432,6 +432,7 @@ function updateHud() {
   setBar('#b-noi', g.heat, 100, g.heat > 60 ? '#e2573f' : g.heat > 30 ? '#d99a2b' : '#6b7a74');
   const chips = $('#chips'); chips.innerHTML = '';
   const add = (t, cls) => chips.append(el('span', 'chip ' + (cls || ''), t));
+  { const pt = pets_current(g); if (pt) { const ch = el('button', 'chip ally', `${pt.name} ${pt.hp}/${pt.max_hp}${pets_hunger(g, pt) !== 'fed' ? ' · ' + pets_hunger(g, pt) : ''}`); ch.type = 'button'; ch.addEventListener('click', () => { if (!modal && game && !game.over) openPet(pt); }); chips.append(ch); } }
   { const ally = comp_current(g); if (ally) { const ch = el('button', 'chip ally', `${ally.name} ${ally.hp}/${ally.max_hp}${ally.state === 'wait' ? ' · waiting' : ''}`); ch.type = 'button'; ch.addEventListener('click', () => { if (!modal && game && !game.over) openCompanion(ally); }); chips.append(ch); } else if (g.fallen_allies.length) add(`Alone · lost ${g.fallen_allies[g.fallen_allies.length - 1][0]}`, 'info'); }
   if (p.infected) add(`INFECTED ${p.infection_timer >= 20 ? Math.round(p.infection_timer / 10) + 'h' : p.infection_timer + ' turns'}`, 'danger');
   if (p.bleeding) add('Bleeding', 'danger');
@@ -454,7 +455,7 @@ function updateHud() {
   if (g.final) add(`HOLD OUT ${g.final.turns_left}`, 'danger');
   if (g.ring && g.ring.active) add('Tide closing', 'warn');
   const objs = g.objectives(), next = objs.find((o) => !o[1]) || objs[objs.length - 1];
-  $('#goal').innerHTML = ''; $('#goal').append(el('b', null, 'Goal '), next ? next[0] : '');
+  $('#goal').innerHTML = ''; $('#goal').append(el('b', null, 'Goal '), next ? next[0] : '', el('span', 'dim', g.director ? ` · Act ${g.director.stage + 1} ${DIR_STAGES[g.director.stage].title}` : ''));
   layoutOverlays();
 }
 
@@ -527,6 +528,8 @@ function contextAction() {
   if (lv.items[k] || lv.docs[k]) return { label: 'Pick up', sub: lv.docs[k] ? 'document' : 'items here', run: () => g.pickup() };
   const npc = g.adjacent_npc();
   if (npc) return { label: 'Talk', sub: npc.name, run: () => openNpc(npc) };
+  const pet = g.adjacent_pet();
+  if (pet) return { label: pet.pet ? 'Pet' : 'Offer food', sub: pet.stray ? `a stray ${pet.species}` : pet.name, run: () => openPet(pet) };
   if (g.adjacent_tile(T.BED)) return { label: 'Sleep', sub: 'until morning', run: () => confirmSleep() };
   if (g.adjacent_tile(T.LOCKER)) return { label: 'Locker', sub: 'store and take', run: () => openLocker() };
   if (g.adjacent_tile(T.WORKSHOP)) return { label: 'Craft', sub: 'at your workshop', run: () => openCraft() };
@@ -617,6 +620,10 @@ function onTap(sx, sy) {
   if (a && g.is_visible(tx, ty) && a.kind !== 'player') {
     if (a.kind === 'human' && !a.hostile) {
       if (d <= 1) doAction(() => openNpc(a)); else toast('Walk next to them to talk');
+      return;
+    }
+    if (a.kind === 'animal' && (a.pet || a.stray)) {
+      if (d <= 1) doAction(() => openPet(a)); else toast(a.stray ? 'Walk next to it to offer food' : 'Walk next to it');
       return;
     }
     const w = weapon_def(g);
@@ -1077,6 +1084,29 @@ function openSettings(msg) {
 }
 
 // ---------------------------------------------------------------- people, rest and events
+function openPet(a, line = '') {
+  const g = game;
+  if (a.stray) {
+    openSheet(`A stray ${a.species}`, (b) => {
+      b.append(el('p', 'event-text', line || `It keeps a careful distance, and watches your pack.`));
+      b.append(btn('btn main', 'Offer it food', () => { const l = pets_befriend(g, a); refresh(); if (a.pet) { closeSheet(); toast(l); } else openPet(a, l); }));
+    });
+    return;
+  }
+  openSheet(a.name, (b) => {
+    b.append(el('p', 'event-text', `${a.name}, a ${a.species}. ${pets_hunger(g, a)}. HP ${a.hp}/${a.max_hp}.`));
+    b.append(el('p', 'note', `Good at it: ${PETS_BY_SPECIES[a.species].strength}. Trouble: ${PETS_BY_SPECIES[a.species].flaw}.`));
+    if (line) b.append(el('p', 'note say t-ally', line));
+    const acts = el('div', 'actionrow');
+    acts.append(btn('btn main', 'Pet it', () => { const l = pets_pet_it(g, a); refresh(); openPet(a, l); }));
+    acts.append(btn('btn', a.state === 'wait' ? 'Follow me' : 'Wait here', () => { const l = pets_toggle_wait(g, a); refresh(); openPet(a, l); }));
+    b.append(acts);
+    const food = g.player.inventory.map((it, i) => [it, i]).filter(([it]) => g.item_def(it.id).kind === 'food');
+    if (food.length) { b.append(el('h3', 'sec', 'Feed')); const row = el('div', 'actionrow'); for (const [it, i] of food) row.append(btn('btn', `${g.item_def(it.id).name} x${it.qty}`, () => { const l = pets_feed(g, a, i); refresh(); openPet(a, l); })); b.append(row); }
+    b.append(btn('btn danger', 'Send it away', () => { const l = pets_dismiss(g, a); refresh(); closeSheet(); toast(l); }));
+  });
+}
+
 function openCompanion(c, line = '') {
   const g = game, a = comp_arch(c);
   openSheet(c.name, (b) => {

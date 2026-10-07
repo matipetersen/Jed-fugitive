@@ -21,7 +21,7 @@ function pick_event(game) {
   for (const ev of EVENTS) {
     if (ev.id.startsWith('road_') || ev.id.startsWith('mil_')) continue;                       // scripted, not random
     if (game_day(game) < ev.min_day || (game.recent_events[ev.id] !== undefined ? game.recent_events[ev.id] : -999) > game.clock.turn - 600) continue;
-    const w = ['toll', 'prisoner', 'bait'].includes(ev.id) ? ev.weight * game.profile.human_threat : ev.weight;
+    const w = (['toll', 'prisoner', 'bait'].includes(ev.id) ? ev.weight * game.profile.human_threat : ev.weight) * dir_event_bias(game, ev.id);
     if (ev.id === 'radio' && !game.era.electricity && game.era.tech > 0) continue;
     pairs.push([ev, w]);
   }
@@ -64,6 +64,7 @@ function apply_fx(game, fx) {
   for (const [role, delta] of Object.entries(fx.rep || {})) game.rep[role] = Math.max(-100, Math.min(100, (game.rep[role] || 0) + Math.trunc(delta)));
   if (fx.horde) game.spawn_horde_near_player();
   if (fx.raiders) game.spawn_raiders_near_player(Math.trunc(fx.raiders));
+  if (fx.pet) pets_offer(game, Number(fx.pet));
   if (fx.recruit) comp_offer_stranger(game, Number(fx.recruit));
   if (fx.reveal) game.reveal_random_lead();
 }

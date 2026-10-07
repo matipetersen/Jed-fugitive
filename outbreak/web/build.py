@@ -13,11 +13,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
 from outbreak import content  # noqa: E402
+from outbreak.content import companions, director, pets  # noqa: E402,F401  (exported below)
 from outbreak.engine import encounters, ending  # noqa: E402
 from outbreak.config import DIFFICULTIES  # noqa: E402
 from outbreak.engine.clock import START_HOUR, TURNS_PER_DAY, TURNS_PER_HOUR  # noqa: E402
 
-JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "companion", "objective", "shared",
+JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "companion", "objective", "director", "pets", "shared",
             "hordes", "encounters", "services", "ending", "records", "inventory_ops", "setup", "game", "save"]
 UI_ORDER = ["ui"]
 
@@ -60,6 +61,9 @@ def dump_content() -> str:
         "companions": {"archetypes": plain(list(content.companions.ARCHETYPES)), "strengths": content.companions.STRENGTHS,
                        "flaws": content.companions.FLAWS, "role_archetype": content.companions.ROLE_ARCHETYPE,
                        "names": list(content.companions.NAMES), "situation": {k: list(v) for k, v in content.companions.SITUATION_LINES.items()}},
+        "director": {"stages": plain(list(content.director.STAGES)), "act_lines": {k: list(v) for k, v in content.director.ACT_LINES.items()},
+                     "relief_events": list(content.director.RELIEF_EVENTS), "threat_events": list(content.director.THREAT_EVENTS)},
+        "pets": {"species": plain(list(content.pets.PETS)), "names": list(content.pets.PET_NAMES)},
         "clock": {"turns_per_day": TURNS_PER_DAY, "turns_per_hour": TURNS_PER_HOUR, "start_hour": START_HOUR},
     }
     return "const CONTENT = " + json.dumps(data, separators=(",", ":"), ensure_ascii=False) + ";\n"

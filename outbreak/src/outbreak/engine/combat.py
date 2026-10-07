@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
-from outbreak.engine import companion, lives, raiders, wild
+from outbreak.engine import companion, lives, pets, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Animal, Hazard, Human, Item, Zombie
@@ -496,7 +496,7 @@ def _seen(game, *actors) -> bool:
 
 def ref(a: Actor) -> str:
     """How the log names someone: a companion by name, anyone else as 'the zombie'."""
-    return a.name if getattr(a, "trait", "") else f"the {a.name.lower()}"
+    return a.name if (getattr(a, "trait", "") or getattr(a, "pet", False)) else f"the {a.name.lower()}"
 
 
 def Ref(a: Actor) -> str:
@@ -523,12 +523,23 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
             kill_zombie(game, defender, head=head, by_player=False, killer=attacker)
             if isinstance(attacker, Human) and attacker.trait:
                 companion.on_ally_kill(game, attacker, defender)
+            elif isinstance(attacker, Animal) and attacker.pet:
+                pets.on_kill(game, attacker, defender)
             return
         defender.state, defender.target, defender.stimulus_turn = "hunt", attacker.pos, game.clock.turn
         if _seen(game, attacker, defender):
             game.msg(f"{Ref(attacker)} hits {victim}.", "combat")
         return
     defender.hp -= raw
+    if isinstance(defender, Animal):                                         # a pet the dead have caught
+        if defender.hp <= 0:
+            pets.on_death(game, defender, attacker)
+            return
+        if defender.pet:
+            pets.on_hurt(game, defender)
+        if _seen(game, attacker, defender):
+            game.msg(f"{Ref(attacker)} bites {victim}.", "combat")
+        return
     if defender.hp <= 0:
         kill_human_other(game, defender, attacker)
         return

@@ -109,6 +109,17 @@ function _populate_chunk(game, cx, cy) {
         break;
       }
     }
+    // strays: dogs and cats by the buildings, crows and foxes out on the open ground (own rng)
+    const sr = chunk_rng(world.seed, cx, cy, 43);
+    if (sr.random() < 0.4) {
+      const species = sr.choice(['dog', 'cat', 'crow', 'fox']), anchors = entry.pois.filter((q) => q.kind !== 'house' && q.kind !== 'cave');
+      for (let tries = 0; tries < 20; tries++) {
+        let sx, sy;
+        if ((species === 'dog' || species === 'cat') && anchors.length) { const q = sr.choice(anchors); sx = q.x + sr.randint(-3, 3); sy = q.y + 2 + sr.randint(0, 3); }
+        else { sx = sr.randint(Math.max(x0 + 2, 4), Math.min(x1 - 3, lv.w - 5)); sy = sr.randint(Math.max(y0 + 2, 4), Math.min(y1 - 3, lv.h - 5)); }
+        if (lv.in_bounds(sx, sy) && cheb([sx, sy], start) >= 10 && pets_ok_tile(lv.tile(sx, sy)) && !lv.occ.has(lv.idx(sx, sy))) { const an = pets_make_stray(game, species, sx, sy); lv.add_actor(an); keep(an); break; }
+      }
+    }
     // a patrol group now and then, standing on the chunk's highway
     if (rng.random() < 0.5 && cheb([x0 + S / 2, y0 + S / 2], start) >= 30) {
       const base = rng.random() < 0.5 ? [x0 + rng.randint(2, S - 2), y0] : [x0, y0 + rng.randint(2, S - 2)];

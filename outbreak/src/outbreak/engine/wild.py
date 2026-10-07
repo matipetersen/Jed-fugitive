@@ -113,6 +113,10 @@ def _step_away(game, a: Animal) -> Optional[Tuple[int, int]]:
 
 def tick(game, a: Animal) -> None:
     p, lv, t = game.player, game.level, game.clock.turn
+    if a.species not in SPECIES:                                         # a dog, a cat, a crow, a fox: strays and pets
+        from outbreak.engine import pets
+        pets.tick_animal(game, a)
+        return
     if lv.kind != "overworld":
         return
     d = cheb(a.pos, p.pos)

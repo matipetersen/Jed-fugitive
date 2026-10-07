@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 from outbreak.engine import ambience, mutation
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
-from outbreak.engine import companion
+from outbreak.engine import companion, director, pets
 from outbreak.engine.model import Animal, Human, Zombie
 from outbreak.util import Pos, cheb, compass
 
@@ -93,7 +93,7 @@ def _actor_cell(a) -> Cell:
     if isinstance(a, Human):
         return (a.glyph, "yellow" if a.hostile else "cyan", True)
     if isinstance(a, Animal):
-        return (a.glyph, "green", False)
+        return (a.glyph, "magenta" if a.pet else "cyan" if a.stray else "green", a.pet)
     return ("?", "white", False)
 
 
@@ -213,6 +213,12 @@ def build_side(game: Game) -> List[Line]:
         out.append((f" {companion.arch_of(ally).label}  hp {ally.hp}/{ally.max_hp}  {companion.bond_word(ally)}", "magenta"))
     else:
         out.append(("Alone." + (f" Lost: {', '.join(n for n, _ in game.fallen_allies[-2:])}" if game.fallen_allies else ""), "grey"))
+    pet = pets.current(game)
+    if pet is not None:
+        out.append((f"Pet: {pet.name} the {pet.species} ({pets.hunger_of(game, pet)}, hp {pet.hp}/{pet.max_hp})", "magenta"))
+    mood = director.status(game)
+    if mood:
+        out.append((mood, "grey"))
     hostiles = sorted(game.visible_hostiles(), key=lambda a: cheb(a.pos, p.pos))
     if hostiles:
         out.append(("", "grey"))

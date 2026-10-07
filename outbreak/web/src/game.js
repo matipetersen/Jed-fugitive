@@ -78,7 +78,7 @@ class Game {
     this.gen_day = 0; this.dead_uids = new Set(); this.deadline_days = 0; this.lost_turns = 0; this.incidents = [];
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.regions = []; this.region_id = -1; this.checkpoints = {}; this.foraged = [];
-    this.companion_uid = 0; this.fallen_allies = []; this.story = []; this.objective_seen = {};
+    this.pet_uid = 0; this.companion_uid = 0; this.fallen_allies = []; this.story = []; this.objective_seen = {};
     this.weather = 'clear'; this.sources = []; this.alarmed = []; this.last_step_note = -999; this.pings = []; this.flash_turn = -999;
     this.base_id = null; this.raid_next = 0;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
@@ -93,7 +93,7 @@ class Game {
     if (!text) return;
     this.log.push([this.clock.turn, text, tag]);
     if (this.log.length > LOG_LIMIT) this.log.splice(0, 100);
-    if (key || tag === 'obj' || tag === 'ally' || tag === 'lore') {         // the log that matters: objectives, companions, key events
+    if (key || tag === 'obj' || tag === 'ally' || tag === 'lore' || tag === 'dir') {         // the log that matters: objectives, companions, key events
       this.story.push([this.clock.turn, text, tag]);
       if (this.story.length > LOG_LIMIT) this.story.splice(0, 100);
     }
@@ -293,7 +293,7 @@ class Game {
     this._heat();
     this.pings = this.pings.filter((q) => t - q.turn <= 6);
     if (t % 5 === 0) mutation_crossing(this);
-    this._time_events(); weather_tick(this); world_tick(this); this._base_tick(); military_tick(this); comp_tick(this); objective_watch(this);
+    this._time_events(); weather_tick(this); world_tick(this); this._base_tick(); military_tick(this); comp_tick(this); objective_watch(this); dir_tick(this); pets_tick(this);
     if (this.incidents.length && t % 5 === 0) this._check_incidents();
     if (this.final) this._final_tick();
     if (t % 40 === 0) this._maybe_event();
@@ -667,7 +667,7 @@ class Game {
     } else dest = (target.arrivals[portal.arrive] || target.entry).slice();
     const occ = target.occ.get(target.idx(dest[0], dest[1]));
     if (!target.walkable(dest[0], dest[1]) || (occ && occ !== p)) dest = target.free_spot_near(dest[0], dest[1], 4) || dest;
-    if (portal.target !== 'world') comp_on_enter(this, target);
+    if (portal.target !== 'world') { comp_on_enter(this, target); pets_on_enter(this); }
     const st = this.stalker;
     if (st && st.hp > 0 && old.actors.includes(st) && cheb([st.x, st.y], [p.x, p.y]) <= 10 && st.state === 'hunt') {
       old.remove_actor(st);
@@ -687,7 +687,7 @@ class Game {
       if (this._unread_in(target)) this.msg('You glimpse written pages somewhere in here.', 'lore');
     }
     this.msg(portal.target !== 'world' ? `You enter ${target.name}.` : 'You step back outside.', 'info');
-    if (portal.target === 'world') comp_on_return(this);
+    if (portal.target === 'world') { comp_on_return(this); pets_on_return(this); }
     this._spend(1);
     return true;
   }
@@ -755,7 +755,24 @@ class Game {
 
   forage() { return wild_forage(this); }
   gather() { return wild_gather(this); }
+  adjacent_pet() {
+    const p = this.player;
+    for (const [dx, dy] of DIRS8) { const a = this.level.occ.get(this.level.idx(p.x + dx, p.y + dy)); if (a && a.kind === 'animal' && (a.pet || a.stray)) return a; }
+    return null;
+  }
   _bump_actor(target) {
+    if (target.kind === 'animal' && (target.pet || target.stray)) {
+      if (target.pet) {                                                    // a pet in the way: you swap places
+        const p = this.player, lv = this.level, a_pos = [p.x, p.y], b_pos = [target.x, target.y];
+        lv.occ.delete(lv.idx(a_pos[0], a_pos[1])); lv.occ.delete(lv.idx(b_pos[0], b_pos[1]));
+        p.x = b_pos[0]; p.y = b_pos[1]; target.x = a_pos[0]; target.y = a_pos[1];
+        lv.occ.set(lv.idx(p.x, p.y), p); lv.occ.set(lv.idx(target.x, target.y), target);
+        this._spend(1);
+        return true;
+      }
+      this.msg(`The ${target.species} watches you. Use TALK to offer it food.`, 'info');
+      return false;
+    }
     if (target.kind === 'human' && !target.hostile) { this.msg(`${target.name} is here. Use TALK.`, 'info'); return false; }
     if (target.hidden) raiders_spring(this, target, 'You stumble onto a hidden raider!');      // you walked into someone lying in wait
     const turns = player_attack(this, target) ? 1 : 0;
@@ -955,6 +972,7 @@ class Game {
   // Context action. Returns 'npc' or 'bed' when the UI must open a menu, else ''.
   interact() {
     if (this.adjacent_npc()) return 'npc';
+    if (this.adjacent_pet()) return 'pet';
     if (this.adjacent_tile(T.BED)) return 'bed';
     if (this.adjacent_tile(T.LOCKER)) return 'locker';
     if (this.adjacent_tile(T.BENCH)) { this.use_bench(true); return ''; }

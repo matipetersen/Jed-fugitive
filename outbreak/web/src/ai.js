@@ -72,9 +72,10 @@ function speed_now(game, z) {
 function ai_run(game) {
   const level = game.level, p = game.player;
   const humans = level.actors.filter((a) => a.kind === 'human' && a.hp > 0 && FIGHTERS.includes(a.role));
+  const pets_ = level.actors.filter((a) => a.kind === 'animal' && a.pet && a.hp > 0);
   for (const a of level.actors.slice()) {
     if (a.hp <= 0 || level.occ.get(level.idx(a.x, a.y)) !== a || cheb(apos(a), apos(p)) > ACTIVE_RADIUS) continue;
-    if (a.kind === 'zombie') _zombie(game, a, humans);
+    if (a.kind === 'zombie') _zombie(game, a, humans.concat(pets_));
     else if (a.kind === 'human') _human(game, a, humans);
     else if (a.kind === 'animal') wild_tick(game, a);
   }

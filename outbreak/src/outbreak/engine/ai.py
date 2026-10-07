@@ -128,11 +128,12 @@ def speed_now(game, z: Zombie) -> float:
 def run(game) -> None:
     level, p = game.level, game.player
     humans = [a for a in level.actors if isinstance(a, Human) and a.hp > 0 and a.role in FIGHTERS]
+    pets_ = [a for a in level.actors if isinstance(a, Animal) and a.pet and a.hp > 0]
     for a in list(level.actors):
         if a.hp <= 0 or level.occ.get(a.pos) is not a or cheb(a.pos, p.pos) > ACTIVE_RADIUS:
             continue
         if isinstance(a, Zombie):
-            _zombie(game, a, humans)
+            _zombie(game, a, humans + pets_)
         elif isinstance(a, Human):
             _human(game, a, humans)
         elif isinstance(a, Animal):

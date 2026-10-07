@@ -15,7 +15,8 @@ const wild_grazing = (t) => t === T.GRASS || t === T.BRUSH;
 function wild_make(game, x, y, species) {
   const [hp, glyph] = WILD_SPECIES[species];
   return { kind: 'animal', uid: game.next_uid(), name: WILD_NAMES[species], glyph, x, y, hp, max_hp: hp, level_id: 'world', lvl: 1, lvl_xp: 0, title: '', stun: 0,
-           species, state: 'graze', alert: false };
+           species, state: 'graze', alert: false,
+           stray: false, pet: false, bond: 0, fed: 0, dmg: [0, 0], acc: 50, kills: 0, nextfx: 0, lasttalk: -999, since: 0 };
 }
 
 function wild_pick_species(rng) {
@@ -74,6 +75,7 @@ function wild_bite(game, a) {            // armour takes the edge off and wears,
 
 function wild_tick(game, a) {
   const p = game.player, lv = game.level, t = game.clock.turn;
+  if (!WILD_SPECIES[a.species]) { pets_tick_animal(game, a); return; }          // a dog, a cat, a crow, a fox: strays and pets
   if (lv.kind !== 'overworld') return;
   const d = cheb(apos(a), apos(p));
   let radius = WILD_SPECIES[a.species][3];

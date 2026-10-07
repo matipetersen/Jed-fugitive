@@ -7,7 +7,7 @@ from typing import List
 
 from outbreak import content
 from outbreak.content.items import ItemDef
-from outbreak.engine import cipher, companion, encounters, hordes, military, mutation, raiders, wild
+from outbreak.engine import cipher, companion, encounters, hordes, military, mutation, pets, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
@@ -325,6 +325,7 @@ def _populate(game) -> None:
     _patrols(game)
     military.build(game)
     wild.populate(game)
+    pets.populate(game)
     for _ in range(3 + (lv.w * lv.h) // 3500):
         for _try in range(30):
             pos = (rng.randint(4, lv.w - 5), rng.randint(4, lv.h - 5))

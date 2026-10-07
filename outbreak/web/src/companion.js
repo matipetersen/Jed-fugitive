@@ -18,7 +18,7 @@ function comp_ensure_person(game, h, archetype = null) {
   const names = COMP.names.filter((n) => !taken.has(n));
   h.name = rng.choice(names.length ? names : COMP.names);
   h.trait = arch.id; h.glyph = h.name[0].toUpperCase();
-  h.max_hp = h.hp = arch.hp; h.dmg = arch.dmg.slice(); h.acc = arch.acc;
+  h.max_hp = h.hp = arch.hp + 6; h.dmg = arch.dmg.slice(); h.acc = arch.acc;
   for (const k of ['bond', 'since', 'kills', 'story', 'nextsay', 'nextfx', 'nextfx2', 'nextwarn', 'nextfight', 'nextcall', 'quest']) if (h[k] === undefined) h[k] = 0;
   if (h.tamed === undefined) h.tamed = false;
   if (h.lasttalk === undefined) h.lasttalk = -999;
@@ -277,9 +277,11 @@ function comp_advice(game) {
 
 // ---- in a fight
 const COMP_LEASH = 6, COMP_LEASH_RECKLESS = 12, COMP_FIGHT_SAY_EVERY = 40;
-function comp_leash(h) { return comp_is_reckless(h) ? COMP_LEASH_RECKLESS : COMP_LEASH; }
+const COMP_LEASH_TIDE = 3, COMP_GRACE_TURNS = 480, COMP_GRACE_DAMAGE = 0.4;
+function comp_early_grace(game) { return game.clock.turn < COMP_GRACE_TURNS || !!(game.ring && game.ring.active); }
+function comp_leash(h, game = null) { if (game && game.ring && game.ring.active) return COMP_LEASH_TIDE; return comp_is_reckless(h) ? COMP_LEASH_RECKLESS : COMP_LEASH; }
 // when you run, they run with you: a foe that is not on top of them is no reason to leave you
-function comp_should_hold_back(game, h, foe) { return cheb(apos(h), apos(game.player)) > comp_leash(h) && cheb(apos(h), apos(foe)) > 1; }
+function comp_should_hold_back(game, h, foe) { return cheb(apos(h), apos(game.player)) > comp_leash(h, game) && cheb(apos(h), apos(foe)) > 1; }
 function comp_shout(game, h, kind, field, every) {
   const t = game.clock.turn;
   if (t < h[field]) return;

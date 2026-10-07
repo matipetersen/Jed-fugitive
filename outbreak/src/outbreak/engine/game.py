@@ -22,7 +22,7 @@ from outbreak.engine.spawn import make_raider, spawn_zombie
 from outbreak.engine.worldgen import UNSET
 from outbreak.util import DIRS8, Pos, cheb
 
-WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.4, 3.0, 20
+WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.7, 3.0, 20
 LOG_LIMIT = 600
 CHRONICLE_TAGS = ("good", "lore")
 STORY_TAGS = ("obj", "ally", "lore", "dir")          # what the default log shows: where you are going and who is with you
@@ -899,7 +899,7 @@ class Game:
         p, lv = self.player, self.level
         noise = {T.ROAD: 3, T.BRUSH: 3, T.SHALLOW: 5}.get(tile, 2)
         if p.sneaking:
-            noise = 1 if tile in (T.ROAD, T.BRUSH) else 3 if tile == T.SHALLOW else 0     # a careful step on soft ground is silent
+            noise = 2 if tile in (T.ROAD, T.BRUSH) else 3 if tile == T.SHALLOW else 1     # careful, but never silent
         elif p.sprinting and p.stamina > 5:
             noise += 4
         if p.armor:

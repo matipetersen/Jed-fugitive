@@ -150,6 +150,28 @@ class Cycle(Base):
         self.assertEqual(d.threats, 0)
         g.final = None
 
+    def test_it_works_indoors_too(self):
+        g, lv = field()
+        poi = next(q for q in g.pois.values() if q.kind == "house")
+        inner = helpers.teleport(g, poi.id + ":0")
+        helpers.empty_level_of_enemies(inner)
+        director.progress = lambda game: 0.30
+        d = director._dir(g)
+        d.pending = [(g.clock.turn, "horde", 5)]
+        before = len(inner.actors)
+        run(g, 5)
+        self.assertEqual(d.pending, [])
+        self.assertGreater(len(inner.actors), before)
+        self.assertTrue(any(tag == "dir" for _, _, tag in g.log))
+
+    def test_it_leaves_a_haven_alone(self):
+        g, lv = field()
+        g.level.safe = True
+        d = director._dir(g)
+        d.pending = [(g.clock.turn, "horde", 5)]
+        run(g, 5)
+        self.assertEqual(len(d.pending), 1)
+
     def test_world_threat_generation_is_scaled_by_the_phase(self):
         g, lv = field()
         director.progress = lambda game: 0.60

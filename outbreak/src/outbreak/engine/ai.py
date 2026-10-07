@@ -23,6 +23,7 @@ FIGHTERS = ("raider", "scout", "soldier")
 FIELD_RADIUS = 28
 NO_ENTRY = (T.PORTAL, T.STAIRS_UP, T.STAIRS_DOWN)
 ALERT_AT, SUSPICIOUS, STAB_OK, SNEAK_GAIN, NOTICE_BASE = 100, 40, 70, 0.4, 36
+SNEAK_SIGHT = 0.5             # creeping shortens how far the dead see you, by this much
 DOOR_HP = 8
 LOST_AFTER = 14               # turns a hunter keeps looking after losing you
 TRAIL_LENGTH = 60
@@ -39,7 +40,7 @@ def sight_range(game, z: Zombie) -> float:
         if combat.player_lit(game):
             r = max(r, 6.0) * game.era.rules.lit_visibility            # a torch is a beacon; cold LEDs much less so
     if p.sneaking:
-        r *= 0.5
+        r *= SNEAK_SIGHT
     if game.level.tile(*p.pos) == T.BRUSH:
         r *= game.era.rules.cover
     if wild.forest_here(game):
@@ -191,6 +192,9 @@ def _zombie_step(game, z: Zombie, humans=()) -> None:
     seen = False if unaware(z) else sees_player(game, z)    # the unaware only notice through the awareness meter
     if humans and z.state != "dormant":
         foe = nearest_foe(game, z, humans, FOE_SIGHT)
+        if foe is not None and seen and companion.early_grace(game) and (getattr(foe, "trait", "") or getattr(foe, "pet", False)) \
+                and cheb(z.pos, foe.pos) > 1:
+            foe = None                                               # in the opening they go for you, not for your people
         if foe is not None and (not seen or cheb(z.pos, foe.pos) < d):
             _zombie_fight(game, z, foe)
             return
@@ -484,6 +488,10 @@ def _human_fight(game, h: Human, foe) -> None:
         companion.on_fight(game, h, foe)
     if h.hp < h.max_hp * companion.flee_below(h) and isinstance(foe, Zombie) and d <= 2:
         companion.on_flee(game, h)
+        if h.state in ("follow", "wait"):                         # they run to you, not away into the dark
+            nxt = greedy_step(level, h.pos, game.player.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+            if nxt and _human_move(game, h, nxt):
+                return
         _flee(game, h, foe.pos)
         return
     ranged = h.reach > 1

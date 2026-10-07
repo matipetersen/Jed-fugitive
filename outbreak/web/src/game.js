@@ -26,7 +26,7 @@ class Clock {
 }
 
 const LIVE_MAX_CATCHUP = 80;
-const WALK_DRAIN = 1.5, SNEAK_DRAIN = 0.4, SPRINT_DRAIN = 3.0, TIRED_BELOW = 20;
+const WALK_DRAIN = 1.5, SNEAK_DRAIN = 0.7, SPRINT_DRAIN = 3.0, TIRED_BELOW = 20;
 const CHRONICLE_LIMIT = 160, CHRONICLE_KEEP = 25;
 const LOG_LIMIT = 600, SCENT_KEEP = 60, FORCE_TURNS = 6;
 
@@ -795,7 +795,7 @@ class Game {
   _after_step(tile) {
     const p = this.player, lv = this.level, k = lv.idx(p.x, p.y);
     let noise = { [T.ROAD]: 3, [T.BRUSH]: 3, [T.SHALLOW]: 5 }[tile] || 2;
-    if (p.sneaking) noise = tile === T.ROAD || tile === T.BRUSH ? 1 : tile === T.SHALLOW ? 3 : 0;      // a careful step on soft ground is silent
+    if (p.sneaking) noise = tile === T.ROAD || tile === T.BRUSH ? 2 : tile === T.SHALLOW ? 3 : 1;      // careful, but never silent
     else if (p.sprinting && p.stamina > 5) noise += 4;
     if (p.armor) noise += this.item_def(p.armor.id).stealth;
     noise = Math.round(noise * this.era.rules.step_noise);          // soft ground vs hard floors

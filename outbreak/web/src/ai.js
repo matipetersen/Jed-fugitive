@@ -11,7 +11,7 @@ function sight_range(game, z) {
     r *= Math.min(1.0, 0.6 * game.era.rules.dead_night) * prof.night_sight;      // sensors and heat vision ignore the dark
     if (player_lit(game)) r = Math.max(r, 6.0) * game.era.rules.lit_visibility;   // a torch is a beacon; cold LEDs much less so
   }
-  if (p.sneaking) r *= 0.5;
+  if (p.sneaking) r *= SNEAK_SIGHT;
   if (game.level.tile(p.x, p.y) === T.BRUSH) r *= game.era.rules.cover;
   if (wild_forest_here(game)) r *= WILD_FOREST_SIGHT;                       // deep woods hide you from the dead
   r *= sight_scale(game) * exposure_of_ground(game);          // weather, and an open road or splashing water
@@ -26,7 +26,7 @@ function exposure(z, p) {
   const dx = p.x - z.x, dy = p.y - z.y, d = Math.hypot(dx, dy) || 1;
   return 0.8 + 0.2 * (dx * f[0] + dy * f[1]) / (d * Math.hypot(f[0], f[1]));
 }
-const ALERT_AT = 100, SUSPICIOUS = 40, STAB_OK = 70, SNEAK_GAIN = 0.4, NOTICE_BASE = 36;
+const ALERT_AT = 100, SUSPICIOUS = 40, STAB_OK = 70, SNEAK_GAIN = 0.4, NOTICE_BASE = 36, SNEAK_SIGHT = 0.5;
 const awareness_of = (z) => (z.state === 'hunt' ? 'hunting you' : (z.alert || 0) >= STAB_OK ? 'about to notice you' : (z.alert || 0) >= SUSPICIOUS ? 'suspicious' : z.state === 'investigate' ? 'listening' : 'unaware');
 
 function sees_player(game, z) {
@@ -122,7 +122,8 @@ function _zombie_step(game, z, humans) {
   const d = cheb(apos(z), apos(p));
   const seen = _unaware(z) ? false : sees_player(game, z);     // the unaware only notice through the awareness meter
   if (humans && humans.length && z.state !== 'dormant') {
-    const foe = nearest_foe(game, z, humans, FOE_SIGHT);
+    let foe = nearest_foe(game, z, humans, FOE_SIGHT);
+    if (foe !== null && seen && comp_early_grace(game) && (foe.trait || foe.pet) && cheb(apos(z), apos(foe)) > 1) foe = null;     // in the opening they go for you, not your people
     if (foe !== null && (!seen || cheb(apos(z), apos(foe)) < d)) { _zombie_fight(game, z, foe); return; }
   }
   if (z.state === 'dormant') {
@@ -298,7 +299,14 @@ function _human_move(game, h, nxt) {
 function _human_fight(game, h, foe) {
   const level = game.level, d = cheb(apos(h), apos(foe));
   if (h.trait) comp_on_fight(game, h, foe);
-  if (h.hp < h.max_hp * comp_flee_below(h) && foe.kind === 'zombie' && d <= 2) { comp_on_flee(game, h); _flee(game, h, apos(foe)); return; }
+  if (h.hp < h.max_hp * comp_flee_below(h) && foe.kind === 'zombie' && d <= 2) {
+    comp_on_flee(game, h);
+    if (h.state === 'follow' || h.state === 'wait') {                    // they run to you, not away into the dark
+      const nxt = greedy_step(level, apos(h), apos(game.player), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+      if (nxt && _human_move(game, h, nxt)) return;
+    }
+    _flee(game, h, apos(foe)); return;
+  }
   if (h.reach > 1 && d >= 2 && d <= h.reach) attack_actor(game, h, foe, true);
   else if (d === 1) attack_actor(game, h, foe, false);
   else _human_move(game, h, greedy_step(level, apos(h), apos(foe), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1]))));

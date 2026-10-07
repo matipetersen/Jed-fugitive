@@ -70,7 +70,7 @@ const first = (s) => s.split(' ')[0];
   assert(c2); assert.strictEqual(c2.name, c.name); assert.strictEqual(c2.trait, c.trait); assert.strictEqual(h.fallen_allies[0][0], 'Old'); assert(h.story.length === g.story.length);
 }
 { // a companion is not invincible: the dead go for every role, and they do not leave you to chase a fight
-  let [g, lv, c] = field(3, 'medic'); c.hp = 6; const z = OB.spawn_zombie(g, lv, [c.x + 1, c.y], 'walker', false); z.hp = z.max_hp = 500; z.dmg = [6, 8]; z.acc = 95;
+  let [g, lv, c] = field(3, 'medic'); g.clock.turn = 1000; c.hp = 6; const z = OB.spawn_zombie(g, lv, [c.x + 1, c.y], 'walker', false); z.hp = z.max_hp = 500; z.speed = 2.0; z.dmg = [30, 40]; z.acc = 95;
   lv.occ.delete(lv.idx(g.player.x, g.player.y)); g.player.x = c.x - 7; g.player.y = c.y; lv.occ.set(lv.idx(g.player.x, g.player.y), g.player);
   for (let i = 0; i < 80 && OB.comp_current(g); i++) { g.clock.turn += 1; OB.ai_run(g); }
   assert(!OB.comp_current(g), 'invincible'); assert(g.story.some((m) => m[1].includes('is dead')));
@@ -88,3 +88,8 @@ const first = (s) => s.split(' ')[0];
   z.hp = z.max_hp = 100; for (let i = 0; i < 8; i++) OB.attack_actor(g, c, z); assert(g.story.some((m) => m[2] === 'ally' && (m[1].includes('hits') || m[1].includes('misses'))));
 }
 console.log('companion: a pool of people, strengths and flaws, bonds, permanent death, and a log that follows the story');
+{ // the opening tide spares your people
+  const [g, lv, c] = field(3, 'brute');
+  g.clock.turn = 10; assert(OB.comp_early_grace(g)); g.clock.turn = 2000; g.ring = null; assert(!OB.comp_early_grace(g));
+  g.ring = { active: true }; assert.strictEqual(OB.comp_leash(c, g), 3);
+}

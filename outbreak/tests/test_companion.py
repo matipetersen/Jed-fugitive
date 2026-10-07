@@ -245,10 +245,12 @@ class Log(unittest.TestCase):
 class Combat(unittest.TestCase):
     def test_the_dead_attack_a_companion_and_it_can_die(self):
         g, lv, c = field(arch="medic")
+        g.clock.turn = 1000                       # past the opening grace
         c.hp = 6
         z = spawn_zombie(g, lv, (c.x + 1, c.y), "walker", False)
         z.hp = z.max_hp = 500
-        z.dmg, z.acc = (6, 8), 95
+        z.speed = 2.0                                   # a runner: you cannot walk away from it
+        z.dmg, z.acc = (30, 40), 95                     # one clean blow: running to you is not a guarantee
         del lv.occ[g.player.pos]
         g.player.x, g.player.y = c.x - 7, c.y
         lv.occ[g.player.pos] = g.player
@@ -326,3 +328,26 @@ class Combat(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpeningGrace(unittest.TestCase):
+    def test_the_dead_hit_your_people_softer_in_the_opening(self):
+        from outbreak.engine import combat
+        hits = {}
+        for turn in (10, 2000):
+            g, lv, c = field(arch="medic")
+            g.clock.turn = turn
+            z = spawn_zombie(g, lv, (c.x + 1, c.y), "walker", False)
+            z.dmg, z.acc = (10, 10), 100
+            c.hp = c.max_hp = 100
+            for _ in range(20):
+                combat.attack_actor(g, z, c)
+            hits[turn] = 100 - c.hp
+        self.assertLess(hits[10], hits[2000] * 0.6)
+
+    def test_the_tide_keeps_them_at_your_shoulder(self):
+        g, lv, c = field(arch="brute")
+        self.assertEqual(companion.leash(c, g), companion.LEASH_RECKLESS if companion.is_reckless(c) else companion.LEASH)
+        class R: active = True
+        g.ring = R()
+        self.assertEqual(companion.leash(c, g), companion.LEASH_TIDE)

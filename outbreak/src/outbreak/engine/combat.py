@@ -21,6 +21,9 @@ STAMINA_PER_ATTACK = 4
 
 
 # ------------------------------------------------------------------ helpers
+SNEAK_HIT, SNEAK_HEAD, SNEAK_STAB = 0.85, 0.6, 1.75       # a creeping strike: how often it lands, how often it finds the head, its weight
+
+
 def article(noun: str) -> str:
     return "an" if noun[:1].lower() in "aeiou" else "a"
 
@@ -89,7 +92,7 @@ def _damage(game, w: ItemDef, item: Optional[Item], sneak: bool) -> float:
     if p.hunger >= 75:
         mult *= 0.85
     if sneak and not w.is_ranged:
-        mult *= 2.0
+        mult *= SNEAK_STAB
     return raw * mult
 
 
@@ -235,14 +238,14 @@ def player_attack(game, target: Actor) -> bool:
         return done
     z: Zombie = target
     if sneak:
-        hit = True
+        hit = game.rng.random() < SNEAK_HIT                  # a blow from behind can still go wrong
     else:
         hit = game.rng.random() * 100 < _accuracy(game, w, 0)
     if not hit:
         game.msg(f"You swing at the {z.name.lower()} and miss.", "combat")
         z.state, z.target, z.stimulus_turn = "hunt", p.pos, game.clock.turn
         return True
-    head = sneak or game.rng.random() < _head_chance(game, w)
+    head = game.rng.random() < (SNEAK_HEAD if sneak else _head_chance(game, w))
     dmg = hurt_zombie(game, z, _damage(game, w, item, sneak), head, w.style)
     _wear_weapon(game, item, w)
     _train(game, w)
@@ -519,6 +522,8 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
             game.msg(f"{Ref(attacker)} {'shoots' if ranged and d > 1 else 'strikes'} at {victim} and misses.", tag)
         return
     raw = game.rng.randint(*attacker.dmg)
+    if (getattr(defender, "trait", "") or getattr(defender, "pet", False)) and companion.early_grace(game):
+        raw = max(1, int(raw * companion.GRACE_DAMAGE))                       # the first days go easy on your people
     if isinstance(defender, Zombie):
         head = game.rng.random() < (0.25 if ranged else 0.2)
         dealt = zombie_damage(game, defender, raw, head)

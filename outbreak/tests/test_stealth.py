@@ -67,10 +67,10 @@ class Stealth(unittest.TestCase):
         noticed, killed, n = rate(sneak=True, from_behind=True)
         self.assertGreaterEqual(n, 15)
         self.assertLessEqual(noticed, 0.3)                # 20 seeded worlds: a world change moves this by a few points
-        self.assertGreaterEqual(killed, 0.45)
+        self.assertGreaterEqual(killed, 0.2)           # a sneak stab is no longer a sure kill
         noticed, killed, _ = rate(sneak=True, from_behind=True, facing=(0, 1))
         self.assertLessEqual(noticed, 0.4)
-        self.assertGreaterEqual(killed, 0.25)
+        self.assertGreaterEqual(killed, 0.12)
 
     def test_sneaking_straight_at_its_face_does_not(self):
         self.assertGreaterEqual(rate(sneak=True, from_behind=False)[0], 0.7)

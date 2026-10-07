@@ -17,6 +17,7 @@ from typing import List, Tuple
 
 from outbreak.content.director import ACT_LINES, BY_ID, RELIEF_EVENTS, STAGES, THREAT_EVENTS
 from outbreak.engine import hordes
+from outbreak.engine import tiles as T
 from outbreak.engine.spawn import spawn_zombie
 from outbreak.util import cheb, compass
 
@@ -174,8 +175,8 @@ def tick(game) -> None:
     d.inside_since = (d.inside_since if d.inside_since >= 0 else t) if inside else -1
     if inside:
         _siege(game, d, t)
-    if game.level is not game.world.level or game.final or game.pending_event:
-        return
+    if game.final or game.pending_event or game.level.kind == "haven" or getattr(game.level, "safe", False):
+        return                                                   # indoors counts: the story does not stop at the door
     st = STAGES[d.stage]
     if _in_trouble(game) and d.phase != "release":
         d.phase, d.phase_until = "release", t + st.release // 2
@@ -291,22 +292,74 @@ def _threat(game, d: Director, st, t: int) -> None:
     d.phase, d.phase_until = "peak", t + PEAK_MAX
     d.threats += 1
     d.last_threat = t
-    cue = {"horde": "A restlessness runs through the dead. Something is coming this way.",
-           "raiders": "Voices, off the road. People who are not friendly.",
-           "special": "A sound you have not heard before, far off."}[kind]
+    if game.level is not game.world.level:
+        cue = {"horde": "Something knocks against the walls. More than one thing.",
+               "raiders": "A door, far below. Careful hands. They are not here to talk.",
+               "special": "A sound you have not heard before, somewhere in the building."}[kind]
+    else:
+        cue = {"horde": "A restlessness runs through the dead. Something is coming this way.",
+               "raiders": "Voices, off the road. People who are not friendly.",
+               "special": "A sound you have not heard before, far off."}[kind]
     game.msg(cue, "dir")
 
 
 def _due(game, d: Director, t: int) -> None:
     for item in list(d.pending):
         due, kind, size = item
-        if t < due or game.level is not game.world.level:
+        if t < due or game.level.kind == "haven" or getattr(game.level, "safe", False):
             continue
         d.pending.remove(item)
         _land(game, d, kind, size)
 
 
+def _land_indoors(game, d: Director, kind: str, size: int) -> None:
+    """The same cycle, inside a building or a cave: the dead find a way in, or what was waiting inside wakes."""
+    p, lv, rng = game.player, game.level, game.rng
+    floor = [(x, y) for y in range(lv.h) for x in range(lv.w) if lv.tiles[y][x] == T.FLOOR and lv.free(x, y)]
+    spots: list = []
+    for gap in (9, 6, 4, 3):                                      # a small house has no room to spare
+        spots = [q for q in floor if cheb(q, p.pos) >= gap]
+        if spots:
+            break
+    if not spots:
+        return
+    rng.shuffle(spots)
+    where = compass(spots[0][0] - p.x, spots[0][1] - p.y)
+    if kind == "raiders":
+        entry = lv.entry
+        placed = 0
+        from outbreak.engine.spawn import make_raider
+        for _ in range(max(2, min(4, size))):
+            spot = lv.free_spot_near(entry[0], entry[1], 3)
+            if spot and cheb(spot, p.pos) >= 4:
+                r = make_raider(game, spot[0], spot[1])
+                r.state = "hunt"
+                lv.add_actor(r)
+                placed += 1
+        if placed:
+            game.msg("Boots on the stairs behind you. People who followed you in.", "dir", key=True)
+        return
+    n = max(2, min(8, size)) if kind == "horde" else 1
+    made = []
+    for spot in spots[:n]:
+        sid = (_strongest(game, lv) if kind in ("special", "boss") else None)
+        z = spawn_zombie(game, lv, spot, sid, dormant=False)
+        z.state, z.target, z.stimulus_turn = "hunt", p.pos, game.clock.turn
+        if kind == "boss":
+            z.hp = z.max_hp = int(z.max_hp * 1.3)
+        made.append(z)
+    if kind == "horde":
+        game.msg(f"The dead have found a way in: shuffling, to the {where}, and more behind.", "dir")
+    elif kind == "special":
+        game.msg(f"Something heavy is moving through the building, from the {where}.", "dir")
+    else:
+        game.msg(f"It was in here with you all along: to the {where}, and it knows exactly where you are.", "dir", key=True)
+
+
 def _land(game, d: Director, kind: str, size: int) -> None:
+    if game.level is not game.world.level:
+        _land_indoors(game, d, kind, size)
+        return
     p, lv, rng = game.player, game.world.level, game.rng
     if kind == "raiders":
         from outbreak.engine import memory

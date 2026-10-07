@@ -40,6 +40,7 @@ function _head_chance(game, w) {
   return clamp(base, 0.0, 0.85);
 }
 
+const SNEAK_HIT = 0.85, SNEAK_HEAD = 0.6, SNEAK_STAB = 1.75;       // a creeping strike: how often it lands, finds the head, and its weight
 function _damage(game, w, item, sneak) {
   const p = game.player;
   const raw = game.rng.randint(w.dmg[0], w.dmg[1]);
@@ -48,7 +49,7 @@ function _damage(game, w, item, sneak) {
   if (item && w.durability && (item.dur || 0) < w.durability * 0.25) mult *= 0.8;
   if (p.stamina < STAMINA_PER_ATTACK + 1) mult *= 0.75;
   if (p.hunger >= 75) mult *= 0.85;
-  if (sneak && !is_ranged(w)) mult *= 2.0;
+  if (sneak && !is_ranged(w)) mult *= SNEAK_STAB;
   return raw * mult;
 }
 
@@ -149,13 +150,13 @@ function player_attack(game, target) {
   if (is_human(target)) return _attack_human(game, target, w, item);
   if (target.kind === 'animal') { const done = wild_attack(game, target, unaware, _accuracy(game, w, 0), _damage(game, w, item, false)); _wear_weapon(game, item, w); _train(game, w); return done; }
   const z = target;
-  const hit = sneak ? true : game.rng.random() * 100 < _accuracy(game, w, 0);
+  const hit = sneak ? game.rng.random() < SNEAK_HIT : game.rng.random() * 100 < _accuracy(game, w, 0);
   if (!hit) {
     game.msg(`You swing at the ${z.name.toLowerCase()} and miss.`, 'combat');
     z.state = 'hunt'; z.target = apos(p); z.stimulus_turn = game.clock.turn;
     return true;
   }
-  const head = sneak || game.rng.random() < _head_chance(game, w);
+  const head = game.rng.random() < (sneak ? SNEAK_HEAD : _head_chance(game, w));
   const dmg = hurt_zombie(game, z, _damage(game, w, item, sneak), head, w.style);
   _wear_weapon(game, item, w);
   _train(game, w);
@@ -358,7 +359,8 @@ function attack_actor(game, attacker, defender, ranged = false) {
     if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${ranged && d > 1 ? 'shoots' : 'strikes'} at ${victim} and misses.`, tag);
     return;
   }
-  const raw = game.rng.randint(attacker.dmg[0], attacker.dmg[1]);
+  let raw = game.rng.randint(attacker.dmg[0], attacker.dmg[1]);
+  if ((defender.trait || defender.pet) && comp_early_grace(game)) raw = Math.max(1, Math.trunc(raw * COMP_GRACE_DAMAGE));      // the first days go easy on your people
   if (defender.kind === 'zombie') {
     const head = game.rng.random() < (ranged ? 0.25 : 0.2);
     defender.hp -= zombie_damage(game, defender, raw, head);

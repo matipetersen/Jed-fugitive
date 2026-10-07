@@ -191,8 +191,105 @@ def probe_cave_run(kind="cave"):
         print(f"{label:10s} survive {alive}/{n}  crates opened/cave {opened / max(1, n):.1f}  zombies killed/cave {st.mean(kills):.1f}")
 
 
+def probe_sneak_walk():
+    """A 28-step walk through a scatter of idle dead, creeping or walking: how many hunt you, and how many silent kills a creeper gets."""
+    from outbreak.engine.spawn import spawn_zombie
+    print("\n== Walking through 14 idle dead (28 steps), 20 seeds ==")
+    for label, sneak in (("walking", False), ("creeping", True)):
+        hunted, steps_turns = [], []
+        for seed in range(1, 21):
+            g = helpers.make_game(seed=seed)
+            lv = grove(g, trees=False)
+            p = g.player
+            p.infected = False
+            p.hp = p.max_hp = 10 ** 6
+            g.clock.turn = 600
+            rng = random.Random(seed)
+            zs = []
+            for i in range(14):
+                for _ in range(20):
+                    x, y = p.x + rng.randint(3, 28), p.y + rng.randint(-6, 6)
+                    if lv.free(x, y):
+                        z = spawn_zombie(g, lv, (x, y), "walker", False)
+                        z.state = "idle"
+                        z.facing = rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1)])
+                        zs.append(z)
+                        break
+            p.sneaking = sneak
+            t0 = g.clock.turn
+            for _ in range(28):
+                g.move(1, 0) or g.move(1, 1) or g.move(1, -1)
+                p.hp = p.max_hp
+                p.sneaking = sneak
+                p.stamina = 100
+            hunted.append(sum(1 for z in zs if z.state == "hunt") / max(1, len(zs)))
+            steps_turns.append(g.clock.turn - t0)
+        print(f"{label:9s} hunting {st.mean(hunted):5.0%}   turns taken {st.mean(steps_turns):5.1f}")
+
+
+def probe_stab():
+    """The creeper's blow: from behind, on an unaware walker, with the best loose weapon: kills outright how often?"""
+    from outbreak.engine.spawn import spawn_zombie
+    print("\n== Stab in the back (creeping, unaware walker adjacent) ==")
+    for era in ("medieval", "modern"):
+        kills = n = 0
+        for seed in range(1, 41):
+            g = helpers.make_game(seed=seed, era=era)
+            lv = grove(g, trees=False)
+            p = g.player
+            p.infected = False
+            p.hp = p.max_hp = 10 ** 6
+            d = best_weapon(g)
+            p.weapon = Item(d.id, 1, d.durability or None)
+            g.clock.turn = 600
+            z = spawn_zombie(g, lv, (p.x + 1, p.y), "brute" if seed % 4 == 0 else "walker", False)
+            z.state, z.alert, z.facing = "idle", 0.0, (1, 0)
+            p.sneaking = True
+            hp = z.hp
+            g.move(1, 0)
+            n += 1
+            kills += 0 if z in lv.actors else 1
+        print(f"{era:9s} killed outright {kills / n:5.0%} of {n}")
+
+
+def probe_stealth():
+    """How well does creeping hide you?  Ten idle dead stand 4-9 tiles away; the player stands, or creeps, for 40 turns; how many
+    noticed, and how many a stab would have found unaware."""
+    from outbreak.engine import ai
+    print("\n== Stealth: idle dead 4-9 tiles away, 40 turns, 20 seeds ==")
+    for label, sneak in (("standing", False), ("creeping", True)):
+        noticed, unaware = [], []
+        for seed in range(1, 21):
+            g = helpers.make_game(seed=seed)
+            lv = grove(g, trees=False)
+            p = g.player
+            p.infected = False
+            p.hp = p.max_hp = 10 ** 6
+            g.clock.turn = 600
+            rng = random.Random(seed)
+            zs = []
+            from outbreak.engine.spawn import spawn_zombie
+            for i in range(10):
+                for _ in range(20):
+                    x, y = p.x + rng.randint(-9, 9), p.y + rng.randint(-9, 9)
+                    if 4 <= max(abs(x - p.x), abs(y - p.y)) <= 9 and lv.free(x, y):
+                        z = spawn_zombie(g, lv, (x, y), "walker", False)
+                        z.state = "idle"
+                        z.facing = rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1)])
+                        zs.append(z)
+                        break
+            p.sneaking = sneak
+            g.player.stamina = 100
+            for _ in range(40):
+                g._spend(1)
+                p.hp = p.max_hp
+            noticed.append(sum(1 for z in zs if z.state == "hunt") / max(1, len(zs)))
+            unaware.append(sum(1 for z in zs if z.state != "hunt" and z.alert < 70) / max(1, len(zs)))
+        print(f"{label:9s} noticed {st.mean(noticed):5.0%}   still unaware {st.mean(unaware):5.0%}")
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
-    for name, fn in (("wolves", probe_fights), ("hunt", probe_hunt), ("caves", probe_caves), ("food", probe_food), ("bot", probe_bot), ("cave", probe_cave_run), ("market", lambda: probe_cave_run("market")), ("military", lambda: probe_cave_run("military"))):
+    for name, fn in (("wolves", probe_fights), ("hunt", probe_hunt), ("caves", probe_caves), ("food", probe_food), ("bot", probe_bot), ("stealth", probe_stealth), ("walk", probe_sneak_walk), ("stab", probe_stab), ("cave", probe_cave_run), ("market", lambda: probe_cave_run("market")), ("military", lambda: probe_cave_run("military"))):
         if which in ("all", name):
             fn()

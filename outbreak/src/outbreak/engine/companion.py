@@ -42,7 +42,7 @@ def ensure_person(game, h: Human, archetype: Optional[str] = None) -> None:
     h.name = rng.choice(names)
     h.trait = arch.id
     h.glyph = h.name[0].upper()
-    h.max_hp = h.hp = arch.hp
+    h.max_hp = h.hp = arch.hp + 6                      # a little more than the profile: the first days are hard on everyone
     h.dmg, h.acc = arch.dmg, arch.acc
     if (game.era.firearms or game.era.tech == 0) and arch.id in ("veteran", "hunter"):
         h.reach = 6
@@ -445,16 +445,27 @@ def advice(game) -> str:
 # ------------------------------------------------------------------ in a fight
 LEASH = 6                      # a companion fights within this many tiles of you, not further
 LEASH_RECKLESS = 12
+LEASH_TIDE = 3                 # while the opening tide is on, they stay at your shoulder
+GRACE_TURNS = 480              # the first two days: the dead go for you first, and what they do to your people is halved
+GRACE_DAMAGE = 0.4
 FIGHT_SAY_EVERY = 40
 
 
-def leash(h: Human) -> int:
+def early_grace(game) -> bool:
+    """The opening: a new companion has not had time to be good at this, so the world goes easy on them."""
+    ring = getattr(game, "ring", None)
+    return game.clock.turn < GRACE_TURNS or bool(ring is not None and ring.active)
+
+
+def leash(h: Human, game=None) -> int:
+    if game is not None and getattr(game, "ring", None) is not None and game.ring.active:
+        return LEASH_TIDE
     return LEASH_RECKLESS if is_reckless(h) else LEASH
 
 
 def should_hold_back(game, h: Human, foe) -> bool:
     """When you run, they run with you: a foe that is not on top of them is no reason to leave you."""
-    return cheb(h.pos, game.player.pos) > leash(h) and cheb(h.pos, foe.pos) > 1
+    return cheb(h.pos, game.player.pos) > leash(h, game) and cheb(h.pos, foe.pos) > 1
 
 
 def _shout(game, h: Human, kind: str, field_name: str, every: int) -> None:

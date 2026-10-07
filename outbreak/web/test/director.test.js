@@ -64,3 +64,13 @@ function force(g, value) { g.requirements = () => [['a', value >= 0.99, ''], ['b
   const h = OB.deserialize_game(OB.serialize_game(g)); assert(h.director && h.director.stage === g.director.stage);
 }
 console.log('director: twelve acts, tension, build-peak-release, mercy, an ordeal and a reward');
+{ // it works indoors too, and leaves a haven alone
+  let g, lv; [g, lv] = field();
+  const poi = Object.values(g.pois).find((q) => q.kind === 'house');
+  const inner = g.ensure_level(poi.id + ':0'); g.level = inner; g.player.x = inner.entry[0]; g.player.y = inner.entry[1];
+  for (const a of inner.actors.slice()) if (a !== g.player) inner.remove_actor(a);
+  const d = OB.dir_state(g); d.pending = [[g.clock.turn, 'horde', 5]];
+  const before = inner.actors.length; run(g, 5);
+  assert.strictEqual(d.pending.length, 0); assert(inner.actors.length > before, 'the dead found a way in');
+  inner.safe = true; d.pending = [[g.clock.turn, 'horde', 5]]; run(g, 5); assert.strictEqual(d.pending.length, 1);
+}

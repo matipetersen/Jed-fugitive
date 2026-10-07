@@ -95,6 +95,17 @@ armed people who have heard about you if you did not.
   **ordeal's** big threat heads for your companion first. The **reward** gives you and them a quiet moment (+6 bond). When
   someone dies the world goes quiet for 200 turns.
 
+**Fixes after playtesting: the Director indoors, a weaker sneak, a gentler first wave.**
+* *The Director works indoors.* Threats are no longer world-only: inside a building or a cave the dead "find a way in" (spawned on
+  floor tiles away from you), raiders follow you down the stairs, and a special or boss was "in here all along". Havens and safe
+  rooms are left alone. (`director._land_indoors`.)
+* *Stealth nerfed.* Creeping still halves how far the dead see you, but a sneak stab now lands 85% of the time, finds the head 60%
+  of the time and does x1.75 instead of x2 (an outright kill went from ~95% to ~35%); creeping is never silent (noise 1-2 per step),
+  and it drains 0.7 stamina per step instead of 0.4.
+* *The opening tide spares your people.* For the first 480 turns, and while the opening ring is active, the dead go for you before
+  your companion or pet, hit them for 40% damage, and the companion's leash shrinks to 3 tiles. A hurt companion who flees runs
+  towards you instead of into the dark, and companions have 6 more HP. (`companion.early_grace`.)
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

@@ -84,7 +84,7 @@ function dir_tick(game) {
   const inside = game.level !== game.world.level;
   d.inside_since = inside ? (d.inside_since >= 0 ? d.inside_since : t) : -1;
   if (inside) dir_siege(game, d, t);
-  if (game.level !== game.world.level || game.final || game.pending_event) return;
+  if (game.final || game.pending_event || game.level.kind === 'haven' || game.level.safe) return;      // indoors counts: the story does not stop at the door
   const st = DIR_STAGES[d.stage];
   if (dir_in_trouble(game) && d.phase !== 'release') {
     d.phase = 'release'; d.phase_until = t + Math.floor(st.release / 2); d.mercy += 1;
@@ -158,13 +158,14 @@ function dir_threat(game, d, st, t) {
   if (kind === 'raiders' && game.era.id === 'scifi' && rng.random() < 0.3) kind = 'horde';
   d.pending.push([t + DIR_TELEGRAPH, kind, size]);
   d.phase = 'peak'; d.phase_until = t + DIR_PEAK_MAX; d.threats += 1; d.last_threat = t;
-  game.msg({ horde: 'A restlessness runs through the dead. Something is coming this way.', raiders: 'Voices, off the road. People who are not friendly.', special: 'A sound you have not heard before, far off.' }[kind], 'dir');
+  if (game.level !== game.world.level) game.msg({ horde: 'Something knocks against the walls. More than one thing.', raiders: 'A door, far below. Careful hands. They are not here to talk.', special: 'A sound you have not heard before, somewhere in the building.' }[kind], 'dir');
+  else game.msg({ horde: 'A restlessness runs through the dead. Something is coming this way.', raiders: 'Voices, off the road. People who are not friendly.', special: 'A sound you have not heard before, far off.' }[kind], 'dir');
 }
 
 function dir_due(game, d, t) {
   for (const item of d.pending.slice()) {
     const [due, kind, size] = item;
-    if (t < due || game.level !== game.world.level) continue;
+    if (t < due || game.level.kind === 'haven' || game.level.safe) continue;
     d.pending.splice(d.pending.indexOf(item), 1);
     dir_land(game, d, kind, size);
   }
@@ -179,7 +180,38 @@ function dir_strongest(game) {
   return best;
 }
 
+function dir_land_indoors(game, d, kind, size) {
+  const p = game.player, lv = game.level, rng = game.rng;
+  const floor = [];
+  for (let y = 0; y < lv.h; y++) for (let x = 0; x < lv.w; x++) if (lv.tile(x, y) === T.FLOOR && lv.free(x, y)) floor.push([x, y]);
+  let spots = [];
+  for (const gap of [9, 6, 4, 3]) { spots = floor.filter((q) => cheb(q, apos(p)) >= gap); if (spots.length) break; }   // a small house has no room to spare
+  if (!spots.length) return;
+  rng.shuffle(spots);
+  const where = compass(spots[0][0] - p.x, spots[0][1] - p.y);
+  if (kind === 'raiders') {
+    const entry = lv.entry; let placed = 0;
+    for (let i = 0; i < Math.max(2, Math.min(4, size)); i++) {
+      const spot = lv.free_spot_near(entry[0], entry[1], 3);
+      if (spot && cheb(spot, apos(p)) >= 4) { const r = make_raider(game, spot[0], spot[1]); r.state = 'hunt'; lv.add_actor(r); placed++; }
+    }
+    if (placed) game.msg('Boots on the stairs behind you. People who followed you in.', 'dir', true);
+    return;
+  }
+  const n = kind === 'horde' ? Math.max(2, Math.min(8, size)) : 1;
+  for (const spot of spots.slice(0, n)) {
+    const sid = (kind === 'special' || kind === 'boss') ? dir_strongest(game) : null;
+    const z = spawn_zombie(game, lv, spot, sid, false);
+    z.state = 'hunt'; z.target = apos(p); z.stimulus_turn = game.clock.turn;
+    if (kind === 'boss') z.hp = z.max_hp = Math.trunc(z.max_hp * 1.3);
+  }
+  if (kind === 'horde') game.msg(`The dead have found a way in: shuffling, to the ${where}, and more behind.`, 'dir');
+  else if (kind === 'special') game.msg(`Something heavy is moving through the building, from the ${where}.`, 'dir');
+  else game.msg(`It was in here with you all along: to the ${where}, and it knows exactly where you are.`, 'dir', true);
+}
+
 function dir_land(game, d, kind, size) {
+  if (game.level !== game.world.level) { dir_land_indoors(game, d, kind, size); return; }
   const p = game.player, lv = game.world.level, rng = game.rng;
   if (kind === 'raiders') {
     const before = game.level.actors.reduce((m, a) => Math.max(m, a.uid), 0);

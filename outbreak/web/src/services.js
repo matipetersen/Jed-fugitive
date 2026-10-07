@@ -94,11 +94,9 @@ const PATROL_LINES = {
             '"Noise draws them. Noise draws the other kind too."'],
 };
 
-const MAX_COMPANIONS = 2, JOIN_TRUST = 15;
+const MAX_COMPANIONS = 1, JOIN_TRUST = 15;
 
-function companions(game) {
-  return game.world.level.actors.filter((a) => a.kind === 'human' && a.state === 'follow' && a.hp > 0);
-}
+function companions(game) { const c = comp_current(game); return c ? [c] : []; }
 
 // A passing patrol: wary, but willing to share one tip with someone who still looks human.
 function talk_patrol(game, npc) {
@@ -124,24 +122,14 @@ function talk_patrol(game, npc) {
   return lines[(npc.uid + Math.floor(game.clock.turn / 60)) % lines.length];
 }
 
-// Why this patrol member will not travel with you, or an empty string.
-function join_refusal(game, npc) {
-  if (game.player.humanity < 20) return 'They will not follow what you have become.';
-  if (companions(game).length >= MAX_COMPANIONS) return `You already lead ${MAX_COMPANIONS} people. Any more and you would be a patrol of your own.`;
-  const trusted = (game.rep[npc.faction] || 0) >= JOIN_TRUST || game.aided[npc.group] === true;
-  if (!trusted) return 'They do not know you well enough to follow you. Earn their trust: answer a call for help, or do them a favour.';
-  return '';
-}
+// Why this person will not travel with you, or an empty string.
+function join_refusal(game, npc) { return comp_refusal(game, npc); }
 
 function ask_join(game, npc) {
   const why = join_refusal(game, npc);
   if (why) return why;
-  npc.state = 'follow'; npc.hostile = false;
-  return `The ${npc.name.toLowerCase()} falls in beside you. They will fight what you fight, and wait outside when you go in.`;
+  comp_recruit(game, npc);
+  return `${npc.name} falls in beside you. They will fight what you fight, and wait outside when you go in.`;
 }
 
-function dismiss(game, npc) {
-  npc.state = 'patrol';
-  game.patrol_goals[npc.group] = pick_patrol_goal(game, [npc.x, npc.y]);
-  return `The ${npc.name.toLowerCase()} nods and goes back to the roads.`;
-}
+function dismiss(game, npc) { return comp_dismiss(game, npc); }

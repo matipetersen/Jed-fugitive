@@ -17,7 +17,7 @@ from outbreak.engine import encounters, ending  # noqa: E402
 from outbreak.config import DIFFICULTIES  # noqa: E402
 from outbreak.engine.clock import START_HOUR, TURNS_PER_DAY, TURNS_PER_HOUR  # noqa: E402
 
-JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "shared",
+JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "companion", "objective", "shared",
             "hordes", "encounters", "services", "ending", "records", "inventory_ops", "setup", "game", "save"]
 UI_ORDER = ["ui"]
 
@@ -57,6 +57,9 @@ def dump_content() -> str:
         "difficulties": plain(DIFFICULTIES),
         "events": plain(list(encounters.EVENTS)),
         "win_endings": {f"{k[0]}|{k[1]}": list(v) for k, v in ending.WIN.items()},
+        "companions": {"archetypes": plain(list(content.companions.ARCHETYPES)), "strengths": content.companions.STRENGTHS,
+                       "flaws": content.companions.FLAWS, "role_archetype": content.companions.ROLE_ARCHETYPE,
+                       "names": list(content.companions.NAMES), "situation": {k: list(v) for k, v in content.companions.SITUATION_LINES.items()}},
         "clock": {"turns_per_day": TURNS_PER_DAY, "turns_per_hour": TURNS_PER_HOUR, "start_hour": START_HOUR},
     }
     return "const CONTENT = " + json.dumps(data, separators=(",", ":"), ensure_ascii=False) + ";\n"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
+from outbreak.engine import companion
 from outbreak.engine.model import Human, Item
 
 HEAL_COST = 6
@@ -152,12 +153,13 @@ PATROL_LINES = {
 }
 
 
-MAX_COMPANIONS = 2
+MAX_COMPANIONS = 1
 JOIN_TRUST = 15
 
 
 def companions(game) -> List[Human]:
-    return [a for a in game.world.level.actors if isinstance(a, Human) and a.state == "follow" and a.hp > 0]
+    c = companion.current(game)
+    return [c] if c is not None else []
 
 
 def talk_patrol(game, npc: Human) -> str:
@@ -186,30 +188,20 @@ def talk_patrol(game, npc: Human) -> str:
 
 
 def join_refusal(game, npc: Human) -> str:
-    """Why this patrol member will not travel with you, or an empty string."""
-    if game.player.humanity < 20:
-        return "They will not follow what you have become."
-    if len(companions(game)) >= MAX_COMPANIONS:
-        return f"You already lead {MAX_COMPANIONS} people. Any more and you would be a patrol of your own."
-    trusted = game.rep.get(npc.faction, 0) >= JOIN_TRUST or game.aided.get(npc.group) is True
-    if not trusted:
-        return "They do not know you well enough to follow you. Earn their trust: answer a call for help, or do them a favour."
-    return ""
+    """Why this person will not travel with you, or an empty string."""
+    return companion.refusal(game, npc)
 
 
 def ask_join(game, npc: Human) -> str:
     why = join_refusal(game, npc)
     if why:
         return why
-    npc.state = "follow"
-    npc.hostile = False
-    return f"The {npc.name.lower()} falls in beside you. They will fight what you fight, and wait outside when you go in."
+    companion.recruit(game, npc)
+    return f"{npc.name} falls in beside you. They will fight what you fight, and wait outside when you go in."
 
 
 def dismiss(game, npc: Human) -> str:
-    npc.state = "patrol"
-    game.patrol_goals[npc.group] = game.rng.choice(game.patrol_nodes) if game.patrol_nodes else npc.pos
-    return f"The {npc.name.lower()} nods and goes back to the roads."
+    return companion.dismiss(game, npc)
 
 
 def npc_title(npc: Human) -> str:

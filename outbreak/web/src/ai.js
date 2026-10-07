@@ -247,15 +247,17 @@ function _foes_of(h, game, humans) {
 }
 
 function _human(game, h, humans) {
-  if (!FIGHTERS.includes(h.role)) return;                       // shopkeepers and healers keep out of it
+  if (!FIGHTERS.includes(h.role) && h.state !== 'follow' && h.state !== 'wait') return;     // shopkeepers and healers keep out of it
   if (h.stun > 0) { h.stun -= 1; return; }
   const p = game.player, level = game.level;
   const d = cheb(apos(h), apos(p));
   if (h.hidden) { raiders_spring_check(game, h, humans, d); return; }          // lying in wait
   const seen = h.hostile && d <= 11 && has_los(level, apos(h), apos(p));
   if (h.hostile && !seen && h.morale < 100) h.morale = Math.min(100, h.morale + 2);   // it pulls itself together out of sight
-  const foe = nearest_foe(game, h, _foes_of(h, game, humans), h.reach > 1 ? HUMAN_SIGHT : FOE_SIGHT);
-  const target_foe = h.state === 'follow' && d > 10 ? null : foe;     // a companion does not chase far from you
+  let foe = nearest_foe(game, h, _foes_of(h, game, humans), h.reach > 1 ? HUMAN_SIGHT : FOE_SIGHT);
+  if ((h.state === 'follow' || h.state === 'wait') && comp_refuses_to_fight(h, foe)) foe = null;     // a pacifist will not raise a hand to a person
+  const target_foe = h.state === 'follow' && d > 10 && !comp_is_reckless(h) ? null : foe;     // a companion does not chase far from you
+  if (h.state === 'wait' && (target_foe === null || cheb(apos(h), apos(target_foe)) > 1)) return;     // asked to stay put: it only defends itself
   if (target_foe !== null && !(seen && d < cheb(apos(h), apos(target_foe)))) { _human_fight(game, h, target_foe); return; }
   if (seen) { h.state = 'hunt'; h.target = apos(p); }
   if (h.state === 'follow') { _follow_step(game, h); return; }
@@ -290,7 +292,7 @@ function _human_move(game, h, nxt) {
 
 function _human_fight(game, h, foe) {
   const level = game.level, d = cheb(apos(h), apos(foe));
-  if (h.hp < h.max_hp * 0.3 && foe.kind === 'zombie' && d <= 2) { _flee(game, h, apos(foe)); return; }
+  if (h.hp < h.max_hp * comp_flee_below(h) && foe.kind === 'zombie' && d <= 2) { _flee(game, h, apos(foe)); return; }
   if (h.reach > 1 && d >= 2 && d <= h.reach) attack_actor(game, h, foe, true);
   else if (d === 1) attack_actor(game, h, foe, false);
   else _human_move(game, h, greedy_step(level, apos(h), apos(foe), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1]))));

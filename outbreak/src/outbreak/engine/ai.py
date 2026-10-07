@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Optional, Tuple
 
-from outbreak.engine import ambience, combat, lives, raiders, wild
+from outbreak.engine import ambience, combat, companion, lives, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Animal, Human, Zombie
@@ -331,7 +331,7 @@ def _foes_of(h: Human, game, humans):
 
 
 def _human(game, h: Human, humans) -> None:
-    if h.role not in FIGHTERS:
+    if h.role not in FIGHTERS and h.state not in ("follow", "wait"):
         return                                                    # shopkeepers and healers keep out of it
     if h.stun > 0:
         h.stun -= 1
@@ -345,8 +345,12 @@ def _human(game, h: Human, humans) -> None:
     if h.hostile and not seen and h.morale < 100:
         h.morale = min(100, h.morale + 2)                         # it pulls itself together out of sight
     foe = nearest_foe(game, h, _foes_of(h, game, humans), HUMAN_SIGHT if h.reach > 1 else FOE_SIGHT)
-    if h.state == "follow" and d > 10:
+    if h.state in ("follow", "wait") and companion.refuses_to_fight(h, foe):
+        foe = None                                                # a pacifist will not raise a hand to a person
+    if h.state == "follow" and d > 10 and not companion.is_reckless(h):
         foe = None                                                # a companion does not chase far from you
+    if h.state == "wait" and (foe is None or cheb(h.pos, foe.pos) > 1):
+        return                                                    # asked to stay put: it only defends itself
     if foe is not None and not (seen and d < cheb(h.pos, foe.pos)):
         _human_fight(game, h, foe)
         return
@@ -471,7 +475,7 @@ def _human_move(game, h: Human, nxt) -> bool:
 def _human_fight(game, h: Human, foe) -> None:
     level = game.level
     d = cheb(h.pos, foe.pos)
-    if h.hp < h.max_hp * 0.3 and isinstance(foe, Zombie) and d <= 2:
+    if h.hp < h.max_hp * companion.flee_below(h) and isinstance(foe, Zombie) and d <= 2:
         _flee(game, h, foe.pos)
         return
     ranged = h.reach > 1

@@ -11,6 +11,9 @@ function build_ending(game, kind, cause = '') {
     `Level ${p.level}   Humanity ${p.humanity}   Fluency ${Math.floor(game.know.fluency * 100)}%`,
     `Documents read: ${p.documents.length}   Words known: ${game.know.known.size}/${game.know.vocab.length}`,
   ];
+  const ally = comp_current(game);
+  if (ally) summary.push(`Travelling with ${ally.name} (${comp_bond_word(ally)}), ${ally.kills} kills together`);
+  for (const [name, what] of game.fallen_allies || []) summary.push(`You lost ${name} (${what})`);
   if (game.fallen.length) summary.push(`Survivors lost: ${game.fallen.length}   You were survivor #${game.generation}`);
   if (p.lost.length) summary.push('You lost your ' + p.lost.join(' and your ') + ' to survive.');
   let title, text;

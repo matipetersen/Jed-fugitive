@@ -43,6 +43,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   text-shadow: 0 1px 2px #000; }
 #log div { padding: 1px 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .t-info { color: var(--fg); } .t-good { color: var(--good); } .t-bad { color: var(--danger); } .t-warn { color: var(--accent); }
+.t-obj { color: var(--accent); } .t-ally { color: #c79bf2; } .chip.ally { color: #c79bf2; border-color: #8a64b8; cursor: pointer; }
 .t-combat { color: var(--muted); } .t-lore { color: var(--info); }
 #alert { position: absolute; left: 12px; right: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .big { padding: 12px 18px; border-radius: 10px; font-weight: 600; letter-spacing: .02em; background: var(--accent); color: var(--accent-ink); min-height: 48px; }

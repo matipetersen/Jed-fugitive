@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, military, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, companion, military, objective, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -25,6 +25,7 @@ from outbreak.util import DIRS8, Pos, cheb
 WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.4, 3.0, 20
 LOG_LIMIT = 600
 CHRONICLE_TAGS = ("good", "lore")
+STORY_TAGS = ("obj", "ally", "lore")          # what the default log shows: where you are going and who is with you
 CHRONICLE_LIMIT, CHRONICLE_KEEP = 160, 25   # when full, drop the entry at index KEEP (head and tail survive)
 SCENT_KEEP = 60
 FORCE_TURNS = 6
@@ -66,6 +67,10 @@ class Game:
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
         self.last_step_note = -999
+        self.companion_uid = 0                   # the one person who travels with you (engine/companion.py)
+        self.fallen_allies: List[Tuple[str, str]] = []
+        self.story: List[Tuple[int, str, str]] = []          # the log that matters: objectives, companions, key events
+        self.objective_seen: Dict[str, bool] = {}
         self.foraged: Dict[Pos, int] = {}        # where you gathered wild food, and when
         self.pings: List[dict] = []              # recent noises the UI draws as rings: {pos, radius, turn, kind, level}
         self.flash_turn = -999                   # lightning
@@ -115,6 +120,13 @@ class Game:
         self.log.append((self.clock.turn, text, tag))
         if len(self.log) > LOG_LIMIT:
             del self.log[:100]
+        if key or tag in STORY_TAGS:
+            story = getattr(self, "story", None)
+            if story is None:
+                story = self.story = []
+            story.append((self.clock.turn, text, tag))
+            if len(story) > LOG_LIMIT:
+                del story[:100]
         if key or tag in CHRONICLE_TAGS:
             self._chronicle(text)
 
@@ -312,6 +324,8 @@ class Game:
         ambience.world_tick(self)
         self._base_tick()
         military.tick(self)
+        companion.tick(self)
+        objective.watch(self)
         if self.incidents and t % 5 == 0:
             self._check_incidents()
         if self.final:
@@ -566,7 +580,7 @@ class Game:
         if self.deadline_days and day > self.deadline_days and not self.final:
             self.end("left_behind", "")
         elif self.deadline_days and c.turn % 240 == 0 and day == self.deadline_days:
-            self.msg("The last day. By nightfall the way out will be gone.", "warn")
+            self.msg("The last day. By nightfall the way out will be gone.", "obj")
         if sc.escalates and c.turn % 240 == 0 and c.day > 1:
             if c.day % 4 == 0:
                 self._restock()
@@ -670,7 +684,7 @@ class Game:
             return False
         poi = self.rng.choice(pois)
         poi.revealed = poi.lead = True
-        self.msg(f"A lead: {poi.name} is marked on your map.", "good")
+        self.msg(f"A lead: {poi.name} is marked on your map.", "obj")
         return True
 
     # ================================================================= level handling
@@ -720,6 +734,8 @@ class Game:
             dest = target.arrivals.get(portal.arrive) or target.entry
         if not target.walkable(*dest) or (dest in target.occ and target.occ[dest] is not p):
             dest = target.free_spot_near(dest[0], dest[1], 4) or dest
+        if portal.target != "world":
+            companion.on_enter(self, target)
         if self.stalker and self.stalker.hp > 0 and self.stalker in old.actors \
                 and cheb(self.stalker.pos, p.pos) <= 10 and self.stalker.state == "hunt":
             old.remove_actor(self.stalker)
@@ -741,6 +757,8 @@ class Game:
                 self.msg("You glimpse written pages somewhere in here.", "lore")
             self._chronicle(f"You enter {target.name} for the first time.")
         self.msg(f"You enter {target.name}." if portal.target != "world" else "You step back outside.", "info")
+        if portal.target == "world":
+            companion.on_return(self)
         self._spend(1)
         return True
 

@@ -136,7 +136,7 @@ function with_patrol(group) {
   z.hp = 1; OB.kill_zombie(g, z);
   assert.strictEqual(g.aided[5], false);
   assert(OB.talk_patrol(g, h).includes('called')); assert.strictEqual(g.aided[5], true);
-  assert(OB.ask_join(g, h).startsWith('The')); assert.strictEqual(h.state, 'follow');
+  OB.ask_join(g, h); assert.strictEqual(h.state, 'follow'); assert.strictEqual(g.companion_uid, h.uid);
 }
 {
   const [g, lv, h] = with_patrol(5);
@@ -145,7 +145,7 @@ function with_patrol(group) {
 }
 {
   const [g, lv, h] = with_patrol(5);
-  g.rep.military = 20; OB.ask_join(g, h);
+  g.rep.military = 20; OB.comp_ensure_person(g, h, 'veteran'); OB.ask_join(g, h);
   assert.strictEqual(OB.companions(g).length, 1);
   const p = g.player;
   for (let i = 0; i < 12; i++) if (!g.move(0, 1)) g.move(1, 0);
@@ -159,12 +159,10 @@ function with_patrol(group) {
 {
   const [g, lv, h] = with_patrol(5);
   g.rep.military = 20;
-  for (let i = 0; i < 2; i++) {
-    const m = OB.make_patrol(g, 'soldier', 0, 0, 20 + i), sp = lv.free_spot_near(g.player.x - 2, g.player.y + i, 3);
-    lv.add_actor(m); lv.move_actor(m, sp[0], sp[1]);
-    assert(OB.ask_join(g, m).startsWith('The'));
-  }
-  assert(OB.ask_join(g, h).includes('already lead'));
+  const m = OB.make_patrol(g, 'soldier', 0, 0, 20), sp = lv.free_spot_near(g.player.x - 2, g.player.y, 3);
+  lv.add_actor(m); lv.move_actor(m, sp[0], sp[1]);
+  OB.ask_join(g, m); assert.strictEqual(m.state, 'follow');
+  assert(OB.ask_join(g, h).toLowerCase().includes('only one'));
   g.player.humanity = 5; assert(OB.join_refusal(g, h).includes('what you have become'));
 }
 {

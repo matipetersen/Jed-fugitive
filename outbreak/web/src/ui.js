@@ -432,6 +432,7 @@ function updateHud() {
   setBar('#b-noi', g.heat, 100, g.heat > 60 ? '#e2573f' : g.heat > 30 ? '#d99a2b' : '#6b7a74');
   const chips = $('#chips'); chips.innerHTML = '';
   const add = (t, cls) => chips.append(el('span', 'chip ' + (cls || ''), t));
+  { const ally = comp_current(g); if (ally) { const ch = el('button', 'chip ally', `${ally.name} ${ally.hp}/${ally.max_hp}${ally.state === 'wait' ? ' · waiting' : ''}`); ch.type = 'button'; ch.addEventListener('click', () => { if (!modal && game && !game.over) openCompanion(ally); }); chips.append(ch); } else if (g.fallen_allies.length) add(`Alone · lost ${g.fallen_allies[g.fallen_allies.length - 1][0]}`, 'info'); }
   if (p.infected) add(`INFECTED ${p.infection_timer >= 20 ? Math.round(p.infection_timer / 10) + 'h' : p.infection_timer + ' turns'}`, 'danger');
   if (p.bleeding) add('Bleeding', 'danger');
   if (p.fracture) add('Broken leg', 'warn');
@@ -457,12 +458,15 @@ function updateHud() {
   layoutOverlays();
 }
 
+let logAll = false;
 function renderLog() {
   const box = $('#log'); box.innerHTML = '';
-  const recent = game.log.slice(-3);
+  const recent = (logAll || !game.story.length ? game.log : game.story).slice(-3);
   recent.forEach((m, i) => { const d = el('div', 't-' + m[2], m[1]); d.style.opacity = String(0.45 + 0.275 * (i + (3 - recent.length))); box.append(d); });
   layoutOverlays();
 }
+
+$('#log').addEventListener('click', () => { if (!game || modal) return; logAll = !logAll; toast(logAll ? 'Log: everything' : 'Log: objectives, companion, key events'); renderLog(); });
 
 function updateControls() {
   const g = game, p = g.player;
@@ -968,9 +972,13 @@ function openStatus() {
   });
 }
 
-function openLog() {
+function openLog(all = false) {
   openSheet('Journal', (body) => {
-    for (const [turn, text, tag] of game.log.slice(-120).reverse()) body.append(el('div', 'row', [el('div', 'main', el('div', 't-' + tag, text)), el('div', 'tag', 'T' + turn)]));
+    const tabs = el('div', 'actionrow');
+    tabs.append(btn(all ? 'btn' : 'btn main', 'Story', () => openLog(false)), btn(all ? 'btn main' : 'btn', 'Everything', () => openLog(true)));
+    body.append(tabs);
+    const src = all ? game.log : game.story;
+    for (const [turn, text, tag] of src.slice(-120).reverse()) body.append(el('div', 'row', [el('div', 'main', el('div', 't-' + tag, text)), el('div', 'tag', 'T' + turn)]));
   });
 }
 
@@ -1069,8 +1077,31 @@ function openSettings(msg) {
 }
 
 // ---------------------------------------------------------------- people, rest and events
+function openCompanion(c, line = '') {
+  const g = game, a = comp_arch(c);
+  openSheet(c.name, (b) => {
+    b.append(el('p', 'event-text', `${c.name}, ${a.label}. ${comp_bond_word(c)}. HP ${c.hp}/${c.max_hp}.`));
+    b.append(el('p', 'note', `Good at it: ${COMP.strengths[a.strength]}. Trouble: ${COMP.flaws[a.flaw]}.`));
+    if (line) b.append(el('p', 'note say t-ally', line));
+    const acts = el('div', 'actionrow');
+    acts.append(btn('btn main', 'Talk', () => { const l = comp_talk(g, c); refresh(); openCompanion(c, l); }));
+    acts.append(btn('btn', 'What next?', () => openCompanion(c, comp_advice(g))));
+    acts.append(btn('btn', c.state === 'wait' ? 'Follow me' : 'Wait here', () => { const l = comp_toggle_wait(g, c); refresh(); openCompanion(c, l); }));
+    b.append(acts);
+    const gifts = g.player.inventory.map((it, i) => [it, i]).filter(([it]) => ['food', 'med'].includes(g.item_def(it.id).kind));
+    if (gifts.length) {
+      b.append(el('h3', 'sec', 'Give'));
+      const row = el('div', 'actionrow');
+      for (const [it, i] of gifts) row.append(btn('btn', `${g.item_def(it.id).name} x${it.qty}`, () => { const l = comp_give(g, c, i); refresh(); openCompanion(c, l); }));
+      b.append(row);
+    }
+    b.append(btn('btn danger', 'Go your own way', () => { const l = comp_dismiss(g, c); refresh(); closeSheet(); toast(l); }));
+  });
+}
+
 function openNpc(npc) {
   const g = game;
+  if (npc.trait && npc.uid === g.companion_uid) { openCompanion(npc); return; }
   if (npc.role === 'scout' || npc.role === 'soldier') {
     const show = (line) => openSheet(npc.name, (b) => {
       if (line) b.append(el('p', 'event-text', line));
@@ -1085,6 +1116,15 @@ function openNpc(npc) {
   }
   const why = refuses(g);
   if (why) { openSheet(npc.name, (b) => b.append(el('p', 'event-text', why))); return; }
+  if (['trader', 'healer', 'scholar'].includes(npc.role) && !comp_current(g) && !npc._business) {
+    openSheet(npc.name, (b) => {
+      const acts = el('div', 'actionrow');
+      acts.append(btn('btn main', 'Business', () => { npc._business = true; closeSheet(); openNpc(npc); npc._business = false; }));
+      acts.append(btn('btn', 'Come with me', () => { const l = ask_join(g, npc); refresh(); closeSheet(); toast(l); }));
+      b.append(acts);
+    });
+    return;
+  }
   if (npc.role === 'trader') return openTrade();
   openSheet(npc.name, (body) => {
     const say = (msg) => { body.querySelector('.say') && body.querySelector('.say').remove(); body.append(el('p', 'note say', msg)); refresh(); };

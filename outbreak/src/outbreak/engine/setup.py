@@ -7,7 +7,7 @@ from typing import List
 
 from outbreak import content
 from outbreak.content.items import ItemDef
-from outbreak.engine import cipher, encounters, hordes, military, mutation, raiders, wild
+from outbreak.engine import cipher, companion, encounters, hordes, military, mutation, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.clock import TURNS_PER_HOUR, Clock
 from outbreak.engine.model import Container, Item, POI
@@ -52,6 +52,7 @@ def initialize(game) -> None:
     _documents(game)
     _populate(game)
     raiders.scatter_snares(game)
+    companion.spawn_start(game)
     if not game.profile.sun_burn:                           # nothing roams by day, so there is no opening tide
         hordes.start_ring(game)
     _intro(game)

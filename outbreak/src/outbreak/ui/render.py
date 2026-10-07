@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 from outbreak.engine import ambience, mutation
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
+from outbreak.engine import companion
 from outbreak.engine.model import Animal, Human, Zombie
 from outbreak.util import Pos, cheb, compass
 
@@ -18,7 +19,7 @@ POI_LETTER = {"cave": "n", "medical": "M", "market": "$", "guard": "P", "lab": "
               "faith": "C", "industry": "F", "refuge": "R", "pad": "E", "house": "h"}
 ZOMBIE_COLOR = {"walker": "red", "crawler": "red", "brute": "magenta", "bloater": "green", "screamer": "yellow",
                 "leaper": "red", "clicker": "cyan", "stalker": "magenta", "alpha": "magenta"}
-TAG_COLOR = {"info": "white", "good": "green", "bad": "red", "warn": "yellow", "combat": "grey",
+TAG_COLOR = {"obj": "yellow", "ally": "magenta", "info": "white", "good": "green", "bad": "red", "warn": "yellow", "combat": "grey",
              "lore": "cyan", "loud": "yellow"}
 BLANK: Cell = (" ", "grey", False)
 
@@ -204,6 +205,14 @@ def build_side(game: Game) -> List[Line]:
         out.append((("[x] " if done else "[ ] ") + text, "green" if done else "white"))
     if game.final:
         out.append((f"HOLD OUT: {game.final.turns_left} turns", "red"))
+    ally = companion.current(game)
+    out.append(("", "grey"))
+    if ally is not None:
+        waiting = " (waiting)" if ally.state == "wait" else ""
+        out.append((f"With you: {ally.name}{waiting}", "magenta"))
+        out.append((f" {companion.arch_of(ally).label}  hp {ally.hp}/{ally.max_hp}  {companion.bond_word(ally)}", "magenta"))
+    else:
+        out.append(("Alone." + (f" Lost: {', '.join(n for n, _ in game.fallen_allies[-2:])}" if game.fallen_allies else ""), "grey"))
     hostiles = sorted(game.visible_hostiles(), key=lambda a: cheb(a.pos, p.pos))
     if hostiles:
         out.append(("", "grey"))
@@ -223,9 +232,11 @@ def _equip_line(game: Game, item, label: str) -> str:
     return f"{label}: {d.name}{extra}"
 
 
-def build_log(game: Game, lines: int, width: int) -> List[Line]:
+def build_log(game: Game, lines: int, width: int, full: bool = False) -> List[Line]:
+    """The log: by default only what matters (objectives, your companion, key events) under a pinned goal; ``full`` shows all."""
+    source = game.log if full or not getattr(game, "story", None) else game.story
     out: List[Line] = []
-    for turn, text, tag in game.log[-lines * 2:]:
+    for turn, text, tag in source[-lines * 2:]:
         color = TAG_COLOR.get(tag, "white")
         while len(text) > width:
             cut = text.rfind(" ", 0, width)
@@ -233,13 +244,17 @@ def build_log(game: Game, lines: int, width: int) -> List[Line]:
             out.append((text[:cut], color))
             text = "  " + text[cut:].lstrip()
         out.append((text, color))
-    return out[-lines:]
+    if full or lines < 3:
+        return out[-lines:]
+    goal = next((t for t, done in game.objectives() if not done), None)
+    out = out[-(lines - 1):]
+    return ([(f"GOAL  {goal}"[:width], "yellow")] + out) if goal else out
 
 
 def build_view(game: Game, map_w: int, map_h: int, log_lines: int = 6, log_w: int = 100,
-               cursor: Optional[Pos] = None) -> View:
+               cursor: Optional[Pos] = None, full_log: bool = False) -> View:
     rows, origin = build_map(game, map_w, map_h, cursor)
-    return View(rows, build_side(game), build_log(game, log_lines, log_w), origin)
+    return View(rows, build_side(game), build_log(game, log_lines, log_w, full_log), origin)
 
 
 def places(game: Game) -> List[Tuple[str, str]]:

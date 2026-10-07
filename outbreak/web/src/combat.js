@@ -179,6 +179,8 @@ function _attack_human(game, h, w, item) {
 
 function kill_human(game, h) {
   raiders_shaken(game, h);
+  comp_on_death(game, h, 'you');
+  comp_on_player_kills_human(game, h);
   const level = game.level;
   if (game.shared) game.shared.on_enemy_death(h);
   level.remove_actor(h);
@@ -342,30 +344,35 @@ function human_attack(game, h) {
 function _seen(game, ...actors) { return actors.some((a) => game.is_visible(a.x, a.y)); }
 
 // One actor (zombie or human) strikes another that is not the player.
+// how the log names someone: a companion by name, anyone else as 'the zombie'
+const ref = (a) => (a.trait ? a.name : `the ${a.name.toLowerCase()}`);
+const Ref = (a) => { const r = ref(a); return r[0].toUpperCase() + r.slice(1); };
+
 function attack_actor(game, attacker, defender, ranged = false) {
   const d = cheb(apos(attacker), apos(defender));
   if (ranged && d > 1) game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight');
-  const noun = attacker.name.toLowerCase(), victim = defender.name.toLowerCase();
+  const victim = ref(defender);
   if (game.rng.random() * 100 >= clamp(attacker.acc - 8 - Math.max(0, d - 1) * 2, 12, 90)) {
-    if (_seen(game, attacker, defender)) game.msg(`The ${noun} ${ranged && d > 1 ? 'shoots' : 'strikes'} at the ${victim} and misses.`, 'combat');
+    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${ranged && d > 1 ? 'shoots' : 'strikes'} at ${victim} and misses.`, 'combat');
     return;
   }
   const raw = game.rng.randint(attacker.dmg[0], attacker.dmg[1]);
   if (defender.kind === 'zombie') {
     const head = game.rng.random() < (ranged ? 0.25 : 0.2);
     defender.hp -= zombie_damage(game, defender, raw, head);
-    if (defender.hp <= 0) { kill_zombie(game, defender, head, false, attacker); return; }
+    if (defender.hp <= 0) { kill_zombie(game, defender, head, false, attacker); if (attacker.kind === 'human' && attacker.trait) comp_on_ally_kill(game, attacker, defender); return; }
     defender.state = 'hunt'; defender.target = apos(attacker); defender.stimulus_turn = game.clock.turn;
-    if (_seen(game, attacker, defender)) game.msg(`The ${noun} hits the ${victim}.`, 'combat');
+    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} hits ${victim}.`, 'combat');
     return;
   }
   defender.hp -= raw;
   if (defender.hp <= 0) { kill_human_other(game, defender, attacker); return; }
   if (defender.kind === 'human') {
-    if (defender.state !== 'follow') { defender.state = 'hunt'; defender.target = apos(attacker); }
+    if (defender.state !== 'follow' && defender.state !== 'wait') { defender.state = 'hunt'; defender.target = apos(attacker); }
     _distress(game, defender);
+    if (defender.trait) comp_on_hurt(game, defender);
   }
-  if (_seen(game, attacker, defender)) game.msg(`The ${noun} ${attacker.kind === 'zombie' ? 'bites' : 'hits'} the ${victim}.`, 'combat');
+  if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${attacker.kind === 'zombie' ? 'bites' : 'hits'} ${victim}.`, 'combat');
 }
 
 // A patrol under attack calls for help; if you hear it and answer, they will remember.
@@ -381,6 +388,7 @@ function _distress(game, h) {
 // A human dies to something other than the player. Victims of the dead rise again (corpse flag 2).
 function kill_human_other(game, h, killer) {
   raiders_shaken(game, h);
+  comp_on_death(game, h, killer);
   const level = game.level;
   grant_xp(game, killer, 12);
   if (game.shared) game.shared.on_enemy_death(h);
@@ -388,8 +396,8 @@ function kill_human_other(game, h, killer) {
   level.corpses[level.idx(h.x, h.y)] = [game.clock.turn, killer.kind === 'zombie' ? 2 : 1];
   for (const item of h.loot) level.drop(apos(h), item);
   if (_seen(game, h, killer)) {
-    if (killer.kind === 'zombie') game.msg(`The ${killer.name.toLowerCase()} drags the ${h.name.toLowerCase()} down.`, 'bad');
-    else game.msg(`The ${h.name.toLowerCase()} falls to the ${killer.name.toLowerCase()}.`, 'combat');
+    if (killer.kind === 'zombie') game.msg(`${Ref(killer)} drags ${ref(h)} down.`, 'bad');
+    else game.msg(`${Ref(h)} falls to ${ref(killer)}.`, 'combat');
   }
 }
 

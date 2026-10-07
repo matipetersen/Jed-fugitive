@@ -64,5 +64,6 @@ function apply_fx(game, fx) {
   for (const [role, delta] of Object.entries(fx.rep || {})) game.rep[role] = Math.max(-100, Math.min(100, (game.rep[role] || 0) + Math.trunc(delta)));
   if (fx.horde) game.spawn_horde_near_player();
   if (fx.raiders) game.spawn_raiders_near_player(Math.trunc(fx.raiders));
+  if (fx.recruit) comp_offer_stranger(game, Number(fx.recruit));
   if (fx.reveal) game.reveal_random_lead();
 }

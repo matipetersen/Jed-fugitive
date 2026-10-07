@@ -152,6 +152,17 @@ class Human(Actor):
     corrupt: bool = False            # can be bought, and pockets what it confiscates
     cp: int = 0                      # checkpoint it guards (0 = none)
     post: Optional[Pos] = None
+    # a companion's profile (engine/companion.py); empty for everyone who is not, or never was, someone you travel with
+    trait: str = ""                  # archetype id
+    bond: int = 0
+    since: int = 0
+    kills: int = 0
+    story: int = 0                   # parts of their story they have told you
+    nextsay: int = 0
+    nextfx: int = 0
+    nextfx2: int = 0
+    nextwarn: int = 0
+    lasttalk: int = -999
 
 
 class Level:

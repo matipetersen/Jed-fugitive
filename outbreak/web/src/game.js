@@ -78,6 +78,7 @@ class Game {
     this.gen_day = 0; this.dead_uids = new Set(); this.deadline_days = 0; this.lost_turns = 0; this.incidents = [];
     this.shared = null; this.season_n = 0; this.world_uid_max = 0; this.pending_shared = {}; this.applied_tombs = {}; this.tomb_at = {}; this.named_state = {}; this.taken_components = []; this.season_reset = false;
     this.regions = []; this.region_id = -1; this.checkpoints = {}; this.foraged = [];
+    this.companion_uid = 0; this.fallen_allies = []; this.story = []; this.objective_seen = {};
     this.weather = 'clear'; this.sources = []; this.alarmed = []; this.last_step_note = -999; this.pings = []; this.flash_turn = -999;
     this.base_id = null; this.raid_next = 0;
     this.generation = 1; this.current_origin = 'medic'; this.fallen = []; this.fallen_bodies = {}; this.killer = null; this.death_notice = ''; this.patrol_nodes = []; this.opening_id = ''; this.intro_pages = [];
@@ -92,6 +93,10 @@ class Game {
     if (!text) return;
     this.log.push([this.clock.turn, text, tag]);
     if (this.log.length > LOG_LIMIT) this.log.splice(0, 100);
+    if (key || tag === 'obj' || tag === 'ally' || tag === 'lore') {         // the log that matters: objectives, companions, key events
+      this.story.push([this.clock.turn, text, tag]);
+      if (this.story.length > LOG_LIMIT) this.story.splice(0, 100);
+    }
     if (key || tag === 'good' || tag === 'lore') this._chronicle(text);
   }
   // the few lines worth retelling at the end; keeps the start and the latest
@@ -288,7 +293,7 @@ class Game {
     this._heat();
     this.pings = this.pings.filter((q) => t - q.turn <= 6);
     if (t % 5 === 0) mutation_crossing(this);
-    this._time_events(); weather_tick(this); world_tick(this); this._base_tick(); military_tick(this);
+    this._time_events(); weather_tick(this); world_tick(this); this._base_tick(); military_tick(this); comp_tick(this); objective_watch(this);
     if (this.incidents.length && t % 5 === 0) this._check_incidents();
     if (this.final) this._final_tick();
     if (t % 40 === 0) this._maybe_event();
@@ -511,7 +516,7 @@ class Game {
     const day = game_day(this);
     const eff_day = day + Math.floor(this.lost_turns / 240);        // the road's lost time counts against the deadline
     if (this.deadline_days && eff_day > this.deadline_days && !this.final) this.end('left_behind', '');
-    else if (this.deadline_days && c.turn % 240 === 0 && eff_day === this.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'warn');
+    else if (this.deadline_days && c.turn % 240 === 0 && eff_day === this.deadline_days) this.msg('The last day. By nightfall the way out will be gone.', 'obj');
     if (sc.escalates && c.turn % 240 === 0 && day > 1) {
       if (day % 4 === 0) this._restock();
       if (day % 5 === 0) this.msg(`Day ${day}. You are still here. The dead are ${Math.round(this.pressure * 100)}% of what they were on day one.`, 'lore');
@@ -617,7 +622,7 @@ class Game {
     if (!pois.length) return false;
     const poi = this.rng.choice(pois);
     poi.revealed = true; poi.lead = true;
-    this.msg(`A lead: ${poi.name} is marked on your map.`, 'good');
+    this.msg(`A lead: ${poi.name} is marked on your map.`, 'obj');
     return true;
   }
 
@@ -662,6 +667,7 @@ class Game {
     } else dest = (target.arrivals[portal.arrive] || target.entry).slice();
     const occ = target.occ.get(target.idx(dest[0], dest[1]));
     if (!target.walkable(dest[0], dest[1]) || (occ && occ !== p)) dest = target.free_spot_near(dest[0], dest[1], 4) || dest;
+    if (portal.target !== 'world') comp_on_enter(this, target);
     const st = this.stalker;
     if (st && st.hp > 0 && old.actors.includes(st) && cheb([st.x, st.y], [p.x, p.y]) <= 10 && st.state === 'hunt') {
       old.remove_actor(st);
@@ -681,6 +687,7 @@ class Game {
       if (this._unread_in(target)) this.msg('You glimpse written pages somewhere in here.', 'lore');
     }
     this.msg(portal.target !== 'world' ? `You enter ${target.name}.` : 'You step back outside.', 'info');
+    if (portal.target === 'world') comp_on_return(this);
     this._spend(1);
     return true;
   }

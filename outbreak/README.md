@@ -74,6 +74,27 @@ armed people who have heard about you if you did not.
 * *Everywhere.* Ambushes are not only for camps: raider road events and the Dash finale spring the same hidden squad
   (half in cover, three hidden snares round you), and lone tripwires are scattered along the far roads.
 
+**A companion, and a log that follows the story.**
+* *You start with one person at your side*, drawn at random from a pool of eight (veteran, medic, scavenger, hunter, mechanic,
+  preacher, brute, gambler), each with a personal name, **one strength and one flaw**:
+  fighter (hits hard) / medic (dresses your wounds below 60% health, every 60 turns) / scavenger (comes back with something
+  when you leave a building) / scout (spots ambushers and snares) / calm (steadies your panic) / tinker (repairs your weapon) /
+  tough / lucky; against coward (flees at 60% health) / loud (makes noise now and then) / hungry (eats from your pack) / frail /
+  pacifist (will not fight people, and a killing you cannot justify costs 15 bond) / reckless (charges, does not break off).
+* **One at a time, and they stay dead.** If they die the log says so, who killed them, how many days and kills, and what they
+  said; the ending lists everyone you lost. **Anyone who is not hostile can take their place**: a trader, healer or archivist
+  (be known or well-liked), a patrol member (earn their trust), or a stranger you helped (some road events end with someone
+  asking to come along). The person's profile comes from who they are (a healer is a medic) and their id.
+* **Bond (0-100)** rises with time together (+1 per 100 turns), shared kills, food and medicine you give them, and falls when
+  you kill people who were not hostile. At 5 they leave. At 35, 60 and 85 they tell you a part of their story when you talk
+  (a lead on your map, a medkit, and at the end +3 max health for you).
+* *Talking*: terminal `e` beside them, web tap them or the chip under the bars: **Talk**, **What next?** (their read on the next
+  objective and where it is), **Give** food or medicine, **Wait here / Follow me**, **Go your own way**. They wait outside
+  when you go into a building or cave, and say so.
+* **The log** now shows only what matters by default: a pinned **GOAL**, objective changes (`Done: ...`, new leads, the last
+  day), everything your companion says or does, and key events. Combat noise and step notes stay in the full log. Terminal `J`
+  toggles it; on the web tap the log, or open Journal for the Story and Everything tabs.
+
 **Food: hunting, foraging, cooking.** Rations are no longer the only meal.
 * *Game.* Rabbits (`r`), deer (`d`) and boar (`b`) graze on grass and brush, away from the start. They notice you from 5, 7 and
   4 tiles (3 tiles less if you creep, and then only 30% of the time per turn). Once they have noticed you they run, a little

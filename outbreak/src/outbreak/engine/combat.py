@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
-from outbreak.engine import lives, raiders, wild
+from outbreak.engine import companion, lives, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Animal, Hazard, Human, Item, Zombie
@@ -274,6 +274,8 @@ def _attack_human(game, h: Human, w: ItemDef, item: Optional[Item]) -> bool:
 def kill_human(game, h: Human) -> None:
     level = game.level
     raiders.shaken(game, h)
+    companion.on_death(game, h, "you")
+    companion.on_player_kills_human(game, h)
     level.remove_actor(h)
     level.corpses[h.pos] = (game.clock.turn, True)
     for item in h.loot:
@@ -492,16 +494,25 @@ def _seen(game, *actors) -> bool:
     return any(a.pos in game.visible for a in actors)
 
 
+def ref(a: Actor) -> str:
+    """How the log names someone: a companion by name, anyone else as 'the zombie'."""
+    return a.name if getattr(a, "trait", "") else f"the {a.name.lower()}"
+
+
+def Ref(a: Actor) -> str:
+    r = ref(a)
+    return r[0].upper() + r[1:]
+
+
 def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -> None:
     """One actor (zombie or human) strikes another that is not the player."""
     d = cheb(attacker.pos, defender.pos)
     if ranged and d > 1:
         game.emit_noise(attacker.pos, 18 if game.era.firearms else 4, "fight")
-    noun = attacker.name.lower()
-    victim = defender.name.lower()
+    victim = ref(defender)
     if game.rng.random() * 100 >= clamp(attacker.acc - 8 - max(0, d - 1) * 2, 12, 90):
         if _seen(game, attacker, defender):
-            game.msg(f"The {noun} {'shoots' if ranged and d > 1 else 'strikes'} at the {victim} and misses.", "combat")
+            game.msg(f"{Ref(attacker)} {'shoots' if ranged and d > 1 else 'strikes'} at {victim} and misses.", "combat")
         return
     raw = game.rng.randint(*attacker.dmg)
     if isinstance(defender, Zombie):
@@ -510,21 +521,25 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
         defender.hp -= dealt
         if defender.hp <= 0:
             kill_zombie(game, defender, head=head, by_player=False, killer=attacker)
+            if isinstance(attacker, Human) and attacker.trait:
+                companion.on_ally_kill(game, attacker, defender)
             return
         defender.state, defender.target, defender.stimulus_turn = "hunt", attacker.pos, game.clock.turn
         if _seen(game, attacker, defender):
-            game.msg(f"The {noun} hits the {victim}.", "combat")
+            game.msg(f"{Ref(attacker)} hits {victim}.", "combat")
         return
     defender.hp -= raw
     if defender.hp <= 0:
         kill_human_other(game, defender, attacker)
         return
     if isinstance(defender, Human):
-        if defender.state != "follow":
+        if defender.state not in ("follow", "wait"):
             defender.state, defender.target = "hunt", attacker.pos
         _distress(game, defender)
+        if defender.trait:
+            companion.on_hurt(game, defender)
     if _seen(game, attacker, defender):
-        game.msg(f"The {noun} {'bites' if isinstance(attacker, Zombie) else 'hits'} the {victim}.", "combat")
+        game.msg(f"{Ref(attacker)} {'bites' if isinstance(attacker, Zombie) else 'hits'} {victim}.", "combat")
 
 
 def _distress(game, h: Human) -> None:
@@ -545,6 +560,7 @@ def kill_human_other(game, h: Human, killer: Actor) -> None:
     """A human dies to something other than the player.  Zombie victims rise again."""
     level = game.level
     raiders.shaken(game, h)
+    companion.on_death(game, h, killer)
     lives.grant_xp(game, killer, 12)
     level.remove_actor(h)
     level.corpses[h.pos] = (game.clock.turn, 2 if isinstance(killer, Zombie) else True)
@@ -552,9 +568,9 @@ def kill_human_other(game, h: Human, killer: Actor) -> None:
         level.drop(h.pos, item)
     if _seen(game, h, killer):
         if isinstance(killer, Zombie):
-            game.msg(f"The {killer.name.lower()} drags the {h.name.lower()} down.", "bad")
+            game.msg(f"{Ref(killer)} drags {ref(h)} down.", "bad")
         else:
-            game.msg(f"The {h.name.lower()} falls to the {killer.name.lower()}.", "combat")
+            game.msg(f"{Ref(h)} falls to {ref(killer)}.", "combat")
 
 
 # ------------------------------------------------------------------ surgery

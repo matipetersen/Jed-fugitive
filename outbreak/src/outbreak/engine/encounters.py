@@ -1,7 +1,7 @@
 """Moral encounters on the road.  Pure data plus a small effect interpreter.
 
 Effects are dicts: ``humanity``, ``panic``, ``hp``, ``coins``, ``xp``, ``words``,
-``heat`` (ints); ``items`` ({id: +/-qty}); ``rep`` ({faction role: delta});
+``heat`` (ints); ``recruit`` (chance a stranger asks to come along); ``items`` ({id: +/-qty}); ``rep`` ({faction role: delta});
 ``horde`` / ``raiders`` (spawn); ``reveal`` (a lead on a building).
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ EVENTS: Tuple[EventDef, ...] = (
     EventDef("hungry", "A thin stranger",
              "A thin stranger steps out of the ruins with empty hands up. 'Please. Anything to eat?'",
              (_c("Share your food", _o("They weep and press a few {coin} into your hand.", humanity=6, coins=3, xp=5,
-                                       items={"food": -1}, rep={"enclave": 3}), items={"food": 1}),
+                                       items={"food": -1}, rep={"enclave": 3}, recruit=0.3), items={"food": 1}),
               _c("Send them away", _o("They watch you go without a word.", humanity=-3, panic=3)),
               _c("Take what they carry", _o("They had little. You feel worse than you expected.", humanity=-14,
                                             coins=2, items={"food": 1}, rep={"enclave": -5})))),
@@ -88,7 +88,7 @@ EVENTS: Tuple[EventDef, ...] = (
     EventDef("trapped", "Trapped under rubble",
              "Someone is pinned under a fallen beam, groaning. Freeing them will be loud.",
              (_c("Free them", _o("They limp away, grateful. You hear the dead stirring.", 0.7, humanity=7, xp=8,
-                                 items={"bandage": 1}, heat=15),
+                                 items={"bandage": 1}, heat=15, recruit=0.45),
                  _o("The beam shifts. It was worse than it looked.", 0.3, humanity=3, hp=-8, heat=20)),
               _c("Leave them", _o("The groaning fades behind you.", humanity=-5, panic=4)))),
     EventDef("cache", "A supply cache",
@@ -278,5 +278,8 @@ def apply_fx(game, fx: Dict[str, object]) -> None:
         game.spawn_horde_near_player()
     if fx.get("raiders"):
         game.spawn_raiders_near_player(int(fx["raiders"]))
+    if fx.get("recruit"):
+        from outbreak.engine import companion
+        companion.offer_stranger(game, float(fx["recruit"]))
     if fx.get("reveal"):
         game.reveal_random_lead()

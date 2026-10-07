@@ -8,7 +8,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 from outbreak.content import BRANCHES, PERKS, RECIPES
 from outbreak.content.perks import BRANCH_NAMES
-from outbreak.engine import cipher, combat, encounters, inventory_ops, services
+from outbreak.engine import cipher, combat, companion, encounters, inventory_ops, services
 from outbreak import records
 from outbreak.engine import base, save as savemod
 from outbreak.engine.game import Game
@@ -39,7 +39,7 @@ INTERACT    e (crates, bench, people, beds)   PICK UP   g
 INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m   BASE   o (claim, then build)
 SNEAK       s   RUN   R   PUSH   P (shove what is next to you)   LIGHT   L   SMEAR WITH GORE   v
 GATHER      F   (fell the tree beside you, fish the water with a rod or net, or forage grass and brush)   HUNT   walk into game (r d b); sneak up for a triple blow
-BRIEFING    B   (re-read the story so far)
+JOURNAL     J   (toggle the log: what matters / everything)   BRIEFING    B   (re-read the story so far)
 SAVE & QUIT Q            HELP  ?
 
 Noise draws the dead. Guns are loud; sneaking and blades are quiet.
@@ -111,7 +111,7 @@ class UI:
             self.s.refresh()
             return
         map_w, map_h = w - SIDEBAR_W - 1, h - LOG_LINES - 1
-        view = render.build_view(self.g, map_w, map_h, LOG_LINES, w - 2, cursor)
+        view = render.build_view(self.g, map_w, map_h, LOG_LINES, w - 2, cursor, getattr(self, 'full_log', False))
         for y, row in enumerate(view.map_rows):
             for x, (ch, color, bold) in enumerate(row):
                 if ch != " ":
@@ -272,6 +272,9 @@ class UI:
             self.text_screen("Help", HELP)
         elif key == ord("o"):
             self.base_screen()
+        elif key == ord("J"):
+            self.full_log = not getattr(self, "full_log", False)
+            g.msg("Log: everything." if self.full_log else "Log: objectives, companion and key events.", "info")
         elif key == ord("P"):
             self.push_prompt()
         elif key == ord("F"):
@@ -364,8 +367,41 @@ class UI:
             self.draw(status="Sleeping...")
             g.sleep()
 
+    def companion_screen(self, c: Human) -> None:
+        g = self.g
+        while True:
+            waiting = c.state == "wait"
+            r = self.pick(f"{c.name}   {companion.describe(c)}   ({companion.bond_word(c)}, hp {c.hp}/{c.max_hp})",
+                          [("Talk", "white"), ("Ask what to do next", "white"), ("Give them something", "white"),
+                           ("Ask them to follow you again" if waiting else "Ask them to wait here", "white"),
+                           ("Tell them to go their way", "white"), ("Never mind", "grey")])
+            if r == 0:
+                self.message(companion.talk(g, c))
+            elif r == 1:
+                self.message(companion.advice(g))
+            elif r == 2:
+                rows = [(f"{g.item_def(i.id).name} x{i.qty}", "white") for i in g.player.inventory
+                        if g.item_def(i.id).kind in ("food", "med")]
+                idxs = [n for n, i in enumerate(g.player.inventory) if g.item_def(i.id).kind in ("food", "med")]
+                if not rows:
+                    self.message("You have no food or medicine to give.")
+                    continue
+                k = self.pick("Give", rows)
+                if k is not None:
+                    self.message(companion.give(g, c, idxs[k]))
+            elif r == 3:
+                self.message(companion.toggle_wait(g, c))
+            elif r == 4:
+                self.message(companion.dismiss(g, c))
+                return
+            else:
+                return
+
     def npc_screen(self, npc: Human) -> None:
         g = self.g
+        if npc.trait and npc.uid == getattr(g, "companion_uid", 0):
+            self.companion_screen(npc)
+            return
         if npc.role in ("scout", "soldier"):
             while True:
                 follows = npc.state == "follow"
@@ -382,6 +418,13 @@ class UI:
         if reason:
             self.message(f"{npc.name}: {reason}")
             return
+        if npc.role in ("trader", "healer", "scholar") and companion.current(g) is None:
+            r = self.pick(npc.name, [("Business", "white"), ("Ask them to come with you", "white"), ("Never mind", "grey")])
+            if r == 1:
+                self.message(services.ask_join(g, npc))
+                return
+            if r != 0:
+                return
         if npc.role == "trader":
             self.trade_screen()
         elif npc.role == "healer":

@@ -2,7 +2,7 @@ import unittest
 
 from tests.helpers import make_game
 from outbreak import content
-from outbreak.engine import combat, services
+from outbreak.engine import combat, companion, services
 from outbreak.engine.model import Human, Zombie
 from outbreak.engine.spawn import make_patrol, make_raider, spawn_zombie
 from outbreak.engine import ai
@@ -180,8 +180,9 @@ class Companions(unittest.TestCase):
         text = services.talk_patrol(g, h)
         self.assertIn("called", text)
         self.assertTrue(g.aided[5])
-        self.assertEqual(services.ask_join(g, h).startswith("The"), True)
+        services.ask_join(g, h)
         self.assertEqual(h.state, "follow")
+        self.assertEqual(g.companion_uid, h.uid)
 
     def test_help_far_from_the_call_is_not_credited(self):
         g, lv, h = self.g, self.lv, self.h
@@ -192,6 +193,7 @@ class Companions(unittest.TestCase):
     def test_companion_follows_and_fights_and_can_be_dismissed(self):
         g, lv, h = self.g, self.lv, self.h
         g.rep["military"] = 20
+        companion.ensure_person(g, h, "veteran")
         services.ask_join(g, h)
         self.assertEqual(h.state, "follow")
         self.assertEqual(len(services.companions(g)), 1)
@@ -210,14 +212,12 @@ class Companions(unittest.TestCase):
     def test_companion_limit_and_inhuman(self):
         g, lv, h = self.g, self.lv, self.h
         g.rep["military"] = 20
-        extra = []
-        for i in range(2):
-            m = make_patrol(g, "soldier", 0, 0, 20 + i)
-            lv.add_actor(m)
-            lv.move_actor(m, *lv.free_spot_near(g.player.x - 2, g.player.y + i, 3))
-            extra.append(m)
-            self.assertTrue(services.ask_join(g, m).startswith("The"))
-        self.assertIn("already lead", services.ask_join(g, h))
+        m = make_patrol(g, "soldier", 0, 0, 20)
+        lv.add_actor(m)
+        lv.move_actor(m, *lv.free_spot_near(g.player.x - 2, g.player.y, 3))
+        services.ask_join(g, m)
+        self.assertEqual(m.state, "follow")
+        self.assertIn("only one", services.ask_join(g, h).lower())
         g.player.humanity = 5
         self.assertIn("follow what you have become", services.join_refusal(g, h))
 

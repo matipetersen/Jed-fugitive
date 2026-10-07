@@ -37,6 +37,7 @@ function setup_game(game) {
   mutation_build(game);
   _setup_documents(game);
   _populate(game);
+  if (!shared) comp_spawn_start(game);
   if (!game.profile.sun_burn && !shared) start_ring(game);
   if (shared) _become_survivor(game, opening);
   _intro(game);

@@ -274,6 +274,7 @@ function damage_player(game, amount, cause, by = null) {
   p.hp -= amount;
   game.add_panic(3 + amount * 0.4);
   if (p.hp <= 0) game.end('dead', cause);
+  else comp_on_player_hurt(game, amount);
 }
 
 function pick_limb(rng) {
@@ -351,9 +352,9 @@ const Ref = (a) => { const r = ref(a); return r[0].toUpperCase() + r.slice(1); }
 function attack_actor(game, attacker, defender, ranged = false) {
   const d = cheb(apos(attacker), apos(defender));
   if (ranged && d > 1) game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight');
-  const victim = ref(defender);
+  const victim = ref(defender), tag = (attacker.trait || attacker.pet || defender.trait || defender.pet) ? 'ally' : 'combat';
   if (game.rng.random() * 100 >= clamp(attacker.acc - 8 - Math.max(0, d - 1) * 2, 12, 90)) {
-    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${ranged && d > 1 ? 'shoots' : 'strikes'} at ${victim} and misses.`, 'combat');
+    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${ranged && d > 1 ? 'shoots' : 'strikes'} at ${victim} and misses.`, tag);
     return;
   }
   const raw = game.rng.randint(attacker.dmg[0], attacker.dmg[1]);
@@ -362,14 +363,14 @@ function attack_actor(game, attacker, defender, ranged = false) {
     defender.hp -= zombie_damage(game, defender, raw, head);
     if (defender.hp <= 0) { kill_zombie(game, defender, head, false, attacker); if (attacker.kind === 'human' && attacker.trait) comp_on_ally_kill(game, attacker, defender); else if (attacker.kind === 'animal' && attacker.pet) pets_on_kill(game, attacker, defender); return; }
     defender.state = 'hunt'; defender.target = apos(attacker); defender.stimulus_turn = game.clock.turn;
-    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} hits ${victim}.`, 'combat');
+    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} hits ${victim}.`, tag);
     return;
   }
   defender.hp -= raw;
   if (defender.kind === 'animal') {                                       // a pet the dead have caught
     if (defender.hp <= 0) { pets_on_death(game, defender, attacker); return; }
     if (defender.pet) pets_on_hurt(game, defender);
-    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} bites ${victim}.`, 'combat');
+    if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} bites ${victim}.`, tag);
     return;
   }
   if (defender.hp <= 0) { kill_human_other(game, defender, attacker); return; }
@@ -378,7 +379,7 @@ function attack_actor(game, attacker, defender, ranged = false) {
     _distress(game, defender);
     if (defender.trait) comp_on_hurt(game, defender);
   }
-  if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${attacker.kind === 'zombie' ? 'bites' : 'hits'} ${victim}.`, 'combat');
+  if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${attacker.kind === 'zombie' ? 'bites' : 'hits'} ${victim}.`, tag);
 }
 
 // A patrol under attack calls for help; if you hear it and answer, they will remember.

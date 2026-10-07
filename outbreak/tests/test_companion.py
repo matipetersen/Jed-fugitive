@@ -242,5 +242,87 @@ class Log(unittest.TestCase):
         self.assertFalse(any(t.startswith("GOAL") for t, _ in full))
 
 
+class Combat(unittest.TestCase):
+    def test_the_dead_attack_a_companion_and_it_can_die(self):
+        g, lv, c = field(arch="medic")
+        c.hp = 6
+        z = spawn_zombie(g, lv, (c.x + 1, c.y), "walker", False)
+        z.hp = z.max_hp = 500
+        z.dmg, z.acc = (6, 8), 95
+        del lv.occ[g.player.pos]
+        g.player.x, g.player.y = c.x - 7, c.y
+        lv.occ[g.player.pos] = g.player
+        for _ in range(80):
+            if companion.current(g) is None:
+                break
+            g.clock.turn += 1
+            from outbreak.engine import ai
+            ai.run(g)
+        self.assertIsNone(companion.current(g), "a companion is not invincible")
+        self.assertTrue(any("is dead" in t for _, t, _ in g.story))
+
+    def test_every_companion_role_is_a_target_not_just_fighters(self):
+        g, lv, c = field(arch="medic")
+        c.role = "survivor"
+        z = spawn_zombie(g, lv, (c.x + 2, c.y), "walker", False)
+        z.state, z.target = "hunt", c.pos
+        z.hp = z.max_hp = 500
+        z.dmg, z.acc = (4, 6), 95
+        del lv.occ[g.player.pos]
+        g.player.x, g.player.y = c.x + 8, c.y + 8
+        lv.occ[g.player.pos] = g.player
+        hp = c.hp
+        from outbreak.engine import ai
+        for _ in range(12):
+            g.clock.turn += 1
+            ai.run(g)
+        self.assertLess(c.hp, hp)
+
+    def test_they_do_not_leave_you_to_chase_a_fight_while_you_run(self):
+        g, lv, c = field(arch="brute")
+        z = spawn_zombie(g, lv, (c.x + 5, c.y + 3), "walker", False)
+        z.state = "idle"
+        del lv.occ[g.player.pos]
+        g.player.x, g.player.y = c.x - 9, c.y
+        lv.occ[g.player.pos] = g.player
+        before = max(abs(c.x - g.player.x), abs(c.y - g.player.y))
+        from outbreak.engine import ai
+        for _ in range(6):
+            g.clock.turn += 1
+            ai.run(g)
+        after = max(abs(c.x - g.player.x), abs(c.y - g.player.y))
+        self.assertLess(after, before, "they come back to you")
+        self.assertTrue(companion.should_hold_back(g, c, z) or after < before)
+
+    def test_a_reckless_one_still_charges(self):
+        g, lv, c = field(arch="veteran")
+        self.assertEqual(companion.leash(c), companion.LEASH_RECKLESS)
+        g2, lv2, m = field(arch="medic")
+        self.assertEqual(companion.leash(m), companion.LEASH)
+
+    def test_they_shout_when_a_fight_starts_when_you_are_hit_and_when_left_behind(self):
+        g, lv, c = field(arch="veteran")
+        z = spawn_zombie(g, lv, (c.x + 1, c.y), "walker", False)
+        from outbreak.engine import ai
+        g.clock.turn = 2000
+        ai._human_fight(g, c, z)
+        self.assertTrue(any(tag == "ally" and "Contact" in t or tag == "ally" and c.name in t for _, t, tag in g.story[-4:]))
+        n = len(g.story)
+        g.clock.turn = 3000
+        combat.damage_player(g, 6, "test")
+        self.assertGreater(len(g.story), n, "a shout when you are hit")
+        g.clock.turn = 4000
+        companion.on_regroup(g, c)
+        self.assertIn("ally", [tag for _, _, tag in g.story[-2:]])
+
+    def test_their_blows_show_in_the_story_log(self):
+        g, lv, c = field(arch="veteran")
+        z = spawn_zombie(g, lv, (c.x + 1, c.y), "walker", False)
+        z.hp = z.max_hp = 100
+        for _ in range(8):
+            combat.attack_actor(g, c, z)
+        self.assertTrue(any(tag == "ally" and ("hits" in t or "misses" in t) for _, t, tag in g.story))
+
+
 if __name__ == "__main__":
     unittest.main()

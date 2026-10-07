@@ -146,6 +146,14 @@ NAMES: Tuple[str, ...] = ("Ruiz", "Okafor", "Mina", "Tomas", "Joon", "Lena", "Da
                           "Imani", "Bruno", "Nadia", "Pip", "Ines", "Haruto", "Cass", "Oren", "Talia", "Wren", "Yusuf", "Greta",
                           "Beck", "Sasha", "Ravi", "Noor", "Dmitri", "Lucia", "Fenn", "Odile")
 
+# What they shout when it turns violent
+COMBAT_LINES: Dict[str, Tuple[str, ...]] = {
+    "engage": ("\"Contact!\"", "\"On me!\"", "\"I see it. I have got it.\"", "\"Here they come!\""),
+    "regroup": ("\"Wait! Do not leave me here!\"", "\"Where are you going? Wait for me!\"", "\"I am coming! Keep moving!\""),
+    "player_hurt": ("\"You are hit! Get back!\"", "\"Behind you!\"", "\"Stay with me, I have got you!\""),
+    "flee": ("\"I cannot do this! Fall back!\"", "\"Back! Everybody back!\"", "\"Run!\""),
+}
+
 # What they say about the world, whoever they are
 SITUATION_LINES: Dict[str, Tuple[str, ...]] = {
     "night": ("\"I do not like the dark. Nobody should.\"", "\"Let us find somewhere with walls.\""),

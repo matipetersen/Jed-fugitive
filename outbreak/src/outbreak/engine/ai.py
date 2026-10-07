@@ -127,7 +127,8 @@ def speed_now(game, z: Zombie) -> float:
 # ------------------------------------------------------------------ main loop
 def run(game) -> None:
     level, p = game.level, game.player
-    humans = [a for a in level.actors if isinstance(a, Human) and a.hp > 0 and a.role in FIGHTERS]
+    humans = [a for a in level.actors if isinstance(a, Human) and a.hp > 0
+              and (a.role in FIGHTERS or a.state in ("follow", "wait"))]      # a companion can be hurt too
     pets_ = [a for a in level.actors if isinstance(a, Animal) and a.pet and a.hp > 0]
     for a in list(level.actors):
         if a.hp <= 0 or level.occ.get(a.pos) is not a or cheb(a.pos, p.pos) > ACTIVE_RADIUS:
@@ -348,8 +349,10 @@ def _human(game, h: Human, humans) -> None:
     foe = nearest_foe(game, h, _foes_of(h, game, humans), HUMAN_SIGHT if h.reach > 1 else FOE_SIGHT)
     if h.state in ("follow", "wait") and companion.refuses_to_fight(h, foe):
         foe = None                                                # a pacifist will not raise a hand to a person
-    if h.state == "follow" and d > 10 and not companion.is_reckless(h):
-        foe = None                                                # a companion does not chase far from you
+    if h.state == "follow" and foe is not None and companion.should_hold_back(game, h, foe):
+        if d <= 14 and game.visible_hostiles():
+            companion.on_regroup(game, h)
+        foe = None                                                # when you run, they run with you
     if h.state == "wait" and (foe is None or cheb(h.pos, foe.pos) > 1):
         return                                                    # asked to stay put: it only defends itself
     if foe is not None and not (seen and d < cheb(h.pos, foe.pos)):
@@ -476,7 +479,10 @@ def _human_move(game, h: Human, nxt) -> bool:
 def _human_fight(game, h: Human, foe) -> None:
     level = game.level
     d = cheb(h.pos, foe.pos)
+    if h.trait:
+        companion.on_fight(game, h, foe)
     if h.hp < h.max_hp * companion.flee_below(h) and isinstance(foe, Zombie) and d <= 2:
+        companion.on_flee(game, h)
         _flee(game, h, foe.pos)
         return
     ranged = h.reach > 1

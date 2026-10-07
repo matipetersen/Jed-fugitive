@@ -10,7 +10,8 @@ from __future__ import annotations
 import random
 from typing import Optional
 
-from outbreak.content.companions import (ARCHETYPES, BY_ID, FLAWS, NAMES, ROLE_ARCHETYPE, SITUATION_LINES, STRENGTHS)
+from outbreak.content.companions import (ARCHETYPES, BY_ID, COMBAT_LINES, FLAWS, NAMES, ROLE_ARCHETYPE, SITUATION_LINES,
+                                         STRENGTHS)
 from outbreak.engine import tiles as T
 from outbreak.engine.model import Human, Item
 from outbreak.util import cheb, compass
@@ -428,6 +429,52 @@ def advice(game) -> str:
     if lead is not None:
         bits.append(f"A lead: {lead.name}, {compass(lead.x - p.x, lead.y - p.y)}, {cheb(lead.pos, p.pos)} tiles.")
     return f"{c.name}: " + " ".join(bits or ["Keep moving and keep quiet."])
+
+
+# ------------------------------------------------------------------ in a fight
+LEASH = 6                      # a companion fights within this many tiles of you, not further
+LEASH_RECKLESS = 12
+FIGHT_SAY_EVERY = 40
+
+
+def leash(h: Human) -> int:
+    return LEASH_RECKLESS if is_reckless(h) else LEASH
+
+
+def should_hold_back(game, h: Human, foe) -> bool:
+    """When you run, they run with you: a foe that is not on top of them is no reason to leave you."""
+    return cheb(h.pos, game.player.pos) > leash(h) and cheb(h.pos, foe.pos) > 1
+
+
+def _shout(game, h: Human, kind: str, field_name: str, every: int) -> None:
+    t = game.clock.turn
+    if t < getattr(h, field_name):
+        return
+    setattr(h, field_name, t + every)
+    say(game, h, game.rng.choice(COMBAT_LINES[kind]))
+
+
+def on_fight(game, h: Human, foe) -> None:
+    """They throw themselves in: say so (not every swing)."""
+    if arch_of(h) is not None and h.state in ("follow", "wait"):
+        _shout(game, h, "engage", "nextfight", FIGHT_SAY_EVERY)
+
+
+def on_regroup(game, h: Human) -> None:
+    """You are running and they are being left behind."""
+    if arch_of(h) is not None:
+        _shout(game, h, "regroup", "nextcall", FIGHT_SAY_EVERY)
+
+
+def on_flee(game, h: Human) -> None:
+    if arch_of(h) is not None:
+        _shout(game, h, "flee", "nextcall", FIGHT_SAY_EVERY)
+
+
+def on_player_hurt(game, amount: int) -> None:
+    c = current(game)
+    if c is not None and arch_of(c) is not None and amount >= 3 and cheb(c.pos, game.player.pos) <= 8:
+        _shout(game, c, "player_hurt", "nextfight", 25)
 
 
 # ------------------------------------------------------------------ the AI's questions

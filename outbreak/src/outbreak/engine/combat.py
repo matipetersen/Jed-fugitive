@@ -406,6 +406,8 @@ def damage_player(game, amount: int, cause: str, by=None) -> None:
     game.add_panic(3 + amount * 0.4)
     if p.hp <= 0:
         game.end("dead", cause)
+    else:
+        companion.on_player_hurt(game, amount)
 
 
 def pick_limb(rng) -> str:
@@ -510,9 +512,10 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
     if ranged and d > 1:
         game.emit_noise(attacker.pos, 18 if game.era.firearms else 4, "fight")
     victim = ref(defender)
+    tag = "ally" if (getattr(attacker, "trait", "") or getattr(attacker, "pet", False) or getattr(defender, "trait", "") or getattr(defender, "pet", False)) else "combat"
     if game.rng.random() * 100 >= clamp(attacker.acc - 8 - max(0, d - 1) * 2, 12, 90):
         if _seen(game, attacker, defender):
-            game.msg(f"{Ref(attacker)} {'shoots' if ranged and d > 1 else 'strikes'} at {victim} and misses.", "combat")
+            game.msg(f"{Ref(attacker)} {'shoots' if ranged and d > 1 else 'strikes'} at {victim} and misses.", tag)
         return
     raw = game.rng.randint(*attacker.dmg)
     if isinstance(defender, Zombie):
@@ -528,7 +531,7 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
             return
         defender.state, defender.target, defender.stimulus_turn = "hunt", attacker.pos, game.clock.turn
         if _seen(game, attacker, defender):
-            game.msg(f"{Ref(attacker)} hits {victim}.", "combat")
+            game.msg(f"{Ref(attacker)} hits {victim}.", tag)
         return
     defender.hp -= raw
     if isinstance(defender, Animal):                                         # a pet the dead have caught
@@ -538,7 +541,7 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
         if defender.pet:
             pets.on_hurt(game, defender)
         if _seen(game, attacker, defender):
-            game.msg(f"{Ref(attacker)} bites {victim}.", "combat")
+            game.msg(f"{Ref(attacker)} bites {victim}.", tag)
         return
     if defender.hp <= 0:
         kill_human_other(game, defender, attacker)
@@ -550,7 +553,7 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
         if defender.trait:
             companion.on_hurt(game, defender)
     if _seen(game, attacker, defender):
-        game.msg(f"{Ref(attacker)} {'bites' if isinstance(attacker, Zombie) else 'hits'} {victim}.", "combat")
+        game.msg(f"{Ref(attacker)} {'bites' if isinstance(attacker, Zombie) else 'hits'} {victim}.", tag)
 
 
 def _distress(game, h: Human) -> None:

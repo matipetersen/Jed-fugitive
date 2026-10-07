@@ -19,7 +19,7 @@ function comp_ensure_person(game, h, archetype = null) {
   h.name = rng.choice(names.length ? names : COMP.names);
   h.trait = arch.id; h.glyph = h.name[0].toUpperCase();
   h.max_hp = h.hp = arch.hp; h.dmg = arch.dmg.slice(); h.acc = arch.acc;
-  for (const k of ['bond', 'since', 'kills', 'story', 'nextsay', 'nextfx', 'nextfx2', 'nextwarn']) if (h[k] === undefined) h[k] = 0;
+  for (const k of ['bond', 'since', 'kills', 'story', 'nextsay', 'nextfx', 'nextfx2', 'nextwarn', 'nextfight', 'nextcall']) if (h[k] === undefined) h[k] = 0;
   if (h.lasttalk === undefined) h.lasttalk = -999;
   if ((game.era.firearms || game.era.tech === 0) && (arch.id === 'veteran' || arch.id === 'hunter')) { h.reach = 6; h.mag = h.ammo = game.era.firearms ? 8 : 0; }
   else if (h.reach > 1) h.reach = 1;
@@ -266,6 +266,25 @@ function comp_advice(game) {
   return `${c.name}: ` + (bits.length ? bits.join(' ') : 'Keep moving and keep quiet.');
 }
 
+// ---- in a fight
+const COMP_LEASH = 6, COMP_LEASH_RECKLESS = 12, COMP_FIGHT_SAY_EVERY = 40;
+function comp_leash(h) { return comp_is_reckless(h) ? COMP_LEASH_RECKLESS : COMP_LEASH; }
+// when you run, they run with you: a foe that is not on top of them is no reason to leave you
+function comp_should_hold_back(game, h, foe) { return cheb(apos(h), apos(game.player)) > comp_leash(h) && cheb(apos(h), apos(foe)) > 1; }
+function comp_shout(game, h, kind, field, every) {
+  const t = game.clock.turn;
+  if (t < h[field]) return;
+  h[field] = t + every;
+  comp_say(game, h, game.rng.choice(COMP.combat[kind]));
+}
+function comp_on_fight(game, h, foe) { if (comp_arch(h) && (h.state === 'follow' || h.state === 'wait')) comp_shout(game, h, 'engage', 'nextfight', COMP_FIGHT_SAY_EVERY); }
+function comp_on_regroup(game, h) { if (comp_arch(h)) comp_shout(game, h, 'regroup', 'nextcall', COMP_FIGHT_SAY_EVERY); }
+function comp_on_flee(game, h) { if (comp_arch(h)) comp_shout(game, h, 'flee', 'nextcall', COMP_FIGHT_SAY_EVERY); }
+function comp_on_player_hurt(game, amount) {
+  const c = comp_current(game);
+  if (c && comp_arch(c) && amount >= 3 && cheb(apos(c), apos(game.player)) <= 8) comp_shout(game, c, 'player_hurt', 'nextfight', 25);
+}
+
 // ---- the AI's questions
 function comp_flee_below(h) { const a = comp_arch(h); return a && a.flaw === 'coward' ? 0.6 : 0.3; }
 function comp_refuses_to_fight(h, foe) { const a = comp_arch(h); return !!(a && a.flaw === 'pacifist' && foe && foe.kind === 'human'); }
@@ -290,7 +309,7 @@ function comp_stranger(game, spot) {
   return { kind: 'human', uid: game.next_uid(), name: 'Survivor', glyph: 'S', x: spot[0], y: spot[1], hp: 30, max_hp: 30, level_id: 'world', lvl: 1, lvl_xp: 0, title: '', stun: 0,
            role: 'survivor', faction: 'enclave', hostile: false, dmg: [3, 7], acc: 55, reach: 1, energy: 0, state: 'follow', target: null, loot: [], talked: false, group: 0, stuck: 0,
            squad: 0, flank: 0, mag: 0, ammo: 0, reload: 0, morale: 100, hidden: false, corrupt: false, cp: 0, post: null,
-           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999 };
+           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0 };
 }
 
 function comp_offer_stranger(game, chance) {

@@ -116,6 +116,10 @@ companion**; it waits outside buildings and caves, and you swap places with it i
 * **Bond (0-100)** rises with time together (+1 per 100 turns), shared kills, food and medicine you give them, and falls when
   you kill people who were not hostile. At 5 they leave. At 35, 60 and 85 they tell you a part of their story when you talk
   (a lead on your map, a medkit, and at the end +3 max health for you).
+* *In a fight* a companion is **a target like anyone else** (the dead and raiders go for them, whatever their role, and prefer
+  whoever is closer), and **stays with you**: they fight within 6 tiles of you (12 for the reckless) and come back when you run,
+  calling after you ("Wait! Do not leave me here!") if you leave them behind. They shout when a fight starts, when you are hit
+  ("Behind you!") and when they break; their blows and wounds appear in the story log.
 * *Talking*: terminal `e` beside them, web tap them or the chip under the bars: **Talk**, **What next?** (their read on the next
   objective and where it is), **Give** food or medicine, **Wait here / Follow me**, **Go your own way**. They wait outside
   when you go into a building or cave, and say so.

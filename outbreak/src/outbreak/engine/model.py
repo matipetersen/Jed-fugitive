@@ -174,6 +174,8 @@ class Human(Actor):
     nextfx2: int = 0
     nextwarn: int = 0
     lasttalk: int = -999
+    nextfight: int = 0
+    nextcall: int = 0
 
 
 class Level:

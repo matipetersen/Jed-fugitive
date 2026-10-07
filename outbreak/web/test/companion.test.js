@@ -69,4 +69,22 @@ const first = (s) => s.split(' ')[0];
   const h = OB.deserialize_game(OB.serialize_game(g)), c2 = OB.comp_current(h);
   assert(c2); assert.strictEqual(c2.name, c.name); assert.strictEqual(c2.trait, c.trait); assert.strictEqual(h.fallen_allies[0][0], 'Old'); assert(h.story.length === g.story.length);
 }
+{ // a companion is not invincible: the dead go for every role, and they do not leave you to chase a fight
+  let [g, lv, c] = field(3, 'medic'); c.hp = 6; const z = OB.spawn_zombie(g, lv, [c.x + 1, c.y], 'walker', false); z.hp = z.max_hp = 500; z.dmg = [6, 8]; z.acc = 95;
+  lv.occ.delete(lv.idx(g.player.x, g.player.y)); g.player.x = c.x - 7; g.player.y = c.y; lv.occ.set(lv.idx(g.player.x, g.player.y), g.player);
+  for (let i = 0; i < 80 && OB.comp_current(g); i++) { g.clock.turn += 1; OB.ai_run(g); }
+  assert(!OB.comp_current(g), 'invincible'); assert(g.story.some((m) => m[1].includes('is dead')));
+  [g, lv, c] = field(3, 'brute'); c.role = 'survivor'; const z2 = OB.spawn_zombie(g, lv, [c.x + 5, c.y + 3], 'walker', false); z2.state = 'idle';
+  lv.occ.delete(lv.idx(g.player.x, g.player.y)); g.player.x = c.x - 9; g.player.y = c.y; lv.occ.set(lv.idx(g.player.x, g.player.y), g.player);
+  const before = Math.max(Math.abs(c.x - g.player.x), Math.abs(c.y - g.player.y)); for (let i = 0; i < 6; i++) { g.clock.turn += 1; OB.ai_run(g); }
+  assert(Math.max(Math.abs(c.x - g.player.x), Math.abs(c.y - g.player.y)) < before, 'they come back to you');
+  let c3; [g, lv, c3] = field(3, 'veteran'); assert.strictEqual(OB.comp_leash(c3), 12); [g, lv, c3] = field(3, 'medic'); assert.strictEqual(OB.comp_leash(c3), 6);
+}
+{ // combat dialogue and the story log
+  const [g, lv, c] = field(3, 'veteran'); const z = OB.spawn_zombie(g, lv, [c.x + 1, c.y], 'walker', false);
+  g.clock.turn = 2000; OB._human_fight(g, c, z); assert(g.story.slice(-4).some((m) => m[2] === 'ally'));
+  const n = g.story.length; g.clock.turn = 3000; OB.damage_player(g, 6, 'test'); assert(g.story.length > n);
+  g.clock.turn = 4000; OB.comp_on_regroup(g, c); assert(g.story.slice(-2).some((m) => m[2] === 'ally'));
+  z.hp = z.max_hp = 100; for (let i = 0; i < 8; i++) OB.attack_actor(g, c, z); assert(g.story.some((m) => m[2] === 'ally' && (m[1].includes('hits') || m[1].includes('misses'))));
+}
 console.log('companion: a pool of people, strengths and flaws, bonds, permanent death, and a log that follows the story');

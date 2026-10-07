@@ -91,6 +91,7 @@ BASE_ITEMS: Tuple[ItemDef, ...] = (
        tags=("medical",), effect={"heal": 4, "panic": -6}, poi=("cave",)),
     _i("mushroom", "Cave mushrooms", "food", "Pale and cold. Most are safe.", value=2, stackable=True,
        effect={"food": 10, "sick": 0.1}, poi=("cave",)),
+    _i("keepsake", "Keepsake", "component", "Something small and worn that mattered to someone.", value=0),
     _i("scrap", "Scrap metal", "material", "Bent metal. Good for repairs.", value=1, stackable=True,
        poi=("industry", "transit", "cave")),
     _i("cloth", "Cloth", "material", "Rags and fabric.", value=1, stackable=True, poi=("market", "faith")),

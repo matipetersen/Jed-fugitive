@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 from outbreak.engine import ambience, mutation
 from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
-from outbreak.engine import companion, director, pets
+from outbreak.engine import companion, director, memory, pets
 from outbreak.engine.model import Animal, Human, Zombie
 from outbreak.util import Pos, cheb, compass
 
@@ -126,6 +126,10 @@ def build_map(game: Game, w: int, h: int, cursor: Optional[Pos] = None) -> Tuple
                 rows[sy][sx] = (POI_LETTER.get(poi.kind, "H"), "magenta", True)
             elif 0 <= sx < w and 0 <= sy < h and poi.pos not in game.visible:
                 rows[sy][sx] = (POI_LETTER.get(poi.kind, "H"), "magenta", True)
+    for m in memory.graves(game, lv.id):                                  # whoever you buried
+        sx, sy = m.x - ox, m.y - oy
+        if 0 <= sx < w and 0 <= sy < h and lv.seen[m.y][m.x] and rows[sy][sx][0] in (" ", ".", ",", '"'):
+            rows[sy][sx] = ("+", "yellow", True)
     for a in lv.actors:
         if a.pos in game.visible and not getattr(a, "hidden", False):
             sx, sy = a.x - ox, a.y - oy

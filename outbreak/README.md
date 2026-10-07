@@ -74,6 +74,27 @@ armed people who have heard about you if you did not.
 * *Everywhere.* Ambushes are not only for camps: raider road events and the Dash finale spring the same hidden squad
   (half in cover, three hidden snares round you), and lone tripwires are scattered along the far roads.
 
+**The world remembers, companions ask for one thing, and the Director leans on your people.**
+* *Marks* (`engine/memory.py`): a **stand** (four kills close together in time and place) leaves a battlefield; walk back near it
+  more than 200 turns later and the log tells you so. **Graves**: whoever travelled with you and died is buried where they fell,
+  shown as a yellow `+` on the map (a cross on the web), and remembered in your own words (what they said). Visiting a grave
+  costs a little panic.
+* *Nemeses*: a raider or soldier who breaks and runs from you alive is **named and scarred** ("Vask the Scarred"); up to three at
+  once. Later the Director's next ambush brings one back, 40% tougher, hitting harder, with a line of dialogue. Killing them is
+  recorded in the log and pays XP; if the original stood somewhere else in the meantime, they are not duplicated.
+* *Personal errands*: at a **bond of 60** each companion asks you for one thing (a military post, a clinic, a stall, a farmhouse, a
+  workshop, a chapel, a station, a card room - each archetype has its own). The place is marked on the map and the errand appears
+  in your objectives. The first time you enter it, a **keepsake** (a key item, takes no pack space) is in a crate on its last
+  floor. Bring it back to them (within three tiles, nothing hunting you) and a scene plays with three endings: **give it back**
+  (+20 bond, +4 humanity, and their flaw is **overcome**: reckless ones hold the line, cowards stand their ground, the loud
+  ones go quiet, the hungry stop eating your food, the pacifist will fight to defend you, the frail gain 12 health),
+  **say you found nothing** (-25 bond, -6 humanity, 6 coins: they know), or **read it together** (+10 bond, +2 humanity, calm,
+  and their whole story).
+* *The Director and your people*: allies hurt (under 40%) raise tension; an ally under 25% pauses the pressure. **While you are
+  indoors** (act 5 or later, 50+ turns) the dead may find whoever waits outside, and you hear it through the walls. The
+  **ordeal's** big threat heads for your companion first. The **reward** gives you and them a quiet moment (+6 bond). When
+  someone dies the world goes quiet for 200 turns.
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

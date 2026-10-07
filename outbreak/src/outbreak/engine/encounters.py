@@ -188,6 +188,9 @@ EVENTS = EVENTS + (EventDef("mil_checkpoint", "A checkpoint", "Soldiers hold the
                             (_c("Submit to the search", _o("")), _c("Offer a bribe", _o("")),
                              _c("Talk your way through", _o("")), _c("Draw on them", _o("")))),)
 
+EVENTS = EVENTS + (EventDef("story_personal", "What they asked for", "They are waiting.",
+                            (_c("Give it to them", _o("")), _c("Say you found nothing", _o("")), _c("Read it together", _o("")))),)
+
 BY_ID: Dict[str, EventDef] = {e.id: e for e in EVENTS}
 
 
@@ -222,7 +225,7 @@ def can_afford(game, choice: Choice) -> bool:
 def pick(game) -> Optional[EventDef]:
     pairs = []
     for ev in EVENTS:
-        if ev.id.startswith(("road_", "mil_")):
+        if ev.id.startswith(("road_", "mil_", "story_")):
             continue                                      # scripted, not random
         if game.clock.day < ev.min_day or game.recent_events.get(ev.id, -999) > game.clock.turn - 600:
             continue
@@ -241,6 +244,9 @@ def start(game, ev: EventDef, text: str = "", data: Optional[dict] = None) -> Ac
 
 
 def resolve(game, active: ActiveEvent, index: int) -> str:
+    if active.event_id == "story_personal":
+        from outbreak.engine import companion
+        return companion.resolve_personal(game, active, index)
     if active.event_id == "mil_checkpoint":
         from outbreak.engine import military
         return military.resolve(game, active, index)

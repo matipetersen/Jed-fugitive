@@ -176,6 +176,8 @@ class Human(Actor):
     lasttalk: int = -999
     nextfight: int = 0
     nextcall: int = 0
+    quest: int = 0                   # their personal errand: 0 none, 1 asked, 2 found, 3 done
+    tamed: bool = False              # they have overcome their flaw
 
 
 class Level:

@@ -145,6 +145,14 @@ function draw() {
       } else { ctx.fillStyle = 'rgba(6,9,10,.55)'; ctx.fillRect(px, py, ts + 0.5, ts + 0.5); }
     }
   }
+  // whoever you buried
+  for (const m of memory_graves(game, lv.id)) {
+    const k = lv.idx(m.x, m.y);
+    if (!lv.seen[k]) continue;
+    const px = ox + m.x * ts, py = oy + m.y * ts;
+    ctx.strokeStyle = '#e0b469'; ctx.lineWidth = Math.max(2, ts * .12); ctx.beginPath();
+    ctx.moveTo(px + ts * .5, py + ts * .2); ctx.lineTo(px + ts * .5, py + ts * .8); ctx.moveTo(px + ts * .3, py + ts * .4); ctx.lineTo(px + ts * .7, py + ts * .4); ctx.stroke();
+  }
   // known buildings you cannot see right now
   if (lv.kind === 'overworld') {
     for (const poi of Object.values(game.pois)) {

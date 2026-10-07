@@ -10,8 +10,8 @@ from __future__ import annotations
 import random
 from typing import Optional
 
-from outbreak.content.companions import (ARCHETYPES, BY_ID, COMBAT_LINES, FLAWS, NAMES, ROLE_ARCHETYPE, SITUATION_LINES,
-                                         STRENGTHS)
+from outbreak.content.companions import (ARCHETYPES, BY_ID, COMBAT_LINES, FLAWS, NAMES, PERSONAL, ROLE_ARCHETYPE,
+                                         SITUATION_LINES, STRENGTHS)
 from outbreak.engine import tiles as T
 from outbreak.engine.model import Human, Item
 from outbreak.util import cheb, compass
@@ -82,7 +82,8 @@ def describe(c: Human) -> str:
     a = arch_of(c)
     if a is None:
         return c.name
-    return f"{c.name}, {a.label}. Good at it: {STRENGTHS[a.strength]}. Trouble: {FLAWS[a.flaw]}."
+    trouble = f"{FLAWS[a.flaw]} (overcome)" if c.tamed else FLAWS[a.flaw]
+    return f"{c.name}, {a.label}. Good at it: {STRENGTHS[a.strength]}. Trouble: {trouble}."
 
 
 def bond_word(c: Human) -> str:
@@ -178,6 +179,10 @@ def tick(game) -> None:
         _flaw(game, c, a.flaw, t)
     _chatter(game, c, t)
     _watch(game, c, t)
+    if t % 5 == 0:
+        if c.quest == 0 and c.bond >= QUEST_BOND and not game.pending_event and not game.visible_hostiles():
+            offer_personal(game, c)
+        personal_tick(game, c)
 
 
 def _strength(game, c: Human, s: str, t: int) -> None:
@@ -220,6 +225,8 @@ def _spot(game, c: Human) -> None:
 
 
 def _flaw(game, c: Human, f: str, t: int) -> None:
+    if c.tamed:                                                      # they have made their peace with it
+        return
     p = game.player
     if f == "loud" and t % LOUD_EVERY == 0 and game.rng.random() < 0.3:
         game.emit_noise(c.pos, WANDER_NOISE, "player")
@@ -275,6 +282,7 @@ def on_enter(game, target) -> None:
     if c is None or arch_of(c) is None:
         return
     poi = game.poi_of_level(target)
+    _place_keepsake(game, target)
     if poi is not None and poi.kind == "cave":
         say(game, c, SITUATION_LINES["cave"][0])
     else:
@@ -347,6 +355,9 @@ def on_death(game, h: Human, killer=None) -> None:
     fallen.append((h.name, f"{a.label if a else 'survivor'}, {days}d, {h.kills} kills"))
     game.companion_uid = 0
     game.add_panic(12 + h.bond / 5, raw=True)
+    from outbreak.engine import director, memory
+    memory.on_ally_death(game, h.name, a.label if a else "survivor", a.farewell if a else "...", h.pos)
+    director.mourn(game)
     if h.bond >= 50:
         game.adjust_humanity(-3, "")
 
@@ -480,17 +491,17 @@ def on_player_hurt(game, amount: int) -> None:
 # ------------------------------------------------------------------ the AI's questions
 def flee_below(h: Human) -> float:
     a = arch_of(h)
-    return 0.6 if a and a.flaw == "coward" else 0.3
+    return 0.6 if a and a.flaw == "coward" and not h.tamed else 0.3
 
 
 def refuses_to_fight(h: Human, foe) -> bool:
     a = arch_of(h)
-    return bool(a and a.flaw == "pacifist" and isinstance(foe, Human))
+    return bool(a and a.flaw == "pacifist" and not h.tamed and isinstance(foe, Human))
 
 
 def is_reckless(h: Human) -> bool:
     a = arch_of(h)
-    return bool(a and a.flaw == "reckless")
+    return bool(a and a.flaw == "reckless" and not h.tamed)
 
 
 # ------------------------------------------------------------------ the start
@@ -528,3 +539,130 @@ def offer_stranger(game, chance: float) -> None:
               state="follow")
     lv.add_actor(h)
     recruit(game, h, None, bond=15)
+
+
+# ------------------------------------------------------------------ their one personal errand
+QUEST_BOND = 60
+QUEST_RANGE = 70
+SCENE_RANGE = 3
+
+
+def quest_poi(game):
+    q = getattr(game, "personal", None)
+    return game.pois.get(q["poi"]) if q else None
+
+
+def offer_personal(game, c: Human) -> bool:
+    """At a bond of 60 they ask you for one thing: go to a place that was theirs and bring back what is left of it."""
+    a = arch_of(c)
+    if a is None or c.quest or c.bond < QUEST_BOND or getattr(game, "personal", None):
+        return False
+    spec = PERSONAL[a.id]
+    p = game.player
+    pool = [q for q in game.pois.values() if q.kind == spec["kind"] and not q.visited and cheb(q.pos, p.pos) <= QUEST_RANGE]
+    if not pool:
+        pool = [q for q in game.pois.values() if q.kind not in ("breach", "refuge", "pad", "cave") and not q.visited
+                and cheb(q.pos, p.pos) <= QUEST_RANGE]
+    if not pool:
+        c.quest = 3                                                    # nothing left to go back to
+        return False
+    poi = min(pool, key=lambda q: cheb(q.pos, p.pos))
+    poi.revealed = True
+    c.quest = 1
+    game.personal = {"uid": c.uid, "poi": poi.id, "stage": 1}
+    say(game, c, spec["ask"])
+    game.msg(f"{c.name} asks you for one thing: {poi.name}, {compass(poi.x - p.x, poi.y - p.y)}, {cheb(poi.pos, p.pos)} tiles. "
+             f"It is marked on your map.", "obj", key=True)
+    return True
+
+
+def personal_objective(game):
+    """The errand as an objective line: (text, done), or None."""
+    q = getattr(game, "personal", None)
+    c = current(game)
+    if not q or c is None or c.uid != q["uid"] or c.quest in (0, 3):
+        return None
+    poi = game.pois.get(q["poi"])
+    what = "bring it back to them" if c.quest == 2 else f"find what is left at {poi.name}"
+    return (f"{c.name}'s errand: {what}", False)
+
+
+def _place_keepsake(game, target) -> None:
+    """The first time you step into the place, what they asked for is there."""
+    q = getattr(game, "personal", None)
+    poi = game.poi_of_level(target)
+    if not q or poi is None or poi.id != q["poi"] or q["stage"] != 1:
+        return
+    rng = game.rng
+    # the last floor, if there are several: that is where things end up
+    if poi.floors > 1 and not target.id.endswith(f":{poi.floors - 1}"):
+        return
+    item = Item("keepsake", 1)
+    item.key = True
+    crates = list(target.containers.values())
+    if crates:
+        rng.choice(crates).loot.append(item)
+    else:
+        spot = target.free_spot_near(target.entry[0], target.entry[1], 4)
+        if spot:
+            target.drop(spot, item)
+    q["stage"] = 1.5
+    game.msg("Somewhere in here is what they asked you for.", "obj")
+
+
+def personal_tick(game, c: Human) -> None:
+    q = getattr(game, "personal", None)
+    if not q or q["uid"] != c.uid:
+        return
+    p = game.player
+    if c.quest == 1 and p.count("keepsake") > 0:
+        c.quest, q["stage"] = 2, 2
+        game.msg(f"You have it. Take it back to {c.name}.", "obj", key=True)
+    if c.quest == 2 and game.level is game.world.level and cheb(c.pos, p.pos) <= SCENE_RANGE and not game.pending_event \
+            and not game.visible_hostiles():
+        from outbreak.engine import encounters
+        a = arch_of(c)
+        spec = PERSONAL[a.id]
+        text = f"{c.name} sees what you are carrying. {spec['found']} {spec['scene']}"
+        game.pending_event = encounters.start(game, encounters.BY_ID["story_personal"], text, {"uid": c.uid})
+
+
+def resolve_personal(game, active, index: int) -> str:
+    c = next((a for a in game.world.level.actors if isinstance(a, Human) and a.uid == active.data.get("uid")), None)
+    if c is None or arch_of(c) is None:
+        active.result, active.resolved = "They are gone.", True
+        return active.result
+    a, spec, p = arch_of(c), PERSONAL[arch_of(c).id], game.player
+    p.take("keepsake", 1)
+    c.quest = 3
+    game.personal = None
+    if index == 0:                                                       # give it back
+        add_bond(c, 20)
+        c.tamed = True
+        _boon(game, c)
+        game.adjust_humanity(4, "")
+        text = f"{spec['give']}\n{c.name} has overcome something: {spec['boon']}"
+    elif index == 1:                                                     # keep it
+        add_bond(c, -25)
+        game.adjust_humanity(-6, "")
+        p.coins += 6
+        text = f"{spec['keep']}"
+    else:                                                                # read it together
+        add_bond(c, 10)
+        game.adjust_humanity(2, "")
+        game.add_panic(-15, raw=True)
+        c.story = 3
+        text = f"{spec['read']}"
+    active.result, active.resolved = text, True
+    game.msg(text, "ally", key=True)
+    return text
+
+
+def _boon(game, c: Human) -> None:
+    a = arch_of(c)
+    if a.flaw == "frail":
+        c.max_hp += 12
+        c.hp = c.max_hp
+    elif a.flaw == "reckless":
+        c.max_hp += 8
+        c.hp = c.max_hp

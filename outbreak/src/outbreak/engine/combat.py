@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from outbreak.content.items import ItemDef
-from outbreak.engine import companion, lives, pets, raiders, wild
+from outbreak.engine import companion, lives, memory, pets, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Actor, Animal, Hazard, Human, Item, Zombie
@@ -276,6 +276,7 @@ def kill_human(game, h: Human) -> None:
     raiders.shaken(game, h)
     companion.on_death(game, h, "you")
     companion.on_player_kills_human(game, h)
+    memory.on_kill_human(game, h)
     level.remove_actor(h)
     level.corpses[h.pos] = (game.clock.turn, True)
     for item in h.loot:

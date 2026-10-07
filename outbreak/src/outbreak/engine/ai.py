@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Optional, Tuple
 
-from outbreak.engine import ambience, combat, companion, lives, raiders, wild
+from outbreak.engine import ambience, combat, companion, lives, memory, raiders, wild
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import has_los
 from outbreak.engine.model import Animal, Human, Zombie
@@ -416,6 +416,7 @@ def _raider_hunt(game, h: Human, seen: bool, d: int) -> None:
     bursts, works round to your flank, and runs only when it is hurt or its friends have died, not on contact."""
     p, level = game.player, game.level
     if (h.hp < h.max_hp * 0.3 or h.morale < 30) and seen:
+        memory.on_flee(game, h)
         _flee(game, h, p.pos)
         return
     if h.reload > 0:                                              # reloading, from cover if it can

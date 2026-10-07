@@ -39,6 +39,8 @@ class Director:
     threats: int = 0
     last_threat: int = -999
     mercy: int = 0                       # times it eased off because you were in trouble
+    inside_since: int = -1               # since when you have been indoors (the world outside goes on)
+    last_siege: int = -999
 
 
 def _dir(game) -> Director:
@@ -85,9 +87,11 @@ def _power(game) -> float:
     p = game.player
     w = game.item_def(p.weapon.id) if p.weapon else None
     power = 1.0 + 0.12 * (p.level - 1) + (0.3 if p.armor else 0.0) + (0.2 if w and sum(w.dmg) >= 9 else 0.0)
-    from outbreak.engine import companion
+    from outbreak.engine import companion, pets
     if companion.current(game) is not None:
         power += 0.35
+    if pets.current(game) is not None:
+        power += 0.12
     return power
 
 
@@ -96,11 +100,31 @@ def _sample(game, d: Director) -> None:
     d.damage = d.damage * 0.9 + max(0, d.hp_last - p.hp) * 2.0
     d.hp_last = p.hp
     raw = 10.0 * min(4, len(game.visible_hostiles())) + p.panic * 0.4 + game.heat * 0.25 + d.damage
+    for ally in _allies(game):                                  # watching them get hurt is part of the pressure
+        if ally.hp < ally.max_hp * 0.4:
+            raw += 12.0
     d.tension = min(100.0, max(raw, d.tension * 0.95))
+
+
+def _allies(game):
+    from outbreak.engine import companion, pets
+    return [a for a in (companion.current(game), pets.current(game)) if a is not None]
+
+
+def mourn(game) -> None:
+    """Someone who travelled with you is dead: the world holds its breath for a while."""
+    d = getattr(game, "director", None)
+    if d is None:
+        return
+    d.phase, d.phase_until = "release", game.clock.turn + 200
+    d.pending = [item for item in d.pending if item[1] != "boss"] if STAGES[d.stage].id != "ordeal" else d.pending
+    game.msg("Nobody speaks for a long time. The road lets you be.", "dir")
 
 
 def _in_trouble(game) -> bool:
     p = game.player
+    if any(a.hp < a.max_hp * 0.25 for a in _allies(game)):
+        return True
     meds = sum(p.count(i) for i in ("medkit", "bandage") if i in game.items)
     return p.hp < p.max_hp * MERCY_HP or (p.bleeding and meds == 0 and p.hp < p.max_hp * 0.6)
 
@@ -146,6 +170,10 @@ def tick(game) -> None:
     _sample(game, d)
     _stage(game, d, t)
     _due(game, d, t)
+    inside = game.level is not game.world.level
+    d.inside_since = (d.inside_since if d.inside_since >= 0 else t) if inside else -1
+    if inside:
+        _siege(game, d, t)
     if game.level is not game.world.level or game.final or game.pending_event:
         return
     st = STAGES[d.stage]
@@ -162,6 +190,32 @@ def tick(game) -> None:
     elif d.phase == "release" and t >= d.phase_until:
         d.phase = "build"
         d.phase_until = t + game.rng.randint(*st.wait)
+
+
+def _siege(game, d: Director, t: int) -> None:
+    """While you are indoors, the people waiting outside for you are not safe: the dead find them."""
+    if d.stage < 4 or t - d.inside_since < 50 or t - d.last_siege < 400 or game.final:
+        return
+    allies = _allies(game)
+    if not allies or game.rng.random() >= 0.35 or _in_trouble(game):
+        return
+    d.last_siege = t
+    ally = allies[0]
+    lv = game.world.level
+    n = 2 + d.stage // 4
+    placed = 0
+    for _ in range(40):
+        if placed >= n:
+            break
+        spot = lv.free_spot_near(ally.x + game.rng.randint(-5, 5), ally.y + game.rng.randint(-5, 5), 2)
+        if spot and cheb(spot, ally.pos) >= 3:
+            z = spawn_zombie(game, lv, spot, None, dormant=False)
+            z.state, z.target, z.stimulus_turn = "hunt", ally.pos, game.clock.turn
+            placed += 1
+    if placed:
+        who = ally.name
+        game.msg(f"Through the walls, faint: {who} - shouting, then barking, then nothing you can make out. "
+                 f"Whatever is out there is on them.", "dir", key=True)
 
 
 def _stage(game, d: Director, t: int) -> None:
@@ -218,6 +272,10 @@ def _beat(game, d: Director, st, t: int) -> None:
                 game.give_item(Item(iid, n))
         game.msg("In what it left behind: supplies enough to keep going.", "dir")
         d.phase, d.phase_until = "release", t + st.release
+        for ally in _allies(game):
+            ally.bond = min(100, ally.bond + 6)
+        if _allies(game):
+            game.msg("You sit, finally. Nobody says anything. It is the closest thing to peace you have had.", "dir")
     elif st.beat == "chase":
         d.pending.append((t + 20, "horde", 5))
 
@@ -251,8 +309,11 @@ def _due(game, d: Director, t: int) -> None:
 def _land(game, d: Director, kind: str, size: int) -> None:
     p, lv, rng = game.player, game.world.level, game.rng
     if kind == "raiders":
+        from outbreak.engine import memory
+        before = max((a.uid for a in game.level.actors), default=0)
         game.spawn_raiders_near_player(max(2, min(5, size)))
         game.msg("Raiders step out of the cover!", "dir")
+        memory.revenge(game, before)
         return
     for _ in range(40):
         ang = rng.uniform(0, math.tau)
@@ -275,9 +336,12 @@ def _land(game, d: Director, kind: str, size: int) -> None:
         sid = _strongest(game, lv)
         z = spawn_zombie(game, lv, pos, sid, dormant=False)
         z.hp = z.max_hp = int(z.max_hp * 1.3)
-        z.state, z.target, z.stimulus_turn = "hunt", p.pos, game.clock.turn
+        allies = _allies(game)
+        aim = allies[0] if allies else None
+        z.state, z.target, z.stimulus_turn = "hunt", (aim.pos if aim else p.pos), game.clock.turn
         hordes.spawn_horde(game, pos, 3, p.pos)
-        game.msg(f"It comes from the {where}: a {game.profile.name_of(sid).lower()}, and it has not come alone.", "dir", key=True)
+        game.msg(f"It comes from the {where}: a {game.profile.name_of(sid).lower()}, and it has not come alone."
+                 + (f" It is heading for {aim.name} first." if aim else ""), "dir", key=True)
 
 
 def _strongest(game, lv) -> str:

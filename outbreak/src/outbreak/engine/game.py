@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from outbreak.config import GameConfig
 from outbreak.content.items import ItemDef
-from outbreak.engine import (ai, ambience, base, companion, director, pets, military, objective, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
+from outbreak.engine import (ai, ambience, base, companion, director, memory, pets, military, objective, wild, mutation, raiders, cipher, combat, encounters, ending, hordes, interiors, inventory_ops, lives, loot, services,
                              setup)
 from outbreak.engine import tiles as T
 from outbreak.engine.fov import visible_tiles
@@ -67,6 +67,8 @@ class Game:
         self.sources: List[dict] = []            # noises that keep sounding: car alarms, building alarms
         self.alarmed: Set[str] = set()           # buildings whose alarm has already had its chance
         self.last_step_note = -999
+        self.marks: List = []                    # places that remember what happened there (engine/memory.py)
+        self.nemeses: List = []
         self.pet_uid = 0                         # the animal that travels with you (engine/pets.py)
         self.companion_uid = 0                   # the one person who travels with you (engine/companion.py)
         self.fallen_allies: List[Tuple[str, str]] = []
@@ -329,6 +331,7 @@ class Game:
         objective.watch(self)
         director.tick(self)
         pets.tick(self)
+        memory.tick(self)
         if self.incidents and t % 5 == 0:
             self._check_incidents()
         if self.final:
@@ -1394,6 +1397,9 @@ class Game:
         site = self.pois[self.final_site_id]
         where = site.name if site.revealed else "location unknown"
         out.append((f"{sc.final_verb.capitalize()} at {where}", False))
+        errand = companion.personal_objective(self)
+        if errand is not None:
+            out.append(errand)
         return out
 
     def describe_at(self, pos: Pos) -> str:

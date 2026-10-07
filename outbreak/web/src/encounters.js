@@ -19,7 +19,7 @@ function can_afford(game, choice) {
 function pick_event(game) {
   const pairs = [];
   for (const ev of EVENTS) {
-    if (ev.id.startsWith('road_') || ev.id.startsWith('mil_')) continue;                       // scripted, not random
+    if (ev.id.startsWith('road_') || ev.id.startsWith('mil_') || ev.id.startsWith('story_')) continue;                       // scripted, not random
     if (game_day(game) < ev.min_day || (game.recent_events[ev.id] !== undefined ? game.recent_events[ev.id] : -999) > game.clock.turn - 600) continue;
     const w = (['toll', 'prisoner', 'bait'].includes(ev.id) ? ev.weight * game.profile.human_threat : ev.weight) * dir_event_bias(game, ev.id);
     if (ev.id === 'radio' && !game.era.electricity && game.era.tech > 0) continue;
@@ -34,6 +34,7 @@ function start_event(game, ev, text = '', data = null) {
 }
 
 function resolve_event(game, active, index) {
+  if (active.event_id === 'story_personal') return comp_resolve_personal(game, active, index);
   if (active.event_id === 'mil_checkpoint') return military_resolve(game, active, index);
   const choice = EVENT_BY_ID[active.event_id].choices[index];
   if (!can_afford(game, choice)) return 'You cannot afford that.';

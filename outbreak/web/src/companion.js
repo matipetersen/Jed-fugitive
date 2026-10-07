@@ -19,7 +19,8 @@ function comp_ensure_person(game, h, archetype = null) {
   h.name = rng.choice(names.length ? names : COMP.names);
   h.trait = arch.id; h.glyph = h.name[0].toUpperCase();
   h.max_hp = h.hp = arch.hp; h.dmg = arch.dmg.slice(); h.acc = arch.acc;
-  for (const k of ['bond', 'since', 'kills', 'story', 'nextsay', 'nextfx', 'nextfx2', 'nextwarn', 'nextfight', 'nextcall']) if (h[k] === undefined) h[k] = 0;
+  for (const k of ['bond', 'since', 'kills', 'story', 'nextsay', 'nextfx', 'nextfx2', 'nextwarn', 'nextfight', 'nextcall', 'quest']) if (h[k] === undefined) h[k] = 0;
+  if (h.tamed === undefined) h.tamed = false;
   if (h.lasttalk === undefined) h.lasttalk = -999;
   if ((game.era.firearms || game.era.tech === 0) && (arch.id === 'veteran' || arch.id === 'hunter')) { h.reach = 6; h.mag = h.ammo = game.era.firearms ? 8 : 0; }
   else if (h.reach > 1) h.reach = 1;
@@ -36,7 +37,7 @@ function comp_note(game, text, key = false) { game.msg(text, 'ally', key); }
 function comp_add_bond(c, n) { c.bond = Math.max(0, Math.min(100, (c.bond || 0) + n)); }
 function comp_describe(c) {
   const a = comp_arch(c);
-  return a ? `${c.name}, ${a.label}. Good at it: ${COMP.strengths[a.strength]}. Trouble: ${COMP.flaws[a.flaw]}.` : c.name;
+  return a ? `${c.name}, ${a.label}. Good at it: ${COMP.strengths[a.strength]}. Trouble: ${COMP.flaws[a.flaw]}${c.tamed ? ' (overcome)' : ''}.` : c.name;
 }
 function comp_bond_word(c) { return ['a stranger', 'wary of you', 'getting used to you', 'a friend', 'someone who would die for you'][Math.min(4, Math.floor(c.bond / 22))]; }
 
@@ -95,6 +96,10 @@ function comp_tick(game) {
   if (near) { comp_strength(game, c, a.strength, t); comp_flaw(game, c, a.flaw, t); }
   comp_chatter(game, c, t);
   comp_watch(game, c, t);
+  if (t % 5 === 0) {
+    if (c.quest === 0 && c.bond >= COMP_QUEST_BOND && !game.pending_event && !game.visible_hostiles().length) comp_offer_personal(game, c);
+    comp_personal_tick(game, c);
+  }
 }
 
 function comp_strength(game, c, s, t) {
@@ -128,6 +133,7 @@ function comp_spot(game, c) {
 }
 
 function comp_flaw(game, c, f, t) {
+  if (c.tamed) return;                                          // they have made their peace with it
   const p = game.player;
   if (f === 'loud' && t % COMP_LOUD_EVERY === 0 && game.rng.random() < 0.3) {
     game.emit_noise(apos(c), COMP_WANDER_NOISE, 'player'); comp_note(game, `${c.name} knocks something over. That was loud.`);
@@ -170,6 +176,7 @@ function comp_on_enter(game, target) {
   const c = comp_current(game);
   if (!c || !comp_arch(c)) return;
   const poi = game.poi_of_level(target);
+  comp_place_keepsake(game, target);
   comp_say(game, c, poi && poi.kind === 'cave' ? COMP.situation.cave[0] : '"I will keep watch out here."');
 }
 
@@ -213,6 +220,8 @@ function comp_on_death(game, h, killer) {
   game.companion_uid = 0;
   game.add_panic(12 + h.bond / 5, true);
   if (h.bond >= 50) game.adjust_humanity(-3, '');
+  memory_on_ally_death(game, h.name, a ? a.label : 'survivor', a ? a.farewell : '...', apos(h));
+  dir_mourn(game);
 }
 
 // ---- talking
@@ -286,9 +295,9 @@ function comp_on_player_hurt(game, amount) {
 }
 
 // ---- the AI's questions
-function comp_flee_below(h) { const a = comp_arch(h); return a && a.flaw === 'coward' ? 0.6 : 0.3; }
-function comp_refuses_to_fight(h, foe) { const a = comp_arch(h); return !!(a && a.flaw === 'pacifist' && foe && foe.kind === 'human'); }
-function comp_is_reckless(h) { const a = comp_arch(h); return !!(a && a.flaw === 'reckless'); }
+function comp_flee_below(h) { const a = comp_arch(h); return a && a.flaw === 'coward' && !h.tamed ? 0.6 : 0.3; }
+function comp_refuses_to_fight(h, foe) { const a = comp_arch(h); return !!(a && a.flaw === 'pacifist' && !h.tamed && foe && foe.kind === 'human'); }
+function comp_is_reckless(h) { const a = comp_arch(h); return !!(a && a.flaw === 'reckless' && !h.tamed); }
 
 // ---- the start, and strangers who ask to come along
 function comp_spawn_start(game) {
@@ -309,7 +318,7 @@ function comp_stranger(game, spot) {
   return { kind: 'human', uid: game.next_uid(), name: 'Survivor', glyph: 'S', x: spot[0], y: spot[1], hp: 30, max_hp: 30, level_id: 'world', lvl: 1, lvl_xp: 0, title: '', stun: 0,
            role: 'survivor', faction: 'enclave', hostile: false, dmg: [3, 7], acc: 55, reach: 1, energy: 0, state: 'follow', target: null, loot: [], talked: false, group: 0, stuck: 0,
            squad: 0, flank: 0, mag: 0, ammo: 0, reload: 0, morale: 100, hidden: false, corrupt: false, cp: 0, post: null,
-           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0 };
+           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0, quest: 0, tamed: false };
 }
 
 function comp_offer_stranger(game, chance) {
@@ -321,4 +330,75 @@ function comp_offer_stranger(game, chance) {
   const h = comp_stranger(game, spot);
   lv.add_actor(h);
   comp_recruit(game, h, null, 15);
+}
+
+
+// ---- their one personal errand
+const COMP_QUEST_BOND = 60, COMP_QUEST_RANGE = 70, COMP_SCENE_RANGE = 3;
+
+function comp_offer_personal(game, c) {
+  const a = comp_arch(c);
+  if (!a || c.quest || c.bond < COMP_QUEST_BOND || game.personal) return false;
+  const spec = COMP.personal[a.id], p = game.player;
+  let pool = Object.values(game.pois).filter((q) => q.kind === spec.kind && !q.visited && cheb([q.x, q.y], apos(p)) <= COMP_QUEST_RANGE);
+  if (!pool.length) pool = Object.values(game.pois).filter((q) => !['breach', 'refuge', 'pad', 'cave'].includes(q.kind) && !q.visited && cheb([q.x, q.y], apos(p)) <= COMP_QUEST_RANGE);
+  if (!pool.length) { c.quest = 3; return false; }
+  const poi = pool.reduce((b, q) => (cheb([q.x, q.y], apos(p)) < cheb([b.x, b.y], apos(p)) ? q : b));
+  poi.revealed = true; c.quest = 1;
+  game.personal = { uid: c.uid, poi: poi.id, stage: 1 };
+  comp_say(game, c, spec.ask);
+  game.msg(`${c.name} asks you for one thing: ${poi.name}, ${compass(poi.x - p.x, poi.y - p.y)}, ${cheb([poi.x, poi.y], apos(p))} tiles. It is marked on your map.`, 'obj', true);
+  return true;
+}
+
+function comp_personal_objective(game) {
+  const q = game.personal, c = comp_current(game);
+  if (!q || !c || c.uid !== q.uid || c.quest === 0 || c.quest === 3) return null;
+  const poi = game.pois[q.poi];
+  return [`${c.name}'s errand: ${c.quest === 2 ? 'bring it back to them' : 'find what is left at ' + poi.name}`, false];
+}
+
+function comp_place_keepsake(game, target) {
+  const q = game.personal, poi = game.poi_of_level(target);
+  if (!q || !poi || poi.id !== q.poi || q.stage !== 1) return;
+  if (poi.floors > 1 && !target.id.endsWith(`:${poi.floors - 1}`)) return;
+  const item = make_item('keepsake', 1); item.key = true;
+  const crates = Object.values(target.containers);
+  if (crates.length) game.rng.choice(crates).loot.push(item);
+  else { const spot = target.free_spot_near(target.entry[0], target.entry[1], 4); if (spot) target.drop(spot, item); }
+  q.stage = 1.5;
+  game.msg('Somewhere in here is what they asked you for.', 'obj');
+}
+
+function comp_personal_tick(game, c) {
+  const q = game.personal;
+  if (!q || q.uid !== c.uid) return;
+  const p = game.player;
+  if (c.quest === 1 && p.count('keepsake') > 0) { c.quest = 2; q.stage = 2; game.msg(`You have it. Take it back to ${c.name}.`, 'obj', true); }
+  if (c.quest === 2 && game.level === game.world.level && cheb(apos(c), apos(p)) <= COMP_SCENE_RANGE && !game.pending_event && !game.visible_hostiles().length) {
+    const spec = COMP.personal[comp_arch(c).id];
+    game.pending_event = start_event(game, EVENT_BY_ID.story_personal, `${c.name} sees what you are carrying. ${spec.found} ${spec.scene}`, { uid: c.uid });
+  }
+}
+
+function comp_resolve_personal(game, active, index) {
+  const c = game.world.level.actors.find((a) => a.kind === 'human' && a.uid === active.data.uid);
+  if (!c || !comp_arch(c)) { active.result = 'They are gone.'; active.resolved = true; return active.result; }
+  const spec = COMP.personal[comp_arch(c).id], p = game.player;
+  p.take('keepsake', 1); c.quest = 3; game.personal = null;
+  let text;
+  if (index === 0) {
+    comp_add_bond(c, 20); c.tamed = true; comp_boon(game, c); game.adjust_humanity(4, '');
+    text = `${spec.give}\n${c.name} has overcome something: ${spec.boon}`;
+  } else if (index === 1) { comp_add_bond(c, -25); game.adjust_humanity(-6, ''); p.coins += 6; text = spec.keep; }
+  else { comp_add_bond(c, 10); game.adjust_humanity(2, ''); game.add_panic(-15, true); c.story = 3; text = spec.read; }
+  active.result = text; active.resolved = true;
+  game.msg(text, 'ally', true);
+  return text;
+}
+
+function comp_boon(game, c) {
+  const a = comp_arch(c);
+  if (a.flaw === 'frail') { c.max_hp += 12; c.hp = c.max_hp; }
+  else if (a.flaw === 'reckless') { c.max_hp += 8; c.hp = c.max_hp; }
 }

@@ -18,7 +18,7 @@ from outbreak.engine import encounters, ending  # noqa: E402
 from outbreak.config import DIFFICULTIES  # noqa: E402
 from outbreak.engine.clock import START_HOUR, TURNS_PER_DAY, TURNS_PER_HOUR  # noqa: E402
 
-JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "companion", "objective", "director", "pets", "shared",
+JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "companion", "objective", "director", "pets", "memory", "shared",
             "hordes", "encounters", "services", "ending", "records", "inventory_ops", "setup", "game", "save"]
 UI_ORDER = ["ui"]
 
@@ -60,7 +60,7 @@ def dump_content() -> str:
         "win_endings": {f"{k[0]}|{k[1]}": list(v) for k, v in ending.WIN.items()},
         "companions": {"archetypes": plain(list(content.companions.ARCHETYPES)), "strengths": content.companions.STRENGTHS,
                        "flaws": content.companions.FLAWS, "role_archetype": content.companions.ROLE_ARCHETYPE,
-                       "names": list(content.companions.NAMES), "combat": {k: list(v) for k, v in content.companions.COMBAT_LINES.items()}, "situation": {k: list(v) for k, v in content.companions.SITUATION_LINES.items()}},
+                       "names": list(content.companions.NAMES), "combat": {k: list(v) for k, v in content.companions.COMBAT_LINES.items()}, "personal": content.companions.PERSONAL, "situation": {k: list(v) for k, v in content.companions.SITUATION_LINES.items()}},
         "director": {"stages": plain(list(content.director.STAGES)), "act_lines": {k: list(v) for k, v in content.director.ACT_LINES.items()},
                      "relief_events": list(content.director.RELIEF_EVENTS), "threat_events": list(content.director.THREAT_EVENTS)},
         "pets": {"species": plain(list(content.pets.PETS)), "names": list(content.pets.PET_NAMES)},

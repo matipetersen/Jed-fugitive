@@ -181,6 +181,7 @@ function kill_human(game, h) {
   raiders_shaken(game, h);
   comp_on_death(game, h, 'you');
   comp_on_player_kills_human(game, h);
+  memory_on_kill_human(game, h);
   const level = game.level;
   if (game.shared) game.shared.on_enemy_death(h);
   level.remove_actor(h);

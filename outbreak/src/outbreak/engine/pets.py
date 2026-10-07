@@ -412,3 +412,6 @@ def on_death(game, a: Animal, killer=None) -> None:
     fallen.append((a.name, f"{a.species}, {days}d, {a.kills} kills"))
     game.pet_uid = 0
     game.add_panic(6 + a.bond / 8, raw=True)
+    from outbreak.engine import director, memory
+    memory.on_ally_death(game, a.name, a.species, f"{a.name} was a good {a.species}.", a.pos)
+    director.mourn(game)

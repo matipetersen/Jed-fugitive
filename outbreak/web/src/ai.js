@@ -422,7 +422,7 @@ function _away_step(game, h, p) {
 // bursts, works round to your flank, and runs only when it is hurt or its friends have died, not on contact
 function _raider_hunt(game, h, seen, d) {
   const p = game.player, level = game.level;
-  if ((h.hp < h.max_hp * 0.3 || h.morale < 30) && seen) { _flee(game, h, apos(p)); return; }
+  if ((h.hp < h.max_hp * 0.3 || h.morale < 30) && seen) { memory_on_flee(game, h); _flee(game, h, apos(p)); return; }
   if (h.reload > 0) {                                                  // reloading, from cover if it can
     h.reload -= 1; if (h.reload === 0) h.ammo = h.mag;
     const cover = seen ? _cover_step(game, h, p) : null;

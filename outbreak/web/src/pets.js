@@ -208,5 +208,7 @@ function pets_on_death(game, a, killer) {
   game.fallen_allies.push([a.name, `${a.species}, ${days}d, ${a.kills || 0} kills`]);
   game.pet_uid = 0;
   game.add_panic(6 + a.bond / 8, true);
+  memory_on_ally_death(game, a.name, a.species, `${a.name} was a good ${a.species}.`, apos(a));
+  dir_mourn(game);
 }
 

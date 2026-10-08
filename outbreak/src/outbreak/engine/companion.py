@@ -42,7 +42,7 @@ def ensure_person(game, h: Human, archetype: Optional[str] = None) -> None:
     h.name = rng.choice(names)
     h.trait = arch.id
     h.glyph = h.name[0].upper()
-    h.max_hp = h.hp = arch.hp + 6                      # a little more than the profile: the first days are hard on everyone
+    h.max_hp = h.hp = int(arch.hp * 1.6) + 10          # sturdy enough to stand beside a player who starts at 80
     h.dmg, h.acc = arch.dmg, arch.acc
     if (game.era.firearms or game.era.tech == 0) and arch.id in ("veteran", "hunter"):
         h.reach = 6

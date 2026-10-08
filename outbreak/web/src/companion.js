@@ -18,7 +18,7 @@ function comp_ensure_person(game, h, archetype = null) {
   const names = COMP.names.filter((n) => !taken.has(n));
   h.name = rng.choice(names.length ? names : COMP.names);
   h.trait = arch.id; h.glyph = h.name[0].toUpperCase();
-  h.max_hp = h.hp = arch.hp + 6; h.dmg = arch.dmg.slice(); h.acc = arch.acc;
+  h.max_hp = h.hp = Math.trunc(arch.hp * 1.6) + 10; h.dmg = arch.dmg.slice(); h.acc = arch.acc;
   for (const k of ['bond', 'since', 'kills', 'story', 'nextsay', 'nextfx', 'nextfx2', 'nextwarn', 'nextfight', 'nextcall', 'quest']) if (h[k] === undefined) h[k] = 0;
   if (h.tamed === undefined) h.tamed = false;
   if (h.lasttalk === undefined) h.lasttalk = -999;

@@ -170,6 +170,8 @@ def nearest_foe(game, a, foes, limit: float):
         if f is a or f.hp <= 0:
             continue
         d = cheb(a.pos, f.pos)
+        if getattr(f, "sneaking", False) and d > 2 and isinstance(a, Zombie):
+            continue                                              # a creeping companion is only noticed up close
         if d < best_d and has_los(level, a.pos, f.pos):
             best, best_d = f, d
     return best
@@ -484,6 +486,7 @@ def _human_move(game, h: Human, nxt) -> bool:
 def _human_fight(game, h: Human, foe) -> None:
     level = game.level
     d = cheb(h.pos, foe.pos)
+    h.sneaking, h.sprinting, h.lastfought = False, False, game.clock.turn
     if h.trait:
         companion.on_fight(game, h, foe)
     if h.hp < h.max_hp * companion.flee_below(h) and isinstance(foe, Zombie) and d <= 2:
@@ -535,7 +538,9 @@ def _follow_step(game, h: Human) -> None:
     nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
     if nxt is None:
         nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
-    _human_move(game, h, nxt)
+    if _human_move(game, h, nxt) and h.sprinting and game.clock.turn % 2 == 0 and cheb(h.pos, p.pos) > 2:
+        nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+        _human_move(game, h, nxt)                                 # you run, they run: a free step every other turn
 
 
 # ------------------------------------------------------------------ far away, in the abstract

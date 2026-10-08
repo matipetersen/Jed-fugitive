@@ -106,6 +106,10 @@ armed people who have heard about you if you did not.
   your companion or pet, hit them for 40% damage, and the companion's leash shrinks to 3 tiles. A hurt companion who flees runs
   towards you instead of into the dark, and companions have 6 more HP. (`companion.early_grace`.)
 
+* *Your companion mirrors you.* When you creep, they creep (the dead only notice them within 2 tiles); when you sprint, they take a
+  free step every other turn to keep up; both stop the moment they fight. When you level up, they level up with you (+3 max HP,
+  +1 damage, +2 accuracy per level), with a line in the log. (`companion.mirror`, `companion.grow`.)
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

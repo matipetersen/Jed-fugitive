@@ -105,6 +105,7 @@ function nearest_foe(game, a, foes, limit) {
   for (const f of foes) {
     if (f === a || f.hp <= 0) continue;
     const d = cheb(apos(a), apos(f));
+    if (f.sneaking && d > 2 && a.kind === 'zombie') continue;           // a creeping companion is only noticed up close
     if (d < best_d && has_los(level, apos(a), apos(f))) { best = f; best_d = d; }
   }
   return best;
@@ -298,6 +299,7 @@ function _human_move(game, h, nxt) {
 
 function _human_fight(game, h, foe) {
   const level = game.level, d = cheb(apos(h), apos(foe));
+  h.sneaking = false; h.sprinting = false; h.lastfought = game.clock.turn;
   if (h.trait) comp_on_fight(game, h, foe);
   if (h.hp < h.max_hp * comp_flee_below(h) && foe.kind === 'zombie' && d <= 2) {
     comp_on_flee(game, h);
@@ -334,7 +336,9 @@ function _follow_step(game, h) {
   const field = game.get_field();
   let nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null;
   if (nxt === null) nxt = greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
-  _human_move(game, h, nxt);
+  if (_human_move(game, h, nxt) && h.sprinting && game.clock.turn % 2 === 0 && cheb(apos(h), apos(p)) > 2) {
+    _human_move(game, h, greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1]))));      // you run, they run
+  }
 }
 
 // ---------------------------------------------------------------- far away, in the abstract

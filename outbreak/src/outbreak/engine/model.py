@@ -176,6 +176,9 @@ class Human(Actor):
     lasttalk: int = -999
     nextfight: int = 0
     nextcall: int = 0
+    sneaking: bool = False           # a companion creeps when you creep, runs when you run
+    sprinting: bool = False
+    lastfought: int = -99
     quest: int = 0                   # their personal errand: 0 none, 1 asked, 2 found, 3 done
     tamed: bool = False              # they have overcome their flaw
 

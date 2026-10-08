@@ -157,8 +157,38 @@ def toggle_wait(game, c: Human) -> str:
 
 
 # ------------------------------------------------------------------ the effects, every turn
+def mirror(game, c: Human) -> None:
+    """Your companion does what you do: creeps when you creep, runs when you run."""
+    p, t = game.player, game.clock.turn
+    calm = c.state == "follow" and t - c.lastfought > 3
+    sneak, sprint = bool(p.sneaking and calm), bool(p.sprinting and calm)
+    if sneak and not c.sneaking and cheb(c.pos, p.pos) <= 8:
+        note(game, f"{c.name} drops low and creeps beside you.")
+    elif sprint and not c.sprinting and cheb(c.pos, p.pos) <= 8:
+        note(game, f"{c.name} breaks into a run after you.")
+    c.sneaking, c.sprinting = sneak, sprint
+
+
+def grow(game, c: Human) -> None:
+    """Your companion levels up when you do."""
+    p = game.player
+    if c.lvl >= p.level:
+        return
+    n = p.level - c.lvl
+    for _ in range(n):
+        c.lvl += 1
+        c.max_hp += 3
+        c.hp = min(c.max_hp, c.hp + 6)
+        c.dmg = (c.dmg[0] + (c.lvl % 2), c.dmg[1] + 1)
+        c.acc = min(90, c.acc + 2)
+    note(game, f"{c.name} grows with you: level {c.lvl}.", key=True)
+
+
 def tick(game) -> None:
     c = current(game)
+    if c is not None and c.level_id == game.level.id:
+        mirror(game, c)
+        grow(game, c)
     if c is None or game.level is not game.world.level or arch_of(c) is None:
         return
     t, p, a = game.clock.turn, game.player, arch_of(c)

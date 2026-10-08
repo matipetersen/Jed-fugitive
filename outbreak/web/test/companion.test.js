@@ -93,3 +93,13 @@ console.log('companion: a pool of people, strengths and flaws, bonds, permanent 
   g.clock.turn = 10; assert(OB.comp_early_grace(g)); g.clock.turn = 2000; g.ring = null; assert(!OB.comp_early_grace(g));
   g.ring = { active: true }; assert.strictEqual(OB.comp_leash(c, g), 3);
 }
+{ // they creep and run when you do, and level up with you
+  const [g, lv, c] = field(3, 'brute'); g.clock.turn = 1000;
+  g.player.sneaking = true; OB.comp_tick(g); assert(c.sneaking && !c.sprinting);
+  g.player.sneaking = false; g.player.sprinting = true; OB.comp_tick(g); assert(c.sprinting && !c.sneaking);
+  g.player.sprinting = false; OB.comp_tick(g); assert(!c.sneaking && !c.sprinting);
+  const z = OB.spawn_zombie(g, lv, [c.x + 4, c.y], 'walker', false);
+  assert.strictEqual(OB.nearest_foe(g, z, [c], 5), c); c.sneaking = true; assert.strictEqual(OB.nearest_foe(g, z, [c], 5), null);
+  const hp = c.max_hp; g.player.gain_xp(100000); OB.comp_tick(g);
+  assert.strictEqual(c.lvl, g.player.level); assert(c.max_hp > hp); assert(g.log.some((m) => m[1].includes('grows with you')));
+}

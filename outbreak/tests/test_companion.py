@@ -351,3 +351,35 @@ class OpeningGrace(unittest.TestCase):
         class R: active = True
         g.ring = R()
         self.assertEqual(companion.leash(c, g), companion.LEASH_TIDE)
+
+
+class Mirroring(unittest.TestCase):
+    def test_they_creep_and_run_when_you_do(self):
+        g, lv, c = field(arch="brute")
+        g.clock.turn = 1000
+        g.player.sneaking = True
+        companion.tick(g)
+        self.assertTrue(c.sneaking and not c.sprinting)
+        g.player.sneaking, g.player.sprinting = False, True
+        companion.tick(g)
+        self.assertTrue(c.sprinting and not c.sneaking)
+        g.player.sprinting = False
+        companion.tick(g)
+        self.assertFalse(c.sneaking or c.sprinting)
+
+    def test_a_creeping_companion_is_only_noticed_up_close(self):
+        from outbreak.engine import ai
+        g, lv, c = field(arch="brute")
+        z = spawn_zombie(g, lv, (c.x + 4, c.y), "walker", False)
+        self.assertIs(ai.nearest_foe(g, z, [c], 5), c)
+        c.sneaking = True
+        self.assertIsNone(ai.nearest_foe(g, z, [c], 5))
+
+    def test_they_level_up_with_you(self):
+        g, lv, c = field(arch="brute")
+        hp, lvl = c.max_hp, c.lvl
+        g.player.gain_xp(10 ** 5)
+        companion.tick(g)
+        self.assertEqual(c.lvl, g.player.level)
+        self.assertGreater(c.max_hp, hp)
+        self.assertTrue(any("grows with you" in t for _, t, _ in g.log))

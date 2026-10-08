@@ -85,8 +85,25 @@ function comp_toggle_wait(game, c) {
 }
 
 // ---- the effects, every turn
+// Your companion does what you do: creeps when you creep, runs when you run.
+function comp_mirror(game, c) {
+  const p = game.player, t = game.clock.turn, calm = c.state === 'follow' && t - (c.lastfought === undefined ? -99 : c.lastfought) > 3;
+  const sneak = !!(p.sneaking && calm), sprint = !!(p.sprinting && calm), near = cheb(apos(c), apos(p)) <= 8;
+  if (sneak && !c.sneaking && near) comp_note(game, `${c.name} drops low and creeps beside you.`);
+  else if (sprint && !c.sprinting && near) comp_note(game, `${c.name} breaks into a run after you.`);
+  c.sneaking = sneak; c.sprinting = sprint;
+}
+// ...and levels up when you do.
+function comp_grow(game, c) {
+  const p = game.player;
+  if (c.lvl >= p.level) return;
+  while (c.lvl < p.level) { c.lvl++; c.max_hp += 3; c.hp = Math.min(c.max_hp, c.hp + 6); c.dmg = [c.dmg[0] + (c.lvl % 2), c.dmg[1] + 1]; c.acc = Math.min(90, c.acc + 2); }
+  comp_note(game, `${c.name} grows with you: level ${c.lvl}.`, true);
+}
+
 function comp_tick(game) {
   const c = comp_current(game);
+  if (c && c.level_id === game.level.id) { comp_mirror(game, c); comp_grow(game, c); }
   if (!c || game.level !== game.world.level || !comp_arch(c)) return;
   const t = game.clock.turn, p = game.player, a = comp_arch(c), near = cheb(apos(c), apos(p)) <= 10;
   if (t % 100 === 0) comp_add_bond(c, 1);
@@ -320,7 +337,7 @@ function comp_stranger(game, spot) {
   return { kind: 'human', uid: game.next_uid(), name: 'Survivor', glyph: 'S', x: spot[0], y: spot[1], hp: 30, max_hp: 30, level_id: 'world', lvl: 1, lvl_xp: 0, title: '', stun: 0,
            role: 'survivor', faction: 'enclave', hostile: false, dmg: [3, 7], acc: 55, reach: 1, energy: 0, state: 'follow', target: null, loot: [], talked: false, group: 0, stuck: 0,
            squad: 0, flank: 0, mag: 0, ammo: 0, reload: 0, morale: 100, hidden: false, corrupt: false, cp: 0, post: null,
-           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0, quest: 0, tamed: false };
+           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0, quest: 0, tamed: false, sneaking: false, sprinting: false, lastfought: -99 };
 }
 
 function comp_offer_stranger(game, chance) {

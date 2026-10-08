@@ -470,7 +470,7 @@ function updateHud() {
 let logAll = false;
 function renderLog() {
   const box = $('#log'); box.innerHTML = '';
-  const recent = (logAll || !game.story.length ? game.log : game.story).slice(-3);
+  const recent = (logAll || !game.story.length ? game.log : game.story_log()).slice(-3);
   recent.forEach((m, i) => { const d = el('div', 't-' + m[2], m[1]); d.style.opacity = String(0.45 + 0.275 * (i + (3 - recent.length))); box.append(d); });
   layoutOverlays();
 }

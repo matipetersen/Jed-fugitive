@@ -29,7 +29,22 @@ function comp_ensure_person(game, h, archetype = null) {
 function comp_current(game) {
   const uid = game.companion_uid;
   if (!uid) return null;
-  return game.world.level.actors.find((a) => a.kind === 'human' && a.uid === uid && a.hp > 0 && (a.state === 'follow' || a.state === 'wait')) || null;
+  for (const lv of [game.level, game.world.level]) {                      // with you in the building, or outside where you left them
+    const c = lv.actors.find((a) => a.kind === 'human' && a.uid === uid && a.hp > 0 && (a.state === 'follow' || a.state === 'wait'));
+    if (c) return c;
+  }
+  return null;
+}
+
+const COMP_CARRY_RANGE = 12;
+// Through a door, up a stair, out into the street: whoever is following you comes too.
+function comp_carry(game, old, target, dest, from_pos) {
+  const uid = game.companion_uid;
+  const c = uid ? old.actors.find((a) => a.kind === 'human' && a.uid === uid && a.hp > 0 && a.state === 'follow') : null;
+  if (!c || (old === game.world.level && cheb([c.x, c.y], from_pos) > COMP_CARRY_RANGE)) return;      // too far behind: they wait out here
+  const spot = target.free_spot_near(dest[0], dest[1], 3);
+  if (!spot) return;
+  old.remove_actor(c); c.x = spot[0]; c.y = spot[1]; target.add_actor(c);
 }
 
 function comp_say(game, c, text) { game.msg(`${c.name}: ${text}`, 'ally'); }
@@ -194,7 +209,7 @@ function comp_on_enter(game, target) {
   if (!c || !comp_arch(c)) return;
   const poi = game.poi_of_level(target);
   comp_place_keepsake(game, target);
-  comp_say(game, c, poi && poi.kind === 'cave' ? COMP.situation.cave[0] : '"I will keep watch out here."');
+  comp_say(game, c, poi && poi.kind === 'cave' ? COMP.situation.cave[0] : c.level_id === target.id ? '"Stay close. I have got your back."' : '"I will keep watch out here."');
 }
 
 function comp_on_return(game) {
@@ -205,7 +220,7 @@ function comp_on_return(game) {
     const item = rng.choice(['scrap', 'cloth', 'wood', 'food', 'bandage'].concat(s === 'lucky' ? ['chem'] : []));
     if (game.items[item]) {
       game.give_item(make_item(item, rng.randint(1, 2)));
-      comp_say(game, c, `"While you were in there I found this. ${game.item_def(item).name}. You are welcome."`);
+      comp_say(game, c, `"Picked this up on the way out. ${game.item_def(item).name}. You are welcome."`);
       comp_add_bond(c, 1);
       if (s === 'lucky' && rng.random() < 0.5) game.player.coins += rng.randint(1, 4);
     }

@@ -246,3 +246,28 @@ class Beats(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FinalAlpha(unittest.TestCase):
+    def test_the_alpha_in_the_final_stand_chases_you_across_the_room(self):
+        from outbreak.engine import ai
+        g = helpers.make_game(seed=5, scenario="dash", era="modern")
+        site = g.pois[g.final_site_id]
+        lv = helpers.teleport(g, site.id + ":0")
+        del lv.occ[g.player.pos]
+        g.player.x, g.player.y = (24, 4)
+        lv.occ[g.player.pos] = g.player
+        g.requirements_met = lambda: True
+        g.use_bench()
+        g.final.turns_left = g.scenario.final_turns // 2
+        g.clock.turn = 900
+        for _ in range(3):
+            g.clock.turn += 1
+            g._final_tick()
+        alpha = next(a for a in lv.actors if a.name == "Alpha")
+        start = alpha.pos
+        for _ in range(12):
+            g.clock.turn += 1
+            ai.run(g)
+        self.assertEqual(alpha.state, "hunt")
+        self.assertNotEqual(alpha.pos, start)

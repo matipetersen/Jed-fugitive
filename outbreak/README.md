@@ -110,6 +110,12 @@ armed people who have heard about you if you did not.
   free step every other turn to keep up; both stop the moment they fight. When you level up, they level up with you (+3 max HP,
   +1 damage, +2 accuracy per level), with a line in the log. (`companion.mirror`, `companion.grow`.)
 
+**Playtest fixes (dash).** The Alpha of the final stand spawned without a "last heard you" turn, lost interest at once and stood
+still: it now hunts from the first turn (same fix for the stalker that follows you in). Your companion now comes inside with you
+and back out (anyone within 12 tiles when you take a door, a stair or a cave mouth; further behind they wait outside), so the old
+"I will keep watch out here" is only for the ones left far behind. The focused log also shows what just happened to you (a refused
+shot such as "Out of bullets", a hit, a wound) for two turns, instead of hiding it. (`Game.story_log`.)
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

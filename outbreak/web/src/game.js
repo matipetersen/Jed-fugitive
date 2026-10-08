@@ -89,6 +89,11 @@ class Game {
 
   // ------------------------------------------------------------- basics
   next_uid() { return ++this._uid; }
+  // The focused log, plus whatever just happened to you: a refused shot, a hit, a wound.
+  story_log() {
+    const story = new Set(this.story.slice(-80).map((m) => m[0] + '|' + m[1])), now = this.clock.turn;
+    return this.log.slice(-120).filter((m) => story.has(m[0] + '|' + m[1]) || (m[0] >= now - 2 && (m[2] === 'warn' || m[2] === 'bad' || m[2] === 'combat' || m[2] === 'good')));
+  }
   msg(text, tag = 'info', key = false) {
     if (!text) return;
     this.log.push([this.clock.turn, text, tag]);
@@ -465,7 +470,7 @@ class Game {
       if (spot && cheb(spot, [p.x, p.y]) >= 2) {
         z.x = spot[0]; z.y = spot[1];
         this.level.add_actor(z);
-        z.state = 'hunt'; z.target = [p.x, p.y];
+        z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn;
         this.msg(`The ${z.name.toLowerCase()} followed you in!`, 'bad');
       }
     }
@@ -667,7 +672,8 @@ class Game {
     } else dest = (target.arrivals[portal.arrive] || target.entry).slice();
     const occ = target.occ.get(target.idx(dest[0], dest[1]));
     if (!target.walkable(dest[0], dest[1]) || (occ && occ !== p)) dest = target.free_spot_near(dest[0], dest[1], 4) || dest;
-    if (portal.target !== 'world') { comp_on_enter(this, target); pets_on_enter(this); }
+    const from_pos = [p.x, p.y];
+    if (portal.target !== 'world') pets_on_enter(this);
     const st = this.stalker;
     if (st && st.hp > 0 && old.actors.includes(st) && cheb([st.x, st.y], [p.x, p.y]) <= 10 && st.state === 'hunt') {
       old.remove_actor(st);
@@ -678,6 +684,8 @@ class Game {
     p.x = dest[0]; p.y = dest[1];
     target.occ.set(target.idx(p.x, p.y), p);
     p.level_id = target.id;
+    comp_carry(this, old, target, dest, from_pos);
+    if (portal.target !== 'world') comp_on_enter(this, target);
     this.scent = {};
     const poi = this.poi_of_level(target);
     if (portal.target !== 'world' && poi && !poi.visited) {
@@ -1090,7 +1098,7 @@ class Game {
         const spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4);
         if (spot) {
           const z = spawn_zombie(this, lv, spot, 'alpha', false, true);
-          z.state = 'hunt'; z.target = [p.x, p.y];
+          z.state = 'hunt'; z.target = [p.x, p.y]; z.stimulus_turn = this.clock.turn;
           this.msg('Something enormous pushes through the dead. The Alpha has come for you.', 'bad', true);
         }
       }

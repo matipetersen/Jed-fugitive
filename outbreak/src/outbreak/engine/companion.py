@@ -60,10 +60,28 @@ def current(game) -> Optional[Human]:
     uid = getattr(game, "companion_uid", 0)
     if not uid:
         return None
-    for a in game.world.level.actors:
-        if isinstance(a, Human) and a.uid == uid and a.hp > 0 and a.state in ("follow", "wait"):
-            return a
+    for lv in (game.level, game.world.level):                       # with you in the building, or outside where you left them
+        for a in lv.actors:
+            if isinstance(a, Human) and a.uid == uid and a.hp > 0 and a.state in ("follow", "wait"):
+                return a
     return None
+
+
+CARRY_RANGE = 12
+
+
+def carry(game, old, target, dest, from_pos) -> None:
+    """Through a door, up a stair, out into the street: whoever is following you comes too."""
+    uid = getattr(game, "companion_uid", 0)
+    c = next((a for a in old.actors if isinstance(a, Human) and a.uid == uid and a.hp > 0 and a.state == "follow"), None) if uid else None
+    if c is None or (old is game.world.level and cheb(c.pos, from_pos) > CARRY_RANGE):
+        return                                             # too far behind: they wait out here until you come back
+    spot = target.free_spot_near(dest[0], dest[1], 3)
+    if spot is None:
+        return
+    old.remove_actor(c)
+    c.x, c.y = spot
+    target.add_actor(c)
 
 
 def say(game, c: Human, text: str) -> None:
@@ -315,6 +333,8 @@ def on_enter(game, target) -> None:
     _place_keepsake(game, target)
     if poi is not None and poi.kind == "cave":
         say(game, c, SITUATION_LINES["cave"][0])
+    elif c.level_id == target.id:
+        say(game, c, "\"Stay close. I have got your back.\"")
     else:
         say(game, c, "\"I will keep watch out here.\"")
     add_bond(c, 0)
@@ -331,7 +351,7 @@ def on_return(game) -> None:
         item = rng.choice(["scrap", "cloth", "wood", "food", "bandage"] + (["chem"] if s == "lucky" else []))
         if item in game.items:
             game.give_item(Item(item, rng.randint(1, 2)))
-            say(game, c, f"\"While you were in there I found this. {game.item_def(item).name}. You are welcome.\"")
+            say(game, c, f"\"Picked this up on the way out. {game.item_def(item).name}. You are welcome.\"")
             add_bond(c, 1)
             if s == "lucky" and rng.random() < 0.5:
                 game.player.coins += rng.randint(1, 4)

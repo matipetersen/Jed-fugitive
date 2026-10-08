@@ -244,7 +244,7 @@ def _equip_line(game: Game, item, label: str) -> str:
 
 def build_log(game: Game, lines: int, width: int, full: bool = False) -> List[Line]:
     """The log: by default only what matters (objectives, your companion, key events) under a pinned goal; ``full`` shows all."""
-    source = game.log if full or not getattr(game, "story", None) else game.story
+    source = game.log if full or not getattr(game, "story", None) else game.story_log()
     out: List[Line] = []
     for turn, text, tag in source[-lines * 2:]:
         color = TAG_COLOR.get(tag, "white")

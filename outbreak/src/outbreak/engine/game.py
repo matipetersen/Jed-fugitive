@@ -117,6 +117,15 @@ class Game:
         self._uid += 1
         return self._uid
 
+    FEEDBACK_TAGS = ("warn", "bad", "combat", "good")     # what you just did or suffered shows up even in the story log
+    FEEDBACK_TURNS = 2
+
+    def story_log(self) -> list:
+        """The focused log, plus whatever just happened to you: a refused shot, a hit, a wound."""
+        story = set(self.story[-80:])
+        now = self.clock.turn
+        return [m for m in self.log[-120:] if m in story or (m[0] >= now - self.FEEDBACK_TURNS and m[2] in self.FEEDBACK_TAGS)]
+
     def msg(self, text: str, tag: str = "info", key: bool = False) -> None:
         if not text:
             return
@@ -536,7 +545,7 @@ class Game:
             if spot and cheb(spot, self.player.pos) >= 2:
                 z.x, z.y = spot
                 self.level.add_actor(z)
-                z.state, z.target = "hunt", self.player.pos
+                z.state, z.target, z.stimulus_turn = "hunt", self.player.pos, self.clock.turn
                 self.msg(f"The {z.name.lower()} followed you in!", "bad")
 
     def _rising_dead(self) -> None:
@@ -740,8 +749,8 @@ class Game:
             dest = target.arrivals.get(portal.arrive) or target.entry
         if not target.walkable(*dest) or (dest in target.occ and target.occ[dest] is not p):
             dest = target.free_spot_near(dest[0], dest[1], 4) or dest
+        from_pos = p.pos
         if portal.target != "world":
-            companion.on_enter(self, target)
             pets.on_enter(self, target)
         if self.stalker and self.stalker.hp > 0 and self.stalker in old.actors \
                 and cheb(self.stalker.pos, p.pos) <= 10 and self.stalker.state == "hunt":
@@ -753,6 +762,9 @@ class Game:
         p.x, p.y = dest
         target.occ[dest] = p
         p.level_id = target.id
+        companion.carry(self, old, target, dest, from_pos)
+        if portal.target != "world":
+            companion.on_enter(self, target)
         self.scent.clear()
         poi = self.poi_of_level(target)
         if portal.target != "world" and poi and not poi.visited:
@@ -1348,7 +1360,7 @@ class Game:
                 spot = lv.free_spot_near(lv.entry[0], lv.entry[1], 4)
                 if spot:
                     z = spawn_zombie(self, lv, spot, "alpha", dormant=False, fresh=True)
-                    z.state, z.target = "hunt", p.pos
+                    z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn
                     self.msg("Something enormous pushes through the dead. The Alpha has come for you.", "bad", key=True)
 
     def _siege_spawn(self, spot_near: Pos, n: int, radius: int = 2) -> None:

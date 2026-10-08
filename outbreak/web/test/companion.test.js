@@ -103,3 +103,19 @@ console.log('companion: a pool of people, strengths and flaws, bonds, permanent 
   const hp = c.max_hp; g.player.gain_xp(100000); OB.comp_tick(g);
   assert.strictEqual(c.lvl, g.player.level); assert(c.max_hp > hp); assert(g.log.some((m) => m[1].includes('grows with you')));
 }
+{ // they follow you in and out, and a refused shot still shows in the focused log
+  const [g, lv, c] = field(3, 'brute'); const p = g.player;
+  OB.gen_near(g, p.x, p.y);
+  const k = Object.keys(lv.portals).find((kk) => lv.portals[kk].target !== 'world' && lv.portals[kk].target.endsWith(':0'));
+  assert(k !== undefined, 'a building near the start');
+  const door = [Number(k) % lv.w, Math.floor(Number(k) / lv.w)];
+  const spot = lv.free_spot_near(door[0], door[1] + 1, 2);
+  lv.occ.delete(lv.idx(p.x, p.y)); p.x = spot[0]; p.y = spot[1]; lv.occ.set(lv.idx(p.x, p.y), p);
+  lv.remove_actor(c); const cs = lv.free_spot_near(spot[0] + 1, spot[1], 2); c.x = cs[0]; c.y = cs[1]; lv.add_actor(c);
+  assert(g._use_portal(door[0], door[1])); assert(g.level !== lv); assert(g.level.actors.includes(c)); assert.strictEqual(OB.comp_current(g), c);
+  const back = Object.keys(g.level.portals).find((kk) => g.level.portals[kk].target === 'world');
+  assert(g._use_portal(Number(back) % g.level.w, Math.floor(Number(back) / g.level.w)));
+  assert(g.level === g.world.level && g.world.level.actors.includes(c)); assert.strictEqual(OB.comp_current(g), c);
+  g.clock.turn = 500; g.msg('Out of bullets.', 'warn'); g.msg('Noise from a drain.', 'info');
+  const shown = g.story_log().map((m) => m[1]); assert(shown.includes('Out of bullets.')); assert(!shown.includes('Noise from a drain.'));
+}

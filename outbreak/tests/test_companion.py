@@ -383,3 +383,56 @@ class Mirroring(unittest.TestCase):
         self.assertEqual(c.lvl, g.player.level)
         self.assertGreater(c.max_hp, hp)
         self.assertTrue(any("grows with you" in t for _, t, _ in g.log))
+
+
+class Doors(unittest.TestCase):
+    def test_they_follow_you_in_and_out(self):
+        g, lv, c = field(arch="brute")
+        door = next((pos for pos, pt in lv.portals.items() if pt.target != "world" and g.pois[pt.target.rsplit(":", 1)[0]].kind == "house"), None)
+        self.assertIsNotNone(door)
+        from outbreak.engine import tiles as T
+        p = g.player
+        spot = lv.free_spot_near(door[0], door[1] + 1, 2)
+        del lv.occ[p.pos]
+        p.x, p.y = spot
+        lv.occ[p.pos] = p
+        lv.remove_actor(c)
+        c.x, c.y = lv.free_spot_near(spot[0] + 1, spot[1], 2)
+        lv.add_actor(c)
+        self.assertTrue(g._use_portal(door))
+        self.assertIsNot(g.level, lv)
+        self.assertIn(c, g.level.actors)
+        self.assertIs(companion.current(g), c)
+        portal = next(pos for pos, pt in g.level.portals.items() if pt.target == "world")
+        self.assertTrue(g._use_portal(portal))
+        self.assertIs(g.level, g.world.level)
+        self.assertIn(c, g.world.level.actors)
+        self.assertIs(companion.current(g), c)
+
+    def test_one_left_far_behind_waits_outside(self):
+        g, lv, c = field(arch="brute")
+        door = next(pos for pos, pt in lv.portals.items() if pt.target != "world")
+        p = g.player
+        spot = lv.free_spot_near(door[0], door[1] + 1, 2)
+        del lv.occ[p.pos]
+        p.x, p.y = spot
+        lv.occ[p.pos] = p
+        lv.remove_actor(c)
+        c.x, c.y = spot[0] + 20, spot[1]
+        lv.add_actor(c)
+        g._use_portal(door)
+        self.assertNotIn(c, g.level.actors)
+        self.assertIn(c, g.world.level.actors)
+
+
+class Feedback(unittest.TestCase):
+    def test_a_refused_shot_shows_in_the_focused_log(self):
+        g, lv, c = field(arch="brute")
+        g.clock.turn = 500
+        g.msg("Out of bullets.", "warn")
+        g.msg("Noise from a drain.", "info")
+        shown = [t for _, t, _ in g.story_log()]
+        self.assertIn("Out of bullets.", shown)
+        self.assertNotIn("Noise from a drain.", shown)
+        g.clock.turn = 600
+        self.assertNotIn("Out of bullets.", [t for _, t, _ in g.story_log()])

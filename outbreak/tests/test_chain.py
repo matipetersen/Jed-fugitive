@@ -74,11 +74,7 @@ class ChainTests(unittest.TestCase):
         helpers.teleport(g, lv.id, lv.free_spot_near(lv.bench[0], lv.bench[1], 1))
         g.player.hp = g.player.max_hp = 10 ** 6
         self.assertTrue(g.use_bench())
-        for _ in range(200):
-            if g.over:
-                break
-            g.player.infected = False            # this test is about the flow, not about dodging
-            g.wait(1)
+        helpers.break_out(g)
         self.assertTrue(g.over and g.over.victory, (era, scenario, g.over and g.over.title))
 
     def test_cure_chain_in_every_era(self):

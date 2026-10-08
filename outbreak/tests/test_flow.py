@@ -41,11 +41,7 @@ class VictoryTests(unittest.TestCase):
                 prepare_final(g)
                 g.player.hp = g.player.max_hp = 10 ** 6
                 self.assertTrue(g.use_bench(), (era, scenario))
-                for _ in range(120):
-                    if g.over:
-                        break
-                    g.player.infected = False              # this checks the finale's clock, not the bites a passive player takes
-                    g.wait(1)
+                helpers.break_out(g)
                 self.assertIsNotNone(g.over, (era, scenario))
                 self.assertTrue(g.over.victory, (era, scenario, g.over.title))
 

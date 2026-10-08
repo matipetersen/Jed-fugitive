@@ -45,3 +45,19 @@ def teleport(game, level_id, pos=None):
 def empty_level_of_enemies(level):
     for a in list(level.actors):
         level.remove_actor(a)
+
+
+def break_out(g, limit=300):
+    """Hold out until the clock runs out, then walk onto the door you were given."""
+    for _ in range(limit):
+        if g.over or (g.final and g.final.exit):
+            break
+        g.player.infected = False            # these tests are about the flow, not about dodging
+        g.wait(1)
+    if g.final and g.final.exit:
+        e = g.final.exit
+        if e in g.level.portals:
+            g._use_portal(e)
+        else:
+            teleport(g, g.level.id, e)
+            g.wait(1)

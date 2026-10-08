@@ -662,6 +662,7 @@ class Game {
   }
 
   _use_portal(x, y) {
+    if (this.final && this.final.exit && this.final.exit[0] === x && this.final.exit[1] === y && this.level.poi_id === this.final_site_id) { this._escape(); return true; }
     const lv = this.level, p = this.player, old = lv;
     const portal = lv.portals[lv.idx(x, y)];
     const target = portal.target === 'world' ? this.world.level : this.ensure_level(portal.target);
@@ -1062,7 +1063,7 @@ class Game {
       this.msg(`Once you start there is no taking it back. The ${weak.map((d) => this._door_name(lv, d)).join(', ')} door${weak.length > 1 ? 's are' : ' is'} not barricaded: each wave will break through there. Barricade them, set traps, stock fire, then use it again to ${sc.final_verb}.`, 'warn');
       return false;
     }
-    this.final = { turns_left: sc.final_turns, next_wave: 4, boss_done: false, total: sc.final_turns, doors, pending: {} };
+    this.final = { turns_left: sc.final_turns, next_wave: 4, boss_done: false, total: sc.final_turns, doors, pending: {}, exit: null, exit_name: '' };
     lv.safe = false;
     this.msg(`You begin to ${sc.final_verb}. The noise carries. Hold out for ${sc.final_turns} turns!`, 'bad', true);
     this.emit_noise([this.player.x, this.player.y], 30);
@@ -1074,11 +1075,16 @@ class Game {
   _final_tick() {
     const f = this.final, lv = this.level, p = this.player;
     if (lv.poi_id !== this.final_site_id) return;
-    f.turns_left -= 1;
-    if (f.turns_left <= 0) { this.final = null; this.end('won'); return; }
+    if (f.exit) {                                                         // the break-out: reach the door you were given
+      if (p.x === f.exit[0] && p.y === f.exit[1]) { this._escape(); return; }
+      if (this.clock.turn % 12 === 0) this._exit_hint();
+    } else {
+      f.turns_left -= 1;
+      if (f.turns_left <= 0) this._start_breakout(f);
+    }
     f.next_wave -= 1;
     if (f.next_wave <= 0) {
-      const progress = 1.0 - f.turns_left / Math.max(1, f.total);
+      const progress = 1.0 - Math.max(0, f.turns_left) / Math.max(1, f.total);
       f.next_wave = Math.max(3, 7 - Math.floor(progress * 4));       // the waves come faster as it goes on
       const n = 2 + Math.floor(p.level / 4) + (this.diff.zombies > 1 ? 1 : 0) + Math.floor(progress * 3);
       const pts = [null].concat(f.doors);
@@ -1104,6 +1110,28 @@ class Game {
       }
     }
   }
+
+  _breakout_exits(f) {
+    const lv = this.level, out = f.doors.map((d) => [d, this._door_name(lv, d) + ' door']);
+    for (const k of Object.keys(lv.portals)) if (lv.portals[k].target === 'world') out.push([[Number(k) % lv.w, Math.floor(Number(k) / lv.w)], 'main entrance']);
+    return out;
+  }
+  // The work is done, and now the room has to be left: through one door, picked at random, with the dead in the way.
+  _start_breakout(f) {
+    const lv = this.level, p = this.player, options = this._breakout_exits(f);
+    const far = options.filter((o) => cheb(o[0], [p.x, p.y]) >= 8), pick = this.rng.choice(far.length ? far : options);
+    f.exit = pick[0]; f.exit_name = pick[1]; f.turns_left = 0; f.next_wave = 1;
+    const inside = f.exit_name === 'main entrance' ? lv.entry : this._door_inside(lv, f.exit);
+    this._siege_spawn(inside, 3 + Math.floor(p.level / 4) + (this.diff.zombies > 1 ? 1 : 0), 3);
+    this.msg(`It is done. Now get out: the ${f.exit_name} is the only way, and the dead are already crowding it.`, 'bad', true);
+    this._exit_hint();
+  }
+  _exit_hint() {
+    const f = this.final, p = this.player;
+    if (!f || !f.exit) return;
+    this.msg(`Get out through the ${f.exit_name}: ${compass(f.exit[0] - p.x, f.exit[1] - p.y)}, ${cheb(f.exit, [p.x, p.y])} tiles.`, 'obj');
+  }
+  _escape() { this.final = null; this.msg('You throw yourself through the door and into the open air.', 'good', true); this.end('won'); }
 
   _siege_spawn(near, n, radius = 2) {
     const lv = this.level, p = this.player;

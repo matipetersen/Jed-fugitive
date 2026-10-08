@@ -271,3 +271,46 @@ class FinalAlpha(unittest.TestCase):
             ai.run(g)
         self.assertEqual(alpha.state, "hunt")
         self.assertNotEqual(alpha.pos, start)
+
+
+class Breakout(unittest.TestCase):
+    def _start(self, seed=5):
+        g = helpers.make_game(seed=seed, scenario="dash", era="modern")
+        site = g.pois[g.final_site_id]
+        lv = helpers.teleport(g, site.id + ":0")
+        g.requirements_met = lambda: True
+        g.use_bench()
+        return g, lv
+
+    def test_when_the_clock_runs_out_you_must_leave_by_one_door(self):
+        g, lv = self._start()
+        g.clock.turn = 900
+        g.final.turns_left = 1
+        g._final_tick()
+        f = g.final
+        self.assertIsNotNone(f, "not won yet")
+        self.assertIsNotNone(f.exit)
+        self.assertIn(f.exit, [o[0] for o in g._breakout_exits(f)])
+        self.assertIsNone(g.over)
+
+    def test_reaching_the_exit_wins_and_the_door_is_random(self):
+        seen = set()
+        for seed in range(3, 15):
+            g, lv = self._start(seed)
+            g.final.turns_left = 1
+            g._final_tick()
+            seen.add(g.final.exit_name)
+        self.assertGreaterEqual(len(seen), 2)
+        g, lv = self._start()
+        g.final.turns_left = 1
+        g._final_tick()
+        e = g.final.exit
+        if lv.portals.get(e) is not None:
+            g._use_portal(e)
+        else:
+            del lv.occ[g.player.pos]
+            g.player.x, g.player.y = e
+            lv.occ[e] = g.player
+            g.clock.turn += 1
+            g._final_tick()
+        self.assertEqual(g.over.kind, "won")

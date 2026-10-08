@@ -208,7 +208,11 @@ def build_side(game: Game) -> List[Line]:
     for text, done in game.objectives()[:5]:
         out.append((("[x] " if done else "[ ] ") + text, "green" if done else "white"))
     if game.final:
-        out.append((f"HOLD OUT: {game.final.turns_left} turns", "red"))
+        f = game.final
+        if f.exit is not None:
+            out.append((f"GET OUT: {f.exit_name}, {max(abs(f.exit[0] - game.player.x), abs(f.exit[1] - game.player.y))} tiles", "red"))
+        else:
+            out.append((f"HOLD OUT: {f.turns_left} turns", "red"))
     ally = companion.current(game)
     out.append(("", "grey"))
     if ally is not None:

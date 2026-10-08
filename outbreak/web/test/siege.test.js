@@ -37,3 +37,17 @@ const zombies = (lv) => lv.actors.filter((a) => a.kind === 'zombie');
   g._hazards(); assert(!lv.hazards[k]); assert(z.hp < hp || !lv.actors.includes(z));
 }
 console.log('siege: doors break, barricades hold, waves escalate, traps bite');
+
+{ // when the clock runs out you must leave by one door, picked at random
+  const seen = new Set();
+  for (let seed = 3; seed < 12; seed++) {
+    const [g] = at_pad(seed); g.use_bench(); const f = g.final; f.turns_left = 1; g._final_tick();
+    assert(g.final && f.exit && !g.over, 'not won yet'); assert(g._breakout_exits(f).some((o) => o[0][0] === f.exit[0] && o[0][1] === f.exit[1]));
+    seen.add(f.exit_name);
+  }
+  assert(seen.size >= 2, 'the door varies');
+  const [g, lv] = at_pad(); g.use_bench(); g.final.turns_left = 1; g._final_tick();
+  const e = g.final.exit;
+  if (lv.portals[lv.idx(e[0], e[1])]) g._use_portal(e[0], e[1]); else { teleport(g, lv.id, e); g.clock.turn += 1; g._final_tick(); }
+  assert(g.over && g.over.victory);
+}

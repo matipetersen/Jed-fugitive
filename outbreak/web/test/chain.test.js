@@ -57,7 +57,11 @@ function play_through(era, scenario, seed) {
   teleport(g, lv.id, lv.free_spot_near(lv.bench[0], lv.bench[1], 1));
   g.player.hp = g.player.max_hp = 1e6;
   assert(g.use_bench());
-  for (let i = 0; i < 200 && !g.over; i++) { g.player.infected = false; g.wait(1); }
+  for (let i = 0; i < 200 && !g.over && !(g.final && g.final.exit); i++) { g.player.infected = false; g.wait(1); }
+  assert(g.final && g.final.exit, 'the clock runs out and a way out is given');
+  const ex = g.final.exit;                                                  // the break-out: get to the door you were given
+  if (g.level.portals[g.level.idx(ex[0], ex[1])]) g._use_portal(ex[0], ex[1]);
+  else { teleport(g, g.level.id, ex); g.wait(1); }
   assert(g.over && g.over.victory, `${era} ${scenario}: ${g.over && g.over.title}`);
 }
 

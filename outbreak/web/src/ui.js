@@ -191,6 +191,11 @@ function draw() {
     if (aim.kind === 'fire') for (const t of game.targets_in_range()) { ctx.beginPath(); ctx.arc(ox + (t.x + .5) * ts, oy + (t.y + .5) * ts, ts * .62, 0, 7); ctx.stroke(); }
     else { ctx.beginPath(); ctx.arc(ox + (p.x + .5) * ts, oy + (p.y + .5) * ts, 8.5 * ts, 0, 7); ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]); }
   }
+  if (game.final && game.final.exit && game.level.poi_id === game.final_site_id) {          // the way out, pulsing
+    const e = game.final.exit, pulse = 0.5 + 0.5 * Math.sin(t_ms / 220);
+    ctx.lineWidth = 3; ctx.strokeStyle = `rgba(110,230,120,${0.5 + 0.5 * pulse})`;
+    ctx.strokeRect(ox + e[0] * ts + 2, oy + e[1] * ts + 2, ts - 4, ts - 4);
+  }
   drawWeather(t_ms, ox, oy, ts);
   drawMarkers(fr);
 }
@@ -460,7 +465,7 @@ function updateHud() {
   if (g.live && g.rest_left > 0) add('Resting', 'info');
   if (g.live && g.sleep_left > 0) add('Asleep', 'info');
   if (g.cfg.needs && p.hunger > 50) add('Hungry', p.hunger > 80 ? 'danger' : 'warn');
-  if (g.final) add(`HOLD OUT ${g.final.turns_left}`, 'danger');
+  if (g.final) add(g.final.exit ? `GET OUT: ${g.final.exit_name}` : `HOLD OUT ${g.final.turns_left}`, 'danger');
   if (g.ring && g.ring.active) add('Tide closing', 'warn');
   const objs = g.objectives(), next = objs.find((o) => !o[1]) || objs[objs.length - 1];
   $('#goal').innerHTML = ''; $('#goal').append(el('b', null, 'Goal '), next ? next[0] : '', el('span', 'dim', g.director ? ` · Act ${g.director.stage + 1} ${DIR_STAGES[g.director.stage].title}` : ''));

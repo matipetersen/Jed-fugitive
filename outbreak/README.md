@@ -116,6 +116,11 @@ and back out (anyone within 12 tiles when you take a door, a stair or a cave mou
 "I will keep watch out here" is only for the ones left far behind. The focused log also shows what just happened to you (a refused
 shot such as "Out of bullets", a hit, a wound) for two turns, instead of hiding it. (`Game.story_log`.)
 
+**The final stand is a break-out.** Holding out is only half of it: when the clock runs out the work is done but the room is not
+safe, and one way out is picked at random each time (the west, east or north door, or the main entrance, at least 8 tiles from you).
+A knot of the dead crowds that door, the waves keep coming at their fastest, the HUD shows `GET OUT: <door>` and the log gives the
+direction and distance every few turns (the web version pulses a green frame on the tile). Step onto it and you win. (`Game._start_breakout`.)
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

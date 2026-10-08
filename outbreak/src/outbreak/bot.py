@@ -175,6 +175,8 @@ class Bot:
         if g.final:
             if self._maybe_fight_final():
                 return True
+            if g.final.exit is not None and self._walk_to(g.final.exit):          # the break-out: run for the door
+                return True
             g.wait(1)
             return True
         return self._explore()

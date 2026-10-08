@@ -20,7 +20,7 @@ from outbreak.engine.model import POI, Animal, Human, Item, Level, Zombie
 from outbreak.engine.pathing import distance_field
 from outbreak.engine.spawn import make_raider, spawn_zombie
 from outbreak.engine.worldgen import UNSET
-from outbreak.util import DIRS8, Pos, cheb
+from outbreak.util import DIRS8, Pos, cheb, compass
 
 WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.7, 3.0, 20
 LOG_LIMIT = 600
@@ -39,6 +39,8 @@ class FinalStand:
     total: int = 0
     doors: List[Pos] = field(default_factory=list)          # the side doors a wave can batter down
     pending: Dict[Pos, int] = field(default_factory=dict)   # zombies waiting behind a door that still stands
+    exit: Optional[Pos] = None                              # once the clock runs out: the one way out, drawn at random
+    exit_name: str = ""
 
 
 class Game:
@@ -738,6 +740,9 @@ class Game:
 
     def _use_portal(self, pos: Pos) -> bool:
         lv, p = self.level, self.player
+        if self.final is not None and self.final.exit == pos and lv.poi_id == self.final_site_id:
+            self._escape()                                   # the main entrance was the way out
+            return True
         portal = lv.portals[pos]
         old = lv
         target = self.world.level if portal.target == "world" else self.ensure_level(portal.target)
@@ -1332,14 +1337,19 @@ class Game:
         f, lv, p = self.final, self.level, self.player
         if lv.poi_id != self.final_site_id:
             return                                           # you left: the work pauses
-        f.turns_left -= 1
-        if f.turns_left <= 0:
-            self.final = None
-            self.end("won")
-            return
+        if f.exit is not None:                                 # the break-out: reach the door you were given
+            if p.pos == f.exit:
+                self._escape()
+                return
+            if self.clock.turn % 12 == 0:
+                self._exit_hint()
+        else:
+            f.turns_left -= 1
+            if f.turns_left <= 0:
+                self._start_breakout(f)
         f.next_wave -= 1
         if f.next_wave <= 0:
-            progress = 1.0 - f.turns_left / max(1, f.total)
+            progress = 1.0 - max(0, f.turns_left) / max(1, f.total)
             f.next_wave = max(3, 7 - int(progress * 4))             # the waves come faster as it goes on
             n = 2 + self.player.level // 4 + (1 if self.diff.zombies > 1 else 0) + int(progress * 3)
             self._siege_wave(f, self.rng.choice([None] + f.doors), n)
@@ -1362,6 +1372,36 @@ class Game:
                     z = spawn_zombie(self, lv, spot, "alpha", dormant=False, fresh=True)
                     z.state, z.target, z.stimulus_turn = "hunt", p.pos, self.clock.turn
                     self.msg("Something enormous pushes through the dead. The Alpha has come for you.", "bad", key=True)
+
+    def _breakout_exits(self, f: FinalStand) -> List[Tuple[Pos, str]]:
+        lv = self.level
+        out = [(d, self._door_name(lv, d) + " door") for d in f.doors]
+        out += [(pos, "main entrance") for pos, pt in lv.portals.items() if pt.target == "world"]
+        return out
+
+    def _start_breakout(self, f: FinalStand) -> None:
+        """The work is done, and now the room has to be left: through one door, picked at random, with the dead in the way."""
+        lv, p = self.level, self.player
+        options = self._breakout_exits(f)
+        far = [o for o in options if cheb(o[0], p.pos) >= 8] or options
+        f.exit, f.exit_name = self.rng.choice(far)
+        f.turns_left = 0
+        f.next_wave = 1
+        inside = lv.entry if f.exit_name == "main entrance" else self._door_inside(lv, f.exit)
+        self._siege_spawn(inside, 3 + p.level // 4 + (1 if self.diff.zombies > 1 else 0), radius=3)
+        self.msg(f"It is done. Now get out: the {f.exit_name} is the only way, and the dead are already crowding it.", "bad", key=True)
+        self._exit_hint()
+
+    def _exit_hint(self) -> None:
+        f, p = self.final, self.player
+        if f is None or f.exit is None:
+            return
+        self.msg(f"Get out through the {f.exit_name}: {compass(f.exit[0] - p.x, f.exit[1] - p.y)}, {cheb(f.exit, p.pos)} tiles.", "obj")
+
+    def _escape(self) -> None:
+        self.final = None
+        self.msg("You throw yourself through the door and into the open air.", "good", key=True)
+        self.end("won")
 
     def _siege_spawn(self, spot_near: Pos, n: int, radius: int = 2) -> None:
         lv, p = self.level, self.player

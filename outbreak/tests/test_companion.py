@@ -436,3 +436,75 @@ class Feedback(unittest.TestCase):
         self.assertNotIn("Noise from a drain.", shown)
         g.clock.turn = 600
         self.assertNotIn("Out of bullets.", [t for _, t, _ in g.story_log()])
+
+
+class Orders(unittest.TestCase):
+    def _fight(self, arch="brute", at=6):
+        from outbreak.engine import ai
+        g, lv, c = field(arch=arch)
+        g.clock.turn = 1000
+        z = spawn_zombie(g, lv, (c.x + at, c.y), "walker", False)
+        z.hp = z.max_hp = 400
+        z.dmg = (1, 1)
+        z.state, z.target = "idle", None
+        return g, lv, c, z, ai
+
+    def test_engage_sends_them_after_the_nearest_enemy(self):
+        g, lv, c, z, ai = self._fight("brute", 9)
+        del lv.occ[g.player.pos]
+        g.player.x, g.player.y = c.x - 12, c.y             # far beyond the usual leash
+        lv.occ[g.player.pos] = g.player
+        g.visible_hostiles = lambda: [z]
+        c.tamed = True
+        companion.give_order(g, c, "engage")
+        self.assertEqual(companion.order_of(c), "engage")
+        d0 = max(abs(c.x - z.x), abs(c.y - z.y))
+        for _ in range(8):
+            g.clock.turn += 1
+            ai.run(g)
+        self.assertLess(max(abs(c.x - z.x), abs(c.y - z.y)), d0)
+
+    def test_engage_with_nothing_in_sight_is_refused(self):
+        g, lv, c, z, ai = self._fight()
+        g.visible_hostiles = lambda: []
+        companion.give_order(g, c, "engage")
+        self.assertEqual(companion.order_of(c), "")
+
+    def test_fall_back_and_escape_bring_them_to_you_without_fighting(self):
+        for kind in ("fallback", "escape"):
+            g, lv, c, z, ai = self._fight("brute", 2)
+            c.tamed = True
+            del lv.occ[g.player.pos]
+            g.player.x, g.player.y = c.x - 10, c.y
+            lv.occ[g.player.pos] = g.player
+            z.state, z.target = "idle", None
+            companion.give_order(g, c, kind)
+            hp = z.hp
+            for _ in range(6):
+                g.clock.turn += 1
+                ai.run(g)
+            self.assertLessEqual(max(abs(c.x - g.player.x), abs(c.y - g.player.y)), 6, kind)
+            self.assertEqual(z.hp, hp, kind)
+
+    def test_ranged_needs_a_ranged_weapon_and_keeps_the_distance(self):
+        g, lv, c, z, ai = self._fight("brute", 2)
+        companion.give_order(g, c, "ranged")
+        self.assertEqual(companion.order_of(c), "", "a brute has nothing to shoot with")
+        c.reach = 6
+        c.tamed = True
+        companion.give_order(g, c, "ranged")
+        self.assertEqual(companion.order_of(c), "ranged")
+        z.state, z.target = "hunt", c.pos
+        for _ in range(3):
+            g.clock.turn += 1
+            ai.run(g)
+        self.assertGreaterEqual(max(abs(c.x - z.x), abs(c.y - z.y)), 2)
+
+    def test_orders_expire(self):
+        g, lv, c, z, ai = self._fight()
+        c.tamed = True
+        companion.give_order(g, c, "guard")
+        self.assertEqual(companion.leash(c, g), 2)
+        g.clock.turn += companion.ORDERS["guard"][2] + 1
+        companion.tick(g)
+        self.assertEqual(companion.order_of(c), "")

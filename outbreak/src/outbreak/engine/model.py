@@ -179,6 +179,8 @@ class Human(Actor):
     sneaking: bool = False           # a companion creeps when you creep, runs when you run
     sprinting: bool = False
     lastfought: int = -99
+    order: str = ""                  # a standing command from the player (engage, fallback, escape, ranged, guard)
+    order_until: int = 0
     quest: int = 0                   # their personal errand: 0 none, 1 asked, 2 found, 3 done
     tamed: bool = False              # they have overcome their flaw
 

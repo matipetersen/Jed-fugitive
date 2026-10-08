@@ -100,10 +100,39 @@ function comp_toggle_wait(game, c) {
 }
 
 // ---- the effects, every turn
+// ---- orders
+const COMP_ORDERS = {          // id: [label, what it does, turns it holds, line when they obey]
+  engage: ['Engage nearest', 'go for the nearest enemy and do not stop until it is down', 40, '"On it."'],
+  fallback: ['Fall back', 'break off, come back to your side and only defend themselves', 30, '"Falling back!"'],
+  escape: ['Escape!', 'drop everything and run with you, at a sprint, no fighting', 40, '"Run! Go go go!"'],
+  ranged: ['Fire from a distance', 'keep their distance and shoot (needs a ranged weapon)', 60, '"I have got a clear line. Covering you."'],
+  guard: ['Stay close', 'stick to your shoulder and fight only what comes near you', 60, '"Right behind you."'],
+};
+const COMP_ORDER_SIGHT = 10;
+function comp_order_of(h) { return h.order && h.order_until > 0 ? h.order : ''; }
+function comp_give_order(game, c, kind) {
+  const [, , turns, ack] = COMP_ORDERS[kind], a = comp_arch(c), rng = game.rng;
+  let foe = null, best = 99;
+  for (const z of game.visible_hostiles()) { const dd = cheb(apos(z), apos(c)); if (dd <= COMP_ORDER_SIGHT && dd < best) { foe = z; best = dd; } }
+  const say = (t) => { const line = `${c.name}: ${t}`; game.msg(line, 'ally'); return line; };
+  if (c.state === 'wait') c.state = 'follow';
+  if (kind === 'ranged' && c.reach <= 1) return say('"I have nothing to shoot with. I would only get in their face."');
+  if (kind === 'engage' && !foe) return say('"Nothing in sight to go for."');
+  if (a && !c.tamed) {
+    if (kind === 'engage' && a.flaw === 'coward' && rng.random() < 0.5) { comp_add_bond(c, -1); return say('"I... no. I cannot. Not that."'); }
+    if ((kind === 'fallback' || kind === 'escape') && a.flaw === 'reckless' && rng.random() < 0.4) return say('"Not yet! One more!"');
+  }
+  c.order = kind; c.order_until = game.clock.turn + turns;
+  return say(ack);
+}
+function comp_end_order(game, c, why = '') { c.order = ''; c.order_until = 0; if (why) comp_note(game, `${c.name}: ${why}`); }
+
 // Your companion does what you do: creeps when you creep, runs when you run.
 function comp_mirror(game, c) {
   const p = game.player, t = game.clock.turn, calm = c.state === 'follow' && t - (c.lastfought === undefined ? -99 : c.lastfought) > 3;
-  const sneak = !!(p.sneaking && calm), sprint = !!(p.sprinting && calm), near = cheb(apos(c), apos(p)) <= 8;
+  if (c.order && t >= c.order_until) comp_end_order(game, c, '"Back to normal, then."');
+  let sneak = !!(p.sneaking && calm); const sprint = !!((p.sprinting && calm) || c.order === 'escape'), near = cheb(apos(c), apos(p)) <= 8;
+  if (['fallback', 'escape', 'engage', 'ranged'].includes(c.order)) sneak = false;
   if (sneak && !c.sneaking && near) comp_note(game, `${c.name} drops low and creeps beside you.`);
   else if (sprint && !c.sprinting && near) comp_note(game, `${c.name} breaks into a run after you.`);
   c.sneaking = sneak; c.sprinting = sprint;
@@ -311,7 +340,7 @@ function comp_advice(game) {
 const COMP_LEASH = 6, COMP_LEASH_RECKLESS = 12, COMP_FIGHT_SAY_EVERY = 40;
 const COMP_LEASH_TIDE = 3, COMP_GRACE_TURNS = 480, COMP_GRACE_DAMAGE = 0.4;
 function comp_early_grace(game) { return game.clock.turn < COMP_GRACE_TURNS || !!(game.ring && game.ring.active); }
-function comp_leash(h, game = null) { if (game && game.ring && game.ring.active) return COMP_LEASH_TIDE; return comp_is_reckless(h) ? COMP_LEASH_RECKLESS : COMP_LEASH; }
+function comp_leash(h, game = null) { if (comp_order_of(h) === 'guard') return 2; if (['engage', 'ranged'].includes(comp_order_of(h))) return 30; if (game && game.ring && game.ring.active) return COMP_LEASH_TIDE; return comp_is_reckless(h) ? COMP_LEASH_RECKLESS : COMP_LEASH; }
 // when you run, they run with you: a foe that is not on top of them is no reason to leave you
 function comp_should_hold_back(game, h, foe) { return cheb(apos(h), apos(game.player)) > comp_leash(h, game) && cheb(apos(h), apos(foe)) > 1; }
 function comp_shout(game, h, kind, field, every) {
@@ -352,7 +381,7 @@ function comp_stranger(game, spot) {
   return { kind: 'human', uid: game.next_uid(), name: 'Survivor', glyph: 'S', x: spot[0], y: spot[1], hp: 30, max_hp: 30, level_id: 'world', lvl: 1, lvl_xp: 0, title: '', stun: 0,
            role: 'survivor', faction: 'enclave', hostile: false, dmg: [3, 7], acc: 55, reach: 1, energy: 0, state: 'follow', target: null, loot: [], talked: false, group: 0, stuck: 0,
            squad: 0, flank: 0, mag: 0, ammo: 0, reload: 0, morale: 100, hidden: false, corrupt: false, cp: 0, post: null,
-           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0, quest: 0, tamed: false, sneaking: false, sprinting: false, lastfought: -99 };
+           trait: '', bond: 0, since: 0, kills: 0, story: 0, nextsay: 0, nextfx: 0, nextfx2: 0, nextwarn: 0, lasttalk: -999, nextfight: 0, nextcall: 0, quest: 0, tamed: false, sneaking: false, sprinting: false, lastfought: -99, order: '', order_until: 0 };
 }
 
 function comp_offer_stranger(game, chance) {

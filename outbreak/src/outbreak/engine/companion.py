@@ -175,11 +175,67 @@ def toggle_wait(game, c: Human) -> str:
 
 
 # ------------------------------------------------------------------ the effects, every turn
+# ------------------------------------------------------------------ orders
+ORDERS = {                     # id: (label, what it does, how long it holds, line when they obey)
+    "engage": ("Engage nearest", "go for the nearest enemy and do not stop until it is down", 40, "\"On it.\""),
+    "fallback": ("Fall back", "break off, come back to your side and only defend themselves", 30, "\"Falling back!\""),
+    "escape": ("Escape!", "drop everything and run with you, at a sprint, no fighting", 40, "\"Run! Go go go!\""),
+    "ranged": ("Fire from a distance", "keep their distance and shoot (needs a ranged weapon)", 60, "\"I have got a clear line. Covering you.\""),
+    "guard": ("Stay close", "stick to your shoulder and fight only what comes near you", 60, "\"Right behind you.\""),
+}
+ORDER_SIGHT = 10
+
+
+def order_of(h: Human) -> str:
+    return h.order if h.order and h.order_until > 0 else ""
+
+
+def give_order(game, c: Human, kind: str) -> str:
+    """Give a standing order.  Returns what they say (or why not)."""
+    label, _what, turns, ack = ORDERS[kind]
+    foe = min((z for z in game.visible_hostiles() if cheb(z.pos, c.pos) <= ORDER_SIGHT), key=lambda z: cheb(z.pos, c.pos), default=None)
+    a, rng = arch_of(c), game.rng
+    if c.state == "wait":
+        c.state = "follow"
+    if kind == "ranged" and c.reach <= 1:
+        line = f"{c.name}: \"I have nothing to shoot with. I would only get in their face.\""
+        game.msg(line, "ally")
+        return line
+    if kind == "engage" and foe is None:
+        line = f"{c.name}: \"Nothing in sight to go for.\""
+        game.msg(line, "ally")
+        return line
+    if a is not None and not c.tamed:
+        if kind == "engage" and a.flaw == "coward" and rng.random() < 0.5:
+            line = f"{c.name}: \"I... no. I cannot. Not that.\""
+            game.msg(line, "ally")
+            add_bond(c, -1)
+            return line
+        if kind in ("fallback", "escape") and a.flaw == "reckless" and rng.random() < 0.4:
+            line = f"{c.name}: \"Not yet! One more!\""
+            game.msg(line, "ally")
+            return line
+    c.order, c.order_until = kind, game.clock.turn + turns
+    line = f"{c.name}: {ack}"
+    game.msg(line, "ally")
+    return line
+
+
+def end_order(game, c: Human, why: str = "") -> None:
+    c.order, c.order_until = "", 0
+    if why:
+        note(game, f"{c.name}: {why}")
+
+
 def mirror(game, c: Human) -> None:
     """Your companion does what you do: creeps when you creep, runs when you run."""
     p, t = game.player, game.clock.turn
     calm = c.state == "follow" and t - c.lastfought > 3
-    sneak, sprint = bool(p.sneaking and calm), bool(p.sprinting and calm)
+    if c.order and game.clock.turn >= c.order_until:
+        end_order(game, c, "\"Back to normal, then.\"")
+    sneak, sprint = bool(p.sneaking and calm), bool((p.sprinting and calm) or c.order == "escape")
+    if c.order in ("fallback", "escape", "engage", "ranged"):
+        sneak = False
     if sneak and not c.sneaking and cheb(c.pos, p.pos) <= 8:
         note(game, f"{c.name} drops low and creeps beside you.")
     elif sprint and not c.sprinting and cheb(c.pos, p.pos) <= 8:
@@ -508,6 +564,10 @@ def early_grace(game) -> bool:
 
 
 def leash(h: Human, game=None) -> int:
+    if order_of(h) == "guard":
+        return 2
+    if order_of(h) in ("engage", "ranged"):
+        return 30
     if game is not None and getattr(game, "ring", None) is not None and game.ring.active:
         return LEASH_TIDE
     return LEASH_RECKLESS if is_reckless(h) else LEASH

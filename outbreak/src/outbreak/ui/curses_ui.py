@@ -39,6 +39,7 @@ INTERACT    e (crates, bench, people, beds)   PICK UP   g
 INVENTORY   i   CRAFT   c   DOCUMENTS   d   SKILLS   p   PLACES   m   BASE   o (claim, then build)
 SNEAK       s   RUN   R   PUSH   P (shove what is next to you)   LIGHT   L   SMEAR WITH GORE   v
 GATHER      F   (fell the tree beside you, fish the water with a rod or net, or forage grass and brush)   HUNT   walk into game (r d b); sneak up for a triple blow
+ORDERS      K   (tell your companion: engage nearest, fall back, escape, fire from a distance, stay close)
 JOURNAL     J   (toggle the log: what matters / everything)   BRIEFING    B   (re-read the story so far)
 SAVE & QUIT Q            HELP  ?
 
@@ -244,6 +245,8 @@ class UI:
             g.pickup()
         elif key == ord("e"):
             self.interact()
+        elif key == ord("K"):
+            self.orders_screen()
         elif key == ord("i"):
             self.inventory_screen()
         elif key == ord("c"):
@@ -398,6 +401,24 @@ class UI:
                 return
             else:
                 return
+
+    def orders_screen(self) -> None:
+        """Quick orders for your companion: usable from across the field."""
+        g = self.g
+        c = companion.current(g)
+        if c is None:
+            self.message("You have nobody with you to give orders to.")
+            return
+        kinds = list(companion.ORDERS)
+        cur = companion.order_of(c)
+        rows = [(f"{companion.ORDERS[k][0]}{'  (active)' if k == cur else ''}   - {companion.ORDERS[k][1]}", "white") for k in kinds]
+        r = self.pick(f"Orders for {c.name}", rows + [("Cancel the current order", "grey")])
+        if r is None:
+            return
+        if r == len(kinds):
+            companion.end_order(g, c, "\"Understood. Your call.\"")
+            return
+        companion.give_order(g, c, kinds[r])
 
     def companion_screen(self, c: Human) -> None:
         g = self.g

@@ -446,7 +446,7 @@ function updateHud() {
   const chips = $('#chips'); chips.innerHTML = '';
   const add = (t, cls) => chips.append(el('span', 'chip ' + (cls || ''), t));
   { const pt = pets_current(g); if (pt) { const ch = el('button', 'chip ally', `${pt.name} ${pt.hp}/${pt.max_hp}${pets_hunger(g, pt) !== 'fed' ? ' · ' + pets_hunger(g, pt) : ''}`); ch.type = 'button'; ch.addEventListener('click', () => { if (!modal && game && !game.over) openPet(pt); }); chips.append(ch); } }
-  { const ally = comp_current(g); if (ally) { const ch = el('button', 'chip ally', `${ally.name} ${ally.hp}/${ally.max_hp}${ally.state === 'wait' ? ' · waiting' : ''}`); ch.type = 'button'; ch.addEventListener('click', () => { if (!modal && game && !game.over) openCompanion(ally); }); chips.append(ch); } else if (g.fallen_allies.length) add(`Alone · lost ${g.fallen_allies[g.fallen_allies.length - 1][0]}`, 'info'); }
+  { const ally = comp_current(g); if (ally) { const ch = el('button', 'chip ally', `${ally.name} ${ally.hp}/${ally.max_hp}${ally.state === 'wait' ? ' · waiting' : ''}`); ch.type = 'button'; ch.addEventListener('click', () => { if (!modal && game && !game.over) openCompanion(ally); }); chips.append(ch); const oc = el('button', 'chip ally', comp_order_of(ally) ? `Order: ${COMP_ORDERS[ally.order][0]}` : 'Orders'); oc.type = 'button'; oc.addEventListener('click', () => { if (!modal && game && !game.over) openOrders(); }); chips.append(oc); } else if (g.fallen_allies.length) add(`Alone · lost ${g.fallen_allies[g.fallen_allies.length - 1][0]}`, 'info'); }
   if (p.infected) add(`INFECTED ${p.infection_timer >= 20 ? Math.round(p.infection_timer / 10) + 'h' : p.infection_timer + ' turns'}`, 'danger');
   if (p.bleeding) add('Bleeding', 'danger');
   if (p.fracture) add('Broken leg', 'warn');
@@ -737,6 +737,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'g') { const c = contextAction(); doAction(c.run); }
   else if (k === 'f') startAim('fire');
   else if (k === 'z') doAction(() => game.gather());
+  else if (k === 'k') openOrders();
   else if (k === 'v') { if (pushable(game).length) doAction(() => game.push()); else toast('Nothing within reach to push'); }
   else if (k === 'x') { game.toggle_sprint(); afterAction(); }
   else if (k === 'h') { game.toggle_sneak(); afterAction(); }
@@ -1010,6 +1011,7 @@ function openHelp() {
     li('Fire', 'With a ranged weapon equipped: one target fires at once; with several, tap the one you want.');
     li('Push', 'Shove the dead (or a raider) next to you: it staggers back a tile (two if you are level 4+) and loses a turn or two. Make room, break off, or steer it onto a trap or a fire. Brutes resist, the big one does not budge, a wall behind it hurts it. Costs stamina; keyboard V.');
     li('Run', 'The RUN button toggles a sprint: faster, but loud and tiring (keyboard X; SNEAK is H).');
+    li('Orders', 'Tap the Orders chip next to your companion (or K): Engage nearest, Fall back, Escape, Fire from a distance, Stay close. Free actions, they hold 30-60 turns. Cowards balk at engaging; reckless ones balk at falling back.');
     li('Sneak up on them', 'Zombies look where they walk (the pale wedge on them). Toggle SNEAK, come from behind or from the side, and hit them before the ? bar fills: an unaware zombie dies to one blow. In front of it, or running, it notices you fast. A red ! means it hunts you. Sneaking costs half your speed and you cannot run; it ends the moment you fight a zombie that has noticed you, or get hit. Fights are loud (heavy blunt weapons the loudest) and bring the dead from far away.');
     li('Stamina', 'Every step tires you, running much more. Marching nonstop makes you winded (slower) and then exhausted (half speed, no running). Resting, standing still and creeping recover it. Fast dead will catch a tired walker.');
     li('Noise is the game', 'Every action makes noise. Guns are loud; blades, bows and sneaking are quiet. Too much noise brings a Stalker.');
@@ -1033,6 +1035,7 @@ function openMenu() {
     tile('Documents', `${p.documents.length} found`, () => openDocs());
     tile('Skills', p.perk_points ? `${p.perk_points} point(s) to spend` : 'perks and mastery', () => openSkills());
     tile('Places', 'known buildings', () => openPlaces());
+    if (comp_current(g)) tile('Orders', 'engage, fall back, escape, cover', () => openOrders());
     tile('Strain map', 'what the dead are becoming', () => openStrain());
     tile('Throw', 'bombs and decoys', () => { closeSheet(); const t = p.inventory.find((i) => g.item_def(i.id).kind === 'throw'); if (t) startAim('throw', t.id); else toast('Nothing to throw'); });
     tile('Sneak', p.sneaking ? 'on: quieter, slower' : 'off', () => { sheetAct(() => g.toggle_sneak()); openMenu(); }, p.sneaking);
@@ -1120,6 +1123,21 @@ function openPet(a, line = '') {
   });
 }
 
+// Quick orders for your companion: usable from across the field, and free (no turn).
+function openOrders() {
+  const g = game, c = comp_current(g);
+  if (!c) { toast('Nobody with you to give orders to'); return; }
+  openSheet(`Orders for ${c.name}`, (b) => {
+    b.append(el('p', 'note', comp_order_of(c) ? `Now: ${COMP_ORDERS[c.order][0]}.` : 'Following you.'));
+    for (const k of Object.keys(COMP_ORDERS)) {
+      const [label, what] = COMP_ORDERS[k];
+      const row = el('div', 'actionrow'); row.append(btn(comp_order_of(c) === k ? 'btn main' : 'btn', label, () => { const l = comp_give_order(g, c, k); closeSheet(); refresh(); toast(l); }));
+      b.append(row, el('p', 'note', what));
+    }
+    b.append(btn('btn', 'Cancel the current order', () => { comp_end_order(g, c, '"Understood. Your call."'); closeSheet(); refresh(); }));
+  });
+}
+
 function openCompanion(c, line = '') {
   const g = game, a = comp_arch(c);
   openSheet(c.name, (b) => {
@@ -1130,6 +1148,7 @@ function openCompanion(c, line = '') {
     acts.append(btn('btn main', 'Talk', () => { const l = comp_talk(g, c); refresh(); openCompanion(c, l); }));
     acts.append(btn('btn', 'What next?', () => openCompanion(c, comp_advice(g))));
     acts.append(btn('btn', c.state === 'wait' ? 'Follow me' : 'Wait here', () => { const l = comp_toggle_wait(g, c); refresh(); openCompanion(c, l); }));
+    acts.append(btn('btn', 'Orders', () => openOrders()));
     b.append(acts);
     const gifts = g.player.inventory.map((it, i) => [it, i]).filter(([it]) => ['food', 'med'].includes(g.item_def(it.id).kind));
     if (gifts.length) {

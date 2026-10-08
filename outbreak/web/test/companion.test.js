@@ -119,3 +119,20 @@ console.log('companion: a pool of people, strengths and flaws, bonds, permanent 
   g.clock.turn = 500; g.msg('Out of bullets.', 'warn'); g.msg('Noise from a drain.', 'info');
   const shown = g.story_log().map((m) => m[1]); assert(shown.includes('Out of bullets.')); assert(!shown.includes('Noise from a drain.'));
 }
+{ // orders: engage reaches past the leash, fall back / escape disengage, ranged needs a ranged weapon, orders expire
+  let [g, lv, c] = field(3, 'brute'); g.clock.turn = 1000; c.tamed = true;
+  const z = OB.spawn_zombie(g, lv, [c.x + 9, c.y], 'walker', false); z.hp = z.max_hp = 400; z.dmg = [1, 1]; z.state = 'idle';
+  lv.occ.delete(lv.idx(g.player.x, g.player.y)); g.player.x = c.x - 12; g.player.y = c.y; lv.occ.set(lv.idx(g.player.x, g.player.y), g.player);
+  g.visible_hostiles = () => [z];
+  OB.comp_give_order(g, c, 'engage'); assert.strictEqual(OB.comp_order_of(c), 'engage');
+  const d0 = Math.max(Math.abs(c.x - z.x), Math.abs(c.y - z.y));
+  for (let i = 0; i < 8; i++) { g.clock.turn += 1; OB.ai_run(g); }
+  assert(Math.max(Math.abs(c.x - z.x), Math.abs(c.y - z.y)) < d0, 'went for it');
+  OB.comp_give_order(g, c, 'ranged'); assert.strictEqual(OB.comp_order_of(c), 'engage', 'a brute has nothing to shoot with: the old order stands');
+  c.reach = 6; OB.comp_give_order(g, c, 'ranged'); assert.strictEqual(OB.comp_order_of(c), 'ranged');
+  OB.comp_give_order(g, c, 'guard'); assert.strictEqual(OB.comp_leash(c, g), 2);
+  g.clock.turn += 100; OB.comp_tick(g); assert.strictEqual(OB.comp_order_of(c), '');
+  g.visible_hostiles = () => []; OB.comp_give_order(g, c, 'engage'); assert.strictEqual(OB.comp_order_of(c), '', 'nothing in sight');
+  OB.comp_give_order(g, c, 'escape'); const hp = z.hp; for (let i = 0; i < 6; i++) { g.clock.turn += 1; OB.ai_run(g); }
+  assert(Math.max(Math.abs(c.x - g.player.x), Math.abs(c.y - g.player.y)) <= 6 && z.hp === hp, 'escaped without fighting');
+}

@@ -249,12 +249,47 @@ function _foes_of(h, game, humans) {
   return out;
 }
 
+function _toward(game, h, goal) {
+  const level = game.level, p = game.player;
+  let nxt = null;
+  if (goal[0] === p.x && goal[1] === p.y) { const field = game.get_field(); if (field[level.idx(h.x, h.y)] >= 0) nxt = descend(level, field, apos(h), game.rng); }
+  if (nxt === null) nxt = greedy_step(level, apos(h), goal, game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+  return !!nxt && _human_move(game, h, nxt);
+}
+
+// A standing order from the player. True if it took the companion's turn.
+function _obey(game, h, humans, d) {
+  const kind = comp_order_of(h), p = game.player, foes = _foes_of(h, game, humans);
+  if (kind === 'engage') {
+    const foe = nearest_foe(game, h, foes, COMP_ORDER_SIGHT);
+    if (!foe) { comp_end_order(game, h, '"Clear."'); return false; }
+    _human_fight(game, h, foe); return true;
+  }
+  if (kind === 'fallback') {
+    const adjacent = foes.find((z) => z.hp > 0 && cheb(apos(z), apos(h)) === 1);
+    if (d > 2) { if (_toward(game, h, apos(p)) && d > 4) _toward(game, h, apos(p)); return true; }
+    if (adjacent) { _human_fight(game, h, adjacent); return true; }
+    if (!nearest_foe(game, h, foes, 6)) { comp_end_order(game, h, '"Back with you. Nothing followed."'); return false; }
+    return true;
+  }
+  if (kind === 'escape') { if (d > 1) { _toward(game, h, apos(p)); if (d > 2) _toward(game, h, apos(p)); } return true; }
+  if (kind === 'ranged') {
+    if (h.reach <= 1) { comp_end_order(game, h); return false; }
+    const foe = nearest_foe(game, h, foes, h.reach);
+    if (!foe) return false;
+    if (cheb(apos(h), apos(foe)) <= 2 && foe.kind === 'zombie') _flee(game, h, apos(foe)); else attack_actor(game, h, foe, true);
+    return true;
+  }
+  return false;                                                         // guard: the short leash does the work
+}
+
 function _human(game, h, humans) {
   if (!FIGHTERS.includes(h.role) && h.state !== 'follow' && h.state !== 'wait') return;     // shopkeepers and healers keep out of it
   if (h.stun > 0) { h.stun -= 1; return; }
   const p = game.player, level = game.level;
   const d = cheb(apos(h), apos(p));
   if (h.hidden) { raiders_spring_check(game, h, humans, d); return; }          // lying in wait
+  if (h.state === 'follow' && comp_order_of(h) && _obey(game, h, humans, d)) return;
   const seen = h.hostile && d <= 11 && has_los(level, apos(h), apos(p));
   if (h.hostile && !seen && h.morale < 100) h.morale = Math.min(100, h.morale + 2);   // it pulls itself together out of sight
   let foe = nearest_foe(game, h, _foes_of(h, game, humans), h.reach > 1 ? HUMAN_SIGHT : FOE_SIGHT);

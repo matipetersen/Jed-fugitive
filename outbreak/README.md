@@ -121,6 +121,13 @@ safe, and one way out is picked at random each time (the west, east or north doo
 A knot of the dead crowds that door, the waves keep coming at their fastest, the HUD shows `GET OUT: <door>` and the log gives the
 direction and distance every few turns (the web version pulses a green frame on the tile). Step onto it and you win. (`Game._start_breakout`.)
 
+**Orders for your companion.** Free actions (no turn), usable from across the field: *Engage nearest* (go for the closest enemy past
+the usual leash until it is down), *Fall back* (break off and come to your side, defending only if cornered), *Escape!* (run with you,
+two steps a turn, never fighting), *Fire from a distance* (keep 3+ tiles off and shoot; needs a ranged weapon, so veterans and hunters)
+and *Stay close* (a 2-tile leash: only what comes near you). Each holds for 30-60 turns, then "back to normal". Flaws bite: cowards
+refuse to engage half the time, reckless ones refuse to fall back or escape 40% of the time (until tamed). Terminal: `K`. Web: the
+"Orders" chip next to your companion, the menu tile, or `k`. (`companion.give_order`, `ai._obey`.)
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

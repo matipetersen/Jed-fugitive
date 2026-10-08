@@ -338,6 +338,61 @@ def _foes_of(h: Human, game, humans):
     return out
 
 
+def _toward(game, h: Human, goal) -> bool:
+    level = game.level
+    field = game.get_field() if goal == game.player.pos else None
+    nxt = descend(level, field, h.pos, game.rng) if field is not None and h.pos in field else None
+    if nxt is None:
+        nxt = greedy_step(level, h.pos, goal, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+    return bool(nxt) and _human_move(game, h, nxt)
+
+
+def _obey(game, h: Human, humans, d: int) -> bool:
+    """A standing order from the player.  True if it took the companion's turn."""
+    kind, p = companion.order_of(h), game.player
+    foes = _foes_of(h, game, humans)
+    if kind == "engage":
+        foe = nearest_foe(game, h, foes, companion.ORDER_SIGHT)
+        if foe is None:
+            companion.end_order(game, h, "\"Clear.\"")
+            return False
+        _human_fight(game, h, foe)
+        return True
+    if kind == "fallback":
+        adjacent = next((z for z in foes if z.hp > 0 and cheb(z.pos, h.pos) == 1), None)
+        if d > 2:
+            if _toward(game, h, p.pos) and d > 4:
+                _toward(game, h, p.pos)                              # hustling back
+            return True
+        if adjacent is not None:
+            _human_fight(game, h, adjacent)                          # cornered: they defend themselves
+            return True
+        if nearest_foe(game, h, foes, 6) is None:
+            companion.end_order(game, h, "\"Back with you. Nothing followed.\"")
+            return False
+        return True
+    if kind == "escape":
+        if d > 1:
+            _toward(game, h, p.pos)
+            if d > 2:
+                _toward(game, h, p.pos)                              # a sprint: two steps a turn
+        return True
+    if kind == "ranged":
+        if h.reach <= 1:
+            companion.end_order(game, h)
+            return False
+        foe = nearest_foe(game, h, foes, h.reach)
+        if foe is None:
+            return False                                             # nothing to shoot: follow as usual
+        fd = cheb(h.pos, foe.pos)
+        if fd <= 2 and isinstance(foe, Zombie):
+            _flee(game, h, foe.pos)                                  # keep the range open
+        else:
+            combat.attack_actor(game, h, foe, ranged=True)
+        return True
+    return False                                                     # guard: the short leash does the work
+
+
 def _human(game, h: Human, humans) -> None:
     if h.role not in FIGHTERS and h.state not in ("follow", "wait"):
         return                                                    # shopkeepers and healers keep out of it
@@ -348,6 +403,8 @@ def _human(game, h: Human, humans) -> None:
     d = cheb(h.pos, p.pos)
     if h.hidden:                                                  # lying in wait
         raiders.spring_check(game, h, humans, d)
+        return
+    if h.state == "follow" and companion.order_of(h) and _obey(game, h, humans, d):
         return
     seen = h.hostile and d <= 11 and has_los(level, h.pos, p.pos)
     if h.hostile and not seen and h.morale < 100:

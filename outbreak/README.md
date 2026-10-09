@@ -128,6 +128,10 @@ and *Stay close* (a 2-tile leash: only what comes near you). Each holds for 30-6
 refuse to engage half the time, reckless ones refuse to fall back or escape 40% of the time (until tamed). Terminal: `K`. Web: the
 "Orders" chip next to your companion, the menu tile, or `k`. (`companion.give_order`, `ai._obey`.)
 
+**Keeping up.** You never have to slow down for your companion: when they fall more than 4 tiles behind they take two steps a turn,
+more than 10 behind three, and if they are lost 30 tiles back with nothing hunting them they catch up out of breath. They are
+carried through doors from up to 20 tiles away (it used to be 12).
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

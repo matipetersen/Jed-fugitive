@@ -418,7 +418,7 @@ class Doors(unittest.TestCase):
         p.x, p.y = spot
         lv.occ[p.pos] = p
         lv.remove_actor(c)
-        c.x, c.y = spot[0] + 20, spot[1]
+        c.x, c.y = spot[0] + 28, spot[1]
         lv.add_actor(c)
         g._use_portal(door)
         self.assertNotIn(c, g.level.actors)
@@ -508,3 +508,29 @@ class Orders(unittest.TestCase):
         g.clock.turn += companion.ORDERS["guard"][2] + 1
         companion.tick(g)
         self.assertEqual(companion.order_of(c), "")
+
+
+class KeepingUp(unittest.TestCase):
+    def test_they_hustle_when_they_fall_behind(self):
+        from outbreak.engine import ai
+        g, lv, c = field(arch="brute")
+        g.clock.turn = 1000
+        c.x, c.y = lv.free_spot_near(g.player.x - 11, g.player.y, 2)
+        lv.remove_actor(c)
+        lv.add_actor(c)
+        d0 = max(abs(c.x - g.player.x), abs(c.y - g.player.y))
+        for _ in range(4):
+            g.clock.turn += 1
+            ai.run(g)
+        d1 = max(abs(c.x - g.player.x), abs(c.y - g.player.y))
+        self.assertLessEqual(d1, d0 - 6, "more than one step a turn when far behind")
+
+    def test_a_lost_companion_catches_up(self):
+        g, lv, c = field(arch="brute")
+        g.clock.turn = 1000
+        lv.remove_actor(c)
+        c.x, c.y = g.player.x + 34, g.player.y
+        lv.add_actor(c)
+        companion.tick(g)
+        self.assertLess(max(abs(c.x - g.player.x), abs(c.y - g.player.y)), 8)
+        self.assertTrue(any("catches up" in t for _, t, _ in g.log))

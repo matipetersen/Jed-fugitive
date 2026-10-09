@@ -367,12 +367,15 @@ function _patrol_step(game, h) {
 function _follow_step(game, h) {
   const p = game.player, level = game.level;
   if (p.humanity < 20) { h.state = 'patrol'; game.msg(`The ${h.name.toLowerCase()} looks at what you have become, and walks away.`, 'warn'); return; }
-  if (cheb(apos(h), apos(p)) <= 2) return;
+  const d = cheb(apos(h), apos(p));
+  if (d <= 2) return;
+  const steps = 1 + (d > 4 ? 1 : 0) + (d > 10 ? 1 : 0);                 // fall behind and they hustle: you never have to slow down for them
   const field = game.get_field();
-  let nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null;
-  if (nxt === null) nxt = greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
-  if (_human_move(game, h, nxt) && h.sprinting && game.clock.turn % 2 === 0 && cheb(apos(h), apos(p)) > 2) {
-    _human_move(game, h, greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1]))));      // you run, they run
+  for (let k = 0; k < steps; k++) {
+    if (cheb(apos(h), apos(p)) <= 2) break;
+    let nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null;
+    if (nxt === null) nxt = greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
+    if (!_human_move(game, h, nxt)) break;
   }
 }
 

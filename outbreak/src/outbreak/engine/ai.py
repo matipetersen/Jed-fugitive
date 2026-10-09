@@ -589,15 +589,19 @@ def _follow_step(game, h: Human) -> None:
         h.state = "patrol"
         game.msg(f"The {h.name.lower()} looks at what you have become, and walks away.", "warn")
         return
-    if cheb(h.pos, p.pos) <= 2:
+    d = cheb(h.pos, p.pos)
+    if d <= 2:
         return
+    steps = 1 + (d > 4) + (d > 10)                              # fall behind and they hustle: you never have to slow down for them
     field = game.get_field()
-    nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
-    if nxt is None:
-        nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
-    if _human_move(game, h, nxt) and h.sprinting and game.clock.turn % 2 == 0 and cheb(h.pos, p.pos) > 2:
-        nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
-        _human_move(game, h, nxt)                                 # you run, they run: a free step every other turn
+    for _ in range(steps):
+        if cheb(h.pos, p.pos) <= 2:
+            break
+        nxt = descend(level, field, h.pos, game.rng) if h.pos in field else None
+        if nxt is None:
+            nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
+        if not _human_move(game, h, nxt):
+            break
 
 
 # ------------------------------------------------------------------ far away, in the abstract

@@ -67,7 +67,7 @@ def current(game) -> Optional[Human]:
     return None
 
 
-CARRY_RANGE = 12
+CARRY_RANGE = 20
 
 
 def carry(game, old, target, dest, from_pos) -> None:
@@ -258,11 +258,30 @@ def grow(game, c: Human) -> None:
     note(game, f"{c.name} grows with you: level {c.lvl}.", key=True)
 
 
+WARP_DISTANCE = 30
+
+
+def catch_up(game, c: Human) -> None:
+    """Left far behind (out of sight, nothing hunting them): they catch up, out of breath, rather than being lost."""
+    p = game.player
+    if c.state != "follow" or cheb(c.pos, p.pos) < WARP_DISTANCE:
+        return
+    if any(cheb(z.pos, c.pos) <= 12 for z in game.level.actors if z.hp > 0 and getattr(z, "state", "") == "hunt" and z is not c):
+        return
+    lv = game.level
+    spot = lv.free_spot_near(p.x - 3, p.y, 3) or lv.free_spot_near(p.x, p.y, 4)
+    if spot is None:
+        return
+    lv.move_actor(c, *spot)
+    note(game, f"{c.name} catches up, out of breath. \"You walk fast.\"")
+
+
 def tick(game) -> None:
     c = current(game)
     if c is not None and c.level_id == game.level.id:
         mirror(game, c)
         grow(game, c)
+        catch_up(game, c)
     if c is None or game.level is not game.world.level or arch_of(c) is None:
         return
     t, p, a = game.clock.turn, game.player, arch_of(c)

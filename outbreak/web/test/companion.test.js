@@ -136,3 +136,12 @@ console.log('companion: a pool of people, strengths and flaws, bonds, permanent 
   OB.comp_give_order(g, c, 'escape'); const hp = z.hp; for (let i = 0; i < 6; i++) { g.clock.turn += 1; OB.ai_run(g); }
   assert(Math.max(Math.abs(c.x - g.player.x), Math.abs(c.y - g.player.y)) <= 6 && z.hp === hp, 'escaped without fighting');
 }
+{ // they hustle when they fall behind, and a lost companion catches up
+  const [g, lv, c] = field(3, 'brute'); g.clock.turn = 1000; const p = g.player;
+  lv.remove_actor(c); const s = lv.free_spot_near(p.x - 11, p.y, 2); c.x = s[0]; c.y = s[1]; lv.add_actor(c);
+  const d0 = Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y));
+  for (let i = 0; i < 4; i++) { g.clock.turn += 1; OB.ai_run(g); }
+  assert(Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) <= d0 - 6, 'more than a step a turn');
+  lv.remove_actor(c); c.x = p.x + 34; c.y = p.y; lv.add_actor(c); OB.comp_tick(g);
+  assert(Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) < 8 && g.log.some((m) => m[1].includes('catches up')));
+}

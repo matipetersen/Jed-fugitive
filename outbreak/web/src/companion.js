@@ -36,7 +36,7 @@ function comp_current(game) {
   return null;
 }
 
-const COMP_CARRY_RANGE = 12;
+const COMP_CARRY_RANGE = 20, COMP_WARP_DISTANCE = 30;
 // Through a door, up a stair, out into the street: whoever is following you comes too.
 function comp_carry(game, old, target, dest, from_pos) {
   const uid = game.companion_uid;
@@ -145,9 +145,20 @@ function comp_grow(game, c) {
   comp_note(game, `${c.name} grows with you: level ${c.lvl}.`, true);
 }
 
+// Left far behind (out of sight, nothing hunting them): they catch up, out of breath, rather than being lost.
+function comp_catch_up(game, c) {
+  const p = game.player;
+  if (c.state !== 'follow' || cheb(apos(c), apos(p)) < COMP_WARP_DISTANCE) return;
+  if (game.level.actors.some((z) => z !== c && z.hp > 0 && z.state === 'hunt' && cheb(apos(z), apos(c)) <= 12)) return;
+  const lv = game.level, spot = lv.free_spot_near(p.x - 3, p.y, 3) || lv.free_spot_near(p.x, p.y, 4);
+  if (!spot) return;
+  lv.move_actor(c, spot[0], spot[1]);
+  comp_note(game, `${c.name} catches up, out of breath. "You walk fast."`);
+}
+
 function comp_tick(game) {
   const c = comp_current(game);
-  if (c && c.level_id === game.level.id) { comp_mirror(game, c); comp_grow(game, c); }
+  if (c && c.level_id === game.level.id) { comp_mirror(game, c); comp_grow(game, c); comp_catch_up(game, c); }
   if (!c || game.level !== game.world.level || !comp_arch(c)) return;
   const t = game.clock.turn, p = game.player, a = comp_arch(c), near = cheb(apos(c), apos(p)) <= 10;
   if (t % 100 === 0) comp_add_bond(c, 1);

@@ -2,6 +2,7 @@
 
   modern     Roguelike Modern City + Roguelike Characters     (used by every era but the medieval one)
   medieval   Tiny Town + Tiny Dungeon
+  scifi      drawn in code (art/scifi.py): steel decks, bulkheads, coolant, helmeted crew, glowing infected
 
 Run:  python3 web/art/build_atlas.py     (needs Pillow)   ->  art/atlas_<set>.png + art/atlas_<set>.json
 web/build.py inlines them into the page.  Nothing here is needed at play time.  Both sets name their sprites alike.
@@ -9,10 +10,12 @@ web/build.py inlines them into the page.  Nothing here is needed at play time.  
 import colorsys
 import json
 import os
+import sys
 
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 PITCH, S = 17, 16                                  # the sheets are 16px tiles with a 1px margin
 
 
@@ -207,6 +210,8 @@ def build(name, sprites):
 def main():
     build("modern", modern())
     build("medieval", medieval())
+    import scifi
+    build("scifi", scifi.sprites())
 
 
 if __name__ == "__main__":

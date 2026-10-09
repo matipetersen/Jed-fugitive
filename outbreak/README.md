@@ -157,6 +157,13 @@ your health and the final stand: bass and sparse notes when it is calm, an arpeg
 stab when it peaks. Settings: sound effects, music and volume (remembered). Audio starts after your first tap (browser rule). The
 engine only asks for a sound by name (`sfx(game, 'kill', pos)`), so it costs nothing in tests or the terminal build, which stays silent.
 
+**Distances in the units of the era, and a sci-fi look of its own.** Nothing says "tiles" any more: the middle ages count paces, furlongs
+and leagues, the eighties yards, blocks and miles, the modern day metres and kilometres, the sci-fi setting metres and klicks (a tile is
+about 10 m, 30 m for the medieval map; `util.dist_words`). The sci-fi era has its own sprite set, drawn pixel by pixel in
+`web/art/scifi.py` (no pack): dark steel decks with rivets, lit bulkheads, coolant instead of water, a hydroponic deck instead of
+grass with bulb trees in two tints, cargo containers, energy barriers, helmeted crew in role colours, and infected that glow. The log
+over the map now sits on a dark gradient with brighter text.
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

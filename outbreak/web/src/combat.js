@@ -83,12 +83,13 @@ function hurt_zombie(game, z, raw, head, style = '', fire = false) {
   const dealt = zombie_damage(game, z, raw, head, style, fire);
   z.hp -= dealt;
   if (z.hp <= 0) kill_zombie(game, z, head);
-  else { z.state = 'hunt'; z.target = apos(game.player); z.stimulus_turn = game.clock.turn; }
+  else { sfx(game, 'fleshy', apos(z)); z.state = 'hunt'; z.target = apos(game.player); z.stimulus_turn = game.clock.turn; }
   return dealt;
 }
 
 function kill_zombie(game, z, head = false, by_player = true, killer = null) {
   const level = game.level;
+  sfx(game, 'kill', apos(z));
   grant_xp(game, killer, z.xp);
   if (game.shared) game.shared.on_enemy_death(z);
   level.remove_actor(z);
@@ -152,7 +153,7 @@ function player_attack(game, target) {
   const z = target;
   const hit = sneak ? game.rng.random() < SNEAK_HIT : game.rng.random() * 100 < _accuracy(game, w, 0);
   if (!hit) {
-    game.msg(`You swing at the ${z.name.toLowerCase()} and miss.`, 'combat');
+    sfx(game, 'swing'); game.msg(`You swing at the ${z.name.toLowerCase()} and miss.`, 'combat');
     z.state = 'hunt'; z.target = apos(p); z.stimulus_turn = game.clock.turn;
     return true;
   }
@@ -203,7 +204,7 @@ function player_fire(game, target) {
   if (!has_los(game.level, apos(p), apos(target))) { game.msg('No clear line of fire.', 'warn'); return false; }
   if (w.ammo && p.count(w.ammo) < 1) { game.msg(`Out of ${game.item_def(w.ammo).name.toLowerCase()}.`, 'warn'); return false; }
   if (w.ammo && game.rng.random() >= p.mod('ammo_save')) p.take(w.ammo, 1);
-  p.stamina = Math.max(0, p.stamina - 2);
+  p.stamina = Math.max(0, p.stamina - 2); sfx(game, 'shoot');
   const noise = Math.max(1, Math.floor(w.noise * (1.0 + p.mod('ranged_noise'))));
   game.emit_noise(apos(p), noise, 'player');
   let evade, sneak;
@@ -233,7 +234,7 @@ function player_fire(game, target) {
 function throw_item(game, item_id, pos) {
   const p = game.player, d = game.item_def(item_id);
   if (cheb(apos(p), pos) > 8 || !has_los(game.level, apos(p), pos)) { game.msg('You cannot throw it there.', 'warn'); return false; }
-  p.take(item_id, 1);
+  p.take(item_id, 1); sfx(game, 'blast', pos);
   const eff = d.effect, lv = game.level;
   if (eff.fire) {
     game.msg(`The ${d.name.toLowerCase()} bursts into flames!`, 'info');
@@ -273,7 +274,7 @@ function damage_player(game, amount, cause, by = null) {
   if (game.clock.turn < game.invuln_until) return;               // a new survivor gets a moment to look around
   game.killer = by;
   if (p.sneaking && amount > 0) { p.sneaking = false; game.msg('You are hit: you cannot stay hidden.', 'info'); }
-  p.hp -= amount;
+  p.hp -= amount; if (amount > 0) sfx(game, 'hurt');
   game.add_panic(3 + amount * 0.4);
   if (p.hp <= 0) game.end('dead', cause);
   else comp_on_player_hurt(game, amount);
@@ -353,7 +354,7 @@ const Ref = (a) => { const r = ref(a); return r[0].toUpperCase() + r.slice(1); }
 
 function attack_actor(game, attacker, defender, ranged = false) {
   const d = cheb(apos(attacker), apos(defender));
-  if (ranged && d > 1) game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight');
+  if (ranged && d > 1) { game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight'); sfx(game, game.era.firearms ? 'shoot' : 'swing', apos(attacker)); }
   const victim = ref(defender), tag = (attacker.trait || attacker.pet || defender.trait || defender.pet) ? 'ally' : 'combat';
   if (game.rng.random() * 100 >= clamp(attacker.acc - 8 - Math.max(0, d - 1) * 2, 12, 90)) {
     if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${ranged && d > 1 ? 'shoots' : 'strikes'} at ${victim} and misses.`, tag);

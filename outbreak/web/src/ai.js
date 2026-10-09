@@ -142,9 +142,10 @@ function _zombie_step(game, z, humans) {
 }
 
 function _spotted(game, z) {
+  sfx(game, 'alert', apos(z));
   if (z.flags.includes('screams') && z.cooldown <= 0) {
     z.cooldown = 40;
-    game.msg(`The ${z.name.toLowerCase()} screams!`, 'warn');
+    sfx(game, 'scream', apos(z)); game.msg(`The ${z.name.toLowerCase()} screams!`, 'warn');
     game.emit_noise(apos(z), 22, 'zombie');
     game.add_heat(6);
   }

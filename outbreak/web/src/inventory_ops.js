@@ -42,8 +42,8 @@ function use_item(game, index) {
   if (!(index >= 0 && index < p.inventory.length)) return 0;
   const item = p.inventory[index], d = game.item_def(item.id), eff = d.effect;
   if (SLOT_OF_KIND[d.kind]) return equip(game, index);
-  if (d.kind === 'food') return _eat(game, item, d);
-  if (d.kind === 'med') return _medicate(game, item, d);
+  if (d.kind === 'food') { sfx(game, 'eat'); return _eat(game, item, d); }
+  if (d.kind === 'med') { sfx(game, 'heal'); return _medicate(game, item, d); }
   if (d.kind === 'material' && 'refuel' in eff) return _refuel(game, item, d);
   if (d.kind === 'tool' && 'repair' in eff) return _repair(game, item, d);
   if (d.kind === 'tool' && 'barricade' in eff) return _barricade(game, item, d);
@@ -192,7 +192,7 @@ function pickup_here(game) {
     const d = game.item_def(item.id);
     if (p.add_item(make_item(item.id, item.qty, item.dur), d.stackable)) {
       stack.splice(stack.indexOf(item), 1);
-      taken = true;
+      taken = true; sfx(game, 'pickup');
       game.msg(d.stackable ? `You pick up ${item.qty}x ${d.name.toLowerCase()}.` : `You pick up the ${d.name.toLowerCase()}.`, 'info');
     } else { game.msg('Your pack is full.', 'warn'); break; }
   }

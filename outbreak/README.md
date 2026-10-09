@@ -148,6 +148,15 @@ you lost, the days left before the way out closes, what the soldiers think of yo
 time. Web: the same sheet for every conversation; terminal: a menu after the greeting. (`engine/dialogue.py`, `content/dialogue.py`.)
 The briefing and these conversations use a near-opaque backdrop and the body face at 17px instead of the thin typewriter one.
 
+**Sound (web).** Retro chip sound, all synthesised in the browser with WebAudio (square and pulse voices, triangle bass, crunchy 8-bit noise; no
+files, a few KB of code in `web/src/audio.js`). Effects: steps by surface (and quieter when you creep), blows, kills, shots, blasts,
+doors, hurt, the dead noticing you, pickups, healing, level up, the log's warnings, and a heartbeat when you are badly hurt or terrified.
+Sounds that have a place in the world (a shot, a zombie spotting you) are panned and quieter with distance. Music: a minor-key loop per
+era (D dorian, E minor, A minor, C-sharp phrygian) whose layers and tempo follow the Director's tension, the dead hunting you nearby,
+your health and the final stand: bass and sparse notes when it is calm, an arpeggio and hi-hat when it tightens, drums and a tritone
+stab when it peaks. Settings: sound effects, music and volume (remembered). Audio starts after your first tap (browser rule). The
+engine only asks for a sound by name (`sfx(game, 'kill', pos)`), so it costs nothing in tests or the terminal build, which stays silent.
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

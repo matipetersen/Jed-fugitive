@@ -720,7 +720,7 @@ class Game {
     if (target && target !== p) return this._bump_actor(target);
     const tile = lv.tile(nx, ny), k = lv.idx(nx, ny);
     if (tile === T.DOOR) {
-      lv.set_tile(nx, ny, T.DOOR_OPEN); delete lv.door_hp[k];
+      lv.set_tile(nx, ny, T.DOOR_OPEN); delete lv.door_hp[k]; sfx(this, 'door', [nx, ny]);
       this.emit_noise([p.x, p.y], 2);
       this._spend(1);
       return true;
@@ -807,6 +807,8 @@ class Game {
     if (p.sneaking) noise = tile === T.ROAD || tile === T.BRUSH ? 2 : tile === T.SHALLOW ? 3 : 1;      // careful, but never silent
     else if (p.sprinting && p.stamina > 5) noise += 4;
     if (p.armor) noise += this.item_def(p.armor.id).stealth;
+    const surface = tile === T.SHALLOW ? 'water' : (tile === T.ROAD || tile === T.FLOOR) ? 'hard' : 'soft';
+    sfx(this, 'step', null, { surface, quiet: p.sneaking, loud: p.sprinting && p.stamina > 5 });
     noise = Math.round(noise * this.era.rules.step_noise);          // soft ground vs hard floors
     noise = Math.max(0, noise + Math.trunc(p.mod('move_noise')));
     if (!p.sneaking) { noise += step_extra(this, tile); explain_step(this, tile); startle(this, tile); }     // gravel, glass, metal floors, the building you are in

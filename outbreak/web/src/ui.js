@@ -17,6 +17,12 @@ const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
 
 // ---------------------------------------------------------------- preferences and state
 const recordStore = { get: () => { const r = lsGet('outbreak.records.v1', []); return Array.isArray(r) ? r : []; }, set: (r) => lsSet('outbreak.records.v1', r) };
+audio_settings(lsGet('outbreak.audio.v1', {}));
+const saveAudio = () => lsSet('outbreak.audio.v1', audio_settings());
+let logSeen = 0, lvlSeen = 1;
+for (const ev of ['pointerdown', 'touchend', 'keydown', 'click']) window.addEventListener(ev, () => audio_unlock(), { passive: true });
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('button')) audio_play('click'); });
+setInterval(() => { if (game && !game.over) audio_update(game); }, 700);
 const prefs = Object.assign({ zoom: 26, haptics: true, lefty: false, travel: true, sprites: true }, lsGet('outbreak.prefs.v1', {}));
 const savePrefs = () => lsSet('outbreak.prefs.v1', prefs);
 let game = null, aim = null, travel = null, lastHp = 0, endingShown = false, modal = 0, sheetCloseCb = null, storageOk = true;
@@ -507,7 +513,15 @@ function vibrate(ms) { if (prefs.haptics) { try { navigator.vibrate && navigator
 function flash() { const f = $('#flash'); f.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on'))); }
 
 // ---------------------------------------------------------------- the action pipeline
-function refresh() { updateHud(); updateControls(); renderLog(); dirty = true; }
+function audioTick() {
+  if (!game) return;
+  audio_drain(game);
+  audio_on_log(game, Math.min(logSeen, game.log.length)); logSeen = game.log.length;
+  if (game.player.level > lvlSeen) audio_play('level');
+  lvlSeen = game.player.level;
+  audio_update(game);
+}
+function refresh() { updateHud(); updateControls(); renderLog(); dirty = true; audioTick(); }
 function afterAction() {
   const g = game, p = g.player;
   if (p.hp < lastHp) { flash(); vibrate(p.hp <= p.max_hp * .3 ? [40, 30, 40] : 25); }
@@ -748,7 +762,7 @@ window.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- sheets (bottom panels)
 function openSheet(title, build, opts = {}) {
-  modal = 1; cancelTravel();
+  modal = 1; cancelTravel(); audio_play('open');
   $('#overlay').hidden = false; $('#overlay').className = opts.cls || '';
   $('#sheet-title').textContent = title;
   $('#sheet-close').hidden = !!opts.locked;
@@ -1011,6 +1025,7 @@ function openHelp() {
     li('Fire', 'With a ranged weapon equipped: one target fires at once; with several, tap the one you want.');
     li('Push', 'Shove the dead (or a raider) next to you: it staggers back a tile (two if you are level 4+) and loses a turn or two. Make room, break off, or steer it onto a trap or a fire. Brutes resist, the big one does not budge, a wall behind it hurts it. Costs stamina; keyboard V.');
     li('Run', 'The RUN button toggles a sprint: faster, but loud and tiring (keyboard X; SNEAK is H).');
+    li('Sound', 'Retro chip sounds and a loop that tightens as the danger does. It starts after your first tap. Settings has sound effects, music and volume; silent mode on an iPhone mutes it too.');
     li('Orders', 'Tap the Orders chip next to your companion (or K): Engage nearest, Fall back, Escape, Fire from a distance, Stay close. Free actions, they hold 30-60 turns. Cowards balk at engaging; reckless ones balk at falling back.');
     li('Sneak up on them', 'Zombies look where they walk (the pale wedge on them). Toggle SNEAK, come from behind or from the side, and hit them before the ? bar fills: an unaware zombie dies to one blow. In front of it, or running, it notices you fast. A red ! means it hunts you. Sneaking costs half your speed and you cannot run; it ends the moment you fight a zombie that has noticed you, or get hit. Fights are loud (heavy blunt weapons the loudest) and bring the dead from far away.');
     li('Stamina', 'Every step tires you, running much more. Marching nonstop makes you winded (slower) and then exhausted (half speed, no running). Resting, standing still and creeping recover it. Fast dead will catch a tired walker.');
@@ -1088,6 +1103,10 @@ function openSettings(msg) {
     tg('Left-handed layout', 'lefty', 'Swap the pad and the buttons.');
     tg('Tap to travel', 'travel', 'Tap a far tile to walk there.');
     tg('Vibration', 'haptics', 'Buzz when you are hurt.');
+    tg2('Sound effects', 'Steps, blows, shots, the dead. Retro chip sounds.', audio_settings().sfx, () => { audio_settings({ sfx: !audio_settings().sfx }); saveAudio(); audio_unlock(); openSettings(); });
+    tg2('Music', 'A slow loop that tightens as the danger does.', audio_settings().mus, () => { audio_settings({ mus: !audio_settings().mus }); saveAudio(); audio_unlock(); openSettings(); });
+    body.append(el('div', 'row', [el('div', 'main', [el('div', 'name', 'Volume'), el('div', 'sub', `${Math.round(audio_settings().vol * 100)}%`)]),
+      btn('btn', '-', () => { audio_settings({ vol: audio_settings().vol - 0.1 }); saveAudio(); audio_play('click'); openSettings(); }), btn('btn', '+', () => { audio_settings({ vol: audio_settings().vol + 0.1 }); saveAudio(); audio_play('click'); openSettings(); })]));
     if (typeof SPRITE_DATA !== 'undefined') tg2('Pixel sprites', 'Art by Kenney (CC0). Off draws plain shapes.', prefs.sprites !== false, () => { prefs.sprites = prefs.sprites === false; savePrefs(); dirty = true; openSettings(); });
     if (game && game.live && game.cfg.mode === 'living') tg2('Pause the world', 'The shared world cannot be paused; a private one can.', game.paused, () => { game.paused = !game.paused; openSettings(); });
     const acts = el('div', 'actionrow'); acts.style.marginTop = '14px';
@@ -1263,7 +1282,7 @@ function trySave() {
   if (!game || game.over) return false;
   try { save_game(game); storageOk = true; return true; } catch (e) { storageOk = false; return false; }
 }
-function quitToTitle() { if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; } game = null; if (sharedWorld) { sharedWorld.flush(); sharedWorld.detach(); sharedWorld = null; } cancelTravel(); endAim(); showTitle(); }
+function quitToTitle() { audio_set_playing(false); if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; } game = null; if (sharedWorld) { sharedWorld.flush(); sharedWorld.detach(); sharedWorld = null; } cancelTravel(); endAim(); showTitle(); }
 
 function showTitle() {
   hideAll(); const s = $('#title'); s.hidden = false; s.innerHTML = '';
@@ -1365,6 +1384,7 @@ function startGame(cfg, loaded, shared) {
   game.on_autosave = () => { trySave(); };
   endingShown = false; aim = null; travel = null; pathPreview = null; modal = 0;
   lastHp = game.player.hp; camX = game.player.x + .5; camY = game.player.y + .5;
+  logSeen = game.log.length; lvlSeen = game.player.level; audio_set_playing(true, game);
   showGameUi();
   trySave();
   if (!loaded) showBriefing(0, true);
@@ -1389,6 +1409,7 @@ function playCutscene(frames, done) {
 
 function showEnding(skipCut = false) {
   const g = game, e = g.over; endingShown = true; cancelTravel(); endAim();
+  if (!skipCut) { audio_set_playing(false); audio_play(e.victory ? 'win' : 'lose'); }
   if (e.victory && e.scenes && e.scenes.length && !skipCut) { if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; } playCutscene(e.scenes, () => showEnding(true)); return; }
   const isShared = g.cfg.mode === 'shared';
   if (isShared) { delete_save(null, true); if (sharedWorld) { sharedWorld.flush(); sharedWorld.detach(); sharedWorld = null; } }

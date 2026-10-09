@@ -6,6 +6,7 @@ import random
 from typing import List
 
 from outbreak import content
+from outbreak.content import story
 from outbreak.content.items import ItemDef
 from outbreak.engine import cipher, companion, encounters, hordes, military, mutation, pets, raiders, wild
 from outbreak.engine import tiles as T
@@ -171,7 +172,26 @@ def intro_pages(game) -> list:
     scene = opening.scenes[era.id] + "\n\n" + content.openings.CONSEQUENCE.format(
         alarm=content.openings.ALARMS[era.id])
     premise = (sc.premise_living if game.cfg.mode == "living" else sc.premise).format(refuge=era.refuge, pad=era.pad, radio=era.radio, days=game.deadline_days)
-    return [(opening.name, scene), ("The world", world), ("What you must do", premise)]
+    return [(opening.name, scene), ("Your situation", situation(game)), ("The world", world), ("What you must do", premise)]
+
+
+def situation(game) -> str:
+    """Who you are, what is in your hands, who is beside you and what is nearby: this run, not any run."""
+    p, era, sc = game.player, game.era, game.scenario
+    c, st = game.clock, story
+    voice = st.ORIGIN_VOICE.get(game.current_origin, "")
+    light = st.LIGHT_WORDS["day" if c.is_day else "night" if c.is_night else "edge"]
+    hands = game.item_def(p.weapon.id).name.lower() if p.weapon is not None else "your bare hands"
+    lines = [voice, f"It is {int(c.hour):02d}:{int(c.hour % 1 * 60):02d}, {light}. In your hands: {hands}; {p.coins} {era.coin} in your pocket."]
+    near = sorted((q for q in game.pois.values() if q.kind not in SPECIAL_KINDS), key=lambda q: cheb(q.pos, p.pos))[:2]
+    if near:
+        lines.append("Close by: " + "; ".join(f"{q.name}, {cheb(q.pos, p.pos)} tiles {compass(q.x - p.x, q.y - p.y)}" for q in near) + ".")
+    ally = companion.current(game)
+    if ally is not None:
+        a = companion.arch_of(ally)
+        lines.append(f"{ally.name}, a {a.label}, is already beside you. {a.intro}")
+    lines.append(st.SCENARIO_TAIL[sc.id])
+    return "\n\n".join(x for x in lines if x)
 
 
 # ------------------------------------------------------------------ scenario

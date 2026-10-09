@@ -7,6 +7,7 @@ import textwrap
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from outbreak.content import BRANCHES, PERKS, RECIPES
+from outbreak.content import story as story_text
 from outbreak.content.perks import BRANCH_NAMES
 from outbreak.engine import cipher, combat, companion, encounters, pets, inventory_ops, services
 from outbreak import records
@@ -681,6 +682,8 @@ class UI:
         e = self.g.over
         record = records.submit(self.g) if not getattr(self.g, "record_saved", False) else []
         self.g.record_saved = True
+        for n, frame in enumerate(getattr(e, "scenes", [])):
+            self.text_screen(story_text.SCENE_TITLES[n % len(story_text.SCENE_TITLES)], frame, "Any key")
         lines = [e.text, ""] + e.summary + ["", f"Score: {e.score}"] + ([""] + record if record else [])
         self.text_screen(("VICTORY - " if e.victory else "") + e.title, "\n".join(lines), "Any key to leave")
         if e.chronicle or e.last_moments:

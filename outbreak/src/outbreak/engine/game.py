@@ -1399,6 +1399,7 @@ class Game:
         self.msg(f"Get out through the {f.exit_name}: {compass(f.exit[0] - p.x, f.exit[1] - p.y)}, {cheb(f.exit, p.pos)} tiles.", "obj")
 
     def _escape(self) -> None:
+        self.escape_via = self.final.exit_name if self.final is not None else ""
         self.final = None
         self.msg("You throw yourself through the door and into the open air.", "good", key=True)
         self.end("won")

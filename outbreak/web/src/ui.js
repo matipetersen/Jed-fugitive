@@ -1382,8 +1382,25 @@ function startGame(cfg, loaded, shared) {
   else if (game.cfg.mode !== 'normal') openSheet('Back in the world', (b) => { b.append(el('p', 'event-text story', game.cfg.mode === 'shared' ? 'The world kept going while you were away. Time runs on its own here.' : 'The world runs in real time. Nothing waits for you once you continue.'), btn('btn main', 'Continue', () => closeSheet())); }, { locked: true, onClose: startLive });
 }
 
-function showEnding() {
+// A short cutscene before the scorecard of a win: one frame at a time, tap to go on.
+function playCutscene(frames, done) {
+  hideAll(); const s = $('#ending'); s.hidden = false; s.innerHTML = '';
+  let i = 0;
+  const wrap = el('div', 'cutscene'), head = el('div', 'fileno', ''), text = el('p', 'cut-text', ''), hint = el('div', 'cut-hint', 'tap to continue');
+  wrap.append(head, text, hint); s.append(wrap); s.scrollTop = 0;
+  const show = () => {
+    head.textContent = CONTENT.story.SCENE_TITLES[i % CONTENT.story.SCENE_TITLES.length];
+    text.textContent = frames[i]; text.classList.remove('in'); void text.offsetWidth; text.classList.add('in');
+    hint.textContent = i === frames.length - 1 ? 'tap for the record' : 'tap to continue';
+  };
+  const next = () => { if (++i >= frames.length) { wrap.removeEventListener('click', next); done(); } else show(); };
+  wrap.addEventListener('click', next);
+  show();
+}
+
+function showEnding(skipCut = false) {
   const g = game, e = g.over; endingShown = true; cancelTravel(); endAim();
+  if (e.victory && e.scenes && e.scenes.length && !skipCut) { if (!$('#overlay').hidden) { $('#overlay').hidden = true; modal = 0; } playCutscene(e.scenes, () => showEnding(true)); return; }
   const isShared = g.cfg.mode === 'shared';
   if (isShared) { delete_save(null, true); if (sharedWorld) { sharedWorld.flush(); sharedWorld.detach(); sharedWorld = null; } }
   else if (g.cfg.mode === 'normal' ? (g.cfg.permadeath || e.victory) : e.victory) delete_save();

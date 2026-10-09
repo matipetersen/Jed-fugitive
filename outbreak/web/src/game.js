@@ -1131,7 +1131,7 @@ class Game {
     if (!f || !f.exit) return;
     this.msg(`Get out through the ${f.exit_name}: ${compass(f.exit[0] - p.x, f.exit[1] - p.y)}, ${cheb(f.exit, [p.x, p.y])} tiles.`, 'obj');
   }
-  _escape() { this.final = null; this.msg('You throw yourself through the door and into the open air.', 'good', true); this.end('won'); }
+  _escape() { this.escape_via = this.final ? this.final.exit_name : ''; this.final = null; this.msg('You throw yourself through the door and into the open air.', 'good', true); this.end('won'); }
 
   _siege_spawn(near, n, radius = 2) {
     const lv = this.level, p = this.player;

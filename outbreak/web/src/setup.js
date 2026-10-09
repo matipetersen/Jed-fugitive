@@ -120,7 +120,22 @@ function intro_pages(game) {
   const world = `${era.name} (${era.year}).\n\n${era.intro}\n\n${prof.lore}\n\n${mutation_matchup(era, prof)}`;
   const scene = opening.scenes[era.id] + '\n\n' + fill(CONTENT.opening_consequence, { alarm: CONTENT.opening_alarms[era.id] });
   const premise = fill(game.cfg.mode !== 'normal' ? sc.premise_living : sc.premise, { refuge: era.refuge, pad: era.pad, radio: era.radio, days: game.deadline_days });
-  return [[opening.name, scene], ['The world', world], ['What you must do', premise]];
+  return [[opening.name, scene], ['Your situation', situation(game)], ['The world', world], ['What you must do', premise]];
+}
+
+// Who you are, what is in your hands, who is beside you and what is nearby: this run, not any run.
+function situation(game) {
+  const p = game.player, era = game.era, sc = game.scenario, c = game.clock, st = CONTENT.story;
+  const light = st.LIGHT_WORDS[c.is_day ? 'day' : c.is_night ? 'night' : 'edge'];
+  const hands = p.weapon ? game.item_def(p.weapon.id).name.toLowerCase() : 'your bare hands';
+  const hh = String(Math.floor(c.hour)).padStart(2, '0'), mm = String(Math.floor((c.hour % 1) * 60)).padStart(2, '0');
+  const lines = [st.ORIGIN_VOICE[game.current_origin] || '', `It is ${hh}:${mm}, ${light}. In your hands: ${hands}; ${p.coins} ${era.coin} in your pocket.`];
+  const near = Object.values(game.pois).filter((q) => !SPECIAL_KINDS.includes(q.kind)).sort((a, b) => cheb([a.x, a.y], [p.x, p.y]) - cheb([b.x, b.y], [p.x, p.y])).slice(0, 2);
+  if (near.length) lines.push('Close by: ' + near.map((q) => `${q.name}, ${cheb([q.x, q.y], [p.x, p.y])} tiles ${compass(q.x - p.x, q.y - p.y)}`).join('; ') + '.');
+  const ally = comp_current(game);
+  if (ally) { const a = comp_arch(ally); lines.push(`${ally.name}, a ${a.label}, is already beside you. ${a.intro}`); }
+  lines.push(st.SCENARIO_TAIL[sc.id]);
+  return lines.filter(Boolean).join('\n\n');
 }
 
 function register_components(game) {

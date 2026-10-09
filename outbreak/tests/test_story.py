@@ -218,3 +218,34 @@ class Director_uses_your_people(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Cutscene(unittest.TestCase):
+    def test_a_win_has_four_frames_made_of_this_run(self):
+        g = helpers.make_game(seed=5, scenario="dash")
+        g.escape_via = "west door"
+        g.end("won")
+        scenes = g.over.scenes
+        self.assertEqual(len(scenes), 4)
+        self.assertIn("west door", scenes[0])
+        c = companion.current(g)
+        self.assertIn(c.name, scenes[1])
+
+    def test_a_loss_has_none_and_the_briefing_names_your_company(self):
+        g = helpers.make_game(seed=5, scenario="cure")
+        g.end("dead", "you died")
+        self.assertEqual(g.over.scenes, [])
+        text = dict(g.intro_pages)["Your situation"]
+        self.assertIn(companion.current(g).name, text)
+        self.assertIn("tiles", text)
+
+    def test_each_era_and_band_has_text(self):
+        from outbreak.content import story
+        for era in ("medieval", "eighties", "modern", "scifi"):
+            for kind in ("out", "cure"):
+                self.assertIn((era, kind), story.WAY_OUT)
+            self.assertIn(era, story.SKY)
+        for band in ("saint", "survivor", "cold", "monster"):
+            self.assertIn(band, story.COMPANY)
+            self.assertIn(band, story.COST)
+            self.assertIn(band, story.AFTERWARDS)

@@ -53,3 +53,12 @@ function field(seed = 3, arch = null) {
   [g, lv, c] = field(); g.marks.push({ kind: 'grave', x: 1, y: 1, level_id: 'world', turn: 1, text: 'x', shown: -9999 }); const h = OB.deserialize_game(OB.serialize_game(g)); assert.strictEqual(h.marks.length, 1);
 }
 console.log('story: the world remembers, companions ask for one thing, and the Director leans on the people you love');
+{ // a briefing about this run, and a four-frame cutscene for a win
+  const { OB, make } = require('./helpers');
+  const g = make({ scenario: 'dash', seed: 5 });
+  const text = g.intro_pages.find((p) => p[0] === 'Your situation')[1];
+  assert(text.includes(OB.comp_current(g).name) && text.includes('tiles'), 'names your company and your surroundings');
+  g.escape_via = 'west door'; g.end('won');
+  assert.strictEqual(g.over.scenes.length, 4); assert(g.over.scenes[0].includes('west door')); assert(g.over.scenes[1].includes(OB.comp_current(g).name));
+  const h = make({ scenario: 'cure', seed: 5 }); h.end('dead', 'you died'); assert.deepStrictEqual(h.over.scenes, []);
+}

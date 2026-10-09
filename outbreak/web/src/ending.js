@@ -1,6 +1,25 @@
 // ---------------------------------------------------------------- how a run ends
 function _band(h) { return h >= 75 ? 'saint' : h >= 40 ? 'survivor' : h >= 15 ? 'cold' : 'monster'; }
 
+// Four short frames for a win, made of the facts of this run: the door you took, who is beside you, what it cost.
+function build_cutscene(game, band) {
+  const p = game.player, era = game.era, sc = game.scenario, st = CONTENT.story;
+  const fill = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+  const kind = sc.final_site === 'refuge' ? 'cure' : 'out';
+  const way = fill(st.WAY_OUT[`${era.id}|${kind}`], { via: game.escape_via || 'door', pad: era.pad, refuge: era.refuge });
+  const ally = comp_current(game), pet = pets_current(game), lost = game.fallen_allies || [], parts = [];
+  if (ally) parts.push(fill(st.COMPANY[band], { name: ally.name, label: comp_arch(ally) ? comp_arch(ally).label : 'survivor' }));
+  if (lost.length) parts.push(fill(st.COMPANY_LOST, { lost: lost[lost.length - 1][0] }));
+  if (pet) parts.push(fill(st.COMPANY_PET, { pet: pet.name }));
+  if (!parts.length) parts.push(st.COMPANY_ALONE);
+  const days = game_day(game), dead = p.stats.zombies || 0, living = p.stats.humans || 0;
+  let cost = `${days} day${days !== 1 ? 's' : ''}. ` + (dead ? `${dead} of the dead behind you` : 'You fought as little as you could');
+  cost += living ? `, and ${living} living ${living === 1 ? 'person' : 'people'}.` : '.';
+  if (p.lost.length) cost += ' Your ' + p.lost.join(' and your ') + ' stayed behind.';
+  cost += ' ' + st.COST[band];
+  return [way, parts.join(' '), cost, fill(st.AFTERWARDS[band], { sky: st.SKY[era.id] })];
+}
+
 function build_ending(game, kind, cause = '') {
   const p = game.player, sc = game.scenario, days = game_day(game);
   const decoded = Object.values(game.docs).filter((d) => p.documents.includes(d.id) && is_decoded(d, game.know)).length;
@@ -34,5 +53,6 @@ function build_ending(game, kind, cause = '') {
   else { title = 'You died'; text = cause ? cap(cause) + '.' : 'You did not make it.'; }
   const chronicle = (game.chronicle || []).map(([, day, t]) => `Day ${day}: ${t}`);
   const last_moments = game.log.slice(-10).map((l) => l[1]);
-  return { kind, title, text, summary, score, victory: kind === 'won', chronicle, last_moments };
+  const scenes = kind === 'won' ? build_cutscene(game, _band(p.humanity)) : [];
+  return { kind, title, text, summary, score, victory: kind === 'won', chronicle, last_moments, scenes };
 }

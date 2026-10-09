@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from outbreak.content import story
 from outbreak.engine import cipher, companion, pets
 
 
@@ -16,6 +17,7 @@ class Ending:
     score: int = 0
     chronicle: List[str] = field(default_factory=list)      # how the run went: "Day 3 - You have been bitten..."
     last_moments: List[str] = field(default_factory=list)   # the final lines of the log
+    scenes: List[str] = field(default_factory=list)         # the closing cutscene of a win: one short paragraph per frame
 
     @property
     def victory(self) -> bool:
@@ -105,7 +107,38 @@ def build(game, kind: str, cause: str = "") -> Ending:
     else:
         title = "You died"
         text = cause[:1].upper() + cause[1:] + "." if cause else "You did not make it."
-    return Ending(kind, title, text, summary, score, _chronicle(game), _last_moments(game))
+    ending = Ending(kind, title, text, summary, score, _chronicle(game), _last_moments(game))
+    if kind == "won":
+        ending.scenes = cutscene(game, _band(p.humanity))
+    return ending
+
+
+def cutscene(game, band: str) -> List[str]:
+    """Four short frames for a win, made of the facts of this run: the door you took, who is beside you, what it cost."""
+    p, era, sc = game.player, game.era, game.scenario
+    kind = "cure" if sc.final_site == "refuge" else "out"
+    via = getattr(game, "escape_via", "") or "door"
+    way = story.WAY_OUT[(era.id, kind)].format(via=via, pad=era.pad, refuge=era.refuge)
+    ally, pet = companion.current(game), pets.current(game)
+    lost = getattr(game, "fallen_allies", [])
+    parts = []
+    if ally is not None:
+        parts.append(story.COMPANY[band].format(name=ally.name, label=companion.arch_of(ally).label if companion.arch_of(ally) else "survivor"))
+    if lost:
+        parts.append(story.COMPANY_LOST.format(lost=lost[-1][0]))
+    if pet is not None:
+        parts.append(story.COMPANY_PET.format(pet=pet.name))
+    if not parts:
+        parts.append(story.COMPANY_ALONE)
+    days = game.clock.day
+    dead, living = p.stats.get("zombies", 0), p.stats.get("humans", 0)
+    cost = f"{days} day{'s' if days != 1 else ''}. " + (f"{dead} of the dead behind you" if dead else "You fought as little as you could")
+    cost += f", and {living} living {'person' if living == 1 else 'people'}." if living else "."
+    if p.lost:
+        cost += " Your " + " and your ".join(p.lost) + " stayed behind."
+    cost += " " + story.COST[band]
+    after = story.AFTERWARDS[band].format(sky=story.SKY[era.id])
+    return [way, " ".join(parts), cost, after]
 
 
 LAST_LINES = 10

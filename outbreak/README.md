@@ -132,6 +132,13 @@ refuse to engage half the time, reckless ones refuse to fall back or escape 40% 
 more than 10 behind three, and if they are lost 30 tiles back with nothing hunting them they catch up out of breath. They are
 carried through doors from up to 20 tiles away (it used to be 12).
 
+**A briefing about this run, and a cutscene when you win.** The opening now has a "Your situation" page made of the run's own facts: who
+you were (your origin), the hour and the light, what is in your hands, the two nearest buildings with direction and distance, and who
+is already beside you with their first words. A win ends with a four-frame cutscene before the scorecard: *The way out* (the door you
+actually took, the aircraft or the refuge of your era), *Beside you* (your companion's words, shaped by your humanity; the ones you lost;
+your pet; or the quiet if you are alone), *What it cost* (days, dead, limbs, a line for who you became) and *Afterwards*. Web: tap through
+the frames; terminal: any key. (`engine/setup.situation`, `engine/ending.cutscene`, `content/story.py`.)
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

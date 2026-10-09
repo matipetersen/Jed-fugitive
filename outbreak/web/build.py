@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
 from outbreak import content  # noqa: E402
-from outbreak.content import companions, director, pets  # noqa: E402,F401  (exported below)
+from outbreak.content import companions, director, pets, story  # noqa: E402,F401  (exported below)
 from outbreak.engine import encounters, ending  # noqa: E402
 from outbreak.config import DIFFICULTIES  # noqa: E402
 from outbreak.engine.clock import START_HOUR, TURNS_PER_DAY, TURNS_PER_HOUR  # noqa: E402
@@ -37,6 +37,11 @@ def plain(obj):
 WEB_GLYPHS = {"medieval": "\u00de\u00fe\u00d0\u00f0\u00c6\u00e6\u0152\u0153\u00df\u014a\u014b\u0192", "scifi": "\u2592\u2591\u2593\u2588"}
 
 
+def _flat(v):
+    """JSON has no tuple keys: (era, kind) becomes \"era|kind\"."""
+    return {("|".join(k) if isinstance(k, tuple) else k): x for k, x in v.items()} if isinstance(v, dict) else v
+
+
 def dump_content() -> str:
     eras = plain(content.ERAS)
     for era_id, glyphs in WEB_GLYPHS.items():
@@ -48,6 +53,7 @@ def dump_content() -> str:
         "scenarios": plain(content.SCENARIOS),
         "origins": plain(content.ORIGINS),
         "openings": plain(content.OPENINGS),
+        "story": {k: _flat(v) for k, v in vars(story).items() if k.isupper()},
         "opening_alarms": content.openings.ALARMS,
         "opening_consequence": content.openings.CONSEQUENCE,
         "opening_default_affinity": content.openings.DEFAULT_AFFINITY,

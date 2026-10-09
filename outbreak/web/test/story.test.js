@@ -57,7 +57,7 @@ console.log('story: the world remembers, companions ask for one thing, and the D
   const { OB, make } = require('./helpers');
   const g = make({ scenario: 'dash', seed: 5 });
   const text = g.intro_pages.find((p) => p[0] === 'Your situation')[1];
-  assert(text.includes(OB.comp_current(g).name) && text.includes('tiles'), 'names your company and your surroundings');
+  assert(text.includes(OB.comp_current(g).name) && text.includes('Close by:'), 'names your company and your surroundings');
   g.escape_via = 'west door'; g.end('won');
   assert.strictEqual(g.over.scenes.length, 4); assert(g.over.scenes[0].includes('west door')); assert(g.over.scenes[1].includes(OB.comp_current(g).name));
   const h = make({ scenario: 'cure', seed: 5 }); h.end('dead', 'you died'); assert.deepStrictEqual(h.over.scenes, []);
@@ -75,4 +75,11 @@ console.log('story: the world remembers, companions ask for one thing, and the D
   assert(seen.size > 3 && [...seen].some((t) => t.includes('day')), 'varied news, with the deadline in it');
   const t = mk('trader', 1004); const bio = [0, 1, 2, 3].map(() => OB.dlg_about(g, t));
   assert.strictEqual(new Set(bio.slice(0, 3)).size, 3); assert(bio[3].includes('everything worth telling'));
+}
+{ // distances in the units of the era
+  const { OB } = require('./helpers');
+  assert(OB.dist_words('medieval', 5).includes('paces')); assert(OB.dist_words('medieval', 30).includes('furlong')); assert(OB.dist_words('medieval', 300).includes('league'));
+  assert(OB.dist_words('eighties', 5).includes('yards')); assert(OB.dist_words('eighties', 40).includes('block')); assert(OB.dist_words('eighties', 400).includes('mile'));
+  assert.strictEqual(OB.dist_words('modern', 9), '90 m'); assert.strictEqual(OB.dist_words('modern', 140), '1.4 km');
+  assert.strictEqual(OB.dist_words('scifi', 140), '1.4 klicks'); assert.strictEqual(OB.dist_words('scifi', 100), '1 klick'); assert.strictEqual(OB.dist_words('modern', 0), 'right here');
 }

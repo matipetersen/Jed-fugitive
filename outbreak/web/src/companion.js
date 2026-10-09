@@ -341,9 +341,9 @@ function comp_advice(game) {
   if (game.cfg.needs && p.hunger > 60) bits.push('You need to eat.');
   if (todo) bits.push(`What we came for: ${todo[0]}.`);
   const site = game.pois[game.final_site_id];
-  if (site && site.revealed) bits.push(`${site.name} is ${compass(site.x - p.x, site.y - p.y)}, ${cheb([site.x, site.y], [p.x, p.y])} tiles.`);
+  if (site && site.revealed) bits.push(`${site.name} is ${compass(site.x - p.x, site.y - p.y)}, ${dist_words(game.era.id, cheb([site.x, site.y], [p.x, p.y]))}.`);
   const lead = Object.values(game.pois).find((q) => q.lead && !q.done && q.component);
-  if (lead) bits.push(`A lead: ${lead.name}, ${compass(lead.x - p.x, lead.y - p.y)}, ${cheb([lead.x, lead.y], [p.x, p.y])} tiles.`);
+  if (lead) bits.push(`A lead: ${lead.name}, ${compass(lead.x - p.x, lead.y - p.y)}, ${dist_words(game.era.id, cheb([lead.x, lead.y], [p.x, p.y]))}.`);
   return `${c.name}: ` + (bits.length ? bits.join(' ') : 'Keep moving and keep quiet.');
 }
 
@@ -421,7 +421,7 @@ function comp_offer_personal(game, c) {
   poi.revealed = true; c.quest = 1;
   game.personal = { uid: c.uid, poi: poi.id, stage: 1 };
   comp_say(game, c, spec.ask);
-  game.msg(`${c.name} asks you for one thing: ${poi.name}, ${compass(poi.x - p.x, poi.y - p.y)}, ${cheb([poi.x, poi.y], apos(p))} tiles. It is marked on your map.`, 'obj', true);
+  game.msg(`${c.name} asks you for one thing: ${poi.name}, ${compass(poi.x - p.x, poi.y - p.y)}, ${dist_words(game.era.id, cheb([poi.x, poi.y], apos(p)))}. It is marked on your map.`, 'obj', true);
   return true;
 }
 

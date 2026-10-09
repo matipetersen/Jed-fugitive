@@ -955,7 +955,7 @@ function openStrain() {
       const d = Math.round(Math.hypot(r.cx - p.x, r.cy - p.y));
       const row = el('div', 'row');
       row.append(el('div', 'main', [el('div', 'name', r.name + (r === here ? ' (you are here)' : '')),
-        el('div', 'sub', `${r === here ? 'here' : compass(r.cx - p.x, r.cy - p.y) + ' · ' + d + ' tiles'} · ` + (r.known ? `the dead: ${mutation_traits_text(r)}` : 'the dead: unknown'))]));
+        el('div', 'sub', `${r === here ? 'here' : compass(r.cx - p.x, r.cy - p.y) + ' · ' + dist_words(game.era.id, d)} · ` + (r.known ? `the dead: ${mutation_traits_text(r)}` : 'the dead: unknown'))]));
       if (r.known && r.traits.length >= 3) row.append(el('div', 'tag', 'bad'));
       body.append(row);
     }
@@ -971,7 +971,7 @@ function openPlaces() {
       const row = el('div', 'row tap');
       const goal = q.id === g.final_site_id;
       row.append(el('div', 'badge', POI_LETTER[q.kind] || 'H'), el('div', 'main', [el('div', 'name', q.name + (goal ? ' (goal)' : '')),
-        el('div', 'sub', `${compass(q.x - p.x, q.y - p.y)} · ${cheb(poi_pos(q), [p.x, p.y])} tiles · ${q.visited ? 'visited' : 'unvisited'}${q.papers && !q.visited ? ' · papers rumoured' : ''}${q.lead && q.component && p.count(q.component) === 0 ? ' · holds a component' : ''}`)]));
+        el('div', 'sub', `${compass(q.x - p.x, q.y - p.y)} · ${dist_words(game.era.id, cheb(poi_pos(q), [p.x, p.y]))} · ${q.visited ? 'visited' : 'unvisited'}${q.papers && !q.visited ? ' · papers rumoured' : ''}${q.lead && q.component && p.count(q.component) === 0 ? ' · holds a component' : ''}`)]));
       row.addEventListener('click', () => {
         if (g.level.kind !== 'overworld') { toast('Go outside first'); return; }
         const path = player_path(g.level, [p.x, p.y], [q.x, q.y], () => true);

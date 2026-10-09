@@ -14,7 +14,7 @@ from outbreak.content.companions import (ARCHETYPES, BY_ID, COMBAT_LINES, FLAWS,
                                          SITUATION_LINES, STRENGTHS)
 from outbreak.engine import tiles as T
 from outbreak.engine.model import Human, Item
-from outbreak.util import cheb, compass
+from outbreak.util import cheb, compass, dist_words
 
 BOND_START_STRANGER = 10
 BOND_START_ALLY = 25
@@ -560,10 +560,10 @@ def advice(game) -> str:
         bits.append(f"What we came for: {todo}.")
     site = game.pois.get(game.final_site_id)
     if site is not None and site.revealed:
-        bits.append(f"{site.name} is {compass(site.x - p.x, site.y - p.y)}, {cheb(site.pos, p.pos)} tiles.")
+        bits.append(f"{site.name} is {compass(site.x - p.x, site.y - p.y)}, {dist_words(game.era.id, cheb(site.pos, p.pos))}.")
     lead = next((q for q in game.pois.values() if q.lead and not q.done and q.component), None)
     if lead is not None:
-        bits.append(f"A lead: {lead.name}, {compass(lead.x - p.x, lead.y - p.y)}, {cheb(lead.pos, p.pos)} tiles.")
+        bits.append(f"A lead: {lead.name}, {compass(lead.x - p.x, lead.y - p.y)}, {dist_words(game.era.id, cheb(lead.pos, p.pos))}.")
     return f"{c.name}: " + " ".join(bits or ["Keep moving and keep quiet."])
 
 
@@ -711,7 +711,7 @@ def offer_personal(game, c: Human) -> bool:
     c.quest = 1
     game.personal = {"uid": c.uid, "poi": poi.id, "stage": 1}
     say(game, c, spec["ask"])
-    game.msg(f"{c.name} asks you for one thing: {poi.name}, {compass(poi.x - p.x, poi.y - p.y)}, {cheb(poi.pos, p.pos)} tiles. "
+    game.msg(f"{c.name} asks you for one thing: {poi.name}, {compass(poi.x - p.x, poi.y - p.y)}, {dist_words(game.era.id, cheb(poi.pos, p.pos))}. "
              f"It is marked on your map.", "obj", key=True)
     return True
 

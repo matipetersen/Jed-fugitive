@@ -133,8 +133,8 @@ def ask_papers(game) -> str:
     if not found:
         return "They know of no more pages that you have not read."
     p.coins -= PAPERS_COST
-    from outbreak.util import cheb, compass
-    lines = [f"the {q.name}, {compass(q.x - p.x, q.y - p.y)}, about {cheb(q.pos, p.pos)} tiles" for q in found]
+    from outbreak.util import cheb, compass, dist_words
+    lines = [f"the {q.name}, {compass(q.x - p.x, q.y - p.y)}, about {dist_words(game.era.id, cheb(q.pos, p.pos))}" for q in found]
     return "Pages were left in " + " and in ".join(lines) + ". They are marked on your map."
 
 

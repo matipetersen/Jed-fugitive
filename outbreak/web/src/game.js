@@ -1131,7 +1131,7 @@ class Game {
   _exit_hint() {
     const f = this.final, p = this.player;
     if (!f || !f.exit) return;
-    this.msg(`Get out through the ${f.exit_name}: ${compass(f.exit[0] - p.x, f.exit[1] - p.y)}, ${cheb(f.exit, [p.x, p.y])} tiles.`, 'obj');
+    this.msg(`Get out through the ${f.exit_name}: ${compass(f.exit[0] - p.x, f.exit[1] - p.y)}, ${dist_words(this.era.id, cheb(f.exit, [p.x, p.y]))}.`, 'obj');
   }
   _escape() { this.escape_via = this.final ? this.final.exit_name : ''; this.final = null; this.msg('You throw yourself through the door and into the open air.', 'good', true); this.end('won'); }
 

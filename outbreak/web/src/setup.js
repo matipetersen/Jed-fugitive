@@ -131,7 +131,7 @@ function situation(game) {
   const hh = String(Math.floor(c.hour)).padStart(2, '0'), mm = String(Math.floor((c.hour % 1) * 60)).padStart(2, '0');
   const lines = [st.ORIGIN_VOICE[game.current_origin] || '', `It is ${hh}:${mm}, ${light}. In your hands: ${hands}; ${p.coins} ${era.coin} in your pocket.`];
   const near = Object.values(game.pois).filter((q) => !SPECIAL_KINDS.includes(q.kind)).sort((a, b) => cheb([a.x, a.y], [p.x, p.y]) - cheb([b.x, b.y], [p.x, p.y])).slice(0, 2);
-  if (near.length) lines.push('Close by: ' + near.map((q) => `${q.name}, ${cheb([q.x, q.y], [p.x, p.y])} tiles ${compass(q.x - p.x, q.y - p.y)}`).join('; ') + '.');
+  if (near.length) lines.push('Close by: ' + near.map((q) => `${q.name}, ${dist_words(game.era.id, cheb([q.x, q.y], [p.x, p.y]))} ${compass(q.x - p.x, q.y - p.y)}`).join('; ') + '.');
   const ally = comp_current(game);
   if (ally) { const a = comp_arch(ally); lines.push(`${ally.name}, a ${a.label}, is already beside you. ${a.intro}`); }
   lines.push(st.SCENARIO_TAIL[sc.id]);
@@ -269,14 +269,14 @@ function _intro(game) {
   const refuge = game.pois[game.refuge_id];
   if (sc.final_site === 'refuge') {
     const d = compass(refuge.x - p.x, refuge.y - p.y);
-    game.msg(`Rumour on ${era.radio}: ${era.refuge} still stands, ${d} of here, about ${cheb(poi_pos(refuge), [p.x, p.y])} tiles away. They may have a way to make a cure.`, 'lore');
+    game.msg(`Rumour on ${era.radio}: ${era.refuge} still stands, ${d} of here, about ${dist_words(era.id, cheb(poi_pos(refuge), [p.x, p.y]))} away. They may have a way to make a cure.`, 'lore');
     if (game.cfg.mode !== 'normal') game.msg('The cure is for the world. If you fall, someone else will carry on.', 'warn');
     else if (!sc.start_infected) game.msg('There is no way out. Live as long as you can, or find the cure.', 'warn');
     else game.msg('You are bitten. The infection is slow, but it is in you. Find the three components and the formula before it takes you.', 'warn');
   } else {
     const pad = game.pois[game.pad_id];
     const d = compass(pad.x - p.x, pad.y - p.y);
-    game.msg(`Rumour on ${era.radio}: the last way out is ${d} of here, roughly ${cheb(poi_pos(pad), [p.x, p.y])} tiles. It closes after day ${game.deadline_days}.`, 'lore');
+    game.msg(`Rumour on ${era.radio}: the last way out is ${d} of here, roughly ${dist_words(era.id, cheb(poi_pos(pad), [p.x, p.y]))}. It closes after day ${game.deadline_days}.`, 'lore');
   }
   if (game.profile.sun_burn) game.msg('The sun keeps them in the dark places. You have until dusk to find shelter and answers.', 'warn');
   else game.msg('The dead are closing in from every side but one. Move!', 'warn');

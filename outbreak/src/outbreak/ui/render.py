@@ -10,7 +10,7 @@ from outbreak.engine import tiles as T
 from outbreak.engine.game import Game
 from outbreak.engine import companion, director, memory, pets
 from outbreak.engine.model import Animal, Human, Zombie
-from outbreak.util import Pos, cheb, compass
+from outbreak.util import Pos, cheb, compass, dist_words
 
 Cell = Tuple[str, str, bool]          # glyph, colour name, bold
 Line = Tuple[str, str]                # text, colour name
@@ -210,7 +210,7 @@ def build_side(game: Game) -> List[Line]:
     if game.final:
         f = game.final
         if f.exit is not None:
-            out.append((f"GET OUT: {f.exit_name}, {max(abs(f.exit[0] - game.player.x), abs(f.exit[1] - game.player.y))} tiles", "red"))
+            out.append((f"GET OUT: {f.exit_name}, {dist_words(game.era.id, max(abs(f.exit[0] - game.player.x), abs(f.exit[1] - game.player.y)))}", "red"))
         else:
             out.append((f"HOLD OUT: {f.turns_left} turns", "red"))
     ally = companion.current(game)
@@ -282,6 +282,6 @@ def places(game: Game) -> List[Tuple[str, str]]:
         mark = "visited" if poi.visited else "known"
         if poi.papers and not poi.visited:
             mark += ", papers rumoured"
-        out.append((f"{POI_LETTER.get(poi.kind, 'H')}  {poi.name:<28} {compass(poi.x - p.x, poi.y - p.y):<11} {d:>3} tiles  {mark}",
+        out.append((f"{POI_LETTER.get(poi.kind, 'H')}  {poi.name:<28} {compass(poi.x - p.x, poi.y - p.y):<11} {dist_words(game.era.id, d):>14}  {mark}",
                     "magenta" if poi.id == game.final_site_id else "white"))
     return out

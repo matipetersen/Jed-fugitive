@@ -16,7 +16,7 @@ from outbreak.engine.player import Player
 from outbreak.engine.spawn import make_patrol, make_raider, spawn_zombie
 from outbreak.engine.worldgen import generate_overworld
 from outbreak.engine import loot
-from outbreak.util import cheb, compass, weighted_choice
+from outbreak.util import cheb, compass, dist_words, weighted_choice
 
 BASE_HP = 80
 SPECIAL_KINDS = ("breach", "refuge", "pad", "cave")
@@ -185,7 +185,7 @@ def situation(game) -> str:
     lines = [voice, f"It is {int(c.hour):02d}:{int(c.hour % 1 * 60):02d}, {light}. In your hands: {hands}; {p.coins} {era.coin} in your pocket."]
     near = sorted((q for q in game.pois.values() if q.kind not in SPECIAL_KINDS), key=lambda q: cheb(q.pos, p.pos))[:2]
     if near:
-        lines.append("Close by: " + "; ".join(f"{q.name}, {cheb(q.pos, p.pos)} tiles {compass(q.x - p.x, q.y - p.y)}" for q in near) + ".")
+        lines.append("Close by: " + "; ".join(f"{q.name}, {dist_words(game.era.id, cheb(q.pos, p.pos))} {compass(q.x - p.x, q.y - p.y)}" for q in near) + ".")
     ally = companion.current(game)
     if ally is not None:
         a = companion.arch_of(ally)
@@ -360,8 +360,8 @@ def _intro(game) -> None:
     refuge = game.pois[game.refuge_id]
     if sc.final_site == "refuge":
         d = compass(refuge.x - p.x, refuge.y - p.y)
-        game.msg(f"Rumour on {era.radio}: {era.refuge} still stands, {d} of here, about {cheb(refuge.pos, p.pos)} "
-                 f"tiles away. They may have a way to make a cure.", "lore")
+        game.msg(f"Rumour on {era.radio}: {era.refuge} still stands, {d} of here, about {dist_words(era.id, cheb(refuge.pos, p.pos))} "
+                 f"away. They may have a way to make a cure.", "lore")
         if game.cfg.mode == "living":
             game.msg("The cure is for the world. If you fall, someone else will carry on.", "warn")
         elif not sc.start_infected:
@@ -372,7 +372,7 @@ def _intro(game) -> None:
     else:
         pad = game.pois[game.pad_id]
         d = compass(pad.x - p.x, pad.y - p.y)
-        game.msg(f"Rumour on {era.radio}: the last way out is {d} of here, roughly {cheb(pad.pos, p.pos)} tiles. "
+        game.msg(f"Rumour on {era.radio}: the last way out is {d} of here, roughly {dist_words(era.id, cheb(pad.pos, p.pos))}. "
                  f"It closes after day {game.deadline_days}.", "lore")
     if game.profile.sun_burn:
         game.msg("The sun keeps them in the dark places. You have until dusk to find shelter and answers.", "warn")

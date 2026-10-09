@@ -82,7 +82,7 @@ function ask_papers(game) {
   const found = game.reveal_paper_leads(2);
   if (!found.length) return 'They know of no more pages that you have not read.';
   p.coins -= PAPERS_COST;
-  return 'Pages were left in ' + found.map((q) => `the ${q.name}, ${compass(q.x - p.x, q.y - p.y)}, about ${cheb(poi_pos(q), [p.x, p.y])} tiles`).join(' and in ') + '. They are marked on your map.';
+  return 'Pages were left in ' + found.map((q) => `the ${q.name}, ${compass(q.x - p.x, q.y - p.y)}, about ${dist_words(game.era.id, cheb(poi_pos(q), [p.x, p.y]))}`).join(' and in ') + '. They are marked on your map.';
 }
 
 const PATROL_LINES = {

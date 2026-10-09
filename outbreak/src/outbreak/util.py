@@ -66,6 +66,45 @@ def chance(rng: random.Random, p: float) -> bool:
     return rng.random() < p
 
 
+def _half(x: float) -> str:
+    """0.5 steps in words: 'half a', 'a', '1 and a half', '3'."""
+    q = round(x * 2) / 2
+    if q <= 0.5:
+        return "half a"
+    if q == 1:
+        return "a"
+    whole = int(q)
+    return f"{whole} and a half" if q != whole else str(whole)
+
+
+def dist_words(era_id: str, tiles: int) -> str:
+    """A distance in the units people of that era would use (a tile is about 10 m; 30 m in the middle ages)."""
+    n = max(0, int(tiles))
+    if n == 0:
+        return "right here"
+    if era_id == "medieval":                                  # a tile is about 30 m: paces, furlongs, leagues
+        if n < 10:
+            return f"{int(round(n * 40 / 10)) * 10} paces"
+        if n < 60:
+            f = max(1, round(n * 30 / 201))
+            return "a furlong" if f == 1 else f"{f} furlongs"
+        lg = _half(n / 160)
+        return f"{lg} league" if lg in ("half a", "a") else f"{lg} leagues"
+    if era_id == "eighties":                                  # a tile is about 10 yards: yards, blocks, miles
+        if n < 10:
+            return f"{n * 10} yards"
+        if n < 100:
+            b = round(n / 10)
+            return "a block" if b == 1 else f"{b} blocks"
+        mi = _half(n / 176)
+        return f"{mi} mile" if mi in ("half a", "a") else f"{mi} miles"
+    metres = n * 10                                           # modern and sci-fi: metres, then kilometres (klicks in space)
+    if metres < 1000:
+        return f"{int(round(metres / 10.0)) * 10} m"
+    km = f"{metres / 1000:.1f}".rstrip("0").rstrip(".")
+    return f"{km} klick{'s' if km != '1' else ''}" if era_id == "scifi" else f"{km} km"
+
+
 def compass(dx: float, dy: float) -> str:
     """Eight-way compass word for a vector (y grows southwards)."""
     if dx == 0 and dy == 0:

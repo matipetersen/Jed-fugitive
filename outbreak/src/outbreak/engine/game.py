@@ -20,7 +20,7 @@ from outbreak.engine.model import POI, Animal, Human, Item, Level, Zombie
 from outbreak.engine.pathing import distance_field
 from outbreak.engine.spawn import make_raider, spawn_zombie
 from outbreak.engine.worldgen import UNSET
-from outbreak.util import DIRS8, Pos, cheb, compass
+from outbreak.util import DIRS8, Pos, cheb, compass, dist_words
 
 WALK_DRAIN, SNEAK_DRAIN, SPRINT_DRAIN, TIRED_BELOW = 1.5, 0.7, 3.0, 20
 LOG_LIMIT = 600
@@ -1396,7 +1396,7 @@ class Game:
         f, p = self.final, self.player
         if f is None or f.exit is None:
             return
-        self.msg(f"Get out through the {f.exit_name}: {compass(f.exit[0] - p.x, f.exit[1] - p.y)}, {cheb(f.exit, p.pos)} tiles.", "obj")
+        self.msg(f"Get out through the {f.exit_name}: {compass(f.exit[0] - p.x, f.exit[1] - p.y)}, {dist_words(self.era.id, cheb(f.exit, p.pos))}.", "obj")
 
     def _escape(self) -> None:
         self.escape_via = self.final.exit_name if self.final is not None else ""

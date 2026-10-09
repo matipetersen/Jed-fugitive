@@ -237,7 +237,7 @@ class Cutscene(unittest.TestCase):
         self.assertEqual(g.over.scenes, [])
         text = dict(g.intro_pages)["Your situation"]
         self.assertIn(companion.current(g).name, text)
-        self.assertIn("tiles", text)
+        self.assertIn("Close by:", text)
 
     def test_each_era_and_band_has_text(self):
         from outbreak.content import story
@@ -293,3 +293,26 @@ class People(unittest.TestCase):
         lines = [dialogue.about(g, npc) for _ in range(4)]
         self.assertEqual(len(set(lines[:3])), 3)
         self.assertIn("nothing more" if False else "everything worth telling", lines[3])
+
+
+class Distances(unittest.TestCase):
+    def test_each_era_measures_in_its_own_units(self):
+        from outbreak.util import dist_words
+        self.assertIn("paces", dist_words("medieval", 5))
+        self.assertIn("furlong", dist_words("medieval", 30))
+        self.assertIn("league", dist_words("medieval", 300))
+        self.assertIn("yards", dist_words("eighties", 5))
+        self.assertIn("block", dist_words("eighties", 40))
+        self.assertIn("mile", dist_words("eighties", 400))
+        self.assertEqual(dist_words("modern", 9), "90 m")
+        self.assertEqual(dist_words("modern", 140), "1.4 km")
+        self.assertEqual(dist_words("scifi", 140), "1.4 klicks")
+        self.assertEqual(dist_words("scifi", 100), "1 klick")
+        self.assertEqual(dist_words("modern", 0), "right here")
+
+    def test_no_tiles_in_what_the_player_reads(self):
+        for era in ("medieval", "eighties", "modern", "scifi"):
+            g = helpers.make_game(seed=5, era=era, scenario="dash")
+            for _, text in g.intro_pages:
+                self.assertNotIn(" tiles", text)
+            self.assertFalse([m for m in g.log if " tiles" in m[1]])

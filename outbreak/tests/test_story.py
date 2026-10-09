@@ -249,3 +249,47 @@ class Cutscene(unittest.TestCase):
             self.assertIn(band, story.COMPANY)
             self.assertIn(band, story.COST)
             self.assertIn(band, story.AFTERWARDS)
+
+
+class People(unittest.TestCase):
+    def _npc(self, g, role="healer", uid=None):
+        h = Human(uid or g.next_uid(), role.title(), "N", g.player.x + 2, g.player.y, 30, 30, role=role, faction="enclave")
+        return h
+
+    def test_each_person_has_a_name_and_a_voice_that_stays_the_same(self):
+        from outbreak.engine import dialogue
+        g = helpers.make_game(seed=3)
+        a, b = self._npc(g, "healer", 1001), self._npc(g, "healer", 1002)
+        self.assertNotEqual(dialogue.persona(a).tag, dialogue.persona(b).tag)
+        self.assertEqual(dialogue.persona(a).tag, dialogue.persona(a).tag)
+        self.assertIn(", healer", dialogue.title(g, a))
+
+    def test_the_greeting_reads_your_state(self):
+        from outbreak.engine import dialogue
+        g = helpers.make_game(seed=3)
+        g.player.infected = False
+        npc = self._npc(g, "healer", 1001)
+        p = dialogue.persona(npc)
+        self.assertEqual(dialogue.greeting(g, npc), p.first)
+        g.player.hp = 5
+        self.assertEqual(dialogue.greeting(g, npc), p.hurt)
+        g.player.hp = g.player.max_hp
+        g.player.infected = True
+        self.assertEqual(dialogue.greeting(g, npc), p.sick)
+
+    def test_the_news_is_about_the_world_and_rotates(self):
+        from outbreak.engine import dialogue
+        g = helpers.make_game(seed=3, scenario="dash")
+        npc = self._npc(g, "scout", 1003)
+        first = dialogue.news(g, npc)
+        seen = {first} | {dialogue.news(g, npc) for _ in range(6)}
+        self.assertGreater(len(seen), 3)
+        self.assertTrue(any("day" in s for s in seen), "the deadline shows up")
+
+    def test_asking_about_them_goes_through_the_bio(self):
+        from outbreak.engine import dialogue
+        g = helpers.make_game(seed=3)
+        npc = self._npc(g, "trader", 1004)
+        lines = [dialogue.about(g, npc) for _ in range(4)]
+        self.assertEqual(len(set(lines[:3])), 3)
+        self.assertIn("nothing more" if False else "everything worth telling", lines[3])

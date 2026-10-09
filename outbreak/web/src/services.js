@@ -115,11 +115,11 @@ function talk_patrol(game, npc) {
   if (!npc.talked) {
     npc.talked = true;
     game.rep[npc.faction] = (game.rep[npc.faction] || 0) + 2;
-    if (game.reveal_random_lead()) return `The ${name} lowers their weapon and tells you where they have seen something worth finding.`;
-    return `The ${name} has no news, but nods and wishes you luck.`;
+    const hello = dlg_greeting(game, npc);
+    if (game.reveal_random_lead()) return `${hello}\n\nThen the ${name} lowers their weapon and tells you where they have seen something worth finding.`;
+    return `${hello}\n\nThe ${name} has no leads for you, but nods and wishes you luck.`;
   }
-  const lines = PATROL_LINES[npc.role] || PATROL_LINES.scout;
-  return lines[(npc.uid + Math.floor(game.clock.turn / 60)) % lines.length];
+  return dlg_greeting(game, npc);
 }
 
 // Why this person will not travel with you, or an empty string.
@@ -129,7 +129,7 @@ function ask_join(game, npc) {
   const why = join_refusal(game, npc);
   if (why) return why;
   comp_recruit(game, npc);
-  return `${npc.name} falls in beside you. They will fight what you fight, and wait outside when you go in.`;
+  return `${npc.name} falls in beside you. They will fight what you fight, and come in with you when you go through a door.`;
 }
 
 function dismiss(game, npc) { return comp_dismiss(game, npc); }

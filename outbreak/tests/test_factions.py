@@ -275,7 +275,7 @@ class Openings(unittest.TestCase):
             for oid in content.OPENINGS:
                 g = make_game(era=era, opening=oid, seed=4, zombies="night" if oid == "vigil" else "classic")
                 self.assertEqual(g.opening_id, oid)
-                self.assertEqual(len(g.intro_pages), 3)
+                self.assertEqual(len(g.intro_pages), 4)
                 self.assertTrue(all(len(t) > 40 for _, t in g.intro_pages))
                 self.assertLess(g.clock.hour, 19 if g.profile.sun_burn else 24)
 

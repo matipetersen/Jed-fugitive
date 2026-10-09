@@ -108,7 +108,7 @@ class LivingWorld(unittest.TestCase):
     def test_cure_is_for_the_world_nobody_starts_bitten(self):
         g = living(scenario="cure")
         self.assertFalse(g.player.infected)
-        self.assertIn("one of many", g.intro_pages[2][1])
+        self.assertIn("one of many", g.intro_pages[3][1])
         n = make_game(scenario="cure", seed=3)
         self.assertTrue(n.player.infected)
 

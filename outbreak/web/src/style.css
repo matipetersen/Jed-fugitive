@@ -165,7 +165,14 @@ p.note { color: var(--muted); font-size: 13px; margin: 8px 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
-.story { font-family: var(--display); font-size: 15px; line-height: 1.55; }
+/* the briefing and story pages: a near-opaque backdrop, the body face (not the thin typewriter one), larger and brighter */
+.story { font-family: var(--body); font-size: 17px; line-height: 1.65; color: #f1ecdd; letter-spacing: .005em; }
+.story + .story { margin-top: 16px; }
+#overlay.brief #scrim { background: rgba(2, 4, 6, .9); }
+#overlay.brief #sheet { background: #0c1115; border-top: 1px solid #3a4a50; max-height: 92%; }
+#overlay.brief .sheet-head h2 { color: #f3d9a4; font-size: 22px; }
+#overlay.brief p.note { color: #a9b3ae; }
+.event-text { color: #ece7d8; }
 
 .act.mini { border-radius: 12px; }
 .act.sneak.on { background: rgba(88,184,120,.25); border-color: #58b878; }

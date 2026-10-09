@@ -13,13 +13,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
 from outbreak import content  # noqa: E402
-from outbreak.content import companions, director, pets, story  # noqa: E402,F401  (exported below)
+from outbreak.content import companions, director, dialogue, pets, story  # noqa: E402,F401  (exported below)
 from outbreak.engine import encounters, ending  # noqa: E402
 from outbreak.config import DIFFICULTIES  # noqa: E402
 from outbreak.engine.clock import START_HOUR, TURNS_PER_DAY, TURNS_PER_HOUR  # noqa: E402
 
 JS_ORDER = ["util", "model", "player", "worldgen", "chunks", "loot", "interiors", "cipher", "pathing", "spawn", "combat", "ai", "lives", "base", "ambience", "mutation", "raiders", "military", "wild", "companion", "objective", "director", "pets", "memory", "shared",
-            "hordes", "encounters", "services", "ending", "records", "inventory_ops", "setup", "game", "save"]
+            "hordes", "encounters", "dialogue", "services", "ending", "records", "inventory_ops", "setup", "game", "save"]
 UI_ORDER = ["ui"]
 
 
@@ -53,6 +53,7 @@ def dump_content() -> str:
         "scenarios": plain(content.SCENARIOS),
         "origins": plain(content.ORIGINS),
         "openings": plain(content.OPENINGS),
+        "dialogue": {k: v for k, v in ((n, plain(getattr(dialogue, n))) for n in ("GIVEN", "ROLE_WORD", "PERSONAS", "RUMOURS"))},
         "story": {k: _flat(v) for k, v in vars(story).items() if k.isupper()},
         "opening_alarms": content.openings.ALARMS,
         "opening_consequence": content.openings.CONSEQUENCE,

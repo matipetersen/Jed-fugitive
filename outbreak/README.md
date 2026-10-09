@@ -139,6 +139,15 @@ actually took, the aircraft or the refuge of your era), *Beside you* (your compa
 your pet; or the quiet if you are alone), *What it cost* (days, dead, limbs, a line for who you became) and *Afterwards*. Web: tap through
 the frames; terminal: any key. (`engine/setup.situation`, `engine/ending.cutscene`, `content/story.py`.)
 
+**People with a voice, and a readable briefing.** The people of the havens and the roads are no longer "Trader / Healer / Archivist /
+Scout": each has a name from their era and one of two personalities per role (a shrewd trader or a weary one, a gentle healer or a brusque
+one, a dry archivist or an excitable one, a careful scout or a wry one, a formal soldier or a tired one, a shaken survivor or a hardened one).
+Their greeting reads your state (first meeting, hurt, bitten, someone with you, night, how human you still are), "The news?" tells you
+things that are true about this run (a horde on the move and where, the checkpoint nearest to you, a nemesis who still lives, the people
+you lost, the days left before the way out closes, what the soldiers think of you), and "About them" gives their story, one piece at a
+time. Web: the same sheet for every conversation; terminal: a menu after the greeting. (`engine/dialogue.py`, `content/dialogue.py`.)
+The briefing and these conversations use a near-opaque backdrop and the body face at 17px instead of the thin typewriter one.
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

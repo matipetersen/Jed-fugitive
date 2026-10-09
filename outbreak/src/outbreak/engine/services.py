@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-from outbreak.engine import companion
+from outbreak.engine import companion, dialogue
 from outbreak.engine.model import Human, Item
 
 HEAL_COST = 6
@@ -180,11 +180,11 @@ def talk_patrol(game, npc: Human) -> str:
     if not npc.talked:
         npc.talked = True
         game.rep[npc.faction] = game.rep.get(npc.faction, 0) + 2
+        hello = dialogue.greeting(game, npc)
         if game.reveal_random_lead():
-            return f"The {name} lowers their weapon and tells you where they have seen something worth finding."
-        return f"The {name} has no news, but nods and wishes you luck."
-    lines = PATROL_LINES.get(npc.role, PATROL_LINES["scout"])
-    return lines[(npc.uid + game.clock.turn // 60) % len(lines)]
+            return f"{hello}\n\nThen the {name} lowers their weapon and tells you where they have seen something worth finding."
+        return f"{hello}\n\nThe {name} has no leads for you, but nods and wishes you luck."
+    return dialogue.greeting(game, npc)
 
 
 def join_refusal(game, npc: Human) -> str:
@@ -197,12 +197,15 @@ def ask_join(game, npc: Human) -> str:
     if why:
         return why
     companion.recruit(game, npc)
-    return f"{npc.name} falls in beside you. They will fight what you fight, and wait outside when you go in."
+    return f"{npc.name} falls in beside you. They will fight what you fight, and come in with you when you go through a door."
 
 
 def dismiss(game, npc: Human) -> str:
     return companion.dismiss(game, npc)
 
 
-def npc_title(npc: Human) -> str:
+def npc_title(npc: Human, game=None) -> str:
+    if game is not None:
+        from outbreak.engine import dialogue
+        return dialogue.title(game, npc)
     return {"trader": "Trader", "healer": "Healer", "scholar": "Archivist"}.get(npc.role, npc.name)

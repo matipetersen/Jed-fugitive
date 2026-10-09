@@ -749,7 +749,7 @@ window.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------- sheets (bottom panels)
 function openSheet(title, build, opts = {}) {
   modal = 1; cancelTravel();
-  $('#overlay').hidden = false;
+  $('#overlay').hidden = false; $('#overlay').className = opts.cls || '';
   $('#sheet-title').textContent = title;
   $('#sheet-close').hidden = !!opts.locked;
   $('#scrim').onclick = opts.locked ? null : () => closeSheet();
@@ -1073,7 +1073,7 @@ function showBriefing(i, first) {
     acts.append(btn('btn main', last ? (first ? 'Begin' : 'Close') : 'Continue', () => { if (last) closeSheet(); else showBriefing(i + 1, first); }));
     if (!last) acts.append(btn('btn', 'Skip', () => closeSheet()));
     body.append(acts, el('p', 'note', `${i + 1} / ${pages.length}`));
-  }, { locked: true, onClose: first ? startLive : null });
+  }, { locked: true, onClose: first ? startLive : null, cls: 'brief' });
 }
 
 function openSettings(msg) {
@@ -1161,48 +1161,37 @@ function openCompanion(c, line = '') {
   });
 }
 
-function openNpc(npc) {
+function openNpc(npc, line) {
   const g = game;
   if (npc.trait && npc.uid === g.companion_uid) { openCompanion(npc); return; }
-  if (npc.role === 'scout' || npc.role === 'soldier') {
-    const show = (line) => openSheet(npc.name, (b) => {
-      if (line) b.append(el('p', 'event-text', line));
-      const follows = npc.state === 'follow';
-      const acts = el('div', 'actionrow');
-      acts.append(btn('btn main', 'Talk', () => { const l = talk_patrol(g, npc); refresh(); show(l); }));
-      acts.append(btn('btn', follows ? 'Go your way' : 'Come with me', () => { const l = follows ? dismiss(g, npc) : ask_join(g, npc); refresh(); show(l); }));
-      b.append(acts);
-    });
-    show('');
-    return;
+  const personal = ['trader', 'healer', 'scholar', 'scout', 'soldier'].includes(npc.role);
+  if (!['scout', 'soldier'].includes(npc.role)) {
+    const why = refuses(g);
+    if (why) { openSheet(npc.name, (b) => b.append(el('p', 'event-text', why))); return; }
   }
-  const why = refuses(g);
-  if (why) { openSheet(npc.name, (b) => b.append(el('p', 'event-text', why))); return; }
-  if (['trader', 'healer', 'scholar'].includes(npc.role) && !comp_current(g) && !npc._business) {
-    openSheet(npc.name, (b) => {
-      const acts = el('div', 'actionrow');
-      acts.append(btn('btn main', 'Business', () => { npc._business = true; closeSheet(); openNpc(npc); npc._business = false; }));
-      acts.append(btn('btn', 'Come with me', () => { const l = ask_join(g, npc); refresh(); closeSheet(); toast(l); }));
-      b.append(acts);
-    });
-    return;
-  }
-  if (npc.role === 'trader') return openTrade();
-  openSheet(npc.name, (body) => {
-    const say = (msg) => { body.querySelector('.say') && body.querySelector('.say').remove(); body.append(el('p', 'note say', msg)); refresh(); };
-    if (npc.role === 'healer') {
-      body.append(el('p', 'event-text', `"I can patch you up for ${HEAL_COST} ${g.era.coin}."`));
-      body.append(btn('btn main', 'Patch me up', () => say(heal_service(g))));
-    } else {
-      body.append(el('p', 'event-text', `"I can teach you the ${g.era.cipher_name.toLowerCase()}, or sell what I know."`));
-      const acts = el('div', 'actionrow');
-      acts.append(btn('btn main', `Teach me (${TEACH_COST} ${g.era.coin})`, () => say(teach(g))));
-      acts.append(btn('btn', `Buy a lead (${LEAD_COST})`, () => say(buy_lead(g))));
-      acts.append(btn('btn', `Where are written pages? (${PAPERS_COST})`, () => say(ask_papers(g))));
-      body.append(acts);
+  if (!personal) return;
+  if (line === undefined) line = dlg_greeting(g, npc);
+  const follows = npc.state === 'follow';
+  openSheet(dlg_title(g, npc), (b) => {
+    if (line) for (const para of line.split('\n\n')) b.append(el('p', 'event-text story', para));
+    const say = (msg) => { refresh(); openNpc(npc, msg); };
+    const acts = el('div', 'actionrow');
+    if (npc.role === 'trader') acts.append(btn('btn main', 'Trade', () => { closeSheet(); openTrade(); }));
+    else if (npc.role === 'healer') acts.append(btn('btn main', `Patch me up (${HEAL_COST} ${g.era.coin})`, () => say(heal_service(g))));
+    else if (npc.role === 'scholar') acts.append(btn('btn main', `Teach me (${TEACH_COST} ${g.era.coin})`, () => say(teach(g))));
+    else acts.append(btn('btn main', 'Talk', () => say(talk_patrol(g, npc))));
+    acts.append(btn('btn', 'The news?', () => say(dlg_news(g, npc))));
+    acts.append(btn('btn', `About ${dlg_given(g, npc)}`, () => say(dlg_about(g, npc))));
+    b.append(acts);
+    if (npc.role === 'scholar') {
+      const more = el('div', 'actionrow');
+      more.append(btn('btn', `Buy a lead (${LEAD_COST})`, () => say(buy_lead(g))));
+      more.append(btn('btn', `Where are written pages? (${PAPERS_COST})`, () => say(ask_papers(g))));
+      b.append(more);
     }
-    body.append(el('p', 'note', `You have ${g.player.coins} ${g.era.coin}.`));
-  });
+    if (!comp_current(g) || follows) b.append(btn('btn', follows ? 'Go your way' : 'Come with me', () => { const l = follows ? dismiss(g, npc) : ask_join(g, npc); refresh(); if (follows) say(l); else { closeSheet(); toast(l); } }));
+    b.append(el('p', 'note', `You have ${g.player.coins} ${g.era.coin}.`));
+  }, { cls: 'brief' });
 }
 
 function openTrade(msg) {

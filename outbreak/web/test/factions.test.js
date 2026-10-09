@@ -198,7 +198,7 @@ function with_patrol(group) {
 // ---- openings
 for (const era of Object.keys(OB.CONTENT.eras)) for (const oid of Object.keys(OB.CONTENT.openings)) {
   const g = make({ era, opening: oid, seed: 4, zombies: oid === 'vigil' ? 'night' : 'classic' });
-  assert.strictEqual(g.opening_id, oid); assert.strictEqual(g.intro_pages.length, 3);
+  assert.strictEqual(g.opening_id, oid); assert.strictEqual(g.intro_pages.length, 4);
   assert(g.intro_pages.every(([, t]) => t.length > 40));
   assert(g.intro_pages.every(([, t]) => !/\{\w+\}/.test(t)), 'unfilled placeholder');
 }
@@ -221,7 +221,7 @@ for (const era of Object.keys(OB.CONTENT.eras)) for (const oid of Object.keys(OB
   const g = make({ seed: 9, opening: 'hunt' });
   tick(g, 10);
   const g2 = OB.deserialize_game(OB.serialize_game(g));
-  assert.strictEqual(g2.opening_id, 'hunt'); assert.strictEqual(g2.intro_pages.length, 3);
+  assert.strictEqual(g2.opening_id, 'hunt'); assert.strictEqual(g2.intro_pages.length, 4);
   assert.deepStrictEqual(g2.patrol_goals, JSON.parse(JSON.stringify(g.patrol_goals)));
   assert.strictEqual(g2.patrol_nodes.length, g.patrol_nodes.length);
   g.distress[3] = 5; g.aided[3] = false;

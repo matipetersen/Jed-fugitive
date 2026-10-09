@@ -56,7 +56,7 @@ function clear(g) { const lv = g.world.level; for (const a of lv.actors.slice())
 // cure is for the world
 {
   const g = living({ scenario: 'cure' });
-  assert(!g.player.infected); assert(g.intro_pages[2][1].includes('one of many'));
+  assert(!g.player.infected); assert(g.intro_pages[3][1].includes('one of many'));
   assert(make({ scenario: 'cure', seed: 3 }).player.infected);
 }
 // turning is a death too

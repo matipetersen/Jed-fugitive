@@ -9,7 +9,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 from outbreak.content import BRANCHES, PERKS, RECIPES
 from outbreak.content import story as story_text
 from outbreak.content.perks import BRANCH_NAMES
-from outbreak.engine import cipher, combat, companion, encounters, pets, inventory_ops, services
+from outbreak.engine import cipher, combat, companion, dialogue, encounters, pets, inventory_ops, services
 from outbreak import records
 from outbreak.engine import base, save as savemod
 from outbreak.engine.game import Game
@@ -456,49 +456,60 @@ class UI:
         if npc.trait and npc.uid == getattr(g, "companion_uid", 0):
             self.companion_screen(npc)
             return
-        if npc.role in ("scout", "soldier"):
-            while True:
-                follows = npc.state == "follow"
-                r = self.pick(npc.name, [("Talk", "white"),
-                                         ("Tell them to go their way" if follows else "Ask them to come with you", "white"),
-                                         ("Never mind", "grey")])
-                if r == 0:
-                    self.message(services.talk_patrol(g, npc))
-                elif r == 1:
-                    self.message(services.dismiss(g, npc) if follows else services.ask_join(g, npc))
-                else:
-                    return
-        reason = services.refuses(g)
-        if reason:
-            self.message(f"{npc.name}: {reason}")
+        personal = npc.role in ("trader", "healer", "scholar", "scout", "soldier")
+        if npc.role not in ("scout", "soldier"):
+            reason = services.refuses(g)
+            if reason:
+                self.message(f"{npc.name}: {reason}")
+                return
+        if not personal:
             return
-        if npc.role in ("trader", "healer", "scholar") and companion.current(g) is None:
-            r = self.pick(npc.name, [("Business", "white"), ("Ask them to come with you", "white"), ("Never mind", "grey")])
-            if r == 1:
-                self.message(services.ask_join(g, npc))
+        who = dialogue.title(g, npc)
+        self.message(f"{who}\n\n{dialogue.greeting(g, npc)}")
+        main = {"trader": "Trade", "healer": f"Patch me up ({services.HEAL_COST} {g.era.coin})", "scholar": "Lessons and leads",
+                "scout": "Talk", "soldier": "Talk"}[npc.role]
+        while True:
+            follows = npc.state == "follow"
+            rows = [(main, "white"), ("What is the news?", "white"), (f"Ask about {dialogue.given(g, npc)}", "white")]
+            can_join = companion.current(g) is None or follows
+            if can_join:
+                rows.append(("Tell them to go their way" if follows else "Ask them to come with you", "white"))
+            rows.append(("Never mind", "grey"))
+            r = self.pick(who, rows)
+            if r is None or r == len(rows) - 1:
                 return
-            if r != 0:
-                return
+            if r == 0:
+                self.npc_main(npc)
+            elif r == 1:
+                self.message(dialogue.news(g, npc))
+            elif r == 2:
+                self.message(dialogue.about(g, npc))
+            elif can_join:
+                self.message(services.dismiss(g, npc) if follows else services.ask_join(g, npc))
+                if not follows:
+                    return
+
+    def npc_main(self, npc: Human) -> None:
+        g = self.g
         if npc.role == "trader":
             self.trade_screen()
         elif npc.role == "healer":
-            r = self.pick(f"{npc.name} - heal for {services.HEAL_COST} {g.era.coin}?",
-                          [("Patch me up", "white"), ("Never mind", "grey")])
-            if r == 0:
-                self.message(services.heal(g))
+            self.message(services.heal(g))
         elif npc.role == "scholar":
             rows = [(f"Teach me the {g.era.cipher_name.lower()} ({services.TEACH_COST} {g.era.coin}, "
                      f"{services.TEACH_WORDS} words)", "white"),
                     (f"Buy a lead on a building ({services.LEAD_COST} {g.era.coin})", "white"),
                     (f"Ask where written pages were left ({services.PAPERS_COST} {g.era.coin})", "white"),
                     ("Never mind", "grey")]
-            r = self.pick(f"{npc.name}", rows)
+            r = self.pick(f"{dialogue.title(g, npc)}", rows)
             if r == 0:
                 self.message(services.teach(g))
             elif r == 1:
                 self.message(services.buy_lead(g))
             elif r == 2:
                 self.message(services.ask_papers(g))
+        else:
+            self.message(services.talk_patrol(g, npc))
 
     def trade_screen(self) -> None:
         g = self.g

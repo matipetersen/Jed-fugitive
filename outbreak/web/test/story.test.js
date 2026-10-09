@@ -62,3 +62,17 @@ console.log('story: the world remembers, companions ask for one thing, and the D
   assert.strictEqual(g.over.scenes.length, 4); assert(g.over.scenes[0].includes('west door')); assert(g.over.scenes[1].includes(OB.comp_current(g).name));
   const h = make({ scenario: 'cure', seed: 5 }); h.end('dead', 'you died'); assert.deepStrictEqual(h.over.scenes, []);
 }
+{ // people have names and voices, the greeting reads your state, the news is about the world
+  const { OB, make } = require('./helpers');
+  const g = make({ scenario: 'dash', seed: 3 }); g.player.infected = false;
+  const mk = (role, uid) => ({ kind: 'human', uid, name: role, role, faction: 'enclave', x: 1, y: 1, hp: 30, max_hp: 30 });
+  const a = mk('healer', 1001), b = mk('healer', 1002);
+  assert.notStrictEqual(OB.dlg_persona(a).tag, OB.dlg_persona(b).tag); assert(OB.dlg_title(g, a).endsWith(', healer'));
+  const p = OB.dlg_persona(a);
+  assert.strictEqual(OB.dlg_greeting(g, a), p.first); g.player.hp = 5; assert.strictEqual(OB.dlg_greeting(g, a), p.hurt);
+  g.player.hp = g.player.max_hp; g.player.infected = true; assert.strictEqual(OB.dlg_greeting(g, a), p.sick);
+  const s = mk('scout', 1003), seen = new Set(); for (let i = 0; i < 7; i++) seen.add(OB.dlg_news(g, s));
+  assert(seen.size > 3 && [...seen].some((t) => t.includes('day')), 'varied news, with the deadline in it');
+  const t = mk('trader', 1004); const bio = [0, 1, 2, 3].map(() => OB.dlg_about(g, t));
+  assert.strictEqual(new Set(bio.slice(0, 3)).size, 3); assert(bio[3].includes('everything worth telling'));
+}

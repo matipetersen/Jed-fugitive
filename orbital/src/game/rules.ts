@@ -16,7 +16,7 @@ export interface MilestoneDef {
 
 export const MILESTONES: MilestoneDef[] = [
   { id: 1, name: 'Vuelo suborbital', desc: 'Superá los 150 u de altitud sobre la Tierra.', points: 40, rivalYear: 1958.0 },
-  { id: 2, name: 'Órbita terrestre', desc: 'Una órbita estable con periapsis sobre los 160 u.', points: 60, rivalYear: 1958.8 },
+  { id: 2, name: 'Órbita terrestre', desc: 'Una órbita estable con periapsis sobre los 180 u, por encima de la atmósfera.', points: 60, rivalYear: 1958.8 },
   { id: 3, name: 'Sobrevuelo lunar', desc: 'Pasá a menos de 3000 u de la Luna.', points: 80, rivalYear: 1960.5 },
   { id: 4, name: 'Aterrizaje lunar', desc: 'Aterrizá en la Luna y plantá la bandera.', points: 150, rivalYear: 1963.8 },
   { id: 5, name: 'Base lunar', desc: 'Instalá una base en la Luna.', points: 180, rivalYear: 1968.0 },
@@ -114,7 +114,7 @@ export function checkMilestones(c: Campaign, world: World): MilestoneEvent[] {
     try_(0, rs.index === earth && rs.alt >= 150);
     if (!done(1) && rs.index === earth) {
       const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, BODIES[earth].gm);
-      try_(1, el.bound && el.periapsis - BODIES[earth].radius >= 160);
+      try_(1, el.bound && el.periapsis - BODIES[earth].radius >= 180);
     }
     try_(2, dist(moon) < 3000);
     try_(5, dist(mars) < BODIES[mars].radius * 12 || dist(venus) < BODIES[venus].radius * 12);

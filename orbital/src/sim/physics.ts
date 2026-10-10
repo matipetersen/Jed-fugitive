@@ -402,7 +402,8 @@ export function railsInfo(x: number, y: number, vx: number, vy: number, t: numbe
   const rvy = vy - VY[ref];
   const el = orbitElements(rx, ry, rvx, rvy, b.gm);
   if (!el.bound || el.apoapsis === null) return null;
-  const clear = b.atmosphere ? atmosphereTop(b) * 1.2 : b.terrainAmp * 2 + LEG_LENGTH + 10;
+  // Above the top of the atmosphere there is no drag at all, so such an orbit is stable.
+  const clear = b.atmosphere ? atmosphereTop(b) + 2 : b.terrainAmp * 2 + LEG_LENGTH + 10;
   if (el.periapsis - b.radius < clear) return null;
   if (el.apoapsis > 0.3 * MIN_CHILD_ORBIT[ref]) return null;
   return { ref, el, rx, ry, rvx, rvy };

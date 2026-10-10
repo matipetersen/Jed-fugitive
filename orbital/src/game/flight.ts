@@ -14,7 +14,7 @@ import {
   refState,
 } from '../sim/physics';
 import { type BurnNode, HORIZON_LEVELS, type Prediction, autoHorizon, predict } from '../sim/predict';
-import { refineNode, suggestTransfer } from '../sim/planner';
+import { planCircularizeOrReason, refineNode, suggestTransfer } from '../sim/planner';
 import { ENGINES, type EngineId, statsFor } from '../sim/tech';
 import { siteAt } from '../sim/terrain';
 import { AU, DAY, fmtDate, fmtDuration, fmtNum } from '../sim/units';
@@ -37,6 +37,12 @@ export interface NodeState extends BurnNode {
   dvVec: { x: number; y: number } | null;
   /** Velocity at the start of the burn, to measure delta-v spent. */
   v0: { x: number; y: number } | null;
+  /** Ship mass when the burn began, to measure delta-v spent by the rocket equation. */
+  m0?: number;
+  /** 'circ': hold altitude while burning at apoapsis. */
+  kind?: 'circ';
+  /** For circularisation: periapsis radius that counts as done. */
+  goalPe?: number;
   total: number;
 }
 
@@ -87,6 +93,9 @@ export class Flight {
   frameIdx = 0;
   horizonIdx = 0;
   focusTarget = false;
+  coachOn = true;
+  /** Aim, wait for the node time and burn by itself. */
+  autoBurn = false;
   pred: Prediction | null = null;
   toasts: Toast[] = [];
   clock = 0;
@@ -142,6 +151,7 @@ export class Flight {
     if (!a) return;
     const d = Math.hypot(a.x - s.x, a.y - s.y);
     const fit = (0.8 * Math.min(this.view.w, this.view.h)) / (2 * Math.max(d, 200));
+    this.input.zoomManual = true;
     this.input.zoom = Math.min(this.input.zoom, Math.max(fit, 1e-4));
     this.focusTarget = false;
   }
@@ -155,13 +165,68 @@ export class Flight {
     const rs = refState(w);
     let nodeDir: number | null = null;
     const dv = this.node?.dvVec ?? this.pred?.nodeDv ?? null;
-    if (dv) nodeDir = Math.atan2(dv.y, dv.x);
+    if (dv) {
+      nodeDir = Math.atan2(dv.y, dv.x);
+      if (this.node?.kind === 'circ' && w.ship.throttle > 0) {
+        // Burning from a low arc: tilt towards the sky while falling, so the burn builds an orbit instead of a dive.
+        const vr = (rs.rx * rs.rvx + rs.ry * rs.rvy) / Math.max(rs.r, 1);
+        const radial = Math.atan2(rs.ry, rs.rx);
+        const diff = Math.atan2(Math.sin(radial - nodeDir), Math.cos(radial - nodeDir));
+        nodeDir += Math.sign(diff) * Math.max(-0.4, Math.min(0.9, -vr * 0.05));
+      }
+    }
     const blackout = w.ship.blackoutUntil > w.time;
     const turn =
       this.input.turn !== 0 || blackout
         ? this.input.turn
         : autopilotTurn(this.input.autopilot, w.ship, rs.rvx, rs.rvy, nodeDir, Math.atan2(rs.ry, rs.rx));
     return { throttle: this.input.throttle, turn };
+  }
+
+  /** Drives the throttle for an automatic node burn. */
+  private driveAutoBurn(): void {
+    const n = this.node;
+    const w = this.world;
+    const s = w.ship;
+    if (!this.autoBurn) return;
+    if (!n || s.status !== 'flying' || s.fuel <= 0) {
+      this.autoBurn = false;
+      return;
+    }
+    if (this.input.turn !== 0) {
+      this.autoBurn = false;
+      this.toast('QUEMA AUTOMÁTICA CANCELADA', 'info');
+      return;
+    }
+    this.input.autopilot = 'node';
+    const dv = n.dvVec ?? this.pred?.nodeDv ?? null;
+    if (!dv) return;
+    const mass = w.stats.dryMass + s.fuel;
+    const accel = Math.max(0.5, (w.stats.thrust * Math.max(s.thrustMult, 0.05)) / mass);
+    const total = n.v0 ? n.total : Math.hypot(dv.x, dv.y);
+    const startAt = n.t - total / accel / 2;
+    const heading = Math.atan2(dv.y, dv.x);
+    const err = Math.abs(Math.atan2(Math.sin(heading - s.angle), Math.cos(heading - s.angle)));
+    const rem = this.nodeRemaining();
+    if (n.kind === 'circ' && n.v0 && n.goalPe !== undefined) {
+      // The goal is a safe orbit, not an exact delta-v: finite burns lose some to gravity.
+      const rs = refState(w);
+      const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, BODIES[rs.index].gm);
+      if (el.bound && el.periapsis >= n.goalPe) {
+        this.toast('ÓRBITA LOGRADA', 'good');
+        this.node = null;
+        this.autoBurn = false;
+        this.input.throttle = 0;
+        if (this.input.autopilot === 'node') this.input.autopilot = 'off';
+        this.predDirty = true;
+        return;
+      }
+      this.input.throttle = 1;
+      return;
+    }
+    if (w.time >= startAt && (err < 0.12 || n.v0) && rem !== null) {
+      this.input.throttle = Math.min(1, Math.max(0.06, rem / (accel * 0.7)));
+    } else if (this.input.throttle > 0 && !n.v0) this.input.throttle = 0;
   }
 
   // ---------------------------------------------------------------- update
@@ -171,6 +236,7 @@ export class Flight {
     this.toasts = this.toasts.filter((t) => t.until > clock);
     this.input.update(dtReal);
     this.processInput();
+    this.driveAutoBurn();
 
     const w = this.world;
     const c = this.controls();
@@ -238,13 +304,29 @@ export class Flight {
     if (this.pred?.nodeDv && w.time < n.t) n.dvVec = this.pred.nodeDv;
     if (n.dvVec && !n.v0 && this.input.throttle > 0 && w.time >= n.t - this.burnLead() * 2 && w.ship.status === 'flying') {
       n.v0 = { x: w.ship.vx, y: w.ship.vy };
+      n.m0 = w.stats.dryMass + w.ship.fuel;
       n.total = Math.hypot(n.dvVec.x, n.dvVec.y);
     }
     if (n.dvVec && n.v0) {
       const rem = this.nodeRemaining();
-      if (rem !== null && rem < Math.max(0.4, n.total * 0.01)) {
+      if (n.kind === 'circ') {
+        // Circularisation ends when the orbit is safe (see driveAutoBurn); give up after a generous overshoot.
+        const spent = n.m0 !== undefined ? w.stats.ve * Math.log(n.m0 / (w.stats.dryMass + w.ship.fuel)) : 0;
+        if (spent > Math.max(60, n.total * 2.4)) {
+          this.toast('NO SE LOGRÓ LA ÓRBITA: REVISÁ LA ALTURA Y PROBÁ CIRC DE NUEVO', 'bad', 6);
+          this.node = null;
+          this.autoBurn = false;
+          this.input.throttle = 0;
+          if (this.input.autopilot === 'node') this.input.autopilot = 'off';
+          this.predDirty = true;
+        }
+      } else if (rem !== null && rem < Math.max(0.4, n.total * 0.01)) {
         this.toast('NODO COMPLETADO', 'good');
         this.node = null;
+        if (this.autoBurn) {
+          this.autoBurn = false;
+          this.input.throttle = 0;
+        }
         if (this.input.autopilot === 'node') this.input.autopilot = 'off';
         this.predDirty = true;
       }
@@ -255,13 +337,18 @@ export class Flight {
     }
   }
 
-  /** Delta-v still to be applied for the current node, or null. */
+  /**
+   * Delta-v still to be applied for the current node, or null. Spent delta-v is
+   * counted from the fuel burned (rocket equation), because in orbit gravity
+   * keeps changing the velocity and the difference of velocities is meaningless.
+   */
   nodeRemaining(): number | null {
     const n = this.node;
-    const s = this.world.ship;
+    const w = this.world;
     if (!n || !n.dvVec) return null;
-    if (!n.v0) return Math.hypot(n.dvVec.x, n.dvVec.y);
-    return Math.hypot(n.dvVec.x - (s.vx - n.v0.x), n.dvVec.y - (s.vy - n.v0.y));
+    if (!n.v0 || n.m0 === undefined) return Math.hypot(n.dvVec.x, n.dvVec.y);
+    const spent = w.stats.ve * Math.log(n.m0 / (w.stats.dryMass + w.ship.fuel));
+    return Math.max(0, n.total - spent);
   }
 
   private updatePrediction(dtReal: number): void {
@@ -290,6 +377,7 @@ export class Flight {
   private updateView(dtReal: number): void {
     const s = this.world.ship;
     const v = this.view;
+    if (!this.input.zoomManual) this.autoZoom(dtReal);
     v.zoom = this.input.zoom;
     if (this.focusTarget && this.target >= 0) {
       const p = bodyPos(this.target, this.world.time);
@@ -305,6 +393,88 @@ export class Flight {
     let d = want - v.up;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     v.up += d * (1 - Math.exp(-6 * dtReal));
+  }
+
+  /** Keeps the ship and the nearby ground or orbit in view as altitude changes. */
+  private autoZoom(dtReal: number): void {
+    const w = this.world;
+    const rs = refState(w);
+    const b = BODIES[rs.index];
+    let half = rs.alt * 1.5 + 260;
+    if (w.ship.status === 'flying') {
+      const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, b.gm);
+      if (el.bound && el.apoapsis !== null && el.apoapsis < b.soi * 0.5) half = Math.max(half, el.apoapsis * 1.25);
+      if (rs.index === 0) half = Math.max(half, rs.r * 1.2);
+    }
+    const target = Math.min(this.view.w, this.view.h) / 2 / half;
+    const k = 1 - Math.exp(-2.5 * dtReal);
+    this.input.zoom = Math.exp(Math.log(this.input.zoom) + (Math.log(target) - Math.log(this.input.zoom)) * k);
+  }
+
+  /** Throttle needed to leave the ground (above 1 means the engine cannot lift the ship). */
+  liftoffThrottle(): number | null {
+    const w = this.world;
+    const s = w.ship;
+    if (s.status !== 'landed') return null;
+    const b = BODIES[s.landedBody];
+    const mass = w.stats.dryMass + s.fuel;
+    const full = (w.stats.thrust * Math.max(s.thrustMult, 0.01)) / mass;
+    return b.surfaceGravity / full;
+  }
+
+  /** One line of contextual advice for the player, or null. */
+  coach(): string | null {
+    if (!this.coachOn) return null;
+    const w = this.world;
+    const s = w.ship;
+    if (s.status === 'crashed') return null;
+    const lt = this.liftoffThrottle();
+    if (lt !== null && !this.hasFlown) {
+      if (lt > 1) return 'La nave pesa demasiado para despegar: en el centro de control cargá menos combustible.';
+      return `Subí el empuje (franja izquierda) por encima de la marca amarilla, ${Math.ceil(lt * 100)}%, para despegar.`;
+    }
+    if (s.status === 'landed') return this.landedSite() ? 'Aterrizaste en terreno plano: abajo podés plantar la bandera o instalar una base.' : null;
+    const rs = refState(w);
+    const b = BODIES[rs.index];
+    const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, b.gm);
+    const vr = (rs.rx * rs.rvx + rs.ry * rs.rvy) / rs.r;
+    const thr = this.input.throttle > 0;
+    if (this.node) {
+      if (this.node.v0) return 'Mantené el encendido hasta que ΔV REST llegue a 0.';
+      if (this.autoBurn) return 'Quema automática en curso: la nave acelera el tiempo, apunta y enciende sola.';
+      return 'NODO listo: REFINA ajusta el paso y después tocá QUEMA: acelera el tiempo, apunta y enciende sola. (O hacelo a mano: IR NODO, girá y empujá hasta ΔV REST 0.)';
+    }
+    if (this.target >= 0 && this.pred?.targetClosest && rs.index !== this.target && (!el.bound || (el.apoapsis ?? 0) - b.radius > 8000 || rs.index === 0)) {
+      const goal = Math.max(BODIES[this.target].radius * 5, 1500);
+      const d = this.pred.targetClosest.dist;
+      if (d > goal * 3) return `La trayectoria pasa lejos de ${BODIES[this.target].name} (${fmtNum(d)} u). NODO y REFINA proponen una corrección chica; después QUEMA.`;
+      return `Vas a pasar cerca de ${BODIES[this.target].name}. Acelerá el tiempo con W+ hasta entrar en su esfera de influencia.`;
+    }
+    if (rs.index !== 0 && rs.index !== indexOf('earth') && !b.gas) {
+      if (!el.bound) return `Pasás de largo. Apuntá RET y frená cerca del punto más cercano (PE) para que ${b.name} te capture.`;
+      if (el.periapsis - b.radius < 0) return 'Vas a bajar a la superficie. Para aterrizar: RET y frená casi hasta parar, y bajá despacio (menos de 12 u/s) con la nave derecha.';
+      return `Estás en órbita de ${b.name}. Para aterrizar: bajá el PE con un encendido hacia atrás (RET) y descendé con cuidado.`;
+    }
+    if (rs.index === indexOf('earth')) {
+      const pe = el.periapsis - b.radius;
+      const ap = el.apoapsis === null ? Infinity : el.apoapsis - b.radius;
+      if (pe < 180) {
+        if (thr) {
+          if (rs.alt < 100) return 'Subí recto hasta unos 100 de altura. Después inclinate hacia un costado.';
+          if (ap < 320) return 'Inclinate hacia un costado (arrastrá en la zona de giro) para ganar velocidad lateral. Seguí con el motor.';
+          return 'El apogeo ya es suficiente (AP sobre 320): cortá el motor (empuje a 0) y esperá arriba.';
+        }
+        if (ap >= 200 && vr > 6) return 'Subiendo sin motor. Cuando RAD llegue cerca de 0 (el punto más alto), apuntá al costado y encendé.';
+        if (ap >= 200) return 'Estás arriba: apuntá al costado (girá o usá PRO) y encendé hasta que PE supere 180. Eso es una órbita.';
+        return 'Todavía no alcanza: necesitás más altura y más velocidad lateral para no caer.';
+      }
+      if (!el.bound) return 'Vas demasiado rápido y salís de la órbita. Girá hacia atrás (RET) y frená un poco hasta que aparezca AP.';
+      if (el.e > 0.08 && this.target < 0) return 'Tu órbita es elíptica. Si querés una circular: NODO y tocá CIRC, que propone el encendido en el apogeo.';
+      if (this.target < 0) return 'En órbita. Siguiente: tocá OBJ y elegí la Luna (o tocá la Luna en el mapa), después NODO.';
+      return 'Abrí NODO y tocá AUTO: propone cuándo y cuánto encender para llegar al objetivo.';
+    }
+    if (this.target < 0) return 'Elegí un destino con OBJ y abrí NODO para planificar la salida.';
+    return null;
   }
 
   private computeAlerts(): void {
@@ -386,6 +556,7 @@ export class Flight {
       this.predDirty = true;
     }
     if (hit('tgt', 't')) this.cycleTarget();
+    if (hit('zauto', 'o')) input.zoomManual = !input.zoomManual;
     if (hit('zout')) input.zoomBy(1 / 1.18);
     if (hit('zin')) input.zoomBy(1.18);
     if (hit('hor', 'h')) {
@@ -410,12 +581,25 @@ export class Flight {
       if (ui.pressed('naim')) input.autopilot = input.autopilot === 'node' ? 'off' : 'node';
       if (ui.pressed('ndel')) {
         this.node = null;
+        this.autoBurn = false;
         this.nodePanel = false;
         if (input.autopilot === 'node') input.autopilot = 'off';
         this.predDirty = true;
       }
       if (ui.pressed('nwarp')) this.autoWarpNode = true;
+      if (ui.pressed('nburn')) {
+        this.autoBurn = !this.autoBurn;
+        if (this.autoBurn) {
+          this.autoWarpNode = true;
+          input.autopilot = 'node';
+          this.toast('QUEMA AUTOMÁTICA: VA AL NODO, APUNTA Y ENCIENDE SOLA', 'good', 5);
+        } else {
+          input.throttle = 0;
+          this.autoWarpNode = false;
+        }
+      }
       if (ui.pressed('nauto')) this.suggest();
+      if (ui.pressed('ncirc')) this.circularize();
       if (ui.pressed('nref')) this.refine();
     }
 
@@ -480,6 +664,20 @@ export class Flight {
     this.nodePanel = true;
     this.predDirty = true;
     this.toast(`VENTANA EN ${fmtDuration(sug.tWindow - this.world.time)} · ΔV ${sug.dv.toFixed(0)} · VUELO ${fmtDuration(sug.eta)}`, 'good', 6);
+  }
+
+  private circularize(): void {
+    const plan = planCircularizeOrReason(this.world);
+    if (!('node' in plan)) {
+      this.toast(plan.reason.toUpperCase(), 'bad', 5);
+      return;
+    }
+    const body = BODIES[this.ref];
+    const goalPe = Math.max(plan.radius * 0.93, body.radius + (body.atmosphere ? atmosphereTop(body) : 0) + 25);
+    this.node = { ...plan.node, eta: 0, dvVec: null, v0: null, total: 0, kind: 'circ', goalPe };
+    this.nodePanel = true;
+    this.predDirty = true;
+    this.toast(`CIRCULARIZAR: ΔV ${Math.hypot(plan.node.prograde, plan.node.radial).toFixed(1)} · ${fmtDuration(plan.node.t - this.world.time)}`, 'good', 6);
   }
 
   private refine(): void {
@@ -660,7 +858,7 @@ export class Flight {
             remaining: dvRem === null ? null : dvRem.toFixed(1),
             tStep: fmtDuration(T_STEPS[this.tStepIdx]),
             dvStep: String(DV_STEPS[this.dvStepIdx]),
-            aiming: this.input.autopilot === 'node',
+            aiming: this.autoBurn,
           }
         : null,
       closest:
@@ -668,6 +866,8 @@ export class Flight {
           ? `${BODIES[this.target].name} PE ${fmtNum(this.pred.targetClosest.dist - BODIES[this.target].radius)} EN ${fmtDuration(this.pred.targetClosest.t - w.time)}`
           : null,
       status: s.status,
+      liftoff: this.liftoffThrottle(),
+      coach: this.coach(),
       crashReason: s.crashReason,
       impactSpeed: s.impactSpeed,
       hasFlown: this.hasFlown,
@@ -709,6 +909,8 @@ export interface HudData {
   } | null;
   closest: string | null;
   status: string;
+  liftoff: number | null;
+  coach: string | null;
   crashReason: string;
   impactSpeed: number;
   hasFlown: boolean;

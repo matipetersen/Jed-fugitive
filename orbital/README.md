@@ -48,8 +48,17 @@ Plutón 248 años, y llegar a Plutón por Hohmann cuesta unos 8,4 km/s desde ór
 | Zoom | Pellizcar, − / + | Rueda, + / − |
 | Tiempo | W− / W+ | , / . |
 | Objetivo y marco | OBJ, MARCO, tocar un cuerpo | T, F |
-| Planificador | NODO, AUTO, REFINA, IR NODO | N |
+| Planificador | NODO, AUTO (ventana), CIRC (circularizar), REFINA, QUEMA (acelera, apunta y enciende sola), IR NODO | N |
+| Zoom automático | ZOOM (se apaga al pellizcar) | O |
+| Predicción | PRED cambia hasta dónde se calcula | H |
 | Aterrizado | BANDERA, BASE, RECARGA, MOTOR | B, U, G |
+
+## Ayuda en pantalla
+
+- La marca verde en el control de empuje es el empuje mínimo para despegar; roja ("NO LEVANTA") si la
+  nave pesa demasiado.
+- Una línea de consejos explica el siguiente paso según el estado: despegue, ascenso, órbita, plan de
+  transferencia, aproximación y descenso. Se apaga desde el menú de pausa.
 
 ## Estructura
 

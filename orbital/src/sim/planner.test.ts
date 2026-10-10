@@ -166,3 +166,82 @@ describe('lunar descent bot', () => {
     expect(w.ship.fuel).toBeGreaterThan(fuel0 * 0.7);
   });
 });
+
+describe('eccentric parking orbits', () => {
+  function ellipse(sigma = 1, angle = 0.7): World {
+    const w = createWorld(BASE_STATS, EARTH, Math.PI / 2, 0);
+    const gm = BODIES[EARTH].gm;
+    const rp = 1190;
+    const ra = 5000;
+    const a = (rp + ra) / 2;
+    const vp = Math.sqrt(gm * (2 / rp - 1 / a));
+    const p = bodyPos(EARTH, 0);
+    const v = bodyVel(EARTH, 0);
+    w.ship.status = 'flying';
+    w.ship.x = p.x + rp * Math.cos(angle);
+    w.ship.y = p.y + rp * Math.sin(angle);
+    w.ship.vx = v.x - sigma * vp * Math.sin(angle);
+    w.ship.vy = v.y + sigma * vp * Math.cos(angle);
+    return w;
+  }
+
+  it('plans a lunar transfer from an elongated orbit', () => {
+    for (const sigma of [1, -1]) {
+      const w = ellipse(sigma);
+      const sug = suggestTransfer(w, MOON)!;
+      expect(sug).not.toBeNull();
+      const horizon = sug.node.t - w.time + sug.eta * 1.3;
+      const r = refineNode(w, MOON, sug.node, horizon, 400);
+      expect(r.closest).toBeLessThan(BODIES[MOON].soi);
+    }
+  });
+
+  it('plans a Mars transfer from an elongated orbit', () => {
+    const w = ellipse(1);
+    const sug = suggestTransfer(w, MARS)!;
+    expect(sug).not.toBeNull();
+    const horizon = sug.node.t - w.time + sug.eta * 1.2;
+    const r = refineNode(w, MARS, sug.node, horizon, 600);
+    expect(r.closest).toBeLessThan(BODIES[MARS].soi);
+  });
+});
+
+import { planCircularize } from './planner';
+import { orbitElements } from './orbit';
+
+describe('circularisation', () => {
+  it('turns an elongated orbit into a circular one at apoapsis', () => {
+    for (const sigma of [1, -1]) {
+      const w = (function () {
+        const ww = createWorld(BASE_STATS, EARTH, Math.PI / 2, 0);
+        const gm = BODIES[EARTH].gm;
+        const rp = 1190;
+        const ra = 5000;
+        const a = (rp + ra) / 2;
+        const vp = Math.sqrt(gm * (2 / rp - 1 / a));
+        const p = bodyPos(EARTH, 0);
+        const v = bodyVel(EARTH, 0);
+        ww.ship.status = 'flying';
+        ww.ship.x = p.x + rp * Math.cos(0.3);
+        ww.ship.y = p.y + rp * Math.sin(0.3);
+        ww.ship.vx = v.x - sigma * vp * Math.sin(0.3);
+        ww.ship.vy = v.y + sigma * vp * Math.cos(0.3);
+        return ww;
+      })();
+      const plan = planCircularize(w)!;
+      expect(plan).not.toBeNull();
+      expect(plan.node.prograde).toBeGreaterThan(5);
+      const none = { throttle: 0, turn: 0 };
+      advance(w, none, plan.node.t - w.time, 100);
+      const dv = nodeVector(w.ship.x, w.ship.y, w.ship.vx, w.ship.vy, w.time, plan.node);
+      w.ship.vx += dv.x;
+      w.ship.vy += dv.y;
+      const rs = refState(w);
+      const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, BODIES[EARTH].gm);
+      expect(el.e).toBeLessThan(0.02);
+      expect(el.periapsis).toBeGreaterThan(4900);
+    }
+    // A circular orbit has nothing to circularise.
+    expect(planCircularize(leo())).toBeNull();
+  });
+});

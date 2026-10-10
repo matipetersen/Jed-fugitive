@@ -52,7 +52,9 @@ export class Input {
   turn = 0;
   autopilot: AutopilotMode = 'off';
   /** Pixels per world unit. */
-  zoom = 1.5;
+  zoom = 0.8;
+  /** True once the player zoomed by hand; the flight then stops auto-zooming. */
+  zoomManual = false;
   layout: InputLayout = computeInputLayout(800, 400);
   stick: { ox: number; oy: number; x: number; y: number } | null = null;
   /** Short taps on the map area, consumed by the game. */
@@ -93,6 +95,7 @@ export class Input {
   }
 
   zoomBy(f: number): void {
+    this.zoomManual = true;
     this.zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.zoom * f));
   }
 

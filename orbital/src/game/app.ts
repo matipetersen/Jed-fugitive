@@ -162,7 +162,9 @@ export class App {
     const idx = c.bloc === 'usa' ? 0 : 1;
     const site = BODIES[earth].sites[idx];
     const stats = statsFor(c.techs, c.engine);
-    return createWorld(stats, earth, site.angle, c.time, stats.fuelCap * fuelFraction);
+    // A sandbox ship has every upgrade, so a full tank would be too heavy to lift: cap the load.
+    const fuel = c.sandbox ? Math.min(stats.fuelCap, 1000) : stats.fuelCap * fuelFraction;
+    return createWorld(stats, earth, site.angle, c.time, fuel);
   }
 
   /** Cost and fuel of a launch plan, or null if it cannot be flown. */

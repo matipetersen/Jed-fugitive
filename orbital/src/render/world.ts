@@ -417,8 +417,8 @@ export function drawShip(ctx: CanvasRenderingContext2D, v: View, scene: Scene): 
   const sx = P.x;
   const sy = P.y;
   if (sx < -60 || sx > v.w + 60 || sy < -60 || sy > v.h + 60) return;
-  // The ship is drawn in pixels: at least 20 px long, and true size (14 u) once zoomed in.
-  const size = Math.max(20, 14 * v.zoom) / 14;
+  // The ship is drawn in pixels: 16 px at a distance, true size (14 u) up close, never huge.
+  const size = Math.min(34, Math.max(16, 14 * v.zoom)) / 14;
   const px = 1 / size;
 
   if (s.status === 'crashed') {

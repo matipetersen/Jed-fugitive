@@ -37,17 +37,18 @@ export function drawHud(ctx: CanvasRenderingContext2D, f: Flight, width: number,
   const L = input.layout;
   const h = f.hud();
 
-  drawThrottle(ctx, input.throttle, L.throttleW, L.throttleTop, L.throttleBottom);
+  drawThrottle(ctx, input.throttle, L.throttleW, L.throttleTop, L.throttleBottom, h.liftoff);
   drawStick(ctx, input, L);
   drawReadout(ctx, h, L.throttleW + 10);
   drawButtons(ctx, ui, f, h, width);
   drawContext(ctx, ui, f, width, height, L.throttleW, L.rotateX);
   if (f.nodePanel && h.node) drawNodePanel(ctx, ui, f, h, width, height, L.throttleW, L.rotateX);
   drawAlerts(ctx, f, h, width, height);
+  if (h.coach) drawCoach(ctx, h.coach, L.throttleW + 8, L.rotateX - 8, f.nodePanel, f.contextActions().length > 0, height);
   ui.commit();
 }
 
-function drawThrottle(ctx: CanvasRenderingContext2D, thr: number, zoneW: number, top: number, bottom: number): void {
+function drawThrottle(ctx: CanvasRenderingContext2D, thr: number, zoneW: number, top: number, bottom: number, liftoff: number | null): void {
   const x = zoneW / 2;
   neonStroke(ctx, COLORS.hud, 1.3, () => {
     ctx.moveTo(x, top);
@@ -58,6 +59,16 @@ function drawThrottle(ctx: CanvasRenderingContext2D, thr: number, zoneW: number,
       ctx.lineTo(x + (k % 0.5 === 0 ? 9 : 5), y);
     }
   }, 0.5);
+  if (liftoff !== null) {
+    // Mark the throttle the engine needs just to leave the ground.
+    const ok = liftoff <= 1;
+    const my = bottom - (bottom - top) * Math.min(1, liftoff);
+    neonStroke(ctx, ok ? COLORS.good : COLORS.danger, 1.6, () => {
+      ctx.moveTo(x - 26, my);
+      ctx.lineTo(x + 26, my);
+    });
+    text(ctx, ok ? 'DESPEGUE' : 'NO LEVANTA', x + 28 > zoneW - 30 ? 2 : x + 28, my - 4, ok ? COLORS.good : COLORS.danger, 9);
+  }
   const hy = bottom - (bottom - top) * thr;
   neonStroke(ctx, thr > 0 ? COLORS.marker : COLORS.hud, 1.8, () => ctx.rect(x - 18, hy - 8, 36, 16));
   text(ctx, 'EMPUJE', x - 20, top - 10, COLORS.hud, 10);
@@ -162,13 +173,15 @@ function drawButtons(ctx: CanvasRenderingContext2D, ui: Ui, f: Flight, h: HudDat
   [x, y] = cell(2, 1);
   btn(ctx, ui, 'zin', x, y, bw, bh, '+', { repeat: true });
   [x, y] = cell(2, 2);
-  btn(ctx, ui, 'hor', x, y, bw, bh, h.horizon, { on: h.horizon !== 'AUTO' });
+  btn(ctx, ui, 'zauto', x, y, bw, bh, 'ZOOM', { on: !f.input.zoomManual });
   [x, y] = cell(2, 3);
   btn(ctx, ui, 'foc', x, y, bw, bh, 'FOCO', { on: f.focusTarget });
+  [x, y] = cell(3, 3);
+  btn(ctx, ui, 'hor', x, y, bw, bh, h.horizon === 'AUTO' ? 'PRED' : h.horizon, { on: h.horizon !== 'AUTO' });
   // Frame/target readout under the buttons.
-  text(ctx, `MARCO ${h.frame}`, x0 - 4, 8 + 3 * (bh + gap) + 8, COLORS.dim, 10);
-  text(ctx, `OBJ ${h.target}`, x0 - 4, 8 + 3 * (bh + gap) + 21, h.target === '--' ? COLORS.dim : COLORS.marker, 10);
-  if (h.closest) text(ctx, h.closest, x0 - 4, 8 + 3 * (bh + gap) + 34, COLORS.marker, 10);
+  text(ctx, `MARCO ${h.frame}`, x0 - 4, 8 + 4 * (bh + gap) + 8, COLORS.dim, 10);
+  text(ctx, `OBJ ${h.target}`, x0 - 4, 8 + 4 * (bh + gap) + 21, h.target === '--' ? COLORS.dim : COLORS.marker, 10);
+  if (h.closest) text(ctx, h.closest, x0 - 4, 8 + 4 * (bh + gap) + 34, COLORS.marker, 10);
 }
 
 function drawContext(ctx: CanvasRenderingContext2D, ui: Ui, f: Flight, width: number, height: number, left: number, right: number): void {
@@ -220,11 +233,12 @@ function drawNodePanel(
   ];
   b1.forEach(([id, label, o], i) => btn(ctx, ui, id, x0 + i * (w1 + 4), row1, w1, bh, label, o));
   const row2 = row1 + bh + 4;
-  const w2 = Math.floor((availW - 4 * 4) / 5);
+  const w2 = Math.floor((availW - 5 * 4) / 6);
   const b2: [string, string, BtnOpts?][] = [
     ['nauto', 'AUTO', { color: COLORS.good }],
+    ['ncirc', 'CIRC', { color: COLORS.good }],
     ['nref', 'REFINA', { color: COLORS.good }],
-    ['naim', 'APUNTA', { on: n.aiming }],
+    ['nburn', 'QUEMA', { on: n.aiming, color: COLORS.good }],
     ['nwarp', 'IR NODO'],
     ['ndel', 'BORRAR', { color: COLORS.danger }],
   ];
@@ -264,4 +278,24 @@ function drawAlerts(ctx: CanvasRenderingContext2D, f: Flight, h: HudData, width:
     text(ctx, 'SUBÍ EL EMPUJE (IZQUIERDA) PARA DESPEGAR', cx, mid, COLORS.hud, 14, true);
   }
   if (height > width) text(ctx, 'GIRÁ EL TELÉFONO A HORIZONTAL', cx, height * 0.12, COLORS.marker, 14, true);
+}
+
+/** One-line advice near the bottom, wrapped to the free width between the two control zones. */
+function drawCoach(ctx: CanvasRenderingContext2D, msg: string, left: number, right: number, panelOpen: boolean, hasCtx: boolean, height: number): void {
+  ctx.font = '12px ui-monospace, Menlo, monospace';
+  const maxW = Math.max(160, right - left);
+  const words = msg.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(t).width > maxW && cur) {
+      lines.push(cur);
+      cur = w;
+    } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  const base = height - (panelOpen ? 150 : hasCtx ? 58 : 14) - (lines.length - 1) * 15;
+  const cx = left + maxW / 2;
+  lines.forEach((l, i) => text(ctx, l, cx, base + i * 15, COLORS.marker, 12, true));
 }

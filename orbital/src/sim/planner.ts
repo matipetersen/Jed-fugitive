@@ -1,5 +1,6 @@
 import { BODIES, SUN } from './bodies';
-import { orbitElements } from './orbit';
+import { atmosphereTop } from './atmosphere';
+import { keplerPropagate, orbitElements } from './orbit';
 import { type World, refState } from './physics';
 import { type BurnNode, predict } from './predict';
 import { TAU } from './units';
@@ -35,6 +36,15 @@ const wrap2 = (a: number): number => {
  * Only an estimate: refine it with `refineNode`.
  */
 export function suggestTransfer(w: World, target: number): Suggestion | null {
+  return suggestCore(w, target, null);
+}
+
+/** Circular-orbit analogue of a transfer, with the parking orbit's radius given explicitly. */
+function suggestCircular(w: World, target: number, radius: number): Suggestion | null {
+  return suggestCore(w, target, radius);
+}
+
+function suggestCore(w: World, target: number, radiusOverride: number | null): Suggestion | null {
   const s = w.ship;
   if (s.status !== 'flying') return null;
   const rs = refState(w);
@@ -43,7 +53,8 @@ export function suggestTransfer(w: World, target: number): Suggestion | null {
   if (!T || rs.index === target || A.star) return null;
   const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, A.gm);
   if (!el.bound) return null;
-  const r0 = Math.hypot(rs.rx, rs.ry);
+  if (radiusOverride === null && el.e > 0.03 && el.period) return suggestFromEllipse(w, target, el, A.gm);
+  const r0 = radiusOverride ?? Math.hypot(rs.rx, rs.ry);
   const vc = Math.sqrt(A.gm / r0);
   const sigma = el.h >= 0 ? 1 : -1;
   const omegaShip = (sigma * vc) / r0;
@@ -93,6 +104,60 @@ export function suggestTransfer(w: World, target: number): Suggestion | null {
     return { node: { t: tBurn, prograde: vp - vc, radial: 0 }, tWindow: tWin, dv: vp - vc, eta, vInf };
   }
   return null;
+}
+
+/**
+ * Planner for a parking orbit that is not circular. The burn time is searched
+ * over one revolution around the window of the circular analogue, with the
+ * delta-v set by energy, and every candidate is scored by the real predictor.
+ */
+function suggestFromEllipse(w: World, target: number, el: ReturnType<typeof orbitElements>, gm: number): Suggestion | null {
+  const rs = refState(w);
+  const A = BODIES[rs.index];
+  const T = BODIES[target];
+  const period = el.period!;
+  const now = w.time;
+  const a = (el.periapsis + (el.apoapsis ?? el.periapsis)) / 2;
+
+  // Circular analogue gives the rough window and the flight time.
+  const analogue = suggestCircular(w, target, a);
+  if (!analogue) return null;
+  const moonStyle = T.parentIndex === A.index;
+  const vInfWanted = Math.abs(analogue.vInf);
+
+  let best: { node: BurnNode; d: number } | null = null;
+  const horizonBase = analogue.eta * 1.3;
+  for (let k = 0; k <= 32; k++) {
+    const t = analogue.node.t + ((k / 16 - 1) * period);
+    if (t < now + 1) continue;
+    const [x, y, vx, vy] = keplerPropagate(rs.rx, rs.ry, rs.rvx, rs.rvy, gm, t - now);
+    const r = Math.hypot(x, y);
+    const v = Math.hypot(vx, vy);
+    let dv: number;
+    if (moonStyle) {
+      // Apoapsis at the target's orbit: bisection on prograde delta-v.
+      let lo = 0;
+      let hi = 400;
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        const k2 = 1 + mid / v;
+        const e2 = orbitElements(x, y, vx * k2, vy * k2, gm);
+        const apo = e2.apoapsis ?? Infinity;
+        if (apo < T.orbitRadius) lo = mid;
+        else hi = mid;
+      }
+      dv = (lo + hi) / 2;
+    } else {
+      dv = Math.sqrt(vInfWanted * vInfWanted + (2 * gm) / r) - v;
+    }
+    if (!(dv > 0) || dv > 600) continue;
+    const node: BurnNode = { t, prograde: dv, radial: 0 };
+    const p = predict(w, { horizon: t - now + horizonBase, node, target, maxSteps: 4000 });
+    const d = p.targetClosest ? p.targetClosest.dist : Infinity;
+    if (!best || d < best.d) best = { node, d };
+  }
+  if (!best) return null;
+  return { node: best.node, tWindow: analogue.tWindow, dv: best.node.prograde, eta: analogue.eta, vInf: analogue.vInf };
 }
 
 /** Cost used by the refiner: relative distance error of the closest approach. */
@@ -186,4 +251,103 @@ export function refineNode(w: World, target: number, start: BurnNode, horizon: n
     }
   }
   return { node: best, closest: bm.d, evaluations: evals };
+}
+
+export interface CircPlan {
+  node: BurnNode;
+  apoapsisTime: number;
+  radius: number;
+}
+
+/**
+ * Burn that circularises the current orbit. Normally that is a prograde burn at
+ * apoapsis. If the ship would hit the ground or atmosphere before getting
+ * there, the burn happens right away and also cancels the sinking.
+ */
+export function planCircularizeOrReason(w: World): CircPlan | { reason: string } {
+  const s = w.ship;
+  if (s.status !== 'flying') return { reason: 'La nave tiene que estar en vuelo.' };
+  const rs = refState(w);
+  const body = BODIES[rs.index];
+  const gm = body.gm;
+  const el = orbitElements(rs.rx, rs.ry, rs.rvx, rs.rvy, gm);
+  if (rs.index === 0) return { reason: 'Es una órbita solar: usá AUTO para planificar.' };
+  if (!el.bound || !el.period) return { reason: 'No es una órbita cerrada: vas demasiado rápido.' };
+  const top = body.atmosphere ? atmosphereTop(body) : 0;
+  const unsafe = el.periapsis - body.radius < top + 2;
+  if (el.e < 0.01 && !unsafe) return { reason: 'La órbita ya es circular.' };
+  const T = el.period;
+  const radiusAt = (dt: number): number => {
+    const [x, y] = keplerPropagate(rs.rx, rs.ry, rs.rvx, rs.rvy, gm, dt);
+    return Math.hypot(x, y);
+  };
+  const n = 120;
+  let bestK = 0;
+  let bestR = -1;
+  for (let k = 0; k <= n; k++) {
+    const r = radiusAt((k / n) * T);
+    if (r > bestR) {
+      bestR = r;
+      bestK = k;
+    }
+  }
+  let lo = ((bestK - 1) / n) * T;
+  let hi = ((bestK + 1) / n) * T;
+  for (let i = 0; i < 40; i++) {
+    const m1 = lo + (hi - lo) / 3;
+    const m2 = hi - (hi - lo) / 3;
+    if (radiusAt(m1) < radiusAt(m2)) lo = m1;
+    else hi = m2;
+  }
+  let dtApo = (lo + hi) / 2;
+  if (dtApo < 0) dtApo += T;
+
+  // When does the ship reach the ground? Only matters if the orbit is unsafe.
+  let dtGround = Infinity;
+  if (unsafe) {
+    for (let k = 1; k <= 240; k++) {
+      const dt = (k / 240) * T;
+      if (radiusAt(dt) < body.radius + Math.max(10, top)) {
+        dtGround = dt;
+        break;
+      }
+    }
+  }
+
+  // Apoapsis only just passed counts as "now" too: waiting a whole orbit would sink into the air.
+  const justPassed = T - dtApo < 4;
+  if (dtApo > 1.5 && !justPassed && dtApo < dtGround - 2) {
+    const [x, y, vx, vy] = keplerPropagate(rs.rx, rs.ry, rs.rvx, rs.rvy, gm, dtApo);
+    const r = Math.hypot(x, y);
+    return { node: { t: w.time + dtApo, prograde: Math.sqrt(gm / r) - Math.hypot(vx, vy), radial: 0 }, apoapsisTime: w.time + dtApo, radius: r };
+  }
+
+  // Burn almost now: aim for a circular orbit at the current height, with the vertical speed cancelled.
+  const lead = 1.2;
+  const [x, y, vx, vy] = keplerPropagate(rs.rx, rs.ry, rs.rvx, rs.rvy, gm, lead);
+  const r = Math.hypot(x, y);
+  if (r - body.radius < top + 60) return { reason: 'Estás muy bajo: subí más antes de circularizar.' };
+  const sense = el.h >= 0 ? 1 : -1;
+  const tx = (-y / r) * sense;
+  const ty = (x / r) * sense;
+  const vc = Math.sqrt(gm / r);
+  const dvx = tx * vc - vx;
+  const dvy = ty * vc - vy;
+  // Decompose into the node's axes: along the velocity and away from the body.
+  const sp = Math.hypot(vx, vy) || 1;
+  const ux = vx / sp;
+  const uy = vy / sp;
+  const rx = x / r;
+  const ry = y / r;
+  const det = ux * ry - uy * rx;
+  if (Math.abs(det) < 1e-3) return { reason: 'Geometría degenerada: esperá un momento y probá de nuevo.' };
+  const prograde = (dvx * ry - dvy * rx) / det;
+  const radial = (ux * dvy - uy * dvx) / det;
+  return { node: { t: w.time + lead, prograde, radial }, apoapsisTime: w.time + lead, radius: r };
+}
+
+/** Circularisation plan, or null when there is nothing sensible to do. */
+export function planCircularize(w: World): CircPlan | null {
+  const r = planCircularizeOrReason(w);
+  return 'node' in r ? r : null;
 }

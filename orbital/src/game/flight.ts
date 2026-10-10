@@ -97,6 +97,7 @@ export class Flight {
   /** Aim, wait for the node time and burn by itself. */
   autoBurn = false;
   pred: Prediction | null = null;
+  private predSpare: Prediction | null = null;
   toasts: Toast[] = [];
   clock = 0;
   hasFlown = false;
@@ -371,7 +372,10 @@ export class Flight {
     let hz = lv.seconds > 0 ? lv.seconds : autoHorizon(w);
     const n = this.node && this.node.t > w.time ? this.node : null;
     if (n && lv.seconds === 0) hz = Math.max(hz, n.t - w.time + (n.eta > 0 ? n.eta * 1.3 : 0));
-    return predict(w, { horizon: hz, node: n, target: this.target });
+    // Two buffers alternate so a prediction never allocates and the drawn one is never overwritten.
+    const out = predict(w, { horizon: hz, node: n, target: this.target }, this.predSpare ?? undefined);
+    this.predSpare = this.pred;
+    return out;
   }
 
   private updateView(dtReal: number): void {
@@ -388,8 +392,10 @@ export class Flight {
       v.cy = s.y;
     }
     const rs = refState(this.world);
-    const rpx = BODIES[rs.index].radius * v.zoom;
-    const want = rpx > 120 && !(this.focusTarget && this.target >= 0) ? Math.atan2(rs.ry, rs.rx) : Math.PI / 2;
+    const rb = BODIES[rs.index];
+    // Near the ground the view turns with the horizon. In orbit it stays fixed so the world does not spin around the ship.
+    const nearGround = rs.alt < Math.max(160, rb.radius * 0.06) && rb.radius * v.zoom > 120;
+    const want = nearGround && !(this.focusTarget && this.target >= 0) ? Math.atan2(rs.ry, rs.rx) : Math.PI / 2;
     let d = want - v.up;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     v.up += d * (1 - Math.exp(-6 * dtReal));

@@ -29,10 +29,9 @@ export function neonStroke(
         [px * 1.2, 0.9 * intensity, color],
       ]
     : [
-        [px * 6, 0.07 * intensity, color],
-        [px * 3, 0.16 * intensity, color],
-        [px * 1.5, 0.6 * intensity, color],
-        [px * 0.7, 0.8 * intensity, '#ffffff'],
+        [px * 5, 0.1 * intensity, color],
+        [px * 1.8, 0.65 * intensity, color],
+        [px * 0.7, 0.85 * intensity, '#ffffff'],
       ];
   for (const [w, alpha, stroke] of layers) {
     ctx.globalAlpha = alpha;
@@ -42,5 +41,16 @@ export function neonStroke(
     build();
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
+}
+
+/** One cheap pass, for faint and busy details (rings, hatching, belts). */
+export function lineStroke(ctx: CanvasRenderingContext2D, color: string, px: number, build: () => void, alpha = 0.5): void {
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = px;
+  ctx.beginPath();
+  build();
+  ctx.stroke();
   ctx.globalAlpha = 1;
 }

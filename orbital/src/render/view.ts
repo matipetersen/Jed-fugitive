@@ -52,4 +52,4 @@ export function visibleArc(v: View, bx: number, by: number, r: number): ArcRange
 }
 
 /** Number of polyline segments for an arc of the given pixel length. */
-export const arcSegments = (pixels: number): number => Math.max(10, Math.min(700, Math.ceil(pixels / 7)));
+export const arcSegments = (pixels: number): number => Math.max(10, Math.min(300, Math.ceil(pixels / 10)));

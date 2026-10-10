@@ -3,7 +3,7 @@ import { atmosphereTop } from '../sim/atmosphere';
 import { LEG_LENGTH } from '../sim/physics';
 import { terrainRadius } from '../sim/terrain';
 import { AU, TAU, fmtNum } from '../sim/units';
-import { COLORS, neonStroke } from './neon';
+import { COLORS, lineStroke, neonStroke } from './neon';
 import { type Scene } from './scene';
 import { P, type View, arcSegments, proj, screenAngle, visibleArc } from './view';
 
@@ -107,7 +107,7 @@ function drawBelt(ctx: CanvasRenderingContext2D, v: View): void {
   if (r * v.zoom < 14 || r * v.zoom > 3e5) return;
   ctx.setLineDash([1.5, 9]);
   ctx.lineCap = 'round';
-  neonStroke(ctx, '#8a7a6a', 1.6, () => circlePath(ctx, v, 0, 0, r), 0.8);
+  lineStroke(ctx, '#8a7a6a', 1.6, () => circlePath(ctx, v, 0, 0, r), 0.6);
   ctx.setLineDash([]);
   proj(v, r, 0);
   if (P.x > 0 && P.x < v.w && P.y > 0 && P.y < v.h) label(ctx, 'CINTURÓN', P.x + 6, P.y - 6, '#8a7a6a', 0.7);
@@ -117,7 +117,7 @@ function drawOrbitRing(ctx: CanvasRenderingContext2D, v: View, i: number): void 
   const b = BODIES[i];
   const rpx = b.orbitRadius * v.zoom;
   if (rpx < 14 || rpx > 4000) return;
-  neonStroke(ctx, b.color, 1, () => circlePath(ctx, v, BX[b.parentIndex], BY[b.parentIndex], b.orbitRadius), 0.28);
+  lineStroke(ctx, b.color, 1, () => circlePath(ctx, v, BX[b.parentIndex], BY[b.parentIndex], b.orbitRadius), 0.3);
 }
 
 function drawBody(ctx: CanvasRenderingContext2D, v: View, scene: Scene, i: number): void {
@@ -186,9 +186,7 @@ function drawAtmosphere(ctx: CanvasRenderingContext2D, v: View, i: number): void
     const alt = a.scaleHeight * k;
     if (alt * v.zoom < 3) continue;
     const alpha = Math.min(0.55, 0.9 * Math.exp(-k * 0.45) * Math.min(1, a.density * 3 + 0.25));
-    ctx.setLineDash([2, 7]);
-    neonStroke(ctx, b.color, 1, () => circlePath(ctx, v, BX[i], BY[i], b.radius + alt), alpha);
-    ctx.setLineDash([]);
+    lineStroke(ctx, b.color, 1, () => circlePath(ctx, v, BX[i], BY[i], b.radius + alt), alpha * 0.55);
   }
 }
 
@@ -197,7 +195,7 @@ function drawTerrain(ctx: CanvasRenderingContext2D, v: View, scene: Scene, i: nu
   const arc = visibleArc(v, BX[i], BY[i], b.radius);
   if (!arc) return;
   const px = b.radius * v.zoom;
-  const n = Math.min(1200, Math.max(30, Math.ceil((2 * arc.half * px) / 3)));
+  const n = Math.min(500, Math.max(30, Math.ceil((2 * arc.half * px) / 5)));
   const a0 = arc.mid - arc.half;
   const pts: number[] = [];
   const inner: number[] = [];
@@ -207,7 +205,7 @@ function drawTerrain(ctx: CanvasRenderingContext2D, v: View, scene: Scene, i: nu
     const r = terrainRadius(b, a);
     proj(v, BX[i] + r * Math.cos(a), BY[i] + r * Math.sin(a));
     pts.push(P.x, P.y);
-    if (k % 3 === 0) {
+    if (k % 4 === 0) {
       proj(v, BX[i] + (r - depth) * Math.cos(a), BY[i] + (r - depth) * Math.sin(a));
       inner.push(pts[pts.length - 2], pts[pts.length - 1], P.x, P.y);
     }
@@ -217,7 +215,7 @@ function drawTerrain(ctx: CanvasRenderingContext2D, v: View, scene: Scene, i: nu
     for (let k = 2; k < pts.length; k += 2) ctx.lineTo(pts[k], pts[k + 1]);
   });
   if (px > 120) {
-    neonStroke(ctx, b.color, 1, () => {
+    lineStroke(ctx, b.color, 1, () => {
       for (let k = 0; k < inner.length; k += 4) {
         ctx.moveTo(inner[k], inner[k + 1]);
         ctx.lineTo(inner[k + 2], inner[k + 3]);
@@ -288,6 +286,8 @@ function drawBase(ctx: CanvasRenderingContext2D, v: View, i: number, theta: numb
   });
 }
 
+let PATH_X = new Float64Array(2048);
+let PATH_Y = new Float64Array(2048);
 const FX = new Float64Array(BODY_COUNT);
 const FY = new Float64Array(BODY_COUNT);
 const NX = new Float64Array(BODY_COUNT);
@@ -301,8 +301,12 @@ function drawPath(ctx: CanvasRenderingContext2D, v: View, scene: Scene): void {
   bodyPositions(w.time, NX, NY);
   const fx0 = frame >= 0 ? NX[frame] : 0;
   const fy0 = frame >= 0 ? NY[frame] : 0;
-  const xs = new Float64Array(p.count);
-  const ys = new Float64Array(p.count);
+  if (PATH_X.length < p.count) {
+    PATH_X = new Float64Array(p.count * 2);
+    PATH_Y = new Float64Array(p.count * 2);
+  }
+  const xs = PATH_X;
+  const ys = PATH_Y;
   for (let k = 0; k < p.count; k++) {
     if (frame >= 0) {
       bodyPositions(p.t[k], FX, FY);

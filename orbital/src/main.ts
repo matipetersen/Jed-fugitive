@@ -2,6 +2,7 @@ import { App } from './game/app';
 import { Audio } from './game/audio';
 import { Input } from './input/input';
 import { Ui } from './ui/ui';
+import { quality } from './render/neon';
 import { Overlay, injectCss } from './ui/dom';
 
 injectCss();
@@ -13,7 +14,7 @@ const overlay = new Overlay();
 const audio = new Audio();
 const app = new App(canvas, ctx, ui, input, overlay, audio);
 
-let dprMax = 2;
+let dprMax = 1.5;
 function resize(): void {
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -25,8 +26,8 @@ function resize(): void {
 }
 window.addEventListener('resize', resize);
 resize();
-app.onLowQuality = () => {
-  dprMax = 1.25;
+app.onLowQuality = (stage) => {
+  dprMax = stage >= 2 ? 1 : 1.25;
   resize();
 };
 
@@ -42,6 +43,7 @@ if (new URLSearchParams(location.search).has('debug')) {
       return app.flight;
     },
     input,
+    quality,
   };
 }
 

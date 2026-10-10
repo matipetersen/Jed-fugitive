@@ -46,7 +46,8 @@ export class App {
   lastRecord: RecordEntry | null = null;
   confirming = false;
   /** Called once if the device is too slow, so the host can lower the canvas resolution. */
-  onLowQuality: (() => void) | null = null;
+  onLowQuality: ((stage: number) => void) | null = null;
+  private qualityStage = 0;
   private frameEma = 16;
   private frameCount = 0;
   private saveClock = 0;
@@ -370,9 +371,11 @@ export class App {
     const { ctx, width, height, dpr } = { ctx: this.ctx, width: this.width, height: this.height, dpr: this.dpr };
     this.frameCount++;
     this.frameEma = this.frameEma * 0.95 + dt * 1000 * 0.05;
-    if (!quality.low && this.frameCount > 150 && this.frameEma > 32) {
+    // Slow device: first fewer glow passes and a lighter canvas, then a 1x canvas.
+    if (this.frameCount % 90 === 0 && this.frameEma > 26 && this.qualityStage < 2 && this.frameCount > 120) {
+      this.qualityStage++;
       quality.low = true;
-      this.onLowQuality?.();
+      this.onLowQuality?.(this.qualityStage);
     }
     const f = this.flight;
     if (f && this.mode === 'flight') {

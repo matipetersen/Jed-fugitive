@@ -70,12 +70,13 @@ export function nodeVector(x: number, y: number, vx: number, vy: number, t: numb
 }
 
 /** Coasting trajectory (no thrust, no drag) from the ship's current state. */
-export function predict(w: World, opts: PredictOptions): Prediction {
+export function predict(w: World, opts: PredictOptions, reuse?: Prediction): Prediction {
   const maxSteps = opts.maxSteps ?? 6000;
+  const fits = reuse !== undefined && reuse.t.length >= maxSteps + 2;
   const out: Prediction = {
-    t: new Float64Array(maxSteps + 2),
-    x: new Float64Array(maxSteps + 2),
-    y: new Float64Array(maxSteps + 2),
+    t: fits ? reuse.t : new Float64Array(maxSteps + 2),
+    x: fits ? reuse.x : new Float64Array(maxSteps + 2),
+    y: fits ? reuse.y : new Float64Array(maxSteps + 2),
     count: 0,
     nodeIndex: -1,
     nodeDv: null,

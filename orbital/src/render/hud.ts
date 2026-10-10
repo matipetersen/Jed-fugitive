@@ -43,8 +43,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, f: Flight, width: number,
   drawButtons(ctx, ui, f, h, width);
   drawContext(ctx, ui, f, width, height, L.throttleW, L.rotateX);
   if (f.nodePanel && h.node) drawNodePanel(ctx, ui, f, h, width, height, L.throttleW, L.rotateX);
-  drawAlerts(ctx, f, h, width, height);
-  if (h.coach) drawCoach(ctx, h.coach, L.throttleW + 8, L.rotateX - 8, f.nodePanel, f.contextActions().length > 0, height);
+  drawAlerts(ctx, f, h, width, height, L.throttleW);
   ui.commit();
 }
 
@@ -246,7 +245,7 @@ function drawNodePanel(
   void width;
 }
 
-function drawAlerts(ctx: CanvasRenderingContext2D, f: Flight, h: HudData, width: number, height: number): void {
+function drawAlerts(ctx: CanvasRenderingContext2D, f: Flight, h: HudData, width: number, height: number, throttleW: number): void {
   const cx = width / 2 - 20;
   let y = 24;
   for (const a of f.alerts) {
@@ -257,7 +256,13 @@ function drawAlerts(ctx: CanvasRenderingContext2D, f: Flight, h: HudData, width:
     text(ctx, t.text, cx, y, t.kind === 'bad' ? COLORS.danger : t.kind === 'good' ? COLORS.good : COLORS.hud, 13, true);
     y += 17;
   }
-  const mid = height * 0.4;
+  if (h.coach) {
+    // Advice sits at the top, in the free band between the readout and the button grid.
+    const left = throttleW + 150;
+    const right = width - 8 - 4 * 50 - 8;
+    drawCoach(ctx, h.coach, left, Math.max(left + 140, right), y + 4);
+  }
+  const mid = height * 0.55;
   if (h.status === 'crashed') {
     const why: Record<string, string> = {
       speed: 'DEMASIADO RÁPIDO',
@@ -280,14 +285,13 @@ function drawAlerts(ctx: CanvasRenderingContext2D, f: Flight, h: HudData, width:
   if (height > width) text(ctx, 'GIRÁ EL TELÉFONO A HORIZONTAL', cx, height * 0.12, COLORS.marker, 14, true);
 }
 
-/** One-line advice near the bottom, wrapped to the free width between the two control zones. */
-function drawCoach(ctx: CanvasRenderingContext2D, msg: string, left: number, right: number, panelOpen: boolean, hasCtx: boolean, height: number): void {
-  ctx.font = '12px ui-monospace, Menlo, monospace';
-  const maxW = Math.max(160, right - left);
-  const words = msg.split(' ');
+/** Advice wrapped to the free width at the top of the screen, starting at y. */
+function drawCoach(ctx: CanvasRenderingContext2D, msg: string, left: number, right: number, y: number): void {
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  const maxW = right - left;
   const lines: string[] = [];
   let cur = '';
-  for (const w of words) {
+  for (const w of msg.split(' ')) {
     const t = cur ? `${cur} ${w}` : w;
     if (ctx.measureText(t).width > maxW && cur) {
       lines.push(cur);
@@ -295,7 +299,6 @@ function drawCoach(ctx: CanvasRenderingContext2D, msg: string, left: number, rig
     } else cur = t;
   }
   if (cur) lines.push(cur);
-  const base = height - (panelOpen ? 150 : hasCtx ? 58 : 14) - (lines.length - 1) * 15;
   const cx = left + maxW / 2;
-  lines.forEach((l, i) => text(ctx, l, cx, base + i * 15, COLORS.marker, 12, true));
+  lines.slice(0, 4).forEach((l, i) => text(ctx, l, cx, y + 10 + i * 13, COLORS.marker, 11, true));
 }

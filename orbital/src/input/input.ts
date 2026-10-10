@@ -1,35 +1,73 @@
+import { type Ui } from '../ui/ui';
 import { type AutopilotMode } from '../sim/autopilot';
-import { type Layout, ROTATE_REACH, computeLayout, inRect } from './layout';
 
-type Zone = 'throttle' | 'rotate' | 'camera';
+type Zone = 'throttle' | 'rotate' | 'camera' | 'ui';
 
 interface Pointer {
   zone: Zone;
   x: number;
   y: number;
-  originX: number;
-  originY: number;
+  startX: number;
+  startY: number;
+  startTime: number;
+  moved: number;
 }
 
-const ZOOM_MIN = 0.02;
-const ZOOM_MAX = 6;
+export const ZOOM_MIN = 1e-9;
+export const ZOOM_MAX = 8;
+export const ROTATE_REACH = 64;
 
-/** Touch, mouse and keyboard input. Owns throttle, turn, autopilot mode and zoom. */
+export interface InputLayout {
+  width: number;
+  height: number;
+  throttleW: number;
+  throttleTop: number;
+  throttleBottom: number;
+  rotateX: number;
+  rotateY: number;
+  rotateHomeX: number;
+  rotateHomeY: number;
+}
+
+export function computeInputLayout(width: number, height: number): InputLayout {
+  const tw = Math.min(100, width * 0.18);
+  const rw = Math.min(190, width * 0.3);
+  return {
+    width,
+    height,
+    throttleW: tw,
+    throttleTop: height * 0.16,
+    throttleBottom: height * 0.86,
+    rotateX: width - rw,
+    rotateY: height * 0.5,
+    rotateHomeX: width - rw * 0.5,
+    rotateHomeY: height - Math.min(80, height * 0.22),
+  };
+}
+
+/** Touch, mouse and keyboard input. Owns throttle, turn, zoom and the autopilot mode. */
 export class Input {
   throttle = 0;
   /** Manual turn command, -1..1, positive is counter-clockwise. */
   turn = 0;
   autopilot: AutopilotMode = 'off';
+  /** Pixels per world unit. */
   zoom = 1.5;
-  layout: Layout = computeLayout(800, 400);
-  /** Active rotate-stick drag, for drawing. */
+  layout: InputLayout = computeInputLayout(800, 400);
   stick: { ox: number; oy: number; x: number; y: number } | null = null;
+  /** Short taps on the map area, consumed by the game. */
+  taps: { x: number; y: number }[] = [];
+  /** Keyboard commands consumed by the game (single presses). */
+  keyCommands: string[] = [];
+  enabled = true;
 
   private pointers = new Map<number, Pointer>();
   private keys = new Set<string>();
-  private restartRequested = false;
 
-  constructor(private target: HTMLElement) {
+  constructor(
+    private target: HTMLElement,
+    private ui: Ui,
+  ) {
     target.style.touchAction = 'none';
     target.addEventListener('pointerdown', this.onDown);
     target.addEventListener('pointermove', this.onMove);
@@ -42,13 +80,7 @@ export class Input {
   }
 
   resize(width: number, height: number): void {
-    this.layout = computeLayout(width, height);
-  }
-
-  consumeRestart(): boolean {
-    const r = this.restartRequested;
-    this.restartRequested = false;
-    return r;
+    this.layout = computeInputLayout(width, height);
   }
 
   reset(): void {
@@ -57,39 +89,39 @@ export class Input {
     this.autopilot = 'off';
     this.stick = null;
     this.pointers.clear();
+    this.ui.clear();
   }
 
-  /** Applies held keys. Call once per frame. */
-  update(dt: number): void {
-    const k = this.keys;
-    let turn = this.stick ? this.turn : 0;
-    if (k.has('a') || k.has('arrowleft')) turn = 1;
-    if (k.has('d') || k.has('arrowright')) turn = -1;
-    if (!this.stick) this.turn = turn;
-    if (k.has('w') || k.has('shift')) this.throttle = Math.min(1, this.throttle + 0.8 * dt);
-    if (k.has('s') || k.has('control')) this.throttle = Math.max(0, this.throttle - 0.8 * dt);
-    if (k.has('=') || k.has('+')) this.zoomBy(1 + 1.5 * dt);
-    if (k.has('-')) this.zoomBy(1 / (1 + 1.5 * dt));
-  }
-
-  private zoomBy(f: number): void {
+  zoomBy(f: number): void {
     this.zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.zoom * f));
   }
 
-  private toggleAutopilot(mode: AutopilotMode): void {
-    this.autopilot = this.autopilot === mode ? 'off' : mode;
+  update(dt: number): void {
+    const k = this.keys;
+    if (!this.stick) {
+      let turn = 0;
+      if (k.has('a') || k.has('arrowleft')) turn = 1;
+      if (k.has('d') || k.has('arrowright')) turn = -1;
+      this.turn = turn;
+    }
+    if (k.has('w') || k.has('shift')) this.throttle = Math.min(1, this.throttle + 0.8 * dt);
+    if (k.has('s') || k.has('control')) this.throttle = Math.max(0, this.throttle - 0.8 * dt);
+    if (k.has('=') || k.has('+')) this.zoomBy(1 + 2 * dt);
+    if (k.has('-')) this.zoomBy(1 / (1 + 2 * dt));
+    this.ui.update(dt);
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (!this.enabled) return;
     const key = e.key.toLowerCase();
     if (e.repeat) return;
     this.keys.add(key);
     if (key === 'z') this.throttle = 1;
     else if (key === 'x') this.throttle = 0;
-    else if (key === 'p') this.toggleAutopilot('prograde');
-    else if (key === 'r') this.toggleAutopilot('retrograde');
-    else if (key === 'enter') this.restartRequested = true;
-    if (['arrowleft', 'arrowright', ' '].includes(key)) e.preventDefault();
+    else if (['p', 'r', 'n', 'f', 't', 'm', 'b', 'u', '.', ',', 'g', 'h', 'enter', 'v', 'o'].includes(key)) {
+      this.keyCommands.push(key);
+    }
+    if (['arrowleft', 'arrowright', ' ', 'tab'].includes(key)) e.preventDefault();
   };
 
   private onWheel = (e: WheelEvent): void => {
@@ -97,30 +129,28 @@ export class Input {
     this.zoomBy(Math.exp(-e.deltaY * 0.0015));
   };
 
-  private localPoint(e: PointerEvent): { x: number; y: number } {
-    const rect = this.target.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  private local(e: PointerEvent): { x: number; y: number } {
+    const r = this.target.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
   private onDown = (e: PointerEvent): void => {
+    if (!this.enabled) return;
     e.preventDefault();
-    const { x, y } = this.localPoint(e);
+    const { x, y } = this.local(e);
     const L = this.layout;
-
-    for (const b of L.buttons) {
-      if (inRect(b, x, y)) {
-        this.toggleAutopilot(b.id);
-        return;
-      }
+    const id = this.ui.hit(x, y);
+    if (id) {
+      this.target.setPointerCapture(e.pointerId);
+      this.pointers.set(e.pointerId, { zone: 'ui', x, y, startX: x, startY: y, startTime: performance.now(), moved: 0 });
+      this.ui.press(e.pointerId, id);
+      return;
     }
-
     let zone: Zone = 'camera';
-    if (inRect(L.throttleZone, x, y)) zone = 'throttle';
-    else if (inRect(L.rotateZone, x, y)) zone = 'rotate';
-    else this.restartRequested = this.pointers.size === 0;
-
+    if (x < L.throttleW) zone = 'throttle';
+    else if (x > L.rotateX && y > L.rotateY) zone = 'rotate';
     this.target.setPointerCapture(e.pointerId);
-    this.pointers.set(e.pointerId, { zone, x, y, originX: x, originY: y });
+    this.pointers.set(e.pointerId, { zone, x, y, startX: x, startY: y, startTime: performance.now(), moved: 0 });
     if (zone === 'throttle') this.setThrottleFromY(y);
     if (zone === 'rotate') {
       this.autopilot = 'off';
@@ -131,8 +161,8 @@ export class Input {
   private onMove = (e: PointerEvent): void => {
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
-    const { x, y } = this.localPoint(e);
-
+    const { x, y } = this.local(e);
+    p.moved += Math.hypot(x - p.x, y - p.y);
     if (p.zone === 'throttle') this.setThrottleFromY(y);
     else if (p.zone === 'rotate' && this.stick) {
       this.stick.x = x;
@@ -140,8 +170,7 @@ export class Input {
       // Dragging right turns clockwise on screen, which is negative in world angle.
       this.turn = -Math.max(-1, Math.min(1, (x - this.stick.ox) / ROTATE_REACH));
     } else if (p.zone === 'camera') {
-      const others = [...this.pointers.entries()].filter(([id, q]) => id !== e.pointerId && q.zone === 'camera');
-      const other = others[0]?.[1];
+      const other = [...this.pointers.entries()].find(([id, q]) => id !== e.pointerId && q.zone === 'camera')?.[1];
       if (other) {
         const before = Math.hypot(p.x - other.x, p.y - other.y);
         const after = Math.hypot(x - other.x, y - other.y);
@@ -156,16 +185,19 @@ export class Input {
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
     this.pointers.delete(e.pointerId);
+    this.ui.release(e.pointerId);
     if (p.zone === 'rotate') {
       this.stick = null;
       this.turn = 0;
     }
+    if (p.zone === 'camera' && p.moved < 10 && performance.now() - p.startTime < 400 && this.pointers.size === 0) {
+      this.taps.push({ x: p.x, y: p.y });
+    }
   };
 
   private setThrottleFromY(y: number): void {
-    const t = this.layout.throttleTrack;
-    this.throttle = Math.max(0, Math.min(1, (t.bottom - y) / (t.bottom - t.top)));
-    if (this.throttle < 0.04) this.throttle = 0;
-    if (this.throttle > 0.96) this.throttle = 1;
+    const L = this.layout;
+    const t = Math.max(0, Math.min(1, (L.throttleBottom - y) / (L.throttleBottom - L.throttleTop)));
+    this.throttle = t < 0.04 ? 0 : t > 0.96 ? 1 : t;
   }
 }

@@ -69,15 +69,22 @@ export function drawStars(ctx: CanvasRenderingContext2D, v: View): void {
   };
   const ox = v.cx * 1e-4;
   const oy = v.cy * 1e-4;
+  // Three brightness groups, each a single path, instead of one stroke per star.
+  const groups: [number, number[]][] = [[0.2, []], [0.4, []], [0.6, []]];
   for (let i = 0; i < 90; i++) {
     const x = (((rnd() * v.w - ox) % v.w) + v.w) % v.w;
     const y = (((rnd() * v.h + oy) % v.h) + v.h) % v.h;
-    ctx.globalAlpha = 0.15 + rnd() * 0.45;
+    groups[Math.floor(rnd() * 3)][1].push(x, y);
+  }
+  for (const [alpha, pts] of groups) {
+    ctx.globalAlpha = alpha;
     ctx.beginPath();
-    ctx.moveTo(x - 1.5, y);
-    ctx.lineTo(x + 1.5, y);
-    ctx.moveTo(x, y - 1.5);
-    ctx.lineTo(x, y + 1.5);
+    for (let i = 0; i < pts.length; i += 2) {
+      ctx.moveTo(pts[i] - 1.5, pts[i + 1]);
+      ctx.lineTo(pts[i] + 1.5, pts[i + 1]);
+      ctx.moveTo(pts[i], pts[i + 1] - 1.5);
+      ctx.lineTo(pts[i], pts[i + 1] + 1.5);
+    }
     ctx.stroke();
   }
   ctx.globalAlpha = 1;

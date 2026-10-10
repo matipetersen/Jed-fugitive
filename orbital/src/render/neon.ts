@@ -1,3 +1,6 @@
+/** Set when the device cannot keep up: fewer glow passes. */
+export const quality = { low: false };
+
 export const COLORS = {
   ship: '#00f0ff',
   path: '#7dff6b',
@@ -20,12 +23,17 @@ export function neonStroke(
   build: () => void,
   intensity = 1,
 ): void {
-  const layers: [number, number, string][] = [
-    [px * 6, 0.07 * intensity, color],
-    [px * 3, 0.16 * intensity, color],
-    [px * 1.5, 0.6 * intensity, color],
-    [px * 0.7, 0.8 * intensity, '#ffffff'],
-  ];
+  const layers: [number, number, string][] = quality.low
+    ? [
+        [px * 3.5, 0.2 * intensity, color],
+        [px * 1.2, 0.9 * intensity, color],
+      ]
+    : [
+        [px * 6, 0.07 * intensity, color],
+        [px * 3, 0.16 * intensity, color],
+        [px * 1.5, 0.6 * intensity, color],
+        [px * 0.7, 0.8 * intensity, '#ffffff'],
+      ];
   for (const [w, alpha, stroke] of layers) {
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = stroke;

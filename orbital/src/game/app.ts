@@ -7,6 +7,7 @@ import { type Ui } from '../ui/ui';
 import { Overlay } from '../ui/dom';
 import { drawHud } from '../render/hud';
 import { drawAsteroids, drawShip, drawStars, drawWorld } from '../render/world';
+import { quality } from '../render/neon';
 import { screens } from '../ui/screens';
 import { type Audio } from './audio';
 import { type Bloc, type Campaign, clearSave, loadGame, newCampaign, saveGame } from './campaign';
@@ -44,6 +45,10 @@ export class App {
   plan: LaunchPlan = { site: -1, engine: 'chem', fuelLoad: 1 };
   lastRecord: RecordEntry | null = null;
   confirming = false;
+  /** Called once if the device is too slow, so the host can lower the canvas resolution. */
+  onLowQuality: (() => void) | null = null;
+  private frameEma = 16;
+  private frameCount = 0;
   private saveClock = 0;
   private endShown = false;
   private width = 800;
@@ -361,6 +366,12 @@ export class App {
 
   frame(now: number, dt: number): void {
     const { ctx, width, height, dpr } = { ctx: this.ctx, width: this.width, height: this.height, dpr: this.dpr };
+    this.frameCount++;
+    this.frameEma = this.frameEma * 0.95 + dt * 1000 * 0.05;
+    if (!quality.low && this.frameCount > 150 && this.frameEma > 32) {
+      quality.low = true;
+      this.onLowQuality?.();
+    }
     const f = this.flight;
     if (f && this.mode === 'flight') {
       f.update(dt, now / 1000);

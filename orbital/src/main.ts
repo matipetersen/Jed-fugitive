@@ -13,10 +13,11 @@ const overlay = new Overlay();
 const audio = new Audio();
 const app = new App(canvas, ctx, ui, input, overlay, audio);
 
+let dprMax = 2;
 function resize(): void {
   const width = window.innerWidth;
   const height = window.innerHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, dprMax);
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
   input.resize(width, height);
@@ -24,6 +25,10 @@ function resize(): void {
 }
 window.addEventListener('resize', resize);
 resize();
+app.onLowQuality = () => {
+  dprMax = 1.25;
+  resize();
+};
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) app.save();

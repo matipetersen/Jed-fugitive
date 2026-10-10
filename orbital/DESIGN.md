@@ -1,8 +1,17 @@
-# ORBITAL — Documento de diseño (v0.2)
+# ORBITAL — Documento de diseño (v0.3)
 
 > Estado: diseño, sin código. Nombre de trabajo. Rama: `claude/orbital-lander-game-design`.
-> Ubicación provisoria: `orbital/` dentro de este repo. Es independiente del roguelike de Python
-> y conviene moverlo a un repo propio antes de M0.
+> Ubicación provisoria: `orbital/` dentro de este repo, como proyecto autónomo (su propio
+> `package.json`). Decisión tomada: va en **repo propio**. La integración de GitHub de esta sesión
+> no puede crear repos (403), así que hay que crearlo a mano y mudar la carpeta (ver README).
+
+## Decisiones cerradas
+
+- Campaña persistente. Puntuación con récords locales primero.
+- Web, **TypeScript** + Vite + Vitest. Táctil primero, con teclado y mouse para desarrollo.
+- Bloques reales: **EE.UU. contra la URSS**. El jugador elige bando.
+- El rival **no bloquea hitos** (solo se pierde el bonus de "primero"). Solo Plutón es "gana el primero".
+- Una sola clase de nave. La tripulación es un modificador (masa, riesgo, puntos).
 
 ## 1. Pitch
 
@@ -21,15 +30,15 @@ Tres ideas sostienen todo el diseño:
 
 ## 2. Ambientación y rival
 
-- Años 1957→(fin de campaña). Dos bloques ficticios (Occidente y el Pacto), para evitar política
-  real y conservar el sabor. El jugador elige bando, solo estético.
+- Años 1957→(fin de campaña). Bloques reales: EE.UU. y la URSS. El jugador elige bando, solo
+  estético.
 - **El rival es una pista de progreso abstracta, no una nave simulada.** Tiene la misma escalera de
   hitos que vos, con fechas objetivo con ruido. Se ve en el HUD y en un teletipo de noticias.
   Simular una nave rival sería caro y ilegible en una pantalla de teléfono.
 - Dificultad = cuán temprano son sus fechas. Ajuste elástico suave: si te fallás varias veces,
   el rival se retrasa un poco, nunca del todo.
 - El rival puede **pisarte un hito** (llega primero a la Luna) y el hito pierde bonus pero no se
-  bloquea. Solo Plutón es "gana el primero".
+  bloquea. Solo Plutón es "gana el primero". (Decidido: por ahora no bloquea hitos.)
 - Eventos de espionaje y sabotaje (sección 8) conectan al rival con la tabla de azar.
 
 ### Escalera de hitos (idéntica para ambos)

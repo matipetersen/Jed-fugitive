@@ -1,0 +1,19 @@
+{
+  "name": "orbital",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Carrera espacial de Guerra Fría en vectores neón. Primero en aterrizar en Plutón.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

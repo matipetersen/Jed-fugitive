@@ -118,7 +118,7 @@ export class Input {
     this.keys.add(key);
     if (key === 'z') this.throttle = 1;
     else if (key === 'x') this.throttle = 0;
-    else if (['p', 'r', 'n', 'f', 't', 'm', 'b', 'u', '.', ',', 'g', 'h', 'enter', 'v', 'o'].includes(key)) {
+    else if (['p', 'r', 'n', 'f', 't', 'm', 'b', 'u', '.', ',', 'g', 'h', 'enter', 'v', 'o', 'e'].includes(key)) {
       this.keyCommands.push(key);
     }
     if (['arrowleft', 'arrowright', ' ', 'tab'].includes(key)) e.preventDefault();

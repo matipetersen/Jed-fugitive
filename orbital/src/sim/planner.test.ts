@@ -116,3 +116,53 @@ describe('mission bot', () => {
     expect(refState(w).index === MOON || closest < BODIES[MOON].soi).toBe(true);
   });
 });
+
+describe('lunar descent bot', () => {
+  it('lands softly from a low lunar orbit with fuel to spare', () => {
+    const moon = indexOf('moon');
+    const w = createWorld(BASE_STATS, EARTH, Math.PI / 2, 5000);
+    const b = BODIES[moon];
+    const r = b.radius + 150;
+    const vc = Math.sqrt(b.gm / r);
+    const p = bodyPos(moon, w.time);
+    const v = bodyVel(moon, w.time);
+    w.ship.status = 'flying';
+    w.ship.x = p.x;
+    w.ship.y = p.y + r;
+    w.ship.vx = v.x + vc;
+    w.ship.vy = v.y;
+    const fuel0 = w.ship.fuel;
+    const turn = (target: number): number => Math.max(-1, Math.min(1, wrapAngle(target - w.ship.angle) * 6));
+    let phase: 'kill' | 'descend' = 'kill';
+    for (let i = 0; i < 120 * 200 && w.ship.status === 'flying'; i++) {
+      const rs = refState(w);
+      const speed = Math.hypot(rs.rvx, rs.rvy);
+      const up = Math.atan2(rs.ry, rs.rx);
+      const vr = (rs.rx * rs.rvx + rs.ry * rs.rvy) / rs.r;
+      const tang = Math.sqrt(Math.max(0, speed * speed - vr * vr));
+      const sgn = rs.rx * rs.rvy - rs.ry * rs.rvx >= 0 ? 1 : -1;
+      const mass = w.stats.dryMass + w.ship.fuel;
+      const aMax = w.stats.thrust / mass;
+      let throttle = 0;
+      let heading = w.ship.angle;
+      if (phase === 'kill') {
+        heading = Math.atan2(rs.rvy, rs.rvx) + Math.PI;
+        const aligned = Math.abs(wrapAngle(heading - w.ship.angle)) < 0.1;
+        throttle = aligned ? Math.min(1, Math.max(0.05, (tang * 1.2) / (aMax * 0.5))) : 0;
+        if (tang < 1.5) phase = 'descend';
+      } else {
+        const vTarget = -Math.min(30, 0.35 * rs.alt + 1.5);
+        const need = b.surfaceGravity + 2 * (vTarget - vr);
+        const lateral = -sgn * tang * 0.8;
+        // Thrust mostly up, with a small component to cancel any sideways drift.
+        heading = up;
+        throttle = Math.max(0, Math.min(1, need / aMax));
+        void lateral;
+      }
+      physStep(w, { throttle, turn: turn(heading) }, FIXED_DT);
+    }
+    expect(w.ship.status).toBe('landed');
+    expect(w.ship.impactSpeed).toBeLessThan(BASE_STATS.maxLandSpeed);
+    expect(w.ship.fuel).toBeGreaterThan(fuel0 * 0.7);
+  });
+});

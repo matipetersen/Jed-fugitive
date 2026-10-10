@@ -1,6 +1,6 @@
-# ORBITAL — Documento de diseño (v0.3)
+# ORBITAL RACE — Documento de diseño (v1.0)
 
-> Estado: diseño, sin código. Nombre de trabajo. Rama: `claude/orbital-lander-game-design`.
+> Estado: implementado (M0 a M8). Ver README para la estructura. Nombre de trabajo. Rama: `claude/orbital-lander-game-design`.
 > Ubicación provisoria: `orbital/` dentro de este repo, como proyecto autónomo (su propio
 > `package.json`). Decisión tomada: va en **repo propio**. La integración de GitHub de esta sesión
 > no puede crear repos (403), así que hay que crearlo a mano y mudar la carpeta (ver README).
@@ -195,3 +195,22 @@ simulación corre en el cliente. Plan por etapas:
 4. **Time warp vs. rival.** Si esperar una ventana es siempre óptimo, el juego es pasivo.
    Mitigación: el rival progresa en ese tiempo, y los fondos se consumen.
 5. **Escala numérica.** Coordenadas relativas al cuerpo dominante para el render.
+
+## 12. Decisiones tomadas durante la implementación
+
+- **Escala real, no inventada.** 1 u = 6,371 km y el tiempo se escala para que la gravedad de la
+  Tierra sea 25 u/s². Con radios, masas y órbitas reales, los presupuestos de delta-v salen solos:
+  la órbita baja cuesta unos 300 u/s, ir a la Luna 62, a Marte 67, a Júpiter 125 y a Plutón 168.
+- **Plutón por Hohmann dura 45 años** y por Júpiter unos 13. El rival llega hacia 1991 en normal.
+  Con tiempo en juego a x1 000 000, 45 años son unos 11 segundos reales.
+- **Órbitas de estacionamiento "en rieles".** Un barco en órbita estable se propaga de forma
+  analítica (Kepler), así que esperar meses a una ventana no cuesta pasos de simulación. Fuera de
+  eso, n-body con pasos adaptativos.
+- **Refinador.** Newton sobre el vector de fallo en el punto de máxima aproximación al objetivo,
+  con búsqueda por patrones de respaldo. Es una ayuda táctil: el realismo queda en planificar.
+- **Motores nuclear e iónico no levantan el peso** desde la Tierra. La salida a Plutón está pensada
+  para hacerse desde la base lunar, con tanques llenos de combustible local.
+- **Eventos**: se tiran por bins de un día con hash de (semilla, bin, tipo). Los asteroides tienen
+  aviso según el radar, siempre hay una corrección posible y esquivar suma puntaje.
+- **Puntaje y récords**: locales. El código para compartir lleva checksum contra errores de
+  tipeo, no prueba legitimidad.

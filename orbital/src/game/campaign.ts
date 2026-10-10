@@ -49,6 +49,10 @@ export interface Campaign {
   eventsHandled: number;
   /** Calendar year at which the rival completes each milestone. */
   rivalYears: number[];
+  /** How many of the rival's milestones have already happened. */
+  rivalDone: number;
+  /** Campaign clock in game seconds; the flight world carries the same value while a ship flies. */
+  time: number;
   lastBudgetYear: number;
   news: NewsItem[];
   status: 'playing' | 'won' | 'lost';
@@ -79,6 +83,8 @@ export function newCampaign(opts: { seed?: number; bloc?: Bloc; difficulty?: 0 |
     launches: 0,
     eventsHandled: 0,
     rivalYears: [],
+    rivalDone: 0,
+    time: 0,
     lastBudgetYear: 1957,
     news: [],
     status: 'playing',
@@ -108,6 +114,8 @@ export function loadGame(): SaveBlob | null {
     if (!raw) return null;
     const blob = JSON.parse(raw) as SaveBlob;
     if (!blob.campaign || blob.campaign.version !== 1) return null;
+    // JSON turns Infinity into null; restore it so a loaded ship does not fail instantly.
+    if (blob.world && blob.world.ship.failAt == null) blob.world.ship.failAt = Infinity;
     return blob;
   } catch {
     return null;

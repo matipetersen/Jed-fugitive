@@ -36,8 +36,14 @@ export interface ShipState {
   crashReason: string;
   /** Damage and event effects. */
   thrustMult: number;
+  /** Fuel lost per second through a leak. */
   leak: number;
   blackoutUntil: number;
+  /** Engine failure: thrustMult returns to 1 after this time. */
+  thrustFailUntil: number;
+  /** Seconds of thrust so far, and the burn time at which the next failure happens. */
+  burnTime: number;
+  failAt: number;
 }
 
 export interface Asteroid {
@@ -94,6 +100,9 @@ export function newShipState(): ShipState {
     thrustMult: 1,
     leak: 0,
     blackoutUntil: 0,
+    thrustFailUntil: 0,
+    burnTime: 0,
+    failAt: Infinity,
   };
 }
 
@@ -240,6 +249,7 @@ export function step(w: World, c: Controls, h: number): void {
   s.vy += (g1.y + ny * aT + dragY) * h * 0.5;
 
   s.fuel = Math.min(st.fuelCap, Math.max(0, s.fuel - burn + scoop * h));
+  if (s.throttle > 0) s.burnTime += h;
   w.time = t + h;
 
   if (s.heat >= st.heatLimit) {

@@ -19,6 +19,7 @@ import { ENGINES, type EngineId, statsFor } from '../sim/tech';
 import { siteAt } from '../sim/terrain';
 import { AU, DAY, fmtDate, fmtDuration, fmtNum } from '../sim/units';
 import { type Campaign } from './campaign';
+import { type EventResult, stepAsteroids } from './events';
 import { atmosphereTop } from '../sim/atmosphere';
 
 export const WARP_LEVELS = [1, 5, 10, 50, 100, 500, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6];
@@ -52,6 +53,7 @@ export interface FlightHooks {
   onCrash?(f: Flight): void;
   onFlag?(f: Flight, body: number): void;
   onBase?(f: Flight, body: number): void;
+  onRecover?(f: Flight): void;
 }
 
 export interface ContextAction {
@@ -100,6 +102,7 @@ export class Flight {
   private lastRef = -1;
   private lastStatus: string;
   private noTarget = false;
+  private lastAsteroids = 0;
 
   constructor(
     world: World,
@@ -124,6 +127,25 @@ export class Flight {
     if (this.toasts.length > 4) this.toasts.shift();
   }
 
+  /** Shows an event to the player and drops time warp if it needs attention. */
+  pushEvent(r: EventResult): void {
+    this.toast(r.text, r.kind === 'bad' ? 'bad' : r.kind === 'good' ? 'good' : 'info', r.interrupt ? 7 : 5);
+    if (r.interrupt) {
+      this.warpIdx = 0;
+      this.autoWarpNode = false;
+    }
+  }
+
+  private zoomToAsteroid(): void {
+    const a = this.world.asteroids[this.world.asteroids.length - 1];
+    const s = this.world.ship;
+    if (!a) return;
+    const d = Math.hypot(a.x - s.x, a.y - s.y);
+    const fit = (0.8 * Math.min(this.view.w, this.view.h)) / (2 * Math.max(d, 200));
+    this.input.zoom = Math.min(this.input.zoom, Math.max(fit, 1e-4));
+    this.focusTarget = false;
+  }
+
   get warp(): number {
     return WARP_LEVELS[this.warpIdx];
   }
@@ -134,8 +156,9 @@ export class Flight {
     let nodeDir: number | null = null;
     const dv = this.node?.dvVec ?? this.pred?.nodeDv ?? null;
     if (dv) nodeDir = Math.atan2(dv.y, dv.x);
+    const blackout = w.ship.blackoutUntil > w.time;
     const turn =
-      this.input.turn !== 0
+      this.input.turn !== 0 || blackout
         ? this.input.turn
         : autopilotTurn(this.input.autopilot, w.ship, rs.rvx, rs.rvy, nodeDir, Math.atan2(rs.ry, rs.rx));
     return { throttle: this.input.throttle, turn };
@@ -168,6 +191,9 @@ export class Flight {
 
     const dt = dtReal * warp;
     const simulated = advance(w, c, dt, warp > 1 ? 1500 : 400);
+    if (w.asteroids.length > 0) stepAsteroids(w, this.campaign, simulated, (r) => this.pushEvent(r));
+    if (w.asteroids.length > this.lastAsteroids) this.zoomToAsteroid();
+    this.lastAsteroids = w.asteroids.length;
     const eff = simulated / Math.max(dtReal, 1e-6);
     this.warpEff += (eff - this.warpEff) * 0.2;
 
@@ -240,7 +266,7 @@ export class Flight {
 
   private updatePrediction(dtReal: number): void {
     this.predTimer -= dtReal;
-    if (this.world.ship.status !== 'flying') {
+    if (this.world.ship.status !== 'flying' || this.world.ship.blackoutUntil > this.world.time) {
       this.pred = null;
       return;
     }
@@ -284,6 +310,19 @@ export class Flight {
   private computeAlerts(): void {
     const a: { text: string; kind: 'info' | 'bad' }[] = [];
     const s = this.world.ship;
+    if (s.blackoutUntil > this.world.time) a.push({ text: 'SIN SEÑAL: AUTOPILOTO Y PREDICCIÓN CAÍDOS', kind: 'bad' });
+    if (s.leak > 0) a.push({ text: 'FUGA DE COMBUSTIBLE', kind: 'bad' });
+    if (s.thrustMult < 1) a.push({ text: 'MOTOR DAÑADO', kind: 'bad' });
+    for (const ast of this.world.asteroids) {
+      const rx = ast.x - s.x;
+      const ry = ast.y - s.y;
+      const rvx = ast.vx - s.vx;
+      const rvy = ast.vy - s.vy;
+      const v2 = rvx * rvx + rvy * rvy || 1;
+      const ttc = -(rx * rvx + ry * rvy) / v2;
+      const miss = Math.hypot(rx + rvx * ttc, ry + rvy * ttc);
+      if (ttc > 0) a.push({ text: `ASTEROIDE ${ttc.toFixed(0)}s · ${miss < ast.r + 6 ? 'IMPACTO' : 'PASA A ' + miss.toFixed(0)}`, kind: miss < ast.r + 6 ? 'bad' : 'info' });
+    }
     if (s.heat > this.world.stats.heatLimit * 0.6) a.push({ text: `CALOR ${Math.round((s.heat / this.world.stats.heatLimit) * 100)}%`, kind: 'bad' });
     if (s.fuel <= 0 && s.status === 'flying') a.push({ text: 'SIN COMBUSTIBLE', kind: 'bad' });
     if (s.hull < 40 && s.status === 'flying') a.push({ text: `CASCO ${Math.round(s.hull)}%`, kind: 'bad' });
@@ -388,6 +427,12 @@ export class Flight {
     if (hit('base', 'u')) this.buildBase();
     if (hit('refuel', 'g')) this.refuel();
     if (ui.pressed('engine')) this.swapEngine();
+    if (hit('seal', 'e') && w.ship.leak > 0) {
+      w.ship.leak = 0;
+      this.campaign.eventsHandled++;
+      this.toast('VÁLVULA SELLADA (+10)', 'good');
+    }
+    if (ui.pressed('recover')) this.hooks.onRecover?.(this);
     void this.noTarget;
   }
 
@@ -474,12 +519,14 @@ export class Flight {
     const site = this.landedSite();
     const c = this.campaign;
     const s = this.world.ship;
+    if (s.leak > 0 && s.status !== 'crashed') out.push({ id: 'seal', label: 'SELLAR' });
     if (s.status !== 'landed') return out;
     const flagged = c.flags.some((f) => f.body === s.landedBody);
     if (site && !flagged) out.push({ id: 'flag', label: 'BANDERA' });
     const hasBase = c.bases.some((b) => b.body === s.landedBody);
     if (site && !hasBase && s.landedBody !== indexOf('earth') && !BODIES[s.landedBody].gas) out.push({ id: 'base', label: `BASE ${c.sandbox ? '' : BASE_COST}`.trim() });
     const bi = this.baseHere();
+    if (s.landedBody === indexOf('earth') && !c.sandbox) out.push({ id: 'recover', label: 'RECUPERAR' });
     if (bi >= 0 || s.landedBody === indexOf('earth')) {
       if (bi >= 0) out.push({ id: 'refuel', label: `RECARGA ${Math.round(c.bases[bi].stock)}` });
       out.push({ id: 'engine', label: `MOT ${ENGINE_CODE[c.engine]}` });

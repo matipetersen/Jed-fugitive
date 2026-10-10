@@ -1,10 +1,12 @@
 import { type BodyDef, type SiteDef } from './bodies';
 
-const FREQS = [5, 9, 17, 31, 57, 113, 223];
+/** Terrain wavelengths in u. Slopes stay moderate on small bodies because they are set in length, not in turns. */
+const WAVELENGTHS = [900, 520, 300, 170, 100];
 
 interface Profile {
+  freqs: number[];
   phases: number[];
-  weights: number[];
+  amps: number[];
 }
 
 const cache = new Map<number, Profile>();
@@ -20,14 +22,20 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function profile(seed: number): Profile {
-  let p = cache.get(seed);
+function profile(b: BodyDef): Profile {
+  let p = cache.get(b.index);
   if (!p) {
-    const rnd = mulberry32(seed * 7919 + 17);
-    const raw = FREQS.map((k) => Math.pow(k, -0.9));
-    const sum = raw.reduce((a, b) => a + b, 0);
-    p = { phases: FREQS.map(() => rnd() * Math.PI * 2), weights: raw.map((w) => w / sum) };
-    cache.set(seed, p);
+    const rnd = mulberry32(b.terrainSeed * 7919 + 17);
+    const freqs: number[] = [];
+    const amps: number[] = [];
+    for (const lambda of WAVELENGTHS) {
+      const k = Math.max(2, Math.round((2 * Math.PI * b.radius) / lambda));
+      if (freqs.includes(k)) continue;
+      freqs.push(k);
+      amps.push((b.terrainAmp / 14) * 0.0095 * ((2 * Math.PI * b.radius) / k));
+    }
+    p = { freqs, phases: freqs.map(() => rnd() * Math.PI * 2), amps };
+    cache.set(b.index, p);
   }
   return p;
 }
@@ -58,10 +66,10 @@ export function flatness(b: BodyDef, theta: number): number {
 /** Ground radius of a body at angle theta. Gas giants and stars have no terrain. */
 export function terrainRadius(b: BodyDef, theta: number): number {
   if (b.terrainAmp === 0) return b.radius;
-  const p = profile(b.terrainSeed);
+  const p = profile(b);
   let h = 0;
-  for (let i = 0; i < FREQS.length; i++) h += p.weights[i] * Math.sin(FREQS[i] * theta + p.phases[i]);
-  return b.radius + b.terrainAmp * h * 2.2 * (1 - flatness(b, theta));
+  for (let i = 0; i < p.freqs.length; i++) h += p.amps[i] * Math.sin(p.freqs[i] * theta + p.phases[i]);
+  return b.radius + h * (1 - flatness(b, theta));
 }
 
 /** Slope angle of the ground at theta in radians (0 = flat). */

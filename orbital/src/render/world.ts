@@ -373,7 +373,22 @@ export function drawAsteroids(ctx: CanvasRenderingContext2D, v: View, scene: Sce
     const r = Math.max(7, a.r * v.zoom);
     const sx = P.x;
     const sy = P.y;
-    if (sx < -50 || sx > v.w + 50 || sy < -50 || sy > v.h + 50) continue;
+    if (sx < -50 || sx > v.w + 50 || sy < -50 || sy > v.h + 50) {
+      // Off screen: point an arrow at it from the edge.
+      const cx = v.w / 2;
+      const cy = v.h / 2;
+      const ang = Math.atan2(sy - cy, sx - cx);
+      const k = Math.min((v.w / 2 - 24) / Math.abs(Math.cos(ang) || 1e-9), (v.h / 2 - 24) / Math.abs(Math.sin(ang) || 1e-9));
+      const ex = cx + Math.cos(ang) * k;
+      const ey = cy + Math.sin(ang) * k;
+      neonStroke(ctx, COLORS.danger, 1.6, () => {
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - Math.cos(ang - 0.5) * 14, ey - Math.sin(ang - 0.5) * 14);
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - Math.cos(ang + 0.5) * 14, ey - Math.sin(ang + 0.5) * 14);
+      });
+      continue;
+    }
     const t = scene.clock + a.id;
     neonStroke(ctx, COLORS.danger, 1.6, () => {
       for (let k = 0; k < 9; k++) {
@@ -395,7 +410,8 @@ export function drawShip(ctx: CanvasRenderingContext2D, v: View, scene: Scene): 
   const sx = P.x;
   const sy = P.y;
   if (sx < -60 || sx > v.w + 60 || sy < -60 || sy > v.h + 60) return;
-  const size = Math.max(1, 20 / (14 * v.zoom));
+  // The ship is drawn in pixels: at least 20 px long, and true size (14 u) once zoomed in.
+  const size = Math.max(20, 14 * v.zoom) / 14;
   const px = 1 / size;
 
   if (s.status === 'crashed') {

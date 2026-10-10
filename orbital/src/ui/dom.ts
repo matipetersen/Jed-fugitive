@@ -57,6 +57,8 @@ ul.tight li{margin:3px 0}
 .step.next{border-color:var(--amber)}
 .step.lost{border-color:var(--bad)}
 .news{color:var(--dim)}
+.tabs{position:sticky;top:0;background:rgba(2,2,10,.96);padding:6px 0;z-index:2}
+@media (max-height:520px){.screen{padding-top:8px}.screen h1{font-size:16px;margin:2px 0}.screen h2{margin:10px 0 6px}.btn{min-height:34px;padding:5px 10px;font-size:12px}.panel{padding:6px 10px}.sub{margin:0 0 4px}}
 .news .bad{color:var(--bad)}
 `;
 

@@ -1,7 +1,7 @@
 import { type Ui } from '../ui/ui';
 import { type AutopilotMode } from '../sim/autopilot';
 
-type Zone = 'throttle' | 'rotate' | 'camera' | 'ui';
+type Zone = 'throttle' | 'rotate' | 'camera' | 'ui' | 'float';
 
 interface Pointer {
   zone: Zone;
@@ -16,6 +16,7 @@ interface Pointer {
 export const ZOOM_MIN = 1e-9;
 export const ZOOM_MAX = 8;
 export const ROTATE_REACH = 64;
+export const FLOAT_REACH = 70;
 
 export interface InputLayout {
   width: number;
@@ -62,6 +63,10 @@ export class Input {
   /** Keyboard commands consumed by the game (single presses). */
   keyCommands: string[] = [];
   enabled = true;
+  /** Arcade scheme: one floating stick wherever the finger lands. Up thrusts, down brakes, sideways turns. */
+  floating = false;
+  /** Brake request, 0..1 (floating stick pulled back). */
+  brake = 0;
 
   private pointers = new Map<number, Pointer>();
   private keys = new Set<string>();
@@ -90,6 +95,7 @@ export class Input {
     this.turn = 0;
     this.autopilot = 'off';
     this.stick = null;
+    this.brake = 0;
     this.pointers.clear();
     this.ui.clear();
   }
@@ -150,7 +156,9 @@ export class Input {
       return;
     }
     let zone: Zone = 'camera';
-    if (x < L.throttleW) zone = 'throttle';
+    if (this.floating) {
+      if (!this.stick) zone = 'float';
+    } else if (x < L.throttleW) zone = 'throttle';
     else if (x > L.rotateX && y > L.rotateY) zone = 'rotate';
     this.target.setPointerCapture(e.pointerId);
     this.pointers.set(e.pointerId, { zone, x, y, startX: x, startY: y, startTime: performance.now(), moved: 0 });
@@ -159,6 +167,7 @@ export class Input {
       this.autopilot = 'off';
       this.stick = { ox: x, oy: y, x, y };
     }
+    if (zone === 'float') this.stick = { ox: x, oy: y, x, y };
   };
 
   private onMove = (e: PointerEvent): void => {
@@ -167,7 +176,11 @@ export class Input {
     const { x, y } = this.local(e);
     p.moved += Math.hypot(x - p.x, y - p.y);
     if (p.zone === 'throttle') this.setThrottleFromY(y);
-    else if (p.zone === 'rotate' && this.stick) {
+    else if (p.zone === 'float' && this.stick) {
+      this.stick.x = x;
+      this.stick.y = y;
+      this.applyFloat();
+    } else if (p.zone === 'rotate' && this.stick) {
       this.stick.x = x;
       this.stick.y = y;
       // Dragging right turns clockwise on screen, which is negative in world angle.
@@ -193,10 +206,30 @@ export class Input {
       this.stick = null;
       this.turn = 0;
     }
+    if (p.zone === 'float') {
+      this.stick = null;
+      this.turn = 0;
+      this.throttle = 0;
+      this.brake = 0;
+    }
     if (p.zone === 'camera' && p.moved < 10 && performance.now() - p.startTime < 400 && this.pointers.size === 0) {
       this.taps.push({ x: p.x, y: p.y });
     }
   };
+
+  private applyFloat(): void {
+    const st = this.stick;
+    if (!st) return;
+    const dx = st.x - st.ox;
+    const dy = st.y - st.oy;
+    const dead = 8;
+    const up = Math.max(0, -dy - dead) / (FLOAT_REACH - dead);
+    const down = Math.max(0, dy - dead) / (FLOAT_REACH - dead);
+    this.throttle = Math.min(1, up * 1.15);
+    this.brake = Math.min(1, down * 1.15);
+    const side = Math.sign(dx) * Math.max(0, Math.abs(dx) - dead) / (FLOAT_REACH - dead);
+    this.turn = -Math.max(-1, Math.min(1, side));
+  }
 
   private setThrottleFromY(y: number): void {
     const L = this.layout;

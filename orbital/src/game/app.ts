@@ -219,6 +219,7 @@ export class App {
   private startFlight(): void {
     const c = this.campaign!;
     const w = this.world!;
+    this.input.floating = false;
     const f = new Flight(w, c, this.input, this.ui);
     this.flight = f;
     this.input.reset();

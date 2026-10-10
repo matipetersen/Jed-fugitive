@@ -1,7 +1,7 @@
-import { ROTATE_REACH } from '../input/input';
+import { FLOAT_REACH, ROTATE_REACH } from '../input/input';
 import { COLORS, lineStroke, neonStroke } from '../render/neon';
 import { P, type View, proj, screenAngle } from '../render/view';
-import { btn, drawStick, drawThrottle, meter, text } from '../render/hud';
+import { btn, meter, text } from '../render/hud';
 import { circlePath, drawStars } from '../render/world';
 import { type Ui } from '../ui/ui';
 import { type ArcadeGame } from './game';
@@ -285,14 +285,12 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   const p = m.player;
   const a = m.arena;
   const ui: Ui = g.ui;
-  const L = g.input.layout;
   const v = g.view;
 
-  drawThrottle(ctx, g.input.throttle, L.throttleW, L.throttleTop, L.throttleBottom, g.liftoffThrottle());
-  drawStick(ctx, g.input, L);
+  drawFloatStick(ctx, g, width, height);
 
   // Left readout.
-  const x = L.throttleW + 10;
+  const x = 10;
   const speed = Math.hypot(p.vx, p.vy);
   text(ctx, 'CASCO', x, 20, COLORS.dim);
   meter(ctx, x + 48, 11, 90, p.hull / p.stats.hullMax, p.hull / p.stats.hullMax < 0.35 ? BAD : GOOD);
@@ -303,7 +301,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   text(ctx, `DATOS ${m.carried}`, x, 84, m.carried > 0 ? AMBER : COLORS.dim);
 
   // Top centre: stage, rings, time and the lead over the rival.
-  const cx = (L.throttleW + 150 + width - 8 - 3 * 50 - 8) / 2;
+  const cx = (150 + width - 8 - 3 * 50 - 8) / 2;
   const ringTxt = `ETAPA ${m.stageIdx + 1} · ${m.def.name.toUpperCase()}`;
   text(ctx, ringTxt, cx, 18, AMBER, 12, true);
   const total = a.gates.length;
@@ -359,7 +357,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   if (a.clock < 0) {
     const n = Math.ceil(-a.clock);
     text(ctx, String(n), width / 2 - 20, height * 0.32, AMBER, 56, true);
-    text(ctx, 'SUBÍ EL EMPUJE Y ESPERÁ LA SEÑAL', width / 2 - 20, height * 0.32 + 28, COLORS.hud, 12, true);
+    text(ctx, 'ARRASTRÁ HACIA ARRIBA CUANDO DIGA ¡YA!', width / 2 - 20, height * 0.32 + 28, COLORS.hud, 12, true);
   } else if (a.clock < 0.8 && m.phase === 'race') {
     text(ctx, '¡YA!', width / 2 - 20, height * 0.32, GOOD, 52, true);
   }
@@ -368,4 +366,52 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     text(ctx, m.lives <= 0 && !m.practice ? 'SIN VIDAS' : `VIDAS RESTANTES: ${Math.max(0, m.lives)}`, width / 2 - 20, height * 0.42 + 22, COLORS.hud, 13, true);
   }
   void ROTATE_REACH;
+}
+
+/** The floating stick: appears under the finger; a faint ghost shows where to start. */
+function drawFloatStick(ctx: CanvasRenderingContext2D, g: ArcadeGame, width: number, height: number): void {
+  const input = g.input;
+  const st = input.stick;
+  const R = FLOAT_REACH;
+  const ox = st ? st.ox : width * 0.8;
+  const oy = st ? st.oy : height * 0.7;
+  const alpha = st ? 1 : 0.4;
+  neonStroke(ctx, COLORS.hud, 1.2, () => {
+    ctx.moveTo(ox + R * 0.45, oy);
+    ctx.arc(ox, oy, R * 0.45, 0, TAU);
+    // Arrowheads: up (thrust), down (brake), left and right (turn).
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+      const ex = ox + dx * R;
+      const ey = oy + dy * R;
+      const px = -dy;
+      const py = dx;
+      ctx.moveTo(ex - dx * 10 + px * 6, ey - dy * 10 + py * 6);
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(ex - dx * 10 - px * 6, ey - dy * 10 - py * 6);
+    }
+  }, alpha);
+  if (st) {
+    const dx = st.x - st.ox;
+    const dy = st.y - st.oy;
+    const d = Math.hypot(dx, dy) || 1;
+    const k = Math.min(R, d);
+    neonStroke(ctx, input.brake > 0.05 ? BAD : COLORS.marker, 1.8, () => {
+      ctx.moveTo(ox + (dx / d) * k + 12, oy + (dy / d) * k);
+      ctx.arc(ox + (dx / d) * k, oy + (dy / d) * k, 12, 0, TAU);
+    });
+    // Mark the push that just lifts the ship off the ground.
+    const lift = g.liftoffThrottle();
+    if (lift !== null) {
+      const my = oy - Math.min(1, lift) * (R - 8) / 1.15 - 8;
+      neonStroke(ctx, lift <= 1 ? GOOD : BAD, 1.4, () => {
+        ctx.moveTo(ox - 14, my);
+        ctx.lineTo(ox + 14, my);
+      });
+    }
+  } else {
+    text(ctx, 'ACELERA', ox - 24, oy - R - 8, COLORS.dim, 10);
+    text(ctx, 'FRENA', ox - 16, oy + R + 16, COLORS.dim, 10);
+    text(ctx, '◄', ox - R - 18, oy + 4, COLORS.dim, 10);
+    text(ctx, '►', ox + R + 8, oy + 4, COLORS.dim, 10);
+  }
 }

@@ -48,6 +48,7 @@ export class ArcadeGame {
     mission: Mission,
   ) {
     this.mission = mission;
+    input.floating = true;
     this.attach();
     this.snapCamera();
   }
@@ -108,20 +109,34 @@ export class ArcadeGame {
     return this.mission.arena.bodies[p.landedBody].def.g / p.stats.thrust;
   }
 
+  private steer(want: number, angle: number): number {
+    const err = Math.atan2(Math.sin(want - angle), Math.cos(want - angle));
+    return Math.max(-1, Math.min(1, err * 4));
+  }
+
   controls(): Controls {
     const m = this.mission;
     const p = m.player;
     let turn = this.input.turn;
+    let throttle = this.input.throttle;
     if (turn === 0 && this.autoAim && p.status === 'flying' && p.nextGate < m.arena.gates.length) {
       const g = { x: 0, y: 0 };
       m.arena.gatePos(p.nextGate, g);
-      const want = Math.atan2(g.y - p.y, g.x - p.x);
-      let err = want - p.angle;
-      err = Math.atan2(Math.sin(err), Math.cos(err));
-      turn = Math.max(-1, Math.min(1, err * 4));
+      turn = this.steer(Math.atan2(g.y - p.y, g.x - p.x), p.angle);
     }
     if (this.input.turn !== 0 && this.autoAim) this.autoAim = false;
-    return { throttle: this.input.throttle, turn };
+    // Stick pulled back: swing the nose against the velocity and burn once it points there.
+    const br = this.input.brake;
+    if (br > 0.05 && p.status === 'flying' && Math.hypot(p.vx, p.vy) > 4) {
+      throttle = 0;
+      if (Math.abs(this.input.turn) < 0.3) {
+        const want = Math.atan2(-p.vy, -p.vx);
+        turn = this.steer(want, p.angle);
+        const err = Math.atan2(Math.sin(want - p.angle), Math.cos(want - p.angle));
+        if (Math.abs(err) < 0.35) throttle = br;
+      }
+    }
+    return { throttle, turn };
   }
 
   update(dtReal: number, clock: number): void {

@@ -5,7 +5,20 @@ const COMP_BOND_START_STRANGER = 10, COMP_BOND_START_ALLY = 25, COMP_BOND_LEAVES
 const COMP_SAY_EVERY = [110, 230], COMP_WANDER_NOISE = 6;
 const COMP_MEDIC_EVERY = 60, COMP_TINKER_EVERY = 60, COMP_HUNGRY_EVERY = 160, COMP_LOUD_EVERY = 25, COMP_CALM_EVERY = 8, COMP_SCOUT_EVERY = 4;
 
-function comp_arch(h) { return COMP_BY_ID[h.trait] || null; }
+let _COMP_ERA = 'modern';
+const _COMP_VARIANTS = {};
+// The age the game is set in: the same archetypes are called, and talk, a little differently.
+function comp_set_era(id) { _COMP_ERA = id; }
+function comp_arch(h) {
+  const a = COMP_BY_ID[h.trait];
+  if (!a) return null;
+  const over = COMP.era_variants[`${a.id}|${_COMP_ERA}`];
+  if (!over) return a;
+  const key = `${a.id}|${_COMP_ERA}`;
+  return _COMP_VARIANTS[key] || (_COMP_VARIANTS[key] = Object.assign({}, a, over));
+}
+// Their errand, worded for the age the game is set in.
+function comp_personal(arch_id) { return Object.assign({}, COMP.personal[arch_id], COMP.personal_variants[`${arch_id}|${_COMP_ERA}`] || {}); }
 
 function comp_ensure_person(game, h, archetype = null) {
   if (h.trait) return;
@@ -154,6 +167,16 @@ function comp_catch_up(game, c) {
   if (!spot) return;
   lv.move_actor(c, spot[0], spot[1]);
   comp_note(game, `${c.name} catches up, out of breath. "You walk fast."`);
+}
+
+// A companion that cannot find a way through (a dense forest, a rubble field): they work their way round to you.
+function comp_unstick(game, c) {
+  const p = game.player, lv = game.level;
+  let spot = null;
+  for (const r of [2, 3, 4]) { const s = lv.free_spot_near(p.x, p.y, r); if (s && cheb(s, [p.x, p.y]) >= 1) { spot = s; break; } }
+  if (!spot) return;
+  lv.move_actor(c, spot[0], spot[1]);
+  comp_note(game, `${c.name} pushes through the undergrowth to reach you.`);
 }
 
 function comp_tick(game) {
@@ -413,7 +436,7 @@ const COMP_QUEST_BOND = 60, COMP_QUEST_RANGE = 70, COMP_SCENE_RANGE = 3;
 function comp_offer_personal(game, c) {
   const a = comp_arch(c);
   if (!a || c.quest || c.bond < COMP_QUEST_BOND || game.personal) return false;
-  const spec = COMP.personal[a.id], p = game.player;
+  const spec = comp_personal(a.id), p = game.player;
   let pool = Object.values(game.pois).filter((q) => q.kind === spec.kind && !q.visited && cheb([q.x, q.y], apos(p)) <= COMP_QUEST_RANGE);
   if (!pool.length) pool = Object.values(game.pois).filter((q) => !['breach', 'refuge', 'pad', 'cave'].includes(q.kind) && !q.visited && cheb([q.x, q.y], apos(p)) <= COMP_QUEST_RANGE);
   if (!pool.length) { c.quest = 3; return false; }
@@ -450,7 +473,7 @@ function comp_personal_tick(game, c) {
   const p = game.player;
   if (c.quest === 1 && p.count('keepsake') > 0) { c.quest = 2; q.stage = 2; game.msg(`You have it. Take it back to ${c.name}.`, 'obj', true); }
   if (c.quest === 2 && game.level === game.world.level && cheb(apos(c), apos(p)) <= COMP_SCENE_RANGE && !game.pending_event && !game.visible_hostiles().length) {
-    const spec = COMP.personal[comp_arch(c).id];
+    const spec = comp_personal(comp_arch(c).id);
     game.pending_event = start_event(game, EVENT_BY_ID.story_personal, `${c.name} sees what you are carrying. ${spec.found} ${spec.scene}`, { uid: c.uid });
   }
 }
@@ -458,7 +481,7 @@ function comp_personal_tick(game, c) {
 function comp_resolve_personal(game, active, index) {
   const c = game.world.level.actors.find((a) => a.kind === 'human' && a.uid === active.data.uid);
   if (!c || !comp_arch(c)) { active.result = 'They are gone.'; active.resolved = true; return active.result; }
-  const spec = COMP.personal[comp_arch(c).id], p = game.player;
+  const spec = comp_personal(comp_arch(c).id), p = game.player;
   p.take('keepsake', 1); c.quest = 3; game.personal = null;
   let text;
   if (index === 0) {

@@ -372,12 +372,16 @@ function _follow_step(game, h) {
   if (d <= 2) return;
   const steps = 1 + (d > 4 ? 1 : 0) + (d > 10 ? 1 : 0);                 // fall behind and they hustle: you never have to slow down for them
   const field = game.get_field();
+  let moved = false;
   for (let k = 0; k < steps; k++) {
     if (cheb(apos(h), apos(p)) <= 2) break;
     let nxt = field[level.idx(h.x, h.y)] >= 0 ? descend(level, field, apos(h), game.rng) : null;
     if (nxt === null) nxt = greedy_step(level, apos(h), apos(p), game.rng, (n) => !NO_ENTRY.has(level.tile(n[0], n[1])));
     if (!_human_move(game, h, nxt)) break;
+    moved = true;
   }
+  if (moved || d <= 3) h.stuck = 0;
+  else if (++h.stuck >= 5) { h.stuck = 0; comp_unstick(game, h); }                  // boxed in by trees or rubble: they find their way to you
 }
 
 // ---------------------------------------------------------------- far away, in the abstract

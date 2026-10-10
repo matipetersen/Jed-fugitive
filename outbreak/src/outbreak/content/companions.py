@@ -138,6 +138,64 @@ ARCHETYPES: Tuple[Archetype, ...] = (
 
 BY_ID: Dict[str, Archetype] = {a.id: a for a in ARCHETYPES}
 
+# The same people in another age: what a trade is called, and the lines that only make sense with machines, clinics and bouncers.
+# (archetype id, era id) -> the fields that change.
+ERA_VARIANTS: Dict[Tuple[str, str], dict] = {
+    ("mechanic", "medieval"): dict(
+        label="smith",
+        intro="\"If it has a hinge or an edge, I can mend it. Please do not make me go first.\"",
+        idle=("\"Your blade is balanced wrong. I will fix it when we stop. If we stop.\"",
+              "\"There is always a way to make it hold. There is rarely a good way.\"",
+              "\"Do you hear that? Probably nothing. Probably.\""),
+        farewell="\"I left the tools. They were heavy. Sorry. Sorry.\"",
+        backstory=("\"I was a wheelwright's apprentice for twenty years. I got shut in a granary for two days when the bells started.\"",
+                   "\"Fear is just information. Mine says run, mostly.\"",
+                   "\"The only time I was not scared was mending something. Thank you for letting me.\"")),
+    ("mechanic", "scifi"): dict(
+        label="engineer",
+        intro="\"If it has a circuit, I can make it keep running. Please do not make me go first.\"",
+        backstory=("\"I serviced airlocks for twenty years. I got stuck in one for two days when the lockdown started.\"",
+                   "\"Fear is just information. Mine says run, mostly.\"",
+                   "\"The only time I was not scared was fixing something. Thank you for letting me.\"")),
+    ("medic", "medieval"): dict(
+        label="herbalist",
+        idle=("\"Drink something. Please. I am tired of watching people forget.\"",
+              "\"Every one of these houses had a sickroom once.\"",
+              "\"Tell me if anything hurts. Anything.\""),
+        backstory=("\"I was three weeks from taking my vows as an infirmarian. I still sign things with the wrong name.\"",
+                   "\"I counted the ones I could not save. I stopped counting at forty.\"",
+                   "\"If it comes to a choice, save the one who can walk. I have already decided that about myself.\"")),
+    ("medic", "scifi"): dict(
+        idle=("\"Drink something. Please. I am tired of watching people forget.\"",
+              "\"Every one of these decks had a medbay once.\"", "\"Tell me if anything hurts. Anything.\""),
+        backstory=("\"I was three weeks from finishing my rotation. I still sign things with the wrong title.\"",
+                   "\"I counted the ones I could not save. I stopped counting at forty.\"",
+                   "\"If it comes to a choice, save the one who can walk. I have already decided that about myself.\"")),
+    ("scavenger", "medieval"): dict(
+        label="pedlar",
+        backstory=("\"I ran a stall at the fair. Fourteen years. Everything has a price, and I know all of them.\"",
+                   "\"The first thing I took out here was a stranger's boots. They did not need them anymore.\"",
+                   "\"You are the first person who did not ask me to shut up. I will remember that.\"")),
+    ("scavenger", "scifi"): dict(
+        backstory=("\"I ran a stall in the dock market. Fourteen years. Everything has a price, and I know all of them.\"",
+                   "\"The first thing I took out here was a stranger's boots. They did not need them anymore.\"",
+                   "\"You are the first person who did not ask me to shut up. I will remember that.\"")),
+    ("brute", "medieval"): dict(
+        backstory=("\"I was a gate-warden. Then a thatcher. I am good at standing in doorways.\"",
+                   "\"My brother was bigger than me. That is what everyone says about him now.\"",
+                   "\"People are afraid of me. I wish they were not. You are not. Thank you.\"")),
+    ("brute", "scifi"): dict(
+        backstory=("\"I was a dock loader. Then hull maintenance. I am good at standing in doorways.\"",
+                   "\"My brother was bigger than me. That is what everyone says about him now.\"",
+                   "\"People are afraid of me. I wish they were not. You are not. Thank you.\"")),
+    ("veteran", "medieval"): dict(label="man-at-arms"),
+    ("preacher", "medieval"): dict(label="friar"),
+    ("gambler", "medieval"): dict(
+        label="dicer",
+        idle=("\"Odds are odds. Never fight a bad one.\"", "\"I once threw three sixes in a row. Then the world ended. Coincidence?\"",
+              "\"Nothing is certain. That is what makes it fun. And terrifying.\"")),
+}
+
 # Who a person is when you only know their trade or what they do for a living
 ROLE_ARCHETYPE: Dict[str, str] = {"healer": "medic", "trader": "scavenger", "scholar": "mechanic", "scout": "hunter",
                                   "soldier": "veteran", "raider": "brute"}
@@ -238,3 +296,49 @@ PERSONAL: Dict[str, Dict[str, str]] = {
                 "read": "You read the name on the ace. It is a debt. They tell you how they paid it.",
                 "boon": "coward: they stand their ground (flee only when badly hurt)."},
 }
+
+
+# The same errands in another age (only the lines that name a thing that did not exist yet)
+PERSONAL_VARIANTS: Dict[Tuple[str, str], Dict[str, str]] = {
+    ("veteran", "medieval"): {
+        "found": "A tin of tokens, one for each of the company, and a letter nobody ever sent.",
+        "ask": "\"There is a guardhouse, not far. My company's. I have not been back. There is a tin with my men's tokens in it. I need it, and I cannot make myself go.\"",
+        "place": "an old guardhouse",
+        "scene": "They hold the tin for a long time and do not open it. \"All of them. Every one.\" Their hands are very steady.",
+        "read": "You read the names scratched on the tokens with them, one by one. By the end, neither of you is the same."},
+    ("medic", "medieval"): {
+        "place": "an infirmary",
+        "ask": "\"My old infirmary. There is a chest in the back with my notes and my mother's ring. Please. I need to know whether I am still a healer.\"",
+        "found": "A battered chest: notes in a careful hand, and a thin gold ring.",
+        "scene": "They put the ring on, and cry, and laugh at themselves for crying. \"I am still a healer. I am still one.\"",
+        "keep": "You say the infirmary was burned. They do not argue. Something in them goes out."},
+    ("scavenger", "medieval"): {
+        "found": "A tin box with one old coin and a tally stick for a life.",
+        "read": "You count the notches on the tally stick one by one. It is the funniest and saddest thing you have read."},
+    ("mechanic", "medieval"): {
+        "place": "a smithy",
+        "ask": "\"My forge. My good hammer is still there. It is a stupid thing to ask. But I need it. It is the only thing I was ever good at.\"",
+        "found": "A heavy hammer with a name scratched into the handle.",
+        "scene": "They hold the hammer like a sword. \"I can mend this. I can mend a lot of things.\"",
+        "keep": "You say the forge was cleared out. They stop looking at tools.",
+        "read": "You turn the hammer over and read the scratched name. They tell you who it was."},
+    ("mechanic", "scifi"): {
+        "place": "a repair bay",
+        "ask": "\"My bay. My good wrench is still there. It is a stupid thing to ask. But I need it. It is the only thing I was ever good at.\""},
+    ("brute", "medieval"): {
+        "place": "a gatehouse",
+        "ask": "\"The gatehouse where I stood watch. There is a chest with a carved token of my brother. Big man, bigger than me. I want it back.\"",
+        "found": "A carved wooden token, worn smooth, of two big men laughing.",
+        "scene": "They hold it with two fingers, as though it might break. \"He was bigger than me. Everybody says so.\"",
+        "keep": "You say the chest was empty. They do not ask twice.",
+        "read": "You study the carving together. You can see the family in both faces."},
+    ("gambler", "medieval"): {
+        "place": "a dice den",
+        "ask": "\"There is a dice den. My lucky bones are in the chest. I do not want to be lucky. I want to hold them again.\"",
+        "found": "A pair of worn bone dice, and a name cut into one of them.",
+        "scene": "They shake them once, in one hand. \"The odds were never good. I played them anyway.\"",
+        "give": "You give it back. \"I will stop folding. When it counts, I stake it all.\"",
+        "keep": "You say the chest was empty. They rattle empty fists for days.",
+        "read": "You read the name cut into the die. It is a debt. They tell you how they paid it."},
+}
+

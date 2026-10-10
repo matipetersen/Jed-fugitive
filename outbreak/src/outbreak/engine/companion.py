@@ -7,10 +7,11 @@ leave; when they die, they stay dead, and the log says so.
 """
 from __future__ import annotations
 
+import dataclasses
 import random
 from typing import Optional
 
-from outbreak.content.companions import (ARCHETYPES, BY_ID, COMBAT_LINES, FLAWS, NAMES, PERSONAL, ROLE_ARCHETYPE,
+from outbreak.content.companions import (ARCHETYPES, BY_ID, ERA_VARIANTS, COMBAT_LINES, FLAWS, NAMES, PERSONAL, PERSONAL_VARIANTS, ROLE_ARCHETYPE,
                                          SITUATION_LINES, STRENGTHS)
 from outbreak.engine import tiles as T
 from outbreak.engine.model import Human, Item
@@ -51,8 +52,33 @@ def ensure_person(game, h: Human, archetype: Optional[str] = None) -> None:
         h.reach = 1
 
 
+_ERA = ["modern"]
+_VARIANTS: dict = {}
+
+
+def set_era(era_id: str) -> None:
+    """The age the game is set in: the same archetypes are called, and talk, a little differently."""
+    _ERA[0] = era_id
+
+
+def personal_of(arch_id: str) -> dict:
+    """Their errand, worded for the age the game is set in."""
+    spec = PERSONAL[arch_id]
+    over = PERSONAL_VARIANTS.get((arch_id, _ERA[0]))
+    return {**spec, **over} if over else spec
+
+
 def arch_of(h: Human):
-    return BY_ID.get(h.trait)
+    a = BY_ID.get(h.trait)
+    if a is None:
+        return None
+    over = ERA_VARIANTS.get((a.id, _ERA[0]))
+    if not over:
+        return a
+    key = (a.id, _ERA[0])
+    if key not in _VARIANTS:
+        _VARIANTS[key] = dataclasses.replace(a, **over)
+    return _VARIANTS[key]
 
 
 def current(game) -> Optional[Human]:
@@ -274,6 +300,16 @@ def catch_up(game, c: Human) -> None:
         return
     lv.move_actor(c, *spot)
     note(game, f"{c.name} catches up, out of breath. \"You walk fast.\"")
+
+
+def unstick(game, c: Human) -> None:
+    """A companion that cannot find a way through (a dense forest, a rubble field): they work their way round to you."""
+    p, lv = game.player, game.level
+    spot = next((s for r in (2, 3, 4) for s in [lv.free_spot_near(p.x, p.y, r)] if s and cheb(s, p.pos) >= 1), None)
+    if spot is None:
+        return
+    lv.move_actor(c, *spot)
+    note(game, f"{c.name} pushes through the undergrowth to reach you.")
 
 
 def tick(game) -> None:
@@ -697,7 +733,7 @@ def offer_personal(game, c: Human) -> bool:
     a = arch_of(c)
     if a is None or c.quest or c.bond < QUEST_BOND or getattr(game, "personal", None):
         return False
-    spec = PERSONAL[a.id]
+    spec = personal_of(a.id)
     p = game.player
     pool = [q for q in game.pois.values() if q.kind == spec["kind"] and not q.visited and cheb(q.pos, p.pos) <= QUEST_RANGE]
     if not pool:
@@ -762,7 +798,7 @@ def personal_tick(game, c: Human) -> None:
             and not game.visible_hostiles():
         from outbreak.engine import encounters
         a = arch_of(c)
-        spec = PERSONAL[a.id]
+        spec = personal_of(a.id)
         text = f"{c.name} sees what you are carrying. {spec['found']} {spec['scene']}"
         game.pending_event = encounters.start(game, encounters.BY_ID["story_personal"], text, {"uid": c.uid})
 
@@ -772,7 +808,7 @@ def resolve_personal(game, active, index: int) -> str:
     if c is None or arch_of(c) is None:
         active.result, active.resolved = "They are gone.", True
         return active.result
-    a, spec, p = arch_of(c), PERSONAL[arch_of(c).id], game.player
+    a, spec, p = arch_of(c), personal_of(arch_of(c).id), game.player
     p.take("keepsake", 1)
     c.quest = 3
     game.personal = None

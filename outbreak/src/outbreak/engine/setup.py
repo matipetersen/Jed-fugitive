@@ -29,6 +29,7 @@ def initialize(game) -> None:
     game.seed = seed
     game.rng = random.Random(seed ^ 0x5EED)
     game.era = content.get_era(cfg.era)
+    companion.set_era(game.era.id)
     game.profile = content.get_preset(cfg.zombies)
     game.scenario = content.get_scenario(cfg.scenario)
     game.diff = cfg.diff

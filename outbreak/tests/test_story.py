@@ -316,3 +316,34 @@ class Distances(unittest.TestCase):
             for _, text in g.intro_pages:
                 self.assertNotIn(" tiles", text)
             self.assertFalse([m for m in g.log if " tiles" in m[1]])
+
+
+class Ages(unittest.TestCase):
+    def test_no_machines_in_the_middle_ages(self):
+        import re
+        from outbreak.engine import dialogue
+        bad = re.compile(r"rifle|radio|doctorate|bullet|ammunition|checkpoint|tuition|corporal|pasta|uniform|army|nurse|linguistics", re.I)
+        g = helpers.make_game(seed=3, era="medieval")
+        g.player.infected = False
+        for role in ("trader", "healer", "scholar", "scout", "soldier", "survivor"):
+            for uid in range(1000, 1004):
+                n = Human(uid, role, "N", 1, 1, 30, 30, role=role, faction="enclave")
+                out = [dialogue.greeting(g, n)] + [dialogue.about(g, n) for _ in range(3)] + [dialogue.news(g, n) for _ in range(8)]
+                for t in out:
+                    self.assertIsNone(bad.search(t), t)
+
+    def test_the_mechanic_is_a_smith_in_the_middle_ages(self):
+        from outbreak.engine import companion
+        for era, label in (("medieval", "smith"), ("scifi", "engineer"), ("modern", "mechanic")):
+            g = helpers.make_game(seed=3, era=era)
+            c = companion.current(g)
+            c.trait = ""
+            companion.ensure_person(g, c, "mechanic")
+            self.assertEqual(companion.arch_of(c).label, label)
+        g = helpers.make_game(seed=3, era="medieval")
+        c = companion.current(g)
+        c.trait = ""
+        companion.ensure_person(g, c, "mechanic")
+        a = companion.arch_of(c)
+        self.assertNotRegex(repr(a), r"moving parts|toolbox|elevator")
+        self.assertIn("hammer", companion.personal_of("mechanic")["ask"])

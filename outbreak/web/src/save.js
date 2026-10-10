@@ -87,7 +87,7 @@ function deserialize_game(json) {
   g.deadline_days = d.deadline_days !== undefined ? d.deadline_days : (g.scenario.deadline_days || 0); g.lost_turns = d.lost_turns || 0; g.incidents = d.incidents || [];
   g.generation = d.generation || 1; g.current_origin = d.current_origin || g.cfg.origin; g.fallen = d.fallen || []; g.fallen_bodies = d.fallen_bodies || {}; g.death_notice = d.death_notice || ''; g.opening_id = d.opening_id || ''; g.intro_pages = d.intro_pages || [];
   g.refuge_id = d.refuge_id; g.pad_id = d.pad_id; g.final_site_id = d.final_site_id; g.rep = d.rep; g.docs = d.docs;
-  g.era = CONTENT.eras[g.cfg.era]; g.profile = CONTENT.presets[g.cfg.zombies]; g.scenario = CONTENT.scenarios[g.cfg.scenario];
+  g.era = CONTENT.eras[g.cfg.era]; comp_set_era(g.era.id); g.profile = CONTENT.presets[g.cfg.zombies]; g.scenario = CONTENT.scenarios[g.cfg.scenario];
   g.diff = CONTENT.difficulties[g.cfg.difficulty];
   g.items = Object.assign({}, g.era.items);
   register_components(g);

@@ -186,3 +186,23 @@ RUMOURS: Dict[str, Tuple[str, ...]] = {
                  "\"The only rule is: never stop moving at night.\"",
                  "\"Always know your second door.\""),
 }
+
+
+# In the middle ages there are no rifles, radios or doctorates: lines that name them are reworded (old text -> new text)
+MEDIEVAL_SWAPS: Tuple[Tuple[str, str], ...] = (
+    ("sell people bullets", "sell people arrows"),
+    ("Ex-army medic. Field surgery in a dozen places I am not allowed to describe.", "A camp surgeon. I have cut in a dozen places I am not allowed to describe."),
+    ("I was a nurse on nights.", "I was an infirmarian on the night watch."),
+    ("Linguistics. A doctorate no one will ever grant me the pleasure of defending.", "Letters and tongues. A mastership no university will ever grant me the pleasure of defending."),
+    ("They gave me a rifle and a map.", "They gave me a bow and a map."),
+    ("Corporal. I will not say of what. There is no such unit anymore.", "Sergeant. I will not say of what. There is no such company anymore."),
+    ("following orders from a radio that stopped talking weeks ago", "following orders from a lord who stopped answering weeks ago"),
+    ("I enlisted for the tuition. The tuition was a lie.", "I took the lord's coin for the pay. The pay was a lie."),
+    ("I was at the first checkpoint.", "I was at the first barricade."),
+    ("Eating raw pasta.", "Eating raw barley."),
+    ("Ammunition is the only honest currency.", "Arrows are the only honest currency."),
+    ("Checkpoints are checkpoints.", "A toll-post is a toll-post."),
+    ("Medical is at the haven.", "The healers are at the haven."),
+    ("Do not shoot at a uniform unless you want every uniform shooting back.", "Do not raise a hand to a lord's man unless you want every lord's man raising one back."),
+)
+

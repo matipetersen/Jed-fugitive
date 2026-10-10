@@ -782,7 +782,17 @@ class Game {
       this.msg(`The ${target.species} watches you. Use TALK to offer it food.`, 'info');
       return false;
     }
-    if (target.kind === 'human' && !target.hostile) { this.msg(`${target.name} is here. Use TALK.`, 'info'); return false; }
+    if (target.kind === 'human' && !target.hostile) {
+      if (target.uid === this.companion_uid && (target.state === 'follow' || target.state === 'wait')) {      // your companion in the way (a forest path, a doorway): swap
+        const p = this.player, lv = this.level, a = [p.x, p.y], b = [target.x, target.y];
+        lv.occ.delete(lv.idx(a[0], a[1])); lv.occ.delete(lv.idx(b[0], b[1]));
+        p.x = b[0]; p.y = b[1]; target.x = a[0]; target.y = a[1];
+        lv.occ.set(lv.idx(p.x, p.y), p); lv.occ.set(lv.idx(target.x, target.y), target);
+        this._spend(1);
+        return true;
+      }
+      this.msg(`${target.name} is here. Use TALK.`, 'info'); return false;
+    }
     if (target.hidden) raiders_spring(this, target, 'You stumble onto a hidden raider!');      // you walked into someone lying in wait
     const turns = player_attack(this, target) ? 1 : 0;
     this._spend(turns);

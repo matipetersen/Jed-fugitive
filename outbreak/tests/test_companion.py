@@ -534,3 +534,33 @@ class KeepingUp(unittest.TestCase):
         companion.tick(g)
         self.assertLess(max(abs(c.x - g.player.x), abs(c.y - g.player.y)), 8)
         self.assertTrue(any("catches up" in t for _, t, _ in g.log))
+
+
+class Trees(unittest.TestCase):
+    def test_you_swap_places_with_your_companion_in_a_narrow_path(self):
+        g, lv, c = field(arch="mechanic")
+        p = g.player
+        lv.remove_actor(c)
+        c.x, c.y = p.x + 1, p.y
+        lv.add_actor(c)
+        before = (p.pos, c.pos)
+        self.assertTrue(g.move(1, 0))
+        self.assertEqual((p.pos, c.pos), (before[1], before[0]))
+
+    def test_a_companion_boxed_in_by_trees_finds_its_way_to_you(self):
+        from outbreak.engine import ai
+        g, lv, c = field(arch="mechanic")
+        g.clock.turn = 1000
+        lv.remove_actor(c)
+        p = g.player
+        c.x, c.y = p.x - 8, p.y
+        lv.add_actor(c)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx or dy:
+                    lv.set_tile(c.x + dx, c.y + dy, T.TREE)
+        for _ in range(12):
+            g.clock.turn += 1
+            ai.run(g)
+        self.assertLessEqual(max(abs(c.x - p.x), abs(c.y - p.y)), 5)
+        self.assertTrue(any("undergrowth" in t for _, t, _ in g.log))

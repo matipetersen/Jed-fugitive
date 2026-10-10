@@ -145,3 +145,24 @@ console.log('companion: a pool of people, strengths and flaws, bonds, permanent 
   lv.remove_actor(c); c.x = p.x + 34; c.y = p.y; lv.add_actor(c); OB.comp_tick(g);
   assert(Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) < 8 && g.log.some((m) => m[1].includes('catches up')));
 }
+{ // you swap places with your companion in a narrow path, and one boxed in by trees finds its way to you
+  let [g, lv, c] = field(3, 'mechanic'); const p = g.player;
+  lv.remove_actor(c); c.x = p.x + 1; c.y = p.y; lv.add_actor(c);
+  const before = [[p.x, p.y], [c.x, c.y]]; assert(g.move(1, 0));
+  assert.deepStrictEqual([[p.x, p.y], [c.x, c.y]], [before[1], before[0]], 'swapped');
+  [g, lv, c] = field(3, 'mechanic'); g.clock.turn = 1000; const q = g.player;
+  lv.remove_actor(c); c.x = q.x - 8; c.y = q.y; lv.add_actor(c);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) lv.set_tile(c.x + dx, c.y + dy, OB.T.TREE);
+  for (let i = 0; i < 12; i++) { g.clock.turn += 1; OB.ai_run(g); }
+  assert(Math.max(Math.abs(c.x - q.x), Math.abs(c.y - q.y)) <= 5, 'found its way'); assert(g.log.some((m) => m[1].includes('undergrowth')));
+}
+{ // the same people in another age: a medieval mechanic is a smith, and talks about hinges and a forge
+  for (const [era, label] of [['medieval', 'smith'], ['scifi', 'engineer'], ['modern', 'mechanic']]) {
+    const [g, lv, c] = field(3, 'mechanic'); OB.comp_set_era(era);
+    assert.strictEqual(OB.comp_arch(c).label, label, era);
+  }
+  OB.comp_set_era('medieval'); const [g2, , c2] = field(3, 'mechanic'); OB.comp_set_era('medieval');
+  const a = OB.comp_arch(c2); assert(a.intro.includes('hinge') && !/moving parts|toolbox|elevator/.test(JSON.stringify(a)), 'no machines in the middle ages');
+  assert(OB.comp_personal('mechanic').ask.includes('hammer') && OB.comp_personal('medic').ask.includes('infirmary'));
+  OB.comp_set_era('modern');
+}

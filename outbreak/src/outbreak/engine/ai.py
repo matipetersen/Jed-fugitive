@@ -594,6 +594,7 @@ def _follow_step(game, h: Human) -> None:
         return
     steps = 1 + (d > 4) + (d > 10)                              # fall behind and they hustle: you never have to slow down for them
     field = game.get_field()
+    moved = False
     for _ in range(steps):
         if cheb(h.pos, p.pos) <= 2:
             break
@@ -602,6 +603,14 @@ def _follow_step(game, h: Human) -> None:
             nxt = greedy_step(level, h.pos, p.pos, game.rng, can_pass=lambda n: level.tile(*n) not in NO_ENTRY)
         if not _human_move(game, h, nxt):
             break
+        moved = True
+    if moved or d <= 3:
+        h.stuck = 0
+    else:
+        h.stuck += 1
+        if h.stuck >= 5:                                         # boxed in by trees or rubble: they find their way to you
+            h.stuck = 0
+            companion.unstick(game, h)
 
 
 # ------------------------------------------------------------------ far away, in the abstract

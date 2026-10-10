@@ -11,6 +11,14 @@ from outbreak.engine.model import Human
 from outbreak.util import cheb, compass
 
 
+def _era(game, text: str) -> str:
+    """The same line, worded for the age: no rifles or doctorates in the middle ages."""
+    if game.era.id == "medieval":
+        for old, new in D.MEDIEVAL_SWAPS:
+            text = text.replace(old, new)
+    return text
+
+
 def _key(npc: Human) -> str:
     return npc.role if npc.role in D.PERSONAS else "survivor"
 
@@ -47,7 +55,7 @@ def greeting(game, npc: Human) -> str:
         line = p.again[n % len(p.again)]
     if pl.humanity < 40 and n > 0:
         line += " They keep a little distance from you."
-    return line
+    return _era(game, line)
 
 
 def about(game, npc: Human) -> str:
@@ -55,7 +63,7 @@ def about(game, npc: Human) -> str:
     i = npc.asked
     npc.asked += 1
     if i < len(p.bio):
-        return p.bio[i]
+        return _era(game, p.bio[i])
     return f"{given(game, npc)} has told you everything worth telling. Which is a kind of answer."
 
 
@@ -91,4 +99,4 @@ def news(game, npc: Human) -> str:
     facts = _facts(game, npc) + list(D.RUMOURS[_key(npc)])
     line = facts[(npc.uid + npc.heard) % len(facts)]
     npc.heard += 1
-    return line
+    return _era(game, line)

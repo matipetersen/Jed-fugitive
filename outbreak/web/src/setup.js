@@ -14,7 +14,7 @@ function setup_game(game) {
   const seed = cfg.seed !== null && cfg.seed !== undefined ? cfg.seed : Math.floor(Math.random() * 1073741824);
   game.seed = seed;
   game.rng = new RNG((seed ^ 0x5EED) >>> 0);
-  game.era = CONTENT.eras[cfg.era];
+  game.era = CONTENT.eras[cfg.era]; comp_set_era(game.era.id);
   game.profile = CONTENT.presets[cfg.zombies];
   game.scenario = CONTENT.scenarios[cfg.scenario];
   game.diff = CONTENT.difficulties[cfg.difficulty];

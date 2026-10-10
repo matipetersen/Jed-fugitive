@@ -83,3 +83,13 @@ console.log('story: the world remembers, companions ask for one thing, and the D
   assert.strictEqual(OB.dist_words('modern', 9), '90 m'); assert.strictEqual(OB.dist_words('modern', 140), '1.4 km');
   assert.strictEqual(OB.dist_words('scifi', 140), '1.4 klicks'); assert.strictEqual(OB.dist_words('scifi', 100), '1 klick'); assert.strictEqual(OB.dist_words('modern', 0), 'right here');
 }
+{ // no rifles, radios or doctorates in the middle ages
+  const { OB, make } = require('./helpers');
+  const g = make({ era: 'medieval', seed: 3 }); g.player.infected = false;
+  const bad = /rifle|radio|doctorate|bullet|ammunition|checkpoint|tuition|corporal|pasta|uniform|army|nurse|linguistics/i;
+  for (const role of ['trader', 'healer', 'scholar', 'scout', 'soldier', 'survivor']) for (let uid = 1000; uid < 1004; uid++) {
+    const n = { kind: 'human', uid, name: role, role, faction: 'enclave', x: 1, y: 1, hp: 30, max_hp: 30 };
+    const out = [OB.dlg_greeting(g, n), OB.dlg_about(g, n), OB.dlg_about(g, n), OB.dlg_about(g, n)]; for (let i = 0; i < 8; i++) out.push(OB.dlg_news(g, n));
+    for (const t of out) assert(!bad.test(t), `${role}: ${t}`);
+  }
+}

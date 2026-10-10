@@ -1,4 +1,9 @@
 // ---------------------------------------------------------------- what the people of the havens and the roads say to you
+// The same line, worded for the age: no rifles or doctorates in the middle ages.
+function dlg_era(game, text) {
+  if (game.era.id === 'medieval') for (const [o, n] of CONTENT.dialogue.MEDIEVAL_SWAPS) text = text.split(o).join(n);
+  return text;
+}
 const dlg_key = (npc) => (CONTENT.dialogue.PERSONAS[npc.role] ? npc.role : 'survivor');
 function dlg_persona(npc) { const g = CONTENT.dialogue.PERSONAS[dlg_key(npc)]; return g[npc.uid % g.length]; }
 function dlg_given(game, npc) { const pool = CONTENT.dialogue.GIVEN[game.era.id]; return pool[(npc.uid * 7) % pool.length]; }
@@ -16,13 +21,13 @@ function dlg_greeting(game, npc) {
   else if (game.clock.is_night && n % 2 === 1) line = p.night;
   else line = p.again[n % p.again.length];
   if (pl.humanity < 40 && n > 0) line += ' They keep a little distance from you.';
-  return line;
+  return dlg_era(game, line);
 }
 
 function dlg_about(game, npc) {
   const p = dlg_persona(npc), i = npc.asked || 0;
   npc.asked = i + 1;
-  return i < p.bio.length ? p.bio[i] : `${dlg_given(game, npc)} has told you everything worth telling. Which is a kind of answer.`;
+  return i < p.bio.length ? dlg_era(game, p.bio[i]) : `${dlg_given(game, npc)} has told you everything worth telling. Which is a kind of answer.`;
 }
 
 function dlg_facts(game) {
@@ -54,5 +59,5 @@ function dlg_news(game, npc) {
   const facts = dlg_facts(game).concat(CONTENT.dialogue.RUMOURS[dlg_key(npc)]);
   const line = facts[(npc.uid + (npc.heard || 0)) % facts.length];
   npc.heard = (npc.heard || 0) + 1;
-  return line;
+  return dlg_era(game, line);
 }

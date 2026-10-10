@@ -164,6 +164,14 @@ about 10 m, 30 m for the medieval map; `util.dist_words`). The sci-fi era has it
 grass with bulb trees in two tints, cargo containers, energy barriers, helmeted crew in role colours, and infected that glow. The log
 over the map now sits on a dark gradient with brighter text.
 
+**Forests, and people of their age.** Fixes from a playthrough in a medieval forest: you now swap places with your companion when
+they are in your way (a one-tile path through the trees used to leave you stuck behind them), and a companion who is boxed in by trees
+or rubble for five turns pushes through to you instead of standing there (the player may slip diagonally between two trees where the
+characters' pathfinding may not, so they could be cut off). Companions and the people you meet are written for the age: in the middle
+ages the mechanic is a smith (hammer and forge, not toolboxes and elevators), the medic a herbalist, the scavenger a pedlar, the
+preacher a friar, the gambler a dicer, and the dialogue drops rifles, radios and doctorates (`ERA_VARIANTS`, `PERSONAL_VARIANTS`,
+`MEDIEVAL_SWAPS`); the sci-fi mechanic is an engineer who serviced airlocks.
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

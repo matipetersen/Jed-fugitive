@@ -887,6 +887,16 @@ class Game:
             self.msg(f"The {target.species} watches you. Press 'e' to offer it food.", "info")
             return False
         if isinstance(target, Human) and not target.hostile:
+            if target.uid == getattr(self, "companion_uid", 0) and target.state in ("follow", "wait"):
+                p, lv = self.player, self.level                      # your companion in the way (a forest path, a doorway): swap
+                a_pos, b_pos = p.pos, target.pos
+                del lv.occ[a_pos]
+                del lv.occ[b_pos]
+                p.x, p.y = b_pos
+                target.x, target.y = a_pos
+                lv.occ[p.pos], lv.occ[target.pos] = p, target
+                self._spend(1)
+                return True
             self.msg(f"{target.name} is here. Press 'e' to talk.", "info")
             return False
         if getattr(target, "hidden", False):                  # you walked into someone lying in wait

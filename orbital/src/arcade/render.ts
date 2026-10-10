@@ -368,50 +368,55 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   void ROTATE_REACH;
 }
 
-/** The floating stick: appears under the finger; a faint ghost shows where to start. */
+/** The floating stick: a ring under the finger. Where the finger points is where the nose turns; pushing further burns harder. */
 function drawFloatStick(ctx: CanvasRenderingContext2D, g: ArcadeGame, width: number, height: number): void {
   const input = g.input;
   const st = input.stick;
   const R = FLOAT_REACH;
   const ox = st ? st.ox : width * 0.8;
   const oy = st ? st.oy : height * 0.7;
-  const alpha = st ? 1 : 0.4;
   neonStroke(ctx, COLORS.hud, 1.2, () => {
-    ctx.moveTo(ox + R * 0.45, oy);
-    ctx.arc(ox, oy, R * 0.45, 0, TAU);
-    // Arrowheads: up (thrust), down (brake), left and right (turn).
-    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
-      const ex = ox + dx * R;
-      const ey = oy + dy * R;
-      const px = -dy;
-      const py = dx;
-      ctx.moveTo(ex - dx * 10 + px * 6, ey - dy * 10 + py * 6);
-      ctx.lineTo(ex, ey);
-      ctx.lineTo(ex - dx * 10 - px * 6, ey - dy * 10 - py * 6);
-    }
-  }, alpha);
+    ctx.moveTo(ox + R, oy);
+    ctx.arc(ox, oy, R, 0, TAU);
+    ctx.moveTo(ox + 10, oy);
+    ctx.arc(ox, oy, 10, 0, TAU);
+  }, st ? 0.8 : 0.35);
   if (st) {
     const dx = st.x - st.ox;
     const dy = st.y - st.oy;
     const d = Math.hypot(dx, dy) || 1;
     const k = Math.min(R, d);
-    neonStroke(ctx, input.brake > 0.05 ? BAD : COLORS.marker, 1.8, () => {
-      ctx.moveTo(ox + (dx / d) * k + 12, oy + (dy / d) * k);
-      ctx.arc(ox + (dx / d) * k, oy + (dy / d) * k, 12, 0, TAU);
+    const kx = ox + (dx / d) * k;
+    const ky = oy + (dy / d) * k;
+    neonStroke(ctx, input.aim ? COLORS.marker : COLORS.hud, 1.8, () => {
+      ctx.moveTo(kx + 12, ky);
+      ctx.arc(kx, ky, 12, 0, TAU);
     });
     // Mark the push that just lifts the ship off the ground.
     const lift = g.liftoffThrottle();
     if (lift !== null) {
-      const my = oy - Math.min(1, lift) * (R - 8) / 1.15 - 8;
+      const rr = 10 + Math.min(1, lift) * R * 0.6;
       neonStroke(ctx, lift <= 1 ? GOOD : BAD, 1.4, () => {
-        ctx.moveTo(ox - 14, my);
-        ctx.lineTo(ox + 14, my);
-      });
+        ctx.moveTo(ox + rr, oy);
+        ctx.arc(ox, oy, rr, 0, TAU);
+      }, 0.7);
+    }
+    // Where the nose is being told to point.
+    const aim = input.aim;
+    const p = g.mission.player;
+    if (aim && p.status !== 'dead') {
+      proj(g.view, p.x, p.y);
+      const sx = P.x;
+      const sy = P.y;
+      const ex = sx + Math.cos(aim.phi) * 56;
+      const ey = sy - Math.sin(aim.phi) * 56;
+      lineStroke(ctx, COLORS.marker, 1, () => {
+        ctx.moveTo(sx + Math.cos(aim.phi) * 22, sy - Math.sin(aim.phi) * 22);
+        ctx.lineTo(ex, ey);
+      }, 0.7);
     }
   } else {
-    text(ctx, 'ACELERA', ox - 24, oy - R - 8, COLORS.dim, 10);
-    text(ctx, 'FRENA', ox - 16, oy + R + 16, COLORS.dim, 10);
-    text(ctx, '◄', ox - R - 18, oy + 4, COLORS.dim, 10);
-    text(ctx, '►', ox + R + 8, oy + 4, COLORS.dim, 10);
+    text(ctx, 'APOYÁ Y APUNTÁ', ox - 44, oy - R - 8, COLORS.dim, 10);
+    text(ctx, 'LA NAVE GIRA Y ACELERA HACIA AHÍ', ox - 90, oy + R + 16, COLORS.dim, 10);
   }
 }

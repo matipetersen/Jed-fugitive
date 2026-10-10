@@ -125,16 +125,14 @@ export class ArcadeGame {
       turn = this.steer(Math.atan2(g.y - p.y, g.x - p.x), p.angle);
     }
     if (this.input.turn !== 0 && this.autoAim) this.autoAim = false;
-    // Stick pulled back: swing the nose against the velocity and burn once it points there.
-    const br = this.input.brake;
-    if (br > 0.05 && p.status === 'flying' && Math.hypot(p.vx, p.vy) > 4) {
-      throttle = 0;
-      if (Math.abs(this.input.turn) < 0.3) {
-        const want = Math.atan2(-p.vy, -p.vx);
-        turn = this.steer(want, p.angle);
-        const err = Math.atan2(Math.sin(want - p.angle), Math.cos(want - p.angle));
-        if (Math.abs(err) < 0.35) throttle = br;
-      }
+    // The finger points where the nose should go; the ship swings round and burns once it is lined up.
+    const aim = this.input.aim;
+    if (aim && p.status !== 'dead') {
+      const want = this.view.up - Math.PI / 2 + aim.phi;
+      const err = Math.atan2(Math.sin(want - p.angle), Math.cos(want - p.angle));
+      turn = this.steer(want, p.angle);
+      throttle = aim.mag * Math.max(0, Math.min(1, 1.6 - Math.abs(err) / 0.45));
+      this.autoAim = false;
     }
     return { throttle, turn };
   }

@@ -67,6 +67,8 @@ export class Input {
   floating = false;
   /** Brake request, 0..1 (floating stick pulled back). */
   brake = 0;
+  /** Floating stick direction (screen angle, CCW from right) and strength; null inside the dead zone. */
+  aim: { phi: number; mag: number } | null = null;
 
   private pointers = new Map<number, Pointer>();
   private keys = new Set<string>();
@@ -96,6 +98,7 @@ export class Input {
     this.autopilot = 'off';
     this.stick = null;
     this.brake = 0;
+    this.aim = null;
     this.pointers.clear();
     this.ui.clear();
   }
@@ -211,6 +214,7 @@ export class Input {
       this.turn = 0;
       this.throttle = 0;
       this.brake = 0;
+      this.aim = null;
     }
     if (p.zone === 'camera' && p.moved < 10 && performance.now() - p.startTime < 400 && this.pointers.size === 0) {
       this.taps.push({ x: p.x, y: p.y });
@@ -222,13 +226,14 @@ export class Input {
     if (!st) return;
     const dx = st.x - st.ox;
     const dy = st.y - st.oy;
-    const dead = 8;
-    const up = Math.max(0, -dy - dead) / (FLOAT_REACH - dead);
-    const down = Math.max(0, dy - dead) / (FLOAT_REACH - dead);
-    this.throttle = Math.min(1, up * 1.15);
-    this.brake = Math.min(1, down * 1.15);
-    const side = Math.sign(dx) * Math.max(0, Math.abs(dx) - dead) / (FLOAT_REACH - dead);
-    this.turn = -Math.max(-1, Math.min(1, side));
+    const dead = 10;
+    const d = Math.hypot(dx, dy);
+    if (d <= dead) {
+      this.aim = null;
+      return;
+    }
+    // Direction the finger points, counter-clockwise from screen-right, and how hard it pushes.
+    this.aim = { phi: Math.atan2(-dy, dx), mag: Math.min(1, (d - dead) / (FLOAT_REACH * 0.6)) };
   }
 
   private setThrottleFromY(y: number): void {

@@ -9,6 +9,7 @@ import { drawHud } from '../render/hud';
 import { drawAsteroids, drawShip, drawStars, drawWorld } from '../render/world';
 import { quality } from '../render/neon';
 import { screens } from '../ui/screens';
+import { ArcadeController } from '../arcade/controller';
 import { type Audio } from './audio';
 import { type Bloc, type Campaign, clearSave, loadGame, newCampaign, saveGame } from './campaign';
 import { armFailure, checkEngine, processEvents } from './events';
@@ -24,7 +25,7 @@ import {
   tickCalendar,
 } from './rules';
 
-export type Mode = 'title' | 'hq' | 'flight' | 'end';
+export type Mode = 'title' | 'hq' | 'flight' | 'end' | 'arcade';
 
 export interface LaunchPlan {
   /** -1 = the bloc's pad on Earth, otherwise an index into campaign.bases. */
@@ -50,6 +51,7 @@ export class App {
   private qualityStage = 0;
   private frameEma = 16;
   private frameCount = 0;
+  arcade: ArcadeController | null = null;
   private saveClock = 0;
   private endShown = false;
   private width = 800;
@@ -66,6 +68,7 @@ export class App {
   ) {}
 
   resize(w: number, h: number, dpr: number): void {
+    this.arcade?.resize(w, h);
     this.width = w;
     this.height = h;
     this.dpr = dpr;
@@ -77,6 +80,17 @@ export class App {
     this.mode = 'title';
     this.input.enabled = false;
     this.overlay.show(screens.title(this));
+  }
+
+  /** The arcade race: its own flow, drawn on the same canvas. */
+  openArcade(): void {
+    if (!this.arcade) {
+      this.arcade = new ArcadeController(this.overlay, this.ui, this.input, this.audio, () => this.showTitle());
+      this.arcade.resize(this.width, this.height);
+    }
+    this.mode = 'arcade';
+    this.flight = null;
+    this.arcade.openHub();
   }
 
   hasSave(): boolean {
@@ -368,6 +382,10 @@ export class App {
   // ------------------------------------------------------------------ frame
 
   frame(now: number, dt: number): void {
+    if (this.mode === 'arcade' && this.arcade) {
+      this.arcade.frame(this.ctx, now, dt, this.dpr);
+      return;
+    }
     const { ctx, width, height, dpr } = { ctx: this.ctx, width: this.width, height: this.height, dpr: this.dpr };
     this.frameCount++;
     this.frameEma = this.frameEma * 0.95 + dt * 1000 * 0.05;

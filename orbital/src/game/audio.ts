@@ -71,6 +71,15 @@ export class Audio {
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.6, this.ctx.currentTime, 0.05);
   }
 
+  /** Engine rumble for the arcade mode, 0..1, and an optional wind level. */
+  engineLevel(thr: number, wind: number): void {
+    if (!this.ctx || !this.engine || !this.engineFilter || !this.wind) return;
+    const t = this.ctx.currentTime;
+    this.engine.gain.setTargetAtTime(thr * 0.5, t, 0.05);
+    this.engineFilter.frequency.setTargetAtTime(120 + thr * 500, t, 0.05);
+    this.wind.gain.setTargetAtTime(Math.min(0.25, wind * 0.6), t, 0.1);
+  }
+
   update(f: Flight): void {
     if (!this.ctx || !this.engine || !this.engineFilter || !this.wind) return;
     const s = f.world.ship;

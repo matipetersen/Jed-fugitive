@@ -12,7 +12,7 @@ const BY = new Float64Array(BODY_COUNT);
 const FONT = '11px ui-monospace, Menlo, monospace';
 
 /** Draws a world-space circle (centre and radius in world units) as a polyline of its visible part. */
-function circlePath(ctx: CanvasRenderingContext2D, v: View, bx: number, by: number, r: number): boolean {
+export function circlePath(ctx: CanvasRenderingContext2D, v: View, bx: number, by: number, r: number): boolean {
   const arc = visibleArc(v, bx, by, r);
   if (!arc) return false;
   const n = arcSegments(2 * arc.half * r * v.zoom);

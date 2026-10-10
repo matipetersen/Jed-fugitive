@@ -13,7 +13,7 @@ interface BtnOpts {
   color?: string;
 }
 
-function btn(ctx: CanvasRenderingContext2D, ui: Ui, id: string, x: number, y: number, w: number, h: number, label: string, o: BtnOpts = {}): void {
+export function btn(ctx: CanvasRenderingContext2D, ui: Ui, id: string, x: number, y: number, w: number, h: number, label: string, o: BtnOpts = {}): void {
   ui.register(id, { x, y, w, h }, o.repeat ?? false);
   const color = o.color ?? (o.on ? COLORS.marker : COLORS.hud);
   neonStroke(ctx, color, 1.3, () => ctx.rect(x, y, w, h), o.on ? 0.95 : o.dim ? 0.25 : 0.5);
@@ -24,7 +24,7 @@ function btn(ctx: CanvasRenderingContext2D, ui: Ui, id: string, x: number, y: nu
   ctx.globalAlpha = 1;
 }
 
-function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, color: string, size = 12, center = false): void {
+export function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, color: string, size = 12, center = false): void {
   ctx.font = `${size}px ui-monospace, Menlo, monospace`;
   ctx.fillStyle = color;
   const w = center ? ctx.measureText(s).width / 2 : 0;
@@ -47,7 +47,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, f: Flight, width: number,
   ui.commit();
 }
 
-function drawThrottle(ctx: CanvasRenderingContext2D, thr: number, zoneW: number, top: number, bottom: number, liftoff: number | null): void {
+export function drawThrottle(ctx: CanvasRenderingContext2D, thr: number, zoneW: number, top: number, bottom: number, liftoff: number | null): void {
   const x = zoneW / 2;
   neonStroke(ctx, COLORS.hud, 1.3, () => {
     ctx.moveTo(x, top);
@@ -74,7 +74,7 @@ function drawThrottle(ctx: CanvasRenderingContext2D, thr: number, zoneW: number,
   text(ctx, `${Math.round(thr * 100)}%`, x - 12, bottom + 18, COLORS.hud, 11);
 }
 
-function drawStick(ctx: CanvasRenderingContext2D, input: Flight['input'], L: Flight['input']['layout']): void {
+export function drawStick(ctx: CanvasRenderingContext2D, input: Flight['input'], L: Flight['input']['layout']): void {
   const stick = input.stick;
   const ox = stick ? stick.ox : L.rotateHomeX;
   const oy = stick ? stick.oy : L.rotateHomeY;
@@ -131,7 +131,7 @@ function drawReadout(ctx: CanvasRenderingContext2D, h: HudData, x: number): void
   ctx.globalAlpha = 1;
 }
 
-function meter(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, frac: number, color: string): void {
+export function meter(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, frac: number, color: string): void {
   const n = 10;
   neonStroke(ctx, color, 1.1, () => {
     for (let i = 0; i < n; i++) {

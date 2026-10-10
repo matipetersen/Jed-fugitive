@@ -76,3 +76,11 @@ Plutón 248 años, y llegar a Plutón por Hohmann cuesta unos 8,4 km/s desde ór
 git subtree split --prefix=orbital -b orbital-only
 # luego, en un repo nuevo vacío: git pull <ruta-de-este-repo> orbital-only
 ```
+
+## Modo arcade: la carrera (EE.UU. vs URSS)
+
+Menú → **JUGAR LA CARRERA**. Cinco etapas (Sputnik, Luna, Marte, Cinturón, Plutón), ~4 min en total,
+con una nave rival simultánea (IA predictiva) que choca con vos. Estilo souls-like: 3 vidas por misión,
+al morir perdés los datos que llevabas (recuperables en la baliza), se guardan en fogatas (pads) o al
+terminar etapa; si el rival termina primero, la misión falla. Mejoras permanentes entre intentos.
+El simulador realista sigue disponible como modo aparte. Código en `src/arcade/`.

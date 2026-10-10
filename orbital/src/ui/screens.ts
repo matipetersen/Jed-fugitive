@@ -57,8 +57,27 @@ const HELP: [string, string][] = [
 ];
 
 export const screens = {
-  title(app: App, sel = { bloc: 'usa' as Campaign['bloc'], diff: 1 as 0 | 1 | 2 }): HTMLElement {
-    const again = (): void => app.overlay.show(screens.title(app, sel));
+  /** First screen: arcade race or realistic simulator. */
+  title(app: App): HTMLElement {
+    return h('div', { class: 'screen' },
+      h('h1', {}, 'ORBITAL RACE'),
+      h('p', { class: 'sub' }, 'Guerra Fría, 1957. Primero en llegar a Plutón.'),
+      h('div', { class: 'panel' },
+        h('h2', {}, 'CARRERA ARCADE'),
+        h('p', {}, 'Corré contra la nave rival por aros entre planetas que se mueven. La gravedad te empuja, las rocas chocan y morir es parte del juego. 5 etapas, 3 a 5 minutos, 3 vidas.'),
+        btn('JUGAR LA CARRERA', () => app.openArcade(), 'go'),
+      ),
+      h('div', { class: 'panel' },
+        h('h2', {}, 'SIMULADOR REALISTA'),
+        h('p', {}, 'El sistema solar a escala real: órbitas, ventanas de lanzamiento, bases y una campaña de años contra el rival.'),
+        btn('ABRIR EL SIMULADOR', () => app.overlay.show(screens.simulator(app)), 'warn'),
+      ),
+      h('div', { class: 'row', style: 'margin-top:10px' }, btn('RÉCORDS DEL SIMULADOR', () => app.openRecords())),
+    );
+  },
+
+  simulator(app: App, sel = { bloc: 'usa' as Campaign['bloc'], diff: 1 as 0 | 1 | 2 }): HTMLElement {
+    const again = (): void => app.overlay.show(screens.simulator(app, sel));
     const bloc = (b: Campaign['bloc'], label: string): HTMLElement =>
       btn(label, () => { sel.bloc = b; again(); }, sel.bloc === b ? 'on' : '');
     const diff = (d: 0 | 1 | 2, label: string): HTMLElement =>
@@ -79,6 +98,7 @@ export const screens = {
       h('div', { class: 'row', style: 'margin-top:10px' },
         btn('RÉCORDS', () => app.openRecords()),
         btn('CÓMO SE JUEGA', () => app.openHelp(() => again())),
+        btn('VOLVER', () => app.showTitle()),
       ),
       h('p', { class: 'sub', style: 'margin-top:18px' }, 'Sistema solar a escala real comprimida: 1 u = 6,371 km, la Tierra tarda un año. El vuelo libre no guarda partida.'),
     );

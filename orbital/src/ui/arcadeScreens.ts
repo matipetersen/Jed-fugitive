@@ -16,7 +16,7 @@ const ARCADE_HELP: [string, string][] = [
   ['Objetivo', 'Pasá por los aros en orden y aterrizá en la plataforma meta antes que la nave rival. Son 5 etapas: unos 3 a 5 minutos si todo sale bien.'],
   ['Gravedad', 'Todo cae hacia los planetas y los planetas se mueven. Usá su gravedad para ganar velocidad (honda gravitatoria) y no te acerques a ciegas.'],
   ['Controles', 'Apoyá el dedo donde quieras y arrastrá hacia donde querés ir: la nave gira hacia esa dirección y acelera cuando queda alineada; cuanto más lejos arrastrás, más empuje. Para frenar, apuntá en contra de tu movimiento. Soltá para planear. APUNTA gira solo hacia el próximo aro.'],
-  ['Aterrizar', 'Despacio (menos de 40 u/s) y derecho. Las franjas amarillas con llama son estaciones: reparan, recargan, guardan tus datos y son tu punto de reaparición.'],
+  ['Aterrizar', 'Despacio (menos de 60 u/s) y más o menos derecho: cerca del suelo la nave se endereza sola y se amortigua la caída. Las franjas amarillas con llama son estaciones: reparan, recargan, guardan tus datos y son tu punto de reaparición.'],
   ['Vidas', 'Tenés 3 por etapa. Si te quedás sin vidas, o el rival aterriza primero, perdés la etapa (cobrás menos) pero la misión sigue: se juegan las 5 etapas.'],
   ['Datos', 'Los ganás pasando aros, con hondas gravitatorias y adelantando al rival. Si morís perdés los que llevabas, pero quedan en una baliza: volvé a tocarla para recuperarlos. Cada nave que explota además deja telemetría (datos extra). Con los datos comprás mejoras entre etapas; al terminar la misión la tecnología se reinicia.'],
   ['Cápsulas', 'Tocá CÁP para recuperar combustible y casco. Se recargan en cada estación.'],

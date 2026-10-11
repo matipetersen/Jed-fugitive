@@ -11,8 +11,10 @@ import {
 
 export const SHIP_R = 7;
 export const GATE_R = 36;
-export const LAND_SPEED = 40;
-export const LAND_TILT = 0.55;
+export const LAND_SPEED = 60;
+export const LAND_TILT = 0.8;
+/** Height above a surface within which the player's ship gets landing help. */
+const ASSIST_H = 70;
 export const BURN_RATE = 5;
 export const BASE_STATS: ShipStats = { thrust: 150, turnRate: 3.4, fuelMax: 130, hullMax: 100 };
 export const STEP = 1 / 120;
@@ -341,6 +343,7 @@ export class Arena {
     }
 
     s.angle = wrap(s.angle + clamp(c.turn, -1, 1) * s.stats.turnRate * h);
+    if (s.isPlayer) this.landingAssist(s, c, h);
     const nx = Math.cos(s.angle);
     const ny = Math.sin(s.angle);
 
@@ -384,6 +387,42 @@ export class Arena {
     s.vy += (this.g1.y + ny * aT + fy) * h * 0.5;
 
     this.shipVsBodies(s);
+  }
+
+  /**
+   * Close to a surface the player's ship levels its nose by itself and a cushion eases the descent,
+   * so a soft touchdown does not need a perfect hand.
+   */
+  private landingAssist(s: Ship, c: Controls, h: number): void {
+    const f = this.cur;
+    for (let i = 0; i < this.bodies.length; i++) {
+      const b = this.bodies[i];
+      if (b.def.star || b.def.hole) continue;
+      const dx = s.x - f.x[i];
+      const dy = s.y - f.y[i];
+      const d = Math.hypot(dx, dy);
+      const alt = d - b.def.r - SHIP_R;
+      if (alt > ASSIST_H || alt < -2) continue;
+      const k = 1 - Math.max(0, alt) / ASSIST_H;
+      const nx = dx / d;
+      const ny = dy / d;
+      if (Math.abs(c.turn) < 0.05) s.angle = wrap(s.angle + wrap(Math.atan2(dy, dx) - s.angle) * Math.min(1, 4 * k * h));
+      const rvx = s.vx - f.vx[i];
+      const rvy = s.vy - f.vy[i];
+      const vn = rvx * nx + rvy * ny;
+      const floor = -(14 + Math.max(0, alt) * 0.6);
+      if (vn < floor) {
+        const dv = (floor - vn) * Math.min(1, 6 * k * h);
+        s.vx += nx * dv;
+        s.vy += ny * dv;
+      }
+      // Sideways drift fades near the ground too.
+      const tk = Math.min(1, 1.5 * k * h);
+      const vt = rvx * -ny + rvy * nx;
+      s.vx -= -ny * vt * tk;
+      s.vy -= nx * vt * tk;
+      return;
+    }
   }
 
   /** Collision with the bodies at their end-of-step positions. */
@@ -531,7 +570,7 @@ export class Arena {
     if (i !== this.finish.body) return false;
     const b = this.bodies[i];
     const pad = b.def.pads?.[this.finish.pad];
-    return !!pad && Math.abs(wrap(normal - pad.angle)) * b.def.r <= pad.half + 12;
+    return !!pad && Math.abs(wrap(normal - pad.angle)) * b.def.r <= pad.half * 1.4 + 20;
   }
 
   private pickCells(): void {

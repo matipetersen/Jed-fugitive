@@ -97,6 +97,21 @@ describe('arena physics', () => {
     expect(s2.status).toBe('dead');
   });
 
+  it('helps a sloppy player landing: levels the nose and cushions a fast, tilted descent', () => {
+    const def = STAGES[0];
+    const arena = new Arena(def);
+    const ship = arena.addShip({ isPlayer: true, name: 'p', color: '#0ff', stats: BASE_STATS, start: def.start });
+    arena.start();
+    ship.status = 'flying';
+    ship.x = 0;
+    ship.y = 240 + 7 + 45;
+    ship.vx = 15;
+    ship.vy = -75;
+    ship.angle = Math.PI / 2 + 0.7;
+    for (let i = 0; i < 240; i++) arena.step([{ throttle: 0, turn: 0 }]);
+    expect(ship.status).toBe('landed');
+  });
+
   it('keeps asteroid motion independent of the player (so stages can be learned)', () => {
     const def = STAGES[1];
     const a = new Arena(def);

@@ -7,7 +7,7 @@ import { type Ui } from '../ui/ui';
 import { type ArcadeGame } from './game';
 import { type Ship } from './types';
 import { coastPath } from './predict';
-import { SHIP_R } from './arena';
+import { LAND_SPEED, SHIP_R } from './arena';
 
 const TAU = Math.PI * 2;
 
@@ -652,6 +652,26 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   text(ctx, `VEL ${speed.toFixed(0)}`, x, TOP + 52, COLORS.hud);
   text(ctx, `VIDAS ${'♥'.repeat(Math.max(0, m.lives))}${m.practice ? ' ∞' : ''}`, x, TOP + 68, m.lives <= 1 && !m.practice ? BAD : COLORS.hud);
   text(ctx, `DATOS ${m.carried}`, x, TOP + 84, m.carried > 0 ? AMBER : COLORS.dim);
+
+  // Near a surface: height and speed relative to it, green when a touchdown would be safe.
+  if (p.status === 'flying') {
+    let best = -1;
+    let bestAlt = 220;
+    for (let i = 0; i < a.bodies.length; i++) {
+      const bd = a.bodies[i].def;
+      if (bd.star || bd.hole) continue;
+      const alt = Math.hypot(p.x - a.bx[i], p.y - a.by[i]) - bd.r - SHIP_R;
+      if (alt < bestAlt) {
+        bestAlt = alt;
+        best = i;
+      }
+    }
+    if (best >= 0) {
+      const rel = Math.hypot(p.vx - a.bvx[best], p.vy - a.bvy[best]);
+      const ok = rel <= LAND_SPEED * 0.85;
+      text(ctx, `ALT ${Math.max(0, bestAlt).toFixed(0)}  VEL REL ${rel.toFixed(0)}`, x, TOP + 100, ok ? GOOD : BAD);
+    }
+  }
 
   // Top centre: stage, rings, time and the lead over the rival.
   const cx = (150 + width - 8 - 3 * 50 - 8) / 2;

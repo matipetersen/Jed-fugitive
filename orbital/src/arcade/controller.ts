@@ -58,7 +58,7 @@ export class ArcadeController {
     if (buyUpgrade(this.meta, id)) {
       saveMeta(this.meta);
       this.audio.chime();
-      this.overlay.show(arcadeScreens.hub(this));
+      this.overlay.show(this.screen === 'cleared' ? arcadeScreens.cleared(this) : arcadeScreens.hub(this), true);
     }
   }
 

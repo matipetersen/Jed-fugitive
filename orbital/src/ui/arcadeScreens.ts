@@ -12,7 +12,7 @@ const skulls = (n: number): string => '☠'.repeat(n) + '·'.repeat(5 - n);
 const fmtT = (s: number): string => `${s.toFixed(1)} s`;
 
 const ARCADE_HELP: [string, string][] = [
-  ['Objetivo', 'Pasá por los aros en orden y llegá a la meta antes que la nave rival. Son 5 etapas: unos 3 a 5 minutos si todo sale bien.'],
+  ['Objetivo', 'Pasá por los aros en orden y aterrizá en la plataforma meta antes que la nave rival. Son 5 etapas: unos 3 a 5 minutos si todo sale bien.'],
   ['Gravedad', 'Todo cae hacia los planetas y los planetas se mueven. Usá su gravedad para ganar velocidad (honda gravitatoria) y no te acerques a ciegas.'],
   ['Controles', 'Apoyá el dedo donde quieras y arrastrá hacia donde querés ir: la nave gira hacia esa dirección y acelera cuando queda alineada; cuanto más lejos arrastrás, más empuje. Para frenar, apuntá en contra de tu movimiento. Soltá para planear. APUNTA gira solo hacia el próximo aro.'],
   ['Aterrizar', 'Despacio (menos de 40 u/s) y derecho. Las franjas amarillas con llama son estaciones: reparan, recargan, guardan tus datos y son tu punto de reaparición.'],
@@ -22,6 +22,22 @@ const ARCADE_HELP: [string, string][] = [
   ['Rival', 'Corre a la vez que vos y se pueden chocar. Un golpe fuerte lo frena a él también.'],
   ['Práctica', 'Las etapas que ya alcanzaste se pueden practicar sin vidas ni recompensas.'],
 ];
+
+/** Upgrade list, bought with saved data; used in the centre and between stages. */
+function shop(c: ArcadeController): HTMLElement[] {
+  const m = c.meta;
+  return UPGRADES.map((u) => {
+    const level = m.upgrades[u.id];
+    const maxed = level >= u.max;
+    return h('div', { class: 'panel' },
+      h('div', { class: 'row' },
+        h('span', { class: maxed ? 'good' : 'v' }, `${u.name} ${'■'.repeat(level)}${'□'.repeat(u.max - level)}`),
+        h('span', { class: 'k' }, u.desc),
+        btn(maxed ? 'AL MÁXIMO' : `${u.cost(level)} DATOS`, () => c.buy(u.id), 'go', maxed || m.data < u.cost(level)),
+      ),
+    );
+  });
+}
 
 export const arcadeScreens = {
   hub(c: ArcadeController): HTMLElement {
@@ -41,17 +57,7 @@ export const arcadeScreens = {
       h('div', { class: 'row' }, ...STAGES.map((s, i) => btn(`${s.id}. ${s.name}`, () => c.startMission(i, true), '', i > next))),
       h('h2', {}, 'MEJORAS'),
       h('p', { class: 'sub' }, 'Se compran con datos guardados. Valen para todas las misiones futuras.'),
-      ...UPGRADES.map((u) => {
-        const level = m.upgrades[u.id];
-        const maxed = level >= u.max;
-        return h('div', { class: 'panel' },
-          h('div', { class: 'row' },
-            h('span', { class: maxed ? 'good' : 'v' }, `${u.name} ${'■'.repeat(level)}${'□'.repeat(u.max - level)}`),
-            h('span', { class: 'k' }, u.desc),
-            btn(maxed ? 'AL MÁXIMO' : `${u.cost(level)} DATOS`, () => c.buy(u.id), 'go', maxed || m.data < u.cost(level)),
-          ),
-        );
-      }),
+      ...shop(c),
       h('h2', {}, 'MEJORES TIEMPOS'),
       h('div', { class: 'grid' }, ...STAGES.map((s, i) => kv(`${s.id}. ${s.name}`, m.best[i] === null ? '--' : fmtT(m.best[i]!)))),
       h('h2', {}, 'MEJORES MISIONES'),
@@ -135,6 +141,14 @@ export const arcadeScreens = {
         m.practice ? btn('REPETIR', () => c.retry(), 'warn') : null,
         btn('CENTRO DE MISIÓN', () => c.openHub(), m.over ? 'go' : ''),
       ),
+      ...(!last && r.won && !m.over && !m.practice
+        ? [
+            h('h2', {}, 'EQUIPAMIENTO PARA LA SIGUIENTE ETAPA'),
+            h('p', { class: 'sub' }, `Datos disponibles: ${c.meta.data}. Lo que compres vale desde ya, la nave sale mejorada. Siguiente: ${STAGES[m.stageIdx + 1].name} (${skulls(STAGES[m.stageIdx + 1].skulls)}).`),
+            ...shop(c),
+            h('div', { class: 'row' }, btn('SIGUIENTE ETAPA', () => c.nextStage(), 'go')),
+          ]
+        : []),
     );
   },
 

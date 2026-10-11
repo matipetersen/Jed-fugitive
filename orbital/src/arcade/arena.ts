@@ -72,6 +72,8 @@ export class Arena {
   cur: Frame;
   private nxt: Frame;
   private readonly index = new Map<string, number>();
+  /** Landing pad that ends the stage once every gate is behind the ship. */
+  readonly finish: { body: number; pad: number };
   private readonly g0 = { x: 0, y: 0 };
   private readonly g1 = { x: 0, y: 0 };
   private readonly gp = { x: 0, y: 0 };
@@ -84,6 +86,7 @@ export class Arena {
     for (const b of this.bodies) {
       if (b.def.orbit) b.parent = this.index.get(b.def.orbit.parent) ?? -1;
     }
+    this.finish = { body: this.index.get(def.finish.body) ?? 0, pad: def.finish.pad };
     this.cur = makeFrame(this.bodies.length);
     this.nxt = makeFrame(this.bodies.length);
     for (const g of def.gates) {
@@ -408,6 +411,11 @@ export class Arena {
           s.hull = s.stats.hullMax;
         }
         this.events.push({ type: 'land', ship: s.id, body: i, pad, bonfire });
+        if (!s.finished && this.gatesDone(s) && this.onFinishPad(i, normal)) {
+          s.finished = true;
+          s.finishTime = this.clock;
+          if (this.winner < 0) this.winner = s.id;
+        }
       } else this.die(s, speed > LAND_SPEED ? 'impacto' : 'mal aterrizaje');
       return;
     }
@@ -490,13 +498,36 @@ export class Arena {
         const final = !!this.gates[idx].def.final || idx === this.gates.length - 1;
         s.nextGate++;
         this.events.push({ type: 'gate', ship: s.id, index: idx, final });
-        if (final) {
-          s.finished = true;
-          s.finishTime = this.clock;
-          if (this.winner < 0) this.winner = s.id;
-        }
+        void final;
       }
     }
+  }
+
+  /** True once the ship has passed every gate and only the landing is left. */
+  gatesDone(s: Ship): boolean {
+    return s.nextGate >= this.gates.length;
+  }
+
+  /** Surface point of the finish pad at the current time, and its outward normal angle. */
+  finishPoint(out: { x: number; y: number }, f: Frame = this.cur): number {
+    const b = this.bodies[this.finish.body];
+    const ang = b.def.pads?.[this.finish.pad]?.angle ?? Math.PI / 2;
+    out.x = f.x[b.index] + b.def.r * Math.cos(ang);
+    out.y = f.y[b.index] + b.def.r * Math.sin(ang);
+    return ang;
+  }
+
+  /** What the ship should go to next: its next gate, or the finish pad once the gates are done. */
+  objective(s: Ship, out: { x: number; y: number }): void {
+    if (s.nextGate < this.gates.length) this.gatePos(s.nextGate, out);
+    else this.finishPoint(out);
+  }
+
+  private onFinishPad(i: number, normal: number): boolean {
+    if (i !== this.finish.body) return false;
+    const b = this.bodies[i];
+    const pad = b.def.pads?.[this.finish.pad];
+    return !!pad && Math.abs(wrap(normal - pad.angle)) * b.def.r <= pad.half + 12;
   }
 
   private pickCells(): void {

@@ -119,9 +119,9 @@ export class ArcadeGame {
     const p = m.player;
     let turn = this.input.turn;
     let throttle = this.input.throttle;
-    if (turn === 0 && this.autoAim && p.status === 'flying' && p.nextGate < m.arena.gates.length) {
+    if (turn === 0 && this.autoAim && p.status === 'flying') {
       const g = { x: 0, y: 0 };
-      m.arena.gatePos(p.nextGate, g);
+      m.arena.objective(p, g);
       turn = this.steer(Math.atan2(g.y - p.y, g.x - p.x), p.angle);
     }
     if (this.input.turn !== 0 && this.autoAim) this.autoAim = false;
@@ -203,10 +203,8 @@ export class ArcadeGame {
     if (!this.input.zoomManual) {
       const g = { x: 0, y: 0 };
       let dist = 0;
-      if (p.nextGate < m.arena.gates.length) {
-        m.arena.gatePos(p.nextGate, g);
-        dist = Math.hypot(g.x - p.x, g.y - p.y);
-      }
+      m.arena.objective(p, g);
+      dist = Math.hypot(g.x - p.x, g.y - p.y);
       const speed = Math.hypot(p.vx, p.vy);
       const half = Math.max(260, Math.min(1500, 240 + speed * 0.9 + dist * 0.12));
       const target = Math.min(v.w, v.h) / 2 / half;

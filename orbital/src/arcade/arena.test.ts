@@ -4,7 +4,7 @@ import { RivalDriver } from './ai';
 import { Arena, BASE_STATS, STEP } from './arena';
 import { STAGES } from './stages';
 
-function runRival(stageIdx: number, maxSeconds = 120): { time: number; deaths: number; gates: number; arena: Arena } {
+function runRival(stageIdx: number, maxSeconds = 120): { time: number; deaths: number; gates: number; finished: boolean; arena: Arena } {
   const def = STAGES[stageIdx];
   const arena = new Arena(def);
   const ship = arena.addShip({
@@ -23,7 +23,7 @@ function runRival(stageIdx: number, maxSeconds = 120): { time: number; deaths: n
     for (const e of arena.events) if (e.type === 'die') deaths++;
     arena.events.length = 0;
   }
-  return { time: ship.finishTime, deaths, gates: ship.nextGate, arena };
+  return { time: ship.finishTime, deaths, gates: ship.nextGate, finished: ship.finished, arena };
 }
 
 describe('arena physics', () => {
@@ -120,6 +120,7 @@ describe('rival alone', () => {
       const info = `time ${r.time.toFixed(1)} par ${STAGES[i].par} deaths ${r.deaths} gates ${r.gates}/${STAGES[i].gates.length}`;
       console.info(`STAGE ${i + 1}: ${info}`);
       expect(r.gates).toBe(STAGES[i].gates.length);
+      expect(r.finished).toBe(true);
     });
   }
 });

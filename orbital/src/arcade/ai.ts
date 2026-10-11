@@ -1,5 +1,6 @@
 import { Arena, BURN_RATE, type Frame, SHIP_R, STEP } from './arena';
 import { type Controls, type Ship } from './types';
+import { finishRange, landControl } from './land';
 
 const TAU = Math.PI * 2;
 const wrap = (a: number): number => {
@@ -50,7 +51,8 @@ const G = { x: 0, y: 0 };
  * the next gate without touching anything.
  */
 export function aiControl(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: AiOptions = RIVAL_AI): Controls {
-  if (ship.status === 'dead' || ship.finished || ship.nextGate >= arena.gates.length) return { throttle: 0, turn: 0 };
+  if (ship.status === 'dead' || ship.finished) return { throttle: 0, turn: 0 };
+  if (ship.nextGate >= arena.gates.length || finishRange(arena, ship) < 700) return landControl(arena, ship);
   if (ship.nextGate !== ai.lastGate) {
     ai.lastGate = ship.nextGate;
     ai.lastProgress = arena.t;
@@ -173,7 +175,8 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
       const dir = Math.atan2(GP.y - y, GP.x - x);
       const vToward = (vx - PF.vx[0]) * Math.cos(dir) + (vy - PF.vy[0]) * Math.sin(dir);
       // Speed towards the gate is good, but only as much as can be used: no point arriving faster than the gate is far.
-      const cap = 80 + startD / 1.1;
+      const lastGate = ship.nextGate === arena.gates.length - 1;
+      const cap = lastGate ? 40 + startD / 6 : 80 + startD / 1.1;
       let J = endD * 0.5 + minD - 0.35 * clamp(vToward, -50, Math.min(260, cap)) * opts.horizon + danger;
       // Beyond the speed a pilot can steer, going faster only means missing the next gate.
       const sp = Math.hypot(vx, vy);

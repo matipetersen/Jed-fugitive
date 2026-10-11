@@ -79,10 +79,11 @@ export class Overlay {
     return this.el.classList.contains('on');
   }
 
-  show(content: HTMLElement): void {
+  show(content: HTMLElement, keepScroll = false): void {
+    const top = this.el.scrollTop;
     this.el.replaceChildren(content);
     this.el.classList.add('on');
-    this.el.scrollTop = 0;
+    this.el.scrollTop = keepScroll ? top : 0;
   }
 
   hide(): void {

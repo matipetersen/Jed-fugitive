@@ -86,6 +86,8 @@ export interface StageDef {
   rivalStart: { body: string; angle: number };
   /** Rival tuning: thrust multiplier and decision interval. */
   rival: { skill: number; name: string; delay: number; ai?: { horizon: number; dt: number; interval: number; noise: number } };
+  /** The stage ends when a ship has passed every gate and then lands on this pad. */
+  finish: { body: string; pad: number };
   /** A good time in seconds, for scoring. */
   par: number;
 }

@@ -43,8 +43,9 @@ const stage1: StageDef = {
   cells: [{ ...on(760, -80), fuel: 30 }],
   start: { body: 'tierra', angle: 90 * d2r },
   rivalStart: { body: 'tierra', angle: 55 * d2r },
-  rival: { skill: 0.85, name: 'Sputnik-1', delay: 14, ai: { horizon: 1.2, dt: 0.05, interval: 0.25, noise: 0.25 } },
-  par: 32,
+  rival: { skill: 0.85, name: 'Sputnik-1', delay: 11, ai: { horizon: 1.2, dt: 0.05, interval: 0.25, noise: 0.25 } },
+  finish: { body: 'tierra', pad: 0 },
+  par: 40,
 };
 
 /** Stage 2: Earth to the Moon, which moves. */
@@ -63,7 +64,7 @@ const stage2: StageDef = {
       g: 55,
       color: '#c8d4ff',
       orbit: { parent: 'tierra', a: 1500, phase: -0.35, omega: 0.04 },
-      pads: [{ angle: 100 * d2r, half: 34, name: 'Mar de la Tranquilidad', bonfire: true }],
+      pads: [{ angle: 100 * d2r, half: 40, name: 'Mar de la Tranquilidad', bonfire: true }],
     },
   ],
   gates: [
@@ -73,15 +74,16 @@ const stage2: StageDef = {
     { x: -150, y: 190, body: 'luna' },
     { x: 170, y: -150, body: 'luna' },
     { x: 700, y: -250, body: 'luna' },
-    { x: 1500, y: 900, final: true },
+    { x: -35, y: 197, body: 'luna', final: true },
   ],
   fields: [],
   asteroids: [{ count: 10, seed: 22, around: 'tierra', rIn: 700, rOut: 1700, size: [4, 8], speed: 0.85 }],
   cells: [{ x: 500, y: 450, fuel: 30 }, { x: 0, y: 260, body: 'luna', fuel: 30 }],
   start: { body: 'tierra', angle: 90 * d2r },
   rivalStart: { body: 'tierra', angle: 55 * d2r },
-  rival: { skill: 0.85, name: 'Luna-2', delay: 10, ai: { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.2 } },
-  par: 45,
+  rival: { skill: 0.85, name: 'Luna-2', delay: 7, ai: { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.2 } },
+  finish: { body: 'luna', pad: 0 },
+  par: 55,
 };
 
 /** Stage 3: a star in the middle and two planets with the solar wind pushing. */
@@ -109,7 +111,7 @@ const stage3: StageDef = {
       g: 48,
       color: '#ff5a3c',
       orbit: { parent: 'sol', a: 2700, phase: 1.0, omega: 0.018 },
-      pads: [{ angle: 270 * d2r, half: 34, name: 'Utopia Planitia', bonfire: true }],
+      pads: [{ angle: 90 * d2r, half: 40, name: 'Utopia Planitia', bonfire: true }],
     },
   ],
   gates: [
@@ -118,15 +120,16 @@ const stage3: StageDef = {
     { x: 1500, y: 1400 },
     { x: 2200, y: 2000 },
     { x: -150, y: 0, body: 'marte' },
-    { x: 200, y: 220, body: 'marte', final: true },
+    { x: 0, y: 190, body: 'marte', final: true },
   ],
   fields: [{ x: 1500, y: 900, r: 700, kind: 'wind', ax: 40, ay: -25, color: '#ffb000', label: 'VIENTO SOLAR' }],
   asteroids: [{ count: 10, seed: 33, around: 'sol', rIn: 1900, rOut: 2300, size: [4, 8], speed: 0.9 }],
   cells: [{ x: 1000, y: 700, fuel: 30 }, { x: 2000, y: 1700, fuel: 30 }],
   start: { body: 'terra', angle: 90 * d2r },
   rivalStart: { body: 'terra', angle: 60 * d2r },
-  rival: { skill: 0.9, name: 'Mars-1', delay: 8, ai: { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.2 } },
-  par: 55,
+  rival: { skill: 0.9, name: 'Mars-1', delay: 7, ai: { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.2 } },
+  finish: { body: 'marte', pad: 0 },
+  par: 65,
 };
 
 /** Stage 4: thread an asteroid belt. */
@@ -154,7 +157,7 @@ const stage4: StageDef = {
       g: 38,
       color: '#b8a89a',
       orbit: { parent: 'sol', a: 2600, phase: 0.9, omega: 0.02 },
-      pads: [{ angle: 90 * d2r, half: 28, name: 'Estación Ceres', bonfire: true }],
+      pads: [{ angle: 90 * d2r, half: 36, name: 'Estación Ceres', bonfire: true }],
     },
     {
       id: 'jupiter',
@@ -170,17 +173,16 @@ const stage4: StageDef = {
     { x: 700, y: 700 },
     { x: 1200, y: 1500 },
     { x: -110, y: 0, body: 'ceres' },
-    { x: 100, y: 190, body: 'ceres' },
-    { x: 2500, y: 2600 },
-    { x: -250, y: 120, body: 'jupiter', final: true },
+    { x: 0, y: 170, body: 'ceres', final: true },
   ],
   fields: [],
   asteroids: [{ count: 46, seed: 44, around: 'sol', rIn: 1900, rOut: 3000, size: [4, 9], speed: 0.95 }],
   cells: [{ x: 500, y: 500, fuel: 30 }, { x: 1800, y: 2200, fuel: 30 }],
   start: { body: 'marte', angle: 90 * d2r },
   rivalStart: { body: 'marte', angle: 60 * d2r },
-  rival: { skill: 0.9, name: 'Belt-3', delay: 5, ai: { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.15 } },
-  par: 55,
+  rival: { skill: 0.9, name: 'Belt-3', delay: 4, ai: { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.15 } },
+  finish: { body: 'ceres', pad: 0 },
+  par: 60,
 };
 
 /** Stage 5: use Jupiter, then fall towards Pluto. */
@@ -217,7 +219,7 @@ const stage5: StageDef = {
       color: '#b48cff',
       x: 7600,
       y: -3600,
-      pads: [{ angle: 150 * d2r, half: 34, name: 'Sputnik Planitia', bonfire: true }],
+      pads: [{ angle: 100 * d2r, half: 40, name: 'Sputnik Planitia', bonfire: true }],
     },
   ],
   gates: [
@@ -227,15 +229,16 @@ const stage5: StageDef = {
     { x: 90, y: -260, body: 'europa' },
     { x: 2600, y: -1200 },
     { x: 5200, y: -2500 },
-    { x: -180, y: 150, body: 'pluton', final: true },
+    { x: -30, y: 170, body: 'pluton', final: true },
   ],
   fields: [{ x: 3400, y: -1500, r: 800, kind: 'radiation', dps: 8, color: '#ff2bd6', label: 'RADIACIÓN' }],
   asteroids: [{ count: 18, seed: 55, around: 'jupiter', rIn: 2000, rOut: 2800, size: [4, 9], speed: 0.9 }],
   cells: [{ x: 1500, y: -400, fuel: 30 }, { x: 4200, y: -2000, fuel: 30 }],
   start: { body: 'io', angle: 90 * d2r },
   rivalStart: { body: 'io', angle: 50 * d2r },
-  rival: { skill: 0.9, name: 'Pluto-X', delay: 6, ai: { horizon: 1.2, dt: 0.05, interval: 0.15, noise: 0.1 } },
-  par: 70,
+  rival: { skill: 0.9, name: 'Pluto-X', delay: 9, ai: { horizon: 1.2, dt: 0.05, interval: 0.15, noise: 0.1 } },
+  finish: { body: 'pluton', pad: 0 },
+  par: 80,
 };
 
 export const STAGES: StageDef[] = [stage1, stage2, stage3, stage4, stage5];

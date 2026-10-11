@@ -295,7 +295,7 @@ export class Mission {
     const rivalTime = this.rival.finished ? this.rival.finishTime : a.clock;
     if (!won) {
       const total = a.gates.length;
-      const why = `${this.rival.name} llegó primero: pasó los ${total} aros en ${rivalTime.toFixed(0)} s; vos ibas por ${Math.min(this.player.nextGate, total)}/${total}. Ganás la etapa cruzando todos los aros antes que el rival (las cápsulas y los datos no cuentan para eso).`;
+      const why = `${this.rival.name} llegó primero: pasó los ${total} aros y aterrizó a los ${rivalTime.toFixed(0)} s; vos ${this.arena.gatesDone(this.player) ? 'ya habías pasado los aros pero no llegaste a aterrizar' : `ibas por ${this.player.nextGate}/${total} aros`}. Se gana pasando todos los aros y aterrizando en la plataforma meta antes que el rival (cápsulas y datos no cuentan).`;
       if (this.practice) {
         this.phase = 'cleared';
         this.result = { won: false, time, rivalTime, reward: 0, reason: why };

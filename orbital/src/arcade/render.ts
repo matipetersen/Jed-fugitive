@@ -146,6 +146,27 @@ function drawGates(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void 
       ctx.globalAlpha = 1;
     }
   }
+  // The finish pad: a pulsing marker above it once the last gate is next or passed.
+  if (next >= a.gates.length - 1) {
+    const ang = a.finishPoint(gp);
+    const lift = 26 + 4 * Math.sin(g.clock * 5);
+    proj(v, gp.x + Math.cos(ang) * lift, gp.y + Math.sin(ang) * lift);
+    const mx = P.x;
+    const my = P.y;
+    const bi = a.finish.body;
+    const half = a.bodies[bi].def.pads?.[a.finish.pad]?.half ?? 30;
+    const sa = screenAngle(v, ang);
+    neonStroke(ctx, GOOD, 2, () => {
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(sa + Math.PI / 2);
+      ctx.moveTo(-8, -8);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(8, -8);
+      ctx.restore();
+    }, 0.9);
+    void half;
+  }
 }
 
 function drawCells(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
@@ -307,19 +328,24 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   const ringTxt = `ETAPA ${m.stageIdx + 1} · ${m.def.name.toUpperCase()}`;
   text(ctx, ringTxt, cx, TOP + 18, AMBER, 12, true);
   const total = a.gates.length;
-  text(ctx, `AROS ${Math.min(p.nextGate, total)}/${total}  ·  RIVAL ${Math.min(m.rival.nextGate, total)}/${total}  ·  ${Math.max(0, a.clock).toFixed(0)} s`, cx, TOP + 34, COLORS.hud, 12, true);
+  const done = (sh: Ship): string => (a.gatesDone(sh) ? 'ATERRIZAR' : `${sh.nextGate}/${total}`);
+  text(ctx, `AROS ${done(p)}  ·  RIVAL ${done(m.rival)}  ·  ${Math.max(0, a.clock).toFixed(0)} s`, cx, TOP + 34, COLORS.hud, 12, true);
   const lead = m.gateLead();
+  const padName = a.bodies[a.finish.body].def.pads?.[a.finish.pad]?.name ?? 'la meta';
   let leadTxt = 'RIVAL AL PAR';
   let leadColor = COLORS.hud;
   if (a.clock < 0) {
     leadTxt = `${m.rival.name}`;
+  } else if (a.gatesDone(p)) {
+    leadTxt = `ATERRIZÁ EN ${padName.toUpperCase()}`;
+    leadColor = GOOD;
   } else if (lead > 0) {
     leadTxt = `ADELANTE +${lead} ${lead === 1 ? 'aro' : 'aros'}`;
     leadColor = GOOD;
   } else if (lead < 0) {
     leadTxt = `${m.rival.name} ADELANTE ${-lead} ${lead === -1 ? 'aro' : 'aros'}`;
     leadColor = '#ff2bd6';
-  } else if (p.nextGate < total) {
+  } else if (!a.gatesDone(p) && !a.gatesDone(m.rival)) {
     const gp = { x: 0, y: 0 };
     a.gatePos(p.nextGate, gp);
     const dp = Math.hypot(p.x - gp.x, p.y - gp.y);
@@ -339,10 +365,10 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   btn(ctx, ui, 'zoom', bx + 2 * (bw + 4), TOP + 8 + bh + 4, bw, bh, 'ZOOM', { on: !g.input.zoomManual });
 
   // Edge arrows.
-  if (p.nextGate < total) {
+  {
     const gp = { x: 0, y: 0 };
-    a.gatePos(p.nextGate, gp);
-    edgeArrow(ctx, v, gp.x, gp.y, AMBER, `${Math.round(Math.hypot(gp.x - p.x, gp.y - p.y))}`);
+    a.objective(p, gp);
+    edgeArrow(ctx, v, gp.x, gp.y, a.gatesDone(p) ? GOOD : AMBER, `${Math.round(Math.hypot(gp.x - p.x, gp.y - p.y))}`);
   }
   if (m.rival.status !== 'dead') edgeArrow(ctx, v, m.rival.x, m.rival.y, '#ff2bd6', m.rival.name);
   const bp = m.beaconPos();
@@ -357,7 +383,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
 
   if (a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared') {
     const warn = total - m.rival.nextGate;
-    text(ctx, `¡${m.rival.name} ESTÁ A ${warn} ${warn === 1 ? 'ARO' : 'AROS'} DE GANAR!`, cx, TOP + 66, BAD, 12, true);
+    text(ctx, warn <= 0 ? `¡${m.rival.name} ESTÁ ATERRIZANDO!` : `¡${m.rival.name} ESTÁ A ${warn} ${warn === 1 ? 'ARO' : 'AROS'} DE GANAR!`, cx, TOP + 66, BAD, 12, true);
   }
 
   // Centre messages.
@@ -424,6 +450,6 @@ function drawFloatStick(ctx: CanvasRenderingContext2D, g: ArcadeGame, width: num
     }
   } else {
     text(ctx, 'APOYÁ Y APUNTÁ', ox - 44, oy - R - 8, COLORS.dim, 10);
-    text(ctx, 'LA NAVE GIRA Y ACELERA HACIA AHÍ', ox - 90, oy + R + 16, COLORS.dim, 10);
+    text(ctx, 'ARRASTRÁ HACIA DONDE IR', ox - 58, oy + R + 16, COLORS.dim, 10);
   }
 }

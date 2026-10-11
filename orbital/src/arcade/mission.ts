@@ -294,12 +294,14 @@ export class Mission {
     const time = this.player.finished ? this.player.finishTime : a.clock;
     const rivalTime = this.rival.finished ? this.rival.finishTime : a.clock;
     if (!won) {
+      const total = a.gates.length;
+      const why = `${this.rival.name} llegó primero: pasó los ${total} aros en ${rivalTime.toFixed(0)} s; vos ibas por ${Math.min(this.player.nextGate, total)}/${total}. Ganás la etapa cruzando todos los aros antes que el rival (las cápsulas y los datos no cuentan para eso).`;
       if (this.practice) {
         this.phase = 'cleared';
-        this.result = { won: false, time, rivalTime, reward: 0, reason: `${this.rival.name} llegó primero` };
+        this.result = { won: false, time, rivalTime, reward: 0, reason: why };
         return;
       }
-      this.endMission('failed', `${this.rival.name} llegó primero`);
+      this.endMission('failed', why);
       return;
     }
     const margin = Math.max(0, rivalTime - time);

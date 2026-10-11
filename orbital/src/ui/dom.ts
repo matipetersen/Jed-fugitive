@@ -28,7 +28,7 @@ body{font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;-webkit-user-select:no
 canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 #overlay{position:fixed;inset:0;display:none;overflow:auto;background:rgba(2,2,10,.92);-webkit-overflow-scrolling:touch;z-index:5}
 #overlay.on{display:block}
-.screen{max-width:760px;margin:0 auto;padding:14px 16px 28px}
+.screen{max-width:760px;margin:0 auto;padding:50px 16px 28px}
 .screen h1{font-size:22px;letter-spacing:.2em;margin:6px 0 2px;color:var(--ink);text-shadow:0 0 8px var(--ink)}
 .screen h2{font-size:13px;letter-spacing:.18em;margin:18px 0 8px;color:var(--amber);text-shadow:0 0 6px var(--amber);font-weight:600}
 .sub{color:var(--dim);margin:0 0 6px}
@@ -58,7 +58,7 @@ ul.tight li{margin:3px 0}
 .step.lost{border-color:var(--bad)}
 .news{color:var(--dim)}
 .tabs{position:sticky;top:0;background:rgba(2,2,10,.96);padding:6px 0;z-index:2}
-@media (max-height:520px){.screen{padding-top:8px}.screen h1{font-size:16px;margin:2px 0}.screen h2{margin:10px 0 6px}.btn{min-height:34px;padding:5px 10px;font-size:12px}.panel{padding:6px 10px}.sub{margin:0 0 4px}}
+@media (max-height:520px){.screen{padding-top:46px}.screen h1{font-size:16px;margin:2px 0}.screen h2{margin:10px 0 6px}.btn{min-height:34px;padding:5px 10px;font-size:12px}.panel{padding:6px 10px}.sub{margin:0 0 4px}}
 .news .bad{color:var(--bad)}
 `;
 

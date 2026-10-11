@@ -10,6 +10,8 @@ import { coastPath } from './predict';
 import { SHIP_R } from './arena';
 
 const TAU = Math.PI * 2;
+/** Height reserved at the top: the host app's browser bar can cover the first pixels of the page. */
+const TOP = 56;
 const AMBER = '#ffb000';
 const GOOD = '#7dff6b';
 const BAD = '#ff3b3b';
@@ -262,11 +264,11 @@ function edgeArrow(ctx: CanvasRenderingContext2D, v: View, wx: number, wy: numbe
   proj(v, wx, wy);
   const sx = P.x;
   const sy = P.y;
-  if (sx > 10 && sx < v.w - 10 && sy > 10 && sy < v.h - 10) return;
+  if (sx > 10 && sx < v.w - 10 && sy > TOP + 64 && sy < v.h - 10) return;
   const cx = v.w / 2;
-  const cy = v.h / 2;
+  const cy = (TOP + 64 + v.h) / 2;
   const ang = Math.atan2(sy - cy, sx - cx);
-  const k = Math.min((v.w / 2 - 70) / Math.abs(Math.cos(ang) || 1e-9), (v.h / 2 - 34) / Math.abs(Math.sin(ang) || 1e-9));
+  const k = Math.min((v.w / 2 - 70) / Math.abs(Math.cos(ang) || 1e-9), ((v.h - TOP - 64) / 2 - 26) / Math.abs(Math.sin(ang) || 1e-9));
   const ex = cx + Math.cos(ang) * k;
   const ey = cy + Math.sin(ang) * k;
   neonStroke(ctx, color, 1.6, () => {
@@ -292,20 +294,20 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   // Left readout.
   const x = 10;
   const speed = Math.hypot(p.vx, p.vy);
-  text(ctx, 'CASCO', x, 20, COLORS.dim);
-  meter(ctx, x + 48, 11, 90, p.hull / p.stats.hullMax, p.hull / p.stats.hullMax < 0.35 ? BAD : GOOD);
-  text(ctx, 'COMB', x, 36, COLORS.dim);
-  meter(ctx, x + 48, 27, 90, p.fuel / p.stats.fuelMax, p.fuel / p.stats.fuelMax < 0.2 ? BAD : AMBER);
-  text(ctx, `VEL ${speed.toFixed(0)}`, x, 52, COLORS.hud);
-  text(ctx, `VIDAS ${'♥'.repeat(Math.max(0, m.lives))}${m.practice ? ' ∞' : ''}`, x, 68, m.lives <= 1 && !m.practice ? BAD : COLORS.hud);
-  text(ctx, `DATOS ${m.carried}`, x, 84, m.carried > 0 ? AMBER : COLORS.dim);
+  text(ctx, 'CASCO', x, TOP + 20, COLORS.dim);
+  meter(ctx, x + 48, TOP + 11, 90, p.hull / p.stats.hullMax, p.hull / p.stats.hullMax < 0.35 ? BAD : GOOD);
+  text(ctx, 'COMB', x, TOP + 36, COLORS.dim);
+  meter(ctx, x + 48, TOP + 27, 90, p.fuel / p.stats.fuelMax, p.fuel / p.stats.fuelMax < 0.2 ? BAD : AMBER);
+  text(ctx, `VEL ${speed.toFixed(0)}`, x, TOP + 52, COLORS.hud);
+  text(ctx, `VIDAS ${'♥'.repeat(Math.max(0, m.lives))}${m.practice ? ' ∞' : ''}`, x, TOP + 68, m.lives <= 1 && !m.practice ? BAD : COLORS.hud);
+  text(ctx, `DATOS ${m.carried}`, x, TOP + 84, m.carried > 0 ? AMBER : COLORS.dim);
 
   // Top centre: stage, rings, time and the lead over the rival.
   const cx = (150 + width - 8 - 3 * 50 - 8) / 2;
   const ringTxt = `ETAPA ${m.stageIdx + 1} · ${m.def.name.toUpperCase()}`;
-  text(ctx, ringTxt, cx, 18, AMBER, 12, true);
+  text(ctx, ringTxt, cx, TOP + 18, AMBER, 12, true);
   const total = a.gates.length;
-  text(ctx, `AROS ${Math.min(p.nextGate, total)}/${total}  ·  ${Math.max(0, a.clock).toFixed(1)} s`, cx, 34, COLORS.hud, 12, true);
+  text(ctx, `AROS ${Math.min(p.nextGate, total)}/${total}  ·  RIVAL ${Math.min(m.rival.nextGate, total)}/${total}  ·  ${Math.max(0, a.clock).toFixed(0)} s`, cx, TOP + 34, COLORS.hud, 12, true);
   const lead = m.gateLead();
   let leadTxt = 'RIVAL AL PAR';
   let leadColor = COLORS.hud;
@@ -325,16 +327,16 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     leadTxt = dp <= dr ? 'VAS ADELANTE' : `${m.rival.name} VA ADELANTE`;
     leadColor = dp <= dr ? GOOD : '#ff2bd6';
   }
-  text(ctx, leadTxt, cx, 50, leadColor, 12, true);
+  text(ctx, leadTxt, cx, TOP + 50, leadColor, 12, true);
 
   // Buttons.
   const bw = 50;
   const bh = 34;
   const bx = width - 8 - 3 * bw - 8;
-  btn(ctx, ui, 'pause', bx, 8, bw, bh, 'PAUSA');
-  btn(ctx, ui, 'kit', bx + bw + 4, 8, bw, bh, `CÁP ${m.kits}`, { dim: m.kits <= 0 || m.kitCooldown > 0, color: GOOD });
-  btn(ctx, ui, 'aim', bx + 2 * (bw + 4), 8, bw, bh, 'APUNTA', { on: g.autoAim });
-  btn(ctx, ui, 'zoom', bx + 2 * (bw + 4), 8 + bh + 4, bw, bh, 'ZOOM', { on: !g.input.zoomManual });
+  btn(ctx, ui, 'pause', bx, TOP + 8, bw, bh, 'PAUSA');
+  btn(ctx, ui, 'kit', bx + bw + 4, TOP + 8, bw, bh, `CÁP ${m.kits}`, { dim: m.kits <= 0 || m.kitCooldown > 0, color: GOOD });
+  btn(ctx, ui, 'aim', bx + 2 * (bw + 4), TOP + 8, bw, bh, 'APUNTA', { on: g.autoAim });
+  btn(ctx, ui, 'zoom', bx + 2 * (bw + 4), TOP + 8 + bh + 4, bw, bh, 'ZOOM', { on: !g.input.zoomManual });
 
   // Edge arrows.
   if (p.nextGate < total) {
@@ -347,10 +349,15 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   if (bp) edgeArrow(ctx, v, bp.x, bp.y, AMBER, 'BALIZA');
 
   // Toasts.
-  let y = height * 0.2;
+  let y = TOP + height * 0.2;
   for (const t of g.toasts) {
     text(ctx, t.text, cx, y, t.kind === 'bad' ? BAD : t.kind === 'good' ? GOOD : COLORS.hud, 12, true);
     y += 16;
+  }
+
+  if (a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared') {
+    const warn = total - m.rival.nextGate;
+    text(ctx, `¡${m.rival.name} ESTÁ A ${warn} ${warn === 1 ? 'ARO' : 'AROS'} DE GANAR!`, cx, TOP + 66, BAD, 12, true);
   }
 
   // Centre messages.

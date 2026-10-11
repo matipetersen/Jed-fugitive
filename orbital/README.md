@@ -80,7 +80,7 @@ git subtree split --prefix=orbital -b orbital-only
 ## Modo arcade: la carrera (EE.UU. vs URSS)
 
 Menú → **JUGAR LA CARRERA**. Cinco etapas (Sputnik, Luna, Marte, Cinturón, Plutón), ~4 min en total,
-con una nave rival simultánea (IA predictiva) que choca con vos. Cada etapa termina aterrizando en una plataforma meta tras pasar todos los aros; entre etapas se gastan datos en mejoras. Estilo souls-like: 3 vidas por misión,
+con una nave rival simultánea (IA predictiva) que choca con vos. Cada etapa termina aterrizando en una plataforma meta tras pasar todos los aros; entre etapas se gastan datos en mejoras. Estilo souls-like: 3 vidas por etapa; las 5 etapas se juegan siempre (perder paga menos, no corta la misión); la tecnología se reinicia en cada misión,
 al morir perdés los datos que llevabas (recuperables en la baliza), se guardan en fogatas (pads) o al
 terminar etapa; si el rival termina primero, la misión falla. Mejoras permanentes entre intentos.
 El simulador realista sigue disponible como modo aparte. Código en `src/arcade/`.

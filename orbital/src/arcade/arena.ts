@@ -13,8 +13,8 @@ export const SHIP_R = 7;
 export const GATE_R = 36;
 export const LAND_SPEED = 40;
 export const LAND_TILT = 0.55;
-export const BURN_RATE = 6;
-export const BASE_STATS: ShipStats = { thrust: 150, turnRate: 3.4, fuelMax: 100, hullMax: 100 };
+export const BURN_RATE = 5;
+export const BASE_STATS: ShipStats = { thrust: 150, turnRate: 3.4, fuelMax: 130, hullMax: 100 };
 export const STEP = 1 / 120;
 
 const TAU = Math.PI * 2;

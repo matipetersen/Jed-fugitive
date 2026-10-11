@@ -16,11 +16,11 @@ const ARCADE_HELP: [string, string][] = [
   ['Gravedad', 'Todo cae hacia los planetas y los planetas se mueven. Usá su gravedad para ganar velocidad (honda gravitatoria) y no te acerques a ciegas.'],
   ['Controles', 'Apoyá el dedo donde quieras y arrastrá hacia donde querés ir: la nave gira hacia esa dirección y acelera cuando queda alineada; cuanto más lejos arrastrás, más empuje. Para frenar, apuntá en contra de tu movimiento. Soltá para planear. APUNTA gira solo hacia el próximo aro.'],
   ['Aterrizar', 'Despacio (menos de 40 u/s) y derecho. Las franjas amarillas con llama son estaciones: reparan, recargan, guardan tus datos y son tu punto de reaparición.'],
-  ['Vidas', 'Tenés 3 por misión. Si te quedás sin vidas, o el rival llega primero, la misión fracasa.'],
-  ['Datos', 'Los ganás pasando aros, con hondas gravitatorias y adelantando al rival. Si morís perdés los que llevabas, pero quedan en una baliza: volvé a tocarla para recuperarlos. Los datos guardados compran mejoras.'],
+  ['Vidas', 'Tenés 3 por etapa. Si te quedás sin vidas, o el rival aterriza primero, perdés la etapa (cobrás menos) pero la misión sigue: se juegan las 5 etapas.'],
+  ['Datos', 'Los ganás pasando aros, con hondas gravitatorias y adelantando al rival. Si morís perdés los que llevabas, pero quedan en una baliza: volvé a tocarla para recuperarlos. Cada nave que explota además deja telemetría (datos extra). Con los datos comprás mejoras entre etapas; al terminar la misión la tecnología se reinicia.'],
   ['Cápsulas', 'Tocá CÁP para recuperar combustible y casco. Se recargan en cada estación.'],
   ['Rival', 'Corre a la vez que vos y se pueden chocar. Un golpe fuerte lo frena a él también.'],
-  ['Práctica', 'Las etapas que ya alcanzaste se pueden practicar sin vidas ni recompensas.'],
+  ['Práctica', 'Las etapas que ya alcanzaste se pueden practicar sin vidas ni recompensas, con la nave básica.'],
 ];
 
 /** Upgrade list, bought with saved data; used in the centre and between stages. */
@@ -42,10 +42,10 @@ function shop(c: ArcadeController): HTMLElement[] {
 export const arcadeScreens = {
   hub(c: ArcadeController): HTMLElement {
     const m = c.meta;
-    const next = Math.min(m.cleared, STAGES.length - 1);
+    const next = Math.min(Math.max(m.cleared, m.reached - 1), STAGES.length - 1);
     return h('div', { class: 'screen' },
       h('h1', {}, 'CARRERA ESPACIAL'),
-      h('p', { class: 'sub' }, `Datos guardados: ${m.data} · etapas superadas ${m.cleared}/5 · misiones ${m.attempts} · muertes ${m.deaths}`),
+      h('p', { class: 'sub' }, `Etapas ganadas alguna vez ${m.cleared}/5 · misiones ${m.attempts} · naves perdidas ${m.deaths}`),
       h('div', { class: 'row' },
         btn('INICIAR MISIÓN', () => c.startMission(0, false), 'go'),
         btn('VOLVER AL INICIO', () => c.exit()),
@@ -55,9 +55,8 @@ export const arcadeScreens = {
         : m.cleared === 0 ? 'La misión completa son 5 etapas contra la nave rival. Tenés 3 vidas.' : `Tu mejor avance: etapa ${m.cleared}. El rival no espera.`),
       h('h2', {}, 'PRÁCTICA'),
       h('div', { class: 'row' }, ...STAGES.map((s, i) => btn(`${s.id}. ${s.name}`, () => c.startMission(i, true), '', i > next))),
-      h('h2', {}, 'MEJORAS'),
-      h('p', { class: 'sub' }, 'Se compran con datos guardados. Valen para todas las misiones futuras.'),
-      ...shop(c),
+      h('h2', {}, 'TECNOLOGÍA'),
+      h('p', { class: 'sub' }, 'Cada misión empieza con la nave básica. Los datos que ganás (y la telemetría de las naves que perdés) se gastan en mejoras entre etapa y etapa, pero solo valen para esa misión.'),
       h('h2', {}, 'MEJORES TIEMPOS'),
       h('div', { class: 'grid' }, ...STAGES.map((s, i) => kv(`${s.id}. ${s.name}`, m.best[i] === null ? '--' : fmtT(m.best[i]!)))),
       h('h2', {}, 'MEJORES MISIONES'),
@@ -123,28 +122,32 @@ export const arcadeScreens = {
     const m = c.mission;
     const r = m.result!;
     const last = m.stageIdx === STAGES.length - 1;
+    const final = !!m.over;
+    const title = final ? (r.won ? 'LLEGASTE A PLUTÓN' : 'MISIÓN TERMINADA') : r.won ? 'ETAPA SUPERADA' : 'ETAPA PERDIDA';
+    const next = !last && !m.practice && !final ? STAGES[m.stageIdx + 1] : null;
     return h('div', { class: 'screen' },
-      h('h1', { class: r.won ? 'good' : 'bad' }, r.won ? (m.over === 'won' ? 'LLEGASTE A PLUTÓN' : 'ETAPA SUPERADA') : 'PERDISTE LA CARRERA'),
+      h('h1', { class: r.won ? 'good' : 'bad' }, title),
       h('p', { class: 'sub' }, r.won ? `Llegaste primero a ${m.def.name}.` : r.reason),
       h('div', { class: 'panel' },
-        kv('Tu tiempo', fmtT(r.time), 'good'),
+        r.won ? kv('Tu tiempo', fmtT(r.time), 'good') : null,
         kv(m.rival.name, m.rival.finished ? fmtT(r.rivalTime) : 'no llegó', 'bad'),
-        r.reward > 0 ? kv('Recompensa', `+${r.reward} datos`, 'amber') : null,
-        kv('Datos de la etapa', `${m.earned}`),
-        kv('Vidas', m.practice ? '∞' : String(m.lives)),
+        !m.practice ? kv(r.won ? 'Recompensa' : 'Recompensa reducida', `+${r.reward} datos`, 'amber') : null,
+        !m.practice ? kv('Naves perdidas', `${m.deaths}`) : null,
+        !m.practice ? kv('Datos de la misión', `${m.earned}`) : null,
+        !m.practice ? kv('Etapas ganadas', `${m.stagesCleared}/${STAGES.length}`) : null,
       ),
-      m.over === 'won'
-        ? h('p', {}, 'El primer humano en Plutón. La Guerra Fría terminó en el borde del sistema solar.')
-        : null,
+      final && r.won ? h('p', {}, 'El primer humano en Plutón. La Guerra Fría terminó en el borde del sistema solar.') : null,
+      final && !r.won ? h('p', {}, 'La carrera se decidió sin vos. Cada misión empieza de cero: la próxima vez ya sabés dónde cae la gravedad.') : null,
       h('div', { class: 'row' },
-        !last && r.won && !m.over ? btn('SIGUIENTE ETAPA', () => c.nextStage(), 'go') : null,
+        next ? btn('SIGUIENTE ETAPA', () => c.nextStage(), 'go') : null,
         m.practice ? btn('REPETIR', () => c.retry(), 'warn') : null,
-        btn('CENTRO DE MISIÓN', () => c.openHub(), m.over ? 'go' : ''),
+        final ? btn('NUEVA MISIÓN', () => c.startMission(0, false), 'go') : null,
+        btn('CENTRO DE MISIÓN', () => c.openHub(), ''),
       ),
-      ...(!last && r.won && !m.over && !m.practice
+      ...(next
         ? [
             h('h2', {}, 'EQUIPAMIENTO PARA LA SIGUIENTE ETAPA'),
-            h('p', { class: 'sub' }, `Datos disponibles: ${c.meta.data}. Lo que compres vale desde ya, la nave sale mejorada. Siguiente: ${STAGES[m.stageIdx + 1].name} (${skulls(STAGES[m.stageIdx + 1].skulls)}).`),
+            h('p', { class: 'sub' }, `Datos disponibles: ${c.meta.data}. Lo que compres vale desde ya, pero solo en esta misión. Siguiente: ${next.name} (${skulls(next.skulls)}).`),
             ...shop(c),
             h('div', { class: 'row' }, btn('SIGUIENTE ETAPA', () => c.nextStage(), 'go')),
           ]

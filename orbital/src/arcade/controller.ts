@@ -125,10 +125,7 @@ export class ArcadeController {
 
   abandon(): void {
     const m = this.mission;
-    if (!m.practice && !m.over) {
-      // Abandoning counts as a failed attempt but keeps banked data.
-      m.over = 'failed';
-    }
+    m.abandon();
     this.openHub();
   }
 

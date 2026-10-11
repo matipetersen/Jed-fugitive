@@ -76,9 +76,8 @@ describe('mission rules', () => {
     expect(m.beacon).toBeNull();
   });
 
-  it('fails the mission when lives run out, keeping banked data', () => {
+  it('losing all lives loses only the stage; the wrecks pay data and the run goes on', () => {
     const meta = newMeta();
-    meta.data = 77;
     const m = new Mission(meta);
     run(m, 3.5);
     for (let i = 0; i < 3; i++) {
@@ -87,13 +86,17 @@ describe('mission rules', () => {
       run(m, 3);
       run(m, 1.7);
     }
-    expect(m.over).toBe('failed');
-    expect(meta.data).toBe(77);
+    expect(m.phase).toBe('cleared');
+    expect(m.result?.won).toBe(false);
+    expect(m.over).toBeNull();
     expect(meta.deaths).toBe(3);
-    expect(meta.records.length).toBe(1);
+    expect(meta.data).toBeGreaterThan(40);
+    expect(m.nextStage()).toBe(true);
+    expect(m.stageIdx).toBe(1);
+    expect(m.lives).toBe(3);
   });
 
-  it('fails the mission when the rival finishes first', () => {
+  it('a stage lost to the rival pays a reduced reward and the next stage still plays', () => {
     const meta = newMeta();
     const m = new Mission(meta);
     run(m, 3.5);
@@ -102,8 +105,22 @@ describe('mission rules', () => {
     r.finished = true;
     r.finishTime = 20;
     run(m, 0.05);
-    expect(m.over).toBe('failed');
+    expect(m.phase).toBe('cleared');
+    expect(m.result?.won).toBe(false);
     expect(m.result?.reason).toContain('llegó primero');
+    expect(m.result?.reward).toBe(25);
+    expect(m.over).toBeNull();
+    expect(m.nextStage()).toBe(true);
+  });
+
+  it('technology and data reset at the start of every run', () => {
+    const meta = newMeta();
+    meta.data = 500;
+    expect(buyUpgrade(meta, 'motor')).toBe(true);
+    const m = new Mission(meta);
+    expect(meta.data).toBe(0);
+    expect(m.upgrades.motor).toBe(0);
+    expect(shipStats(m.upgrades).thrust).toBe(150);
   });
 
   it('upgrades change the ship and cost data', () => {

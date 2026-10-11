@@ -15,6 +15,18 @@ export interface Particle {
   max: number;
   color: string;
   size: number;
+  /** dot (default), spark (a streak along its velocity) or flame (exhaust, colour shifts with age). */
+  kind?: 'dot' | 'spark' | 'flame';
+}
+
+export interface Ring {
+  x: number;
+  y: number;
+  r: number;
+  speed: number;
+  life: number;
+  max: number;
+  color: string;
 }
 
 export interface Toast {
@@ -30,6 +42,10 @@ export class ArcadeGame {
   mission: Mission;
   view: View = { cx: 0, cy: 0, zoom: 0.8, up: Math.PI / 2, w: 800, h: 400 };
   particles: Particle[] = [];
+  rings: Ring[] = [];
+  /** Recent positions of each ship, x then y, newest last. */
+  trails = new Map<number, number[]>();
+  private trailAcc = 0;
   toasts: Toast[] = [];
   autoAim = false;
   clock = 0;
@@ -57,6 +73,8 @@ export class ArcadeGame {
     this.mission = m;
     this.logSeen = 0;
     this.particles.length = 0;
+    this.rings.length = 0;
+    this.trails.clear();
     this.attach();
     this.snapCamera();
   }
@@ -66,19 +84,26 @@ export class ArcadeGame {
       const p = this.mission.player;
       if (e.type === 'die') {
         const s = this.mission.arena.ships[e.ship];
-        this.burst(e.x, e.y, s.color, 46, 150);
+        this.explode(e.x, e.y, s.color);
         if (e.ship === p.id) {
           this.shake = 0.7;
           this.audio.alarm();
         }
       } else if (e.type === 'gate' && e.ship === p.id) {
         this.burst(p.x, p.y, e.final ? '#7dff6b' : '#00f0ff', 14, 90);
+        this.ring(p.x, p.y, e.final ? '#7dff6b' : '#00f0ff', 20, 140, 0.7);
         this.audio.chime();
+      } else if (e.type === 'cell' && e.ship === p.id) {
+        this.burst(p.x, p.y, '#7dff6b', 18, 100);
+        this.ring(p.x, p.y, '#7dff6b', 8, 110, 0.6);
       } else if (e.type === 'hit' && e.ship === p.id) {
         this.shake = Math.max(this.shake, Math.min(0.5, e.damage / 60));
       } else if (e.type === 'bump') {
         this.burst((this.mission.arena.ships[e.a].x + this.mission.arena.ships[e.b].x) / 2, (this.mission.arena.ships[e.a].y + this.mission.arena.ships[e.b].y) / 2, '#ffffff', 8, 70);
-      } else if (e.type === 'land' && e.ship === p.id && e.bonfire) this.burst(p.x, p.y, '#ffb000', 24, 70);
+      } else if (e.type === 'land' && e.ship === p.id) {
+        this.burst(p.x, p.y, e.bonfire ? '#ffb000' : '#ffffff', e.bonfire ? 24 : 10, 70);
+        this.ring(p.x, p.y, e.bonfire ? '#ffb000' : '#00f0ff', 6, 80, 0.5);
+      }
     };
   }
 
@@ -93,11 +118,29 @@ export class ArcadeGame {
     if (this.toasts.length > 4) this.toasts.shift();
   }
 
+  private ring(x: number, y: number, color: string, r: number, speed: number, max: number): void {
+    this.rings.push({ x, y, r, speed, life: 0, max, color });
+    if (this.rings.length > 24) this.rings.shift();
+  }
+
+  /** A ship coming apart: sparks in several colours, hull fragments and two shock rings. */
+  private explode(x: number, y: number, color: string): void {
+    const palette = [color, '#ffffff', '#ffb000', '#ff2bd6', '#00f0ff'];
+    for (let i = 0; i < 70; i++) {
+      const a = Math.random() * TAU;
+      const sp = 40 + Math.random() * 230;
+      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.5 + Math.random() * 1.1, color: palette[i % palette.length], size: 1.2 + Math.random() * 1.6, kind: i % 3 === 0 ? 'dot' : 'spark' });
+    }
+    this.ring(x, y, color, 6, 260, 0.8);
+    this.ring(x, y, '#ffffff', 4, 140, 0.55);
+    if (this.particles.length > 600) this.particles.splice(0, this.particles.length - 600);
+  }
+
   private burst(x: number, y: number, color: string, n: number, speed: number): void {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * TAU;
       const s = speed * (0.3 + Math.random() * 0.9);
-      this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0, max: 0.5 + Math.random() * 0.8, color, size: 1 + Math.random() * 1.5 });
+      this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0, max: 0.5 + Math.random() * 0.8, color, size: 1 + Math.random() * 1.5, kind: Math.random() < 0.5 ? 'spark' : 'dot' });
     }
     if (this.particles.length > 400) this.particles.splice(0, this.particles.length - 400);
   }
@@ -175,14 +218,32 @@ export class ArcadeGame {
     const m = this.mission;
     for (const s of m.arena.ships) {
       if (s.status === 'flying' && s.throttle > 0.05) {
-        this.flameAcc += dt * 60 * s.throttle;
+        this.flameAcc += dt * 110 * s.throttle;
         while (this.flameAcc >= 1) {
           this.flameAcc -= 1;
-          const a = s.angle + Math.PI + (Math.random() - 0.5) * 0.4;
-          const sp = 70 + Math.random() * 60;
-          this.particles.push({ x: s.x - Math.cos(s.angle) * 7, y: s.y - Math.sin(s.angle) * 7, vx: s.vx + Math.cos(a) * sp, vy: s.vy + Math.sin(a) * sp, life: 0, max: 0.25 + Math.random() * 0.2, color: s.isPlayer ? '#ffb000' : '#ff6ad6', size: 1.2 });
+          const a = s.angle + Math.PI + (Math.random() - 0.5) * 0.35;
+          const sp = 80 + Math.random() * 90 * s.throttle;
+          this.particles.push({ x: s.x - Math.cos(s.angle) * 8, y: s.y - Math.sin(s.angle) * 8, vx: s.vx + Math.cos(a) * sp, vy: s.vy + Math.sin(a) * sp, life: 0, max: 0.3 + Math.random() * 0.35, color: s.isPlayer ? '#00f0ff' : '#ff2bd6', size: 1.6 + Math.random() * 1.6 * s.throttle, kind: 'flame' });
         }
       }
+    }
+    // Ship trails: a short ribbon of past positions.
+    this.trailAcc += dt;
+    if (this.trailAcc >= 0.04) {
+      this.trailAcc = 0;
+      for (const s of m.arena.ships) {
+        let t = this.trails.get(s.id);
+        if (!t) this.trails.set(s.id, (t = []));
+        if (s.status === 'flying') t.push(s.x, s.y);
+        else if (t.length) t.splice(0, 2);
+        if (t.length > 2 * 28) t.splice(0, 2);
+      }
+    }
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const r = this.rings[i];
+      r.life += dt;
+      r.r += r.speed * dt;
+      if (r.life >= r.max) this.rings.splice(i, 1);
     }
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -215,7 +276,7 @@ export class ArcadeGame {
   }
 
   predictorSeconds(): number {
-    return predictorSeconds(this.meta.upgrades);
+    return predictorSeconds(this.mission.upgrades);
   }
 }
 

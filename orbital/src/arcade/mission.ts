@@ -1,7 +1,7 @@
 import { mulberry32 } from '../sim/rng';
 import { RIVAL_AI, RivalDriver } from './ai';
 import { Arena, STEP } from './arena';
-import { type Meta, MISSION_LIVES, addRecord, kitCount, shipStats } from './meta';
+import { type Meta, MISSION_LIVES, type Upgrades, addRecord, kitCount, shipStats, zeroUpgrades } from './meta';
 import { STAGES } from './stages';
 import { type ArenaEvent, type Controls, type Ship, type StageDef } from './types';
 
@@ -32,6 +32,7 @@ const DATA_GATE = 10;
 const DATA_SLING = 15;
 const DATA_LAND = 25;
 const DATA_OVERTAKE = 20;
+const DATA_WRECK = 14;
 
 /** A run through the stages: lives, carried data, beacon, kits and the rival. */
 export class Mission {
@@ -70,10 +71,20 @@ export class Mission {
   ) {
     this.practice = !!opts.practice;
     this.stageIdx = opts.stage ?? 0;
-    this.kits = kitCount(meta.upgrades);
+    if (!this.practice) {
+      // Every run starts from scratch: no technology and no data carried over.
+      meta.upgrades = zeroUpgrades();
+      meta.data = 0;
+      meta.attempts++;
+    }
+    this.kits = kitCount(this.upgrades);
     this.rivalRnd = mulberry32(1000 + this.stageIdx);
-    if (!this.practice) meta.attempts++;
     this.loadStage(this.stageIdx);
+  }
+
+  /** Technology of this run (practice always flies the base ship). */
+  get upgrades(): Upgrades {
+    return this.practice ? zeroUpgrades() : this.meta.upgrades;
   }
 
   readonly practice: boolean;
@@ -86,7 +97,7 @@ export class Mission {
     this.stageIdx = idx;
     const def = STAGES[idx];
     this.arena = new Arena(def);
-    const stats = shipStats(this.meta.upgrades);
+    const stats = shipStats(this.upgrades);
     this.player = this.arena.addShip({ isPlayer: true, name: 'Tú', color: '#00f0ff', stats, start: def.start });
     this.rival = this.arena.addShip({
       isPlayer: false,
@@ -98,6 +109,8 @@ export class Mission {
     });
     this.rivalRnd = mulberry32(1000 + idx);
     this.driver = new RivalDriver(this.rivalRnd, def.rival.ai ?? RIVAL_AI, def.rival.delay);
+    this.lives = MISSION_LIVES;
+    if (!this.practice) this.meta.reached = Math.max(this.meta.reached, idx + 1);
     this.phase = 'countdown';
     this.result = null;
     this.beacon = null;
@@ -227,7 +240,7 @@ export class Mission {
     this.earned += banked;
     if (!this.practice) this.meta.data += banked;
     this.carried = 0;
-    this.kits = kitCount(this.meta.upgrades);
+    this.kits = kitCount(this.upgrades);
     this.beacon = null;
     this.gain(DATA_LAND, 'Estación alcanzada');
     // Landing gain is banked immediately too.
@@ -259,11 +272,18 @@ export class Mission {
     this.carried = 0;
     if (!this.practice) this.lives--;
     this.note(`Muerte: ${reason}${lost > 0 && !this.practice ? ` · ${lost} datos quedaron en la baliza` : ''}`, 'bad');
+    if (!this.practice) {
+      // The wreck is not wasted: the telemetry of a lost ship pays for improvements.
+      const wreck = DATA_WRECK + 6 * this.stageIdx;
+      this.earned += wreck;
+      this.meta.data += wreck;
+      this.note(`+${wreck} datos · telemetría de la nave perdida`, 'info');
+    }
   }
 
   private afterDeath(): void {
     if (!this.practice && this.lives <= 0) {
-      this.endMission('failed', 'Sin vidas');
+      this.finishStage(false, 'Te quedaste sin vidas en esta etapa.');
       return;
     }
     const p = this.player;
@@ -271,7 +291,7 @@ export class Mission {
     const bf = p.bonfire;
     const spot = bf ? { body: bf.body, angle: a.bodies[bf.body].def.pads![bf.pad].angle } : { body: a.bodyIndex(this.def.start.body), angle: this.def.start.angle };
     a.respawn(p, spot, { fuel: p.stats.fuelMax, hull: p.stats.hullMax * 0.7 });
-    this.kits = Math.max(this.kits, kitCount(this.meta.upgrades) - (bf ? 0 : 1));
+    this.kits = Math.max(this.kits, kitCount(this.upgrades) - (bf ? 0 : 1));
     this.phase = 'race';
     this.deadFor = 0;
     this.note(bf ? 'Reapareciste en la estación' : 'Reapareciste en la plataforma', 'info');
@@ -289,54 +309,61 @@ export class Mission {
     }
   }
 
-  private finishStage(won: boolean): void {
+  private finishStage(won: boolean, lost = ''): void {
     const a = this.arena;
+    const last = this.stageIdx === STAGES.length - 1;
     const time = this.player.finished ? this.player.finishTime : a.clock;
     const rivalTime = this.rival.finished ? this.rival.finishTime : a.clock;
-    if (!won) {
-      const total = a.gates.length;
-      const why = `${this.rival.name} llegó primero: pasó los ${total} aros y aterrizó a los ${rivalTime.toFixed(0)} s; vos ${this.arena.gatesDone(this.player) ? 'ya habías pasado los aros pero no llegaste a aterrizar' : `ibas por ${this.player.nextGate}/${total} aros`}. Se gana pasando todos los aros y aterrizando en la plataforma meta antes que el rival (cápsulas y datos no cuentan).`;
-      if (this.practice) {
-        this.phase = 'cleared';
-        this.result = { won: false, time, rivalTime, reward: 0, reason: why };
-        return;
+    let reward = 0;
+    let reason = '';
+    if (won) {
+      const margin = Math.max(0, rivalTime - time);
+      reward = this.practice ? 0 : Math.round(100 * (this.stageIdx + 1) + margin * 4 + (this.player.hull / this.player.stats.hullMax) * 30);
+      this.stagesCleared++;
+      this.clearedTime += time;
+      if (!this.practice) {
+        this.meta.cleared = Math.max(this.meta.cleared, this.stageIdx + 1);
+        const best = this.meta.best[this.stageIdx];
+        if (best === null || time < best) this.meta.best[this.stageIdx] = time;
       }
-      this.endMission('failed', why);
-      return;
+      this.note(`Etapa ${this.stageIdx + 1} superada en ${time.toFixed(1)} s`, 'good');
+    } else {
+      // A lost stage still pays a little: the run goes on.
+      reward = this.practice ? 0 : 25 * (this.stageIdx + 1);
+      if (lost) reason = lost;
+      else {
+        const total = a.gates.length;
+        reason = `${this.rival.name} llegó primero: pasó los ${total} aros y aterrizó a los ${rivalTime.toFixed(0)} s; vos ${a.gatesDone(this.player) ? 'ya habías pasado los aros pero no llegaste a aterrizar' : `ibas por ${this.player.nextGate}/${total} aros`}.`;
+      }
     }
-    const margin = Math.max(0, rivalTime - time);
-    const reward = this.practice ? 0 : Math.round(100 * (this.stageIdx + 1) + margin * 4 + (this.player.hull / this.player.stats.hullMax) * 30);
     this.earned += this.carried + reward;
     if (!this.practice) this.meta.data += this.carried + reward;
     this.carried = 0;
-    this.clearedTime += time;
-    this.stagesCleared++;
-    if (!this.practice) {
-      this.meta.cleared = Math.max(this.meta.cleared, this.stageIdx + 1);
-      const best = this.meta.best[this.stageIdx];
-      if (best === null || time < best) this.meta.best[this.stageIdx] = time;
-    }
     this.phase = 'cleared';
-    this.result = { won: true, time, rivalTime, reward, reason: '' };
-    this.note(`Etapa ${this.stageIdx + 1} superada en ${time.toFixed(1)} s`, 'good');
-    if (this.stageIdx === STAGES.length - 1) this.endMission('won', '');
+    this.result = { won, time, rivalTime, reward, reason };
+    if (last && !this.practice) this.endMission(won ? 'won' : 'failed');
   }
 
-  private endMission(kind: 'won' | 'failed', reason: string): void {
+  private endMission(kind: 'won' | 'failed'): void {
     this.over = kind;
-    this.phase = kind === 'won' ? 'cleared' : 'failed';
-    if (kind === 'failed') this.result = { won: false, time: this.arena.clock, rivalTime: this.rival.finished ? this.rival.finishTime : 0, reward: 0, reason };
+    if (this.phase !== 'cleared') this.phase = 'failed';
     if (this.practice || this.recorded) return;
     this.recorded = true;
     if (kind === 'won') this.meta.won = true;
     addRecord(this.meta, { stages: this.stagesCleared, time: this.clearedTime, data: this.earned, won: kind === 'won', deaths: this.deaths });
   }
 
+  /** Leaving a run early: it ends and is recorded as it stands. */
+  abandon(): void {
+    if (this.practice || this.over) return;
+    this.endMission('failed');
+  }
+
   /** Moves on after a cleared stage: refills the ship partly and loads the next stage. */
   nextStage(): boolean {
     if (this.phase !== 'cleared' || this.over || this.stageIdx >= STAGES.length - 1) return false;
     this.loadStage(this.stageIdx + 1);
-    this.kits = kitCount(this.meta.upgrades);
+    this.kits = kitCount(this.upgrades);
     return true;
   }
 

@@ -1,8 +1,8 @@
 import { FLOAT_REACH, ROTATE_REACH } from '../input/input';
-import { COLORS, lineStroke, neonStroke } from '../render/neon';
+import { COLORS, lineStroke, neonStroke, quality } from '../render/neon';
 import { P, type View, proj, screenAngle } from '../render/view';
 import { btn, meter, text } from '../render/hud';
-import { circlePath, drawStars } from '../render/world';
+import { circlePath } from '../render/world';
 import { type Ui } from '../ui/ui';
 import { type ArcadeGame } from './game';
 import { type Ship } from './types';
@@ -10,6 +10,12 @@ import { coastPath } from './predict';
 import { SHIP_R } from './arena';
 
 const TAU = Math.PI * 2;
+
+/** '#rrggbb' to an rgba() string. */
+function hexA(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
 /** Height reserved at the top: the host app's browser bar can cover the first pixels of the page. */
 const TOP = 56;
 const AMBER = '#ffb000';
@@ -23,7 +29,7 @@ export function drawArcade(ctx: CanvasRenderingContext2D, g: ArcadeGame, width: 
   // Camera shake nudges the whole scene.
   const sh = g.shake * 7;
   const view: View = sh > 0.1 ? { ...v, cx: v.cx + (Math.random() - 0.5) * sh / v.zoom, cy: v.cy + (Math.random() - 0.5) * sh / v.zoom } : v;
-  drawStars(ctx, view);
+  drawSky(ctx, view, g);
   drawBodies(ctx, view, g);
   drawFields(ctx, view, g);
   drawGates(ctx, view, g);
@@ -31,8 +37,111 @@ export function drawArcade(ctx: CanvasRenderingContext2D, g: ArcadeGame, width: 
   drawAsteroids(ctx, view, g);
   drawBeacon(ctx, view, g);
   drawPredictor(ctx, view, g);
-  for (const s of g.mission.arena.ships) drawShip(ctx, view, s, g);
+  drawTrails(ctx, view, g);
   drawParticles(ctx, view, g);
+  for (const s of g.mission.arena.ships) drawShip(ctx, view, s, g);
+  drawRings(ctx, view, g);
+}
+
+
+// ---------------------------------------------------------------- sky
+
+const STAR_COLORS = ['#6a8cff', '#00f0ff', '#ff2bd6', '#ffb000', '#c8d4ff', '#7dff6b'];
+
+/** Deterministic pseudo-random in 0..1 for star `i` of a layer. */
+function hash(i: number, k: number): number {
+  const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Coloured stars on three parallax layers, faint nebula rings, a glow at the horizon and speed streaks. */
+function drawSky(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
+  const w = v.w;
+  const h = v.h;
+  const low = quality.low;
+  // Colour wash: violet above, teal below, so the black is never flat.
+  const wash = ctx.createLinearGradient(0, 0, 0, h);
+  wash.addColorStop(0, 'rgba(70,10,110,0.26)');
+  wash.addColorStop(0.55, 'rgba(0,0,0,0)');
+  wash.addColorStop(1, 'rgba(0,70,110,0.24)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, w, h);
+
+  // Nebula rings: huge, dashed, almost still.
+  if (!low) {
+    const rings: [number, number, number, string][] = [[0.18, 0.3, 380, '#ff2bd6'], [0.8, 0.7, 520, '#00f0ff'], [0.55, 0.1, 300, '#7a5cff']];
+    ctx.setLineDash([3, 14]);
+    for (const [fx, fy, r, c] of rings) {
+      const ox = -v.cx * 0.012;
+      const oy = v.cy * 0.012;
+      lineStroke(ctx, c, 2, () => {
+        ctx.moveTo(w * fx + ox + r, h * fy + oy);
+        ctx.arc(w * fx + ox, h * fy + oy, r, 0, TAU);
+      }, 0.13);
+    }
+    ctx.setLineDash([]);
+  }
+
+  // Stars: per layer a few groups by colour, each one path.
+  const layers: [number, number, number, number][] = low ? [[0.03, 28, 1.6, 0.5], [0.09, 18, 2.2, 0.8]] : [[0.02, 46, 1.4, 0.35], [0.05, 34, 1.9, 0.55], [0.11, 22, 2.8, 0.85]];
+  const t = g.clock;
+  layers.forEach(([par, n, size, alpha], li) => {
+    const ox = -v.cx * par;
+    const oy = v.cy * par;
+    const groups: number[][] = STAR_COLORS.map(() => []);
+    for (let i = 0; i < n; i++) {
+      const x = (((hash(i, li) * w + ox) % w) + w) % w;
+      const y = (((hash(i, li + 9) * h + oy) % h) + h) % h;
+      groups[Math.floor(hash(i, li + 4) * STAR_COLORS.length)].push(x, y);
+    }
+    groups.forEach((pts, ci) => {
+      if (!pts.length) return;
+      const tw = 0.75 + 0.25 * Math.sin(t * (1.5 + ci * 0.7) + li * 2);
+      lineStroke(ctx, STAR_COLORS[ci], 1, () => {
+        for (let i = 0; i < pts.length; i += 2) {
+          ctx.moveTo(pts[i] - size, pts[i + 1]);
+          ctx.lineTo(pts[i] + size, pts[i + 1]);
+          ctx.moveTo(pts[i], pts[i + 1] - size);
+          ctx.lineTo(pts[i], pts[i + 1] + size);
+        }
+      }, alpha * tw);
+    });
+    // The near layer also gets a few bright flares.
+    if (li === layers.length - 1 && !low) {
+      for (let i = 0; i < 4; i++) {
+        const x = (((hash(i, 77) * w + ox) % w) + w) % w;
+        const y = (((hash(i, 78) * h + oy) % h) + h) % h;
+        const c = STAR_COLORS[i % 4];
+        const r = 5 + 2 * Math.sin(t * 2 + i);
+        neonStroke(ctx, c, 1, () => {
+          ctx.moveTo(x - r, y);
+          ctx.lineTo(x + r, y);
+          ctx.moveTo(x, y - r);
+          ctx.lineTo(x, y + r);
+        }, 0.7);
+      }
+    }
+  });
+
+  // Speed streaks: stars smeared against the velocity.
+  const p = g.mission.player;
+  const sp = Math.hypot(p.vx, p.vy);
+  if (sp > 70 && p.status !== 'dead') {
+    const ang = screenAngle(v, Math.atan2(p.vy, p.vx));
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    const len = Math.min(70, sp * 0.18);
+    const a = Math.min(0.5, (sp - 70) / 400);
+    const n = low ? 8 : 18;
+    lineStroke(ctx, '#9be8ff', 1, () => {
+      for (let i = 0; i < n; i++) {
+        const x = (((hash(i, 31) * w - v.cx * 0.2) % w) + w) % w;
+        const y = (((hash(i, 32) * h + v.cy * 0.2) % h) + h) % h;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - dx * len, y - dy * len);
+      }
+    }, a);
+  }
 }
 
 function drawBodies(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
@@ -45,7 +154,28 @@ function drawBodies(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void
     if (o && b.parent >= 0 && o.a * v.zoom > 20 && o.a * v.zoom < 3000) {
       lineStroke(ctx, b.def.color, 1, () => circlePath(ctx, v, a.bx[b.parent], a.by[b.parent], o.a), 0.22);
     }
+    proj(v, x, y);
+    const cxp = P.x;
+    const cyp = P.y;
+    const rp = b.def.r * v.zoom;
+    if (rp > 8 && cxp > -rp * 2 && cxp < v.w + rp * 2 && cyp > -rp * 2 && cyp < v.h + rp * 2) {
+      // Soft glow outside the rim.
+      const reach = b.def.star ? 2.6 : b.def.atm ? 1.5 : 1.28;
+      const gr = ctx.createRadialGradient(cxp, cyp, rp * 0.9, cxp, cyp, rp * reach);
+      gr.addColorStop(0, hexA(b.def.color, b.def.star ? 0.45 : 0.28));
+      gr.addColorStop(1, hexA(b.def.color, 0));
+      ctx.fillStyle = gr;
+      ctx.beginPath();
+      ctx.arc(cxp, cyp, rp * reach, 0, TAU);
+      ctx.fill();
+    }
     neonStroke(ctx, b.def.color, 1.8, () => circlePath(ctx, v, x, y, b.def.r));
+    // Wireframe: parallels and a hatch of inner rings, as if the sphere were a vector model.
+    if (rp > 14) {
+      lineStroke(ctx, b.def.color, 1, () => {
+        for (const k of [0.78, 0.52, 0.26]) circlePath(ctx, v, x, y, b.def.r * k);
+      }, 0.16);
+    }
     if (b.def.star) {
       lineStroke(ctx, b.def.color, 1.2, () => circlePath(ctx, v, x, y, b.def.r * 1.45), 0.35);
       lineStroke(ctx, '#ff7a1a', 1, () => circlePath(ctx, v, x, y, b.def.r * 1.9), 0.25);
@@ -136,9 +266,32 @@ function drawGates(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void 
     const isNext = i === next;
     const color = final ? GOOD : isNext ? AMBER : COLORS.hud;
     const pulse = isNext ? 0.75 + 0.25 * Math.sin(g.clock * 6) : 0.4;
-    if (isNext) ctx.setLineDash([9, 6]);
+    if (isNext) {
+      ctx.setLineDash([9, 6]);
+      ctx.lineDashOffset = -g.clock * 24;
+    }
     neonStroke(ctx, color, isNext ? 2.2 : 1.4, () => circlePath(ctx, v, gp.x, gp.y, gate.r), pulse);
     ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+    if (isNext) {
+      // A counter-rotating inner ring and a glow make the target easy to find.
+      ctx.setLineDash([4, 10]);
+      ctx.lineDashOffset = g.clock * 30;
+      lineStroke(ctx, '#ff2bd6', 1.4, () => circlePath(ctx, v, gp.x, gp.y, gate.r * 0.72), 0.7);
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      proj(v, gp.x, gp.y);
+      const rr = gate.r * v.zoom;
+      if (rr > 5 && !quality.low) {
+        const gr = ctx.createRadialGradient(P.x, P.y, rr * 0.5, P.x, P.y, rr * 1.9);
+        gr.addColorStop(0, hexA(final ? '#7dff6b' : '#ffb000', 0.22));
+        gr.addColorStop(1, hexA(final ? '#7dff6b' : '#ffb000', 0));
+        ctx.fillStyle = gr;
+        ctx.beginPath();
+        ctx.arc(P.x, P.y, rr * 1.9, 0, TAU);
+        ctx.fill();
+      }
+    }
     proj(v, gp.x, gp.y);
     if (P.x > -40 && P.x < v.w + 40 && P.y > -40 && P.y < v.h + 40) {
       ctx.globalAlpha = isNext ? 1 : 0.6;
@@ -180,21 +333,31 @@ function drawCells(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void 
     const sy = P.y;
     if (sx < -20 || sx > v.w + 20 || sy < -20 || sy > v.h + 20) continue;
     const r = 7 + Math.sin(g.clock * 5) * 1.2;
+    const sq = Math.abs(Math.cos(g.clock * 2.4));
     neonStroke(ctx, GOOD, 1.5, () => {
       ctx.moveTo(sx, sy - r);
-      ctx.lineTo(sx + r, sy);
+      ctx.lineTo(sx + r * (0.35 + 0.65 * sq), sy);
       ctx.lineTo(sx, sy + r);
-      ctx.lineTo(sx - r, sy);
+      ctx.lineTo(sx - r * (0.35 + 0.65 * sq), sy);
       ctx.closePath();
     });
+    lineStroke(ctx, '#ffffff', 1, () => {
+      ctx.moveTo(sx, sy - r * 0.5);
+      ctx.lineTo(sx, sy + r * 0.5);
+    }, 0.8);
+    lineStroke(ctx, GOOD, 1, () => {
+      ctx.moveTo(sx + r * 2.1, sy);
+      ctx.arc(sx, sy, r * 2.1, 0, TAU);
+    }, 0.18 + 0.12 * Math.sin(g.clock * 5));
   }
 }
 
 function drawAsteroids(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
   const rocks = g.mission.arena.asteroids;
-  neonStroke(ctx, BAD, 1.4, () => {
+  for (const tint of [0, 1]) {
+  neonStroke(ctx, tint ? '#ff7a1a' : BAD, 1.4, () => {
     for (const a of rocks) {
-      if (!a.alive) continue;
+      if (!a.alive || (a.id & 1) !== tint) continue;
       proj(v, a.x, a.y);
       const sx = P.x;
       const sy = P.y;
@@ -211,6 +374,7 @@ function drawAsteroids(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): v
       ctx.closePath();
     }
   }, 0.85);
+  }
 }
 
 function drawBeacon(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
@@ -251,31 +415,123 @@ function drawShip(ctx: CanvasRenderingContext2D, v: View, s: Ship, g: ArcadeGame
   proj(v, s.x, s.y);
   const sx = P.x;
   const sy = P.y;
-  if (sx < -40 || sx > v.w + 40 || sy < -40 || sy > v.h + 40) return;
+  if (sx < -60 || sx > v.w + 60 || sy < -60 || sy > v.h + 60) return;
   const size = Math.max(18, SHIP_R * 2 * v.zoom * 1.1) / 14;
   const blink = s.invuln > 0 && Math.floor(g.clock * 12) % 2 === 0;
+  const thr = s.status === 'flying' ? s.throttle : 0;
+  const a = blink ? 0.35 : 1;
+  const sec = s.isPlayer ? '#ff2bd6' : '#00f0ff';
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(screenAngle(v, s.angle));
   ctx.scale(size, size);
   const px = 1 / size;
+  // Engine glow behind the ship.
+  if (thr > 0.02 && !quality.low) {
+    const r = 16 + 18 * thr;
+    const gr = ctx.createRadialGradient(-6, 0, 1, -6, 0, r);
+    gr.addColorStop(0, hexA(s.isPlayer ? '#00f0ff' : '#ff2bd6', 0.55 * thr));
+    gr.addColorStop(1, hexA(s.isPlayer ? '#00f0ff' : '#ff2bd6', 0));
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.arc(-6, 0, r, 0, TAU);
+    ctx.fill();
+  }
+  // Flame: a long outer cone, a shorter hot core and flickering sparks.
+  if (thr > 0.02) {
+    const f = 0.8 + 0.2 * Math.sin(g.clock * 40 + s.id) + 0.12 * Math.sin(g.clock * 91);
+    const L = (6 + 22 * thr) * f;
+    neonStroke(ctx, sec, 1.6 * px, () => {
+      ctx.moveTo(-3.6, 2.6);
+      ctx.lineTo(-3.6 - L, 0);
+      ctx.lineTo(-3.6, -2.6);
+    }, a * (0.5 + 0.5 * thr));
+    neonStroke(ctx, s.color, 1.4 * px, () => {
+      ctx.moveTo(-3.6, 1.5);
+      ctx.lineTo(-3.6 - L * 0.62, 0);
+      ctx.lineTo(-3.6, -1.5);
+    }, a);
+    lineStroke(ctx, '#ffffff', 1.4 * px, () => {
+      ctx.moveTo(-3.6, 0);
+      ctx.lineTo(-3.6 - L * 0.4, 0);
+    }, 0.9 * a);
+  }
+  // Hull: arrow body, swept wings and a bright cockpit.
   neonStroke(ctx, s.color, 1.7 * px, () => {
     ctx.moveTo(10, 0);
     ctx.lineTo(-5, 5.5);
     ctx.lineTo(-3, 0);
     ctx.lineTo(-5, -5.5);
     ctx.closePath();
-  }, blink ? 0.35 : 1);
+  }, a);
+  lineStroke(ctx, sec, 1.2 * px, () => {
+    ctx.moveTo(1, 2.4);
+    ctx.lineTo(-4.4, 4.6);
+    ctx.moveTo(1, -2.4);
+    ctx.lineTo(-4.4, -4.6);
+    ctx.moveTo(6, 0);
+    ctx.lineTo(0.5, 0);
+  }, 0.9 * a);
   ctx.restore();
+}
+
+/** Ribbon of recent positions, fading towards the tail. */
+function drawTrails(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
+  for (const s of g.mission.arena.ships) {
+    const t = g.trails.get(s.id);
+    if (!t || t.length < 6) continue;
+    const n = t.length / 2;
+    const chunks = quality.low ? 2 : 4;
+    for (let c = 0; c < chunks; c++) {
+      const from = Math.floor((n - 1) * (c / chunks));
+      const to = Math.floor((n - 1) * ((c + 1) / chunks)) + 1;
+      lineStroke(ctx, s.color, 1.6 + c * 0.5, () => {
+        for (let i = from; i <= to && i < n; i++) {
+          proj(v, t[i * 2], t[i * 2 + 1]);
+          if (i === from) ctx.moveTo(P.x, P.y);
+          else ctx.lineTo(P.x, P.y);
+        }
+      }, 0.08 + 0.2 * ((c + 1) / chunks));
+    }
+  }
+}
+
+/** Expanding shock rings: gates, pickups, landings and explosions. */
+function drawRings(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
+  for (const r of g.rings) {
+    const k = 1 - r.life / r.max;
+    neonStroke(ctx, r.color, 1.6, () => circlePath(ctx, v, r.x, r.y, r.r), Math.max(0, k));
+  }
 }
 
 function drawParticles(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
   for (const p of g.particles) {
     proj(v, p.x, p.y);
     if (P.x < -10 || P.x > v.w + 10 || P.y < -10 || P.y > v.h + 10) continue;
-    ctx.globalAlpha = Math.max(0, 1 - p.life / p.max);
-    ctx.fillStyle = p.color;
-    ctx.fillRect(P.x - p.size / 2, P.y - p.size / 2, p.size, p.size);
+    const k = Math.min(1, p.life / p.max);
+    const alpha = Math.max(0, 1 - k);
+    if (p.kind === 'flame') {
+      // White-hot at the nozzle, then the ship's colour, then violet.
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = k < 0.2 ? '#ffffff' : k < 0.6 ? p.color : '#7a5cff';
+      const sz = p.size * (1.2 - 0.6 * k) * Math.max(0.7, Math.min(1.6, v.zoom * 2.4));
+      ctx.fillRect(P.x - sz / 2, P.y - sz / 2, sz, sz);
+    } else if (p.kind === 'spark') {
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = Math.max(1, p.size * 0.8);
+      const sp = Math.hypot(p.vx, p.vy) || 1;
+      const len = Math.min(12, sp * 0.05) * (1 - 0.5 * k);
+      const ang = screenAngle(v, Math.atan2(p.vy, p.vx));
+      ctx.beginPath();
+      ctx.moveTo(P.x, P.y);
+      ctx.lineTo(P.x - Math.cos(ang) * len, P.y - Math.sin(ang) * len);
+      ctx.stroke();
+    } else {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(P.x - p.size / 2, P.y - p.size / 2, p.size, p.size);
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -375,7 +631,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   if (bp) edgeArrow(ctx, v, bp.x, bp.y, AMBER, 'BALIZA');
 
   // Toasts.
-  let y = TOP + height * 0.2;
+  let y = TOP + 88;
   for (const t of g.toasts) {
     text(ctx, t.text, cx, y, t.kind === 'bad' ? BAD : t.kind === 'good' ? GOOD : COLORS.hud, 12, true);
     y += 16;
@@ -395,8 +651,8 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     text(ctx, '¡YA!', width / 2 - 20, height * 0.32, GOOD, 52, true);
   }
   if (p.status === 'dead') {
-    text(ctx, `NAVE PERDIDA · ${p.deathReason.toUpperCase()}`, width / 2 - 20, height * 0.42, BAD, 16, true);
-    text(ctx, m.lives <= 0 && !m.practice ? 'SIN VIDAS' : `VIDAS RESTANTES: ${Math.max(0, m.lives)}`, width / 2 - 20, height * 0.42 + 22, COLORS.hud, 13, true);
+    text(ctx, `NAVE PERDIDA · ${p.deathReason.toUpperCase()}`, width / 2 - 20, height * 0.66, BAD, 16, true);
+    text(ctx, m.lives <= 0 && !m.practice ? 'SIN VIDAS' : `VIDAS RESTANTES: ${Math.max(0, m.lives)}`, width / 2 - 20, height * 0.66 + 22, COLORS.hud, 13, true);
   }
   void ROTATE_REACH;
 }

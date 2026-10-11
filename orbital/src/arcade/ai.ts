@@ -153,8 +153,8 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
           const b = arena.bodies[i];
           const alt = Math.hypot(x - PF.x[i], y - PF.y[i]) - b.def.r;
           const rel = Math.hypot(vx - PF.vx[i], vy - PF.vy[i]);
-          if (b.def.star) {
-            if (alt < b.def.r * 0.9) danger += 4000;
+          if (b.def.star || b.def.hole) {
+            if (alt < b.def.r * (b.def.hole ? 1.2 : 0.9)) danger += 4000;
             continue;
           }
           // Contact is a loss (the planner does not model landing) unless the ship is still climbing out of a launch.

@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../sim/rng';
 import { RivalDriver } from './ai';
 import { Arena, BASE_STATS, STEP } from './arena';
+import { RACES } from './races';
 import { STAGES } from './stages';
 
-function runRival(stageIdx: number, maxSeconds = 120): { time: number; deaths: number; gates: number; finished: boolean; arena: Arena } {
-  const def = STAGES[stageIdx];
+function runRival(stageIdx: number, maxSeconds = 120, stages = STAGES): { time: number; deaths: number; gates: number; finished: boolean; arena: Arena } {
+  const def = stages[stageIdx];
   const arena = new Arena(def);
   const ship = arena.addShip({
     isPlayer: false,
@@ -122,5 +123,16 @@ describe('rival alone', () => {
       expect(r.gates).toBe(STAGES[i].gates.length);
       expect(r.finished).toBe(true);
     });
+  }
+});
+
+describe('every race', () => {
+  for (const race of RACES) {
+    it(`${race.name}: the rival can fly every stage alone`, () => {
+      race.stages.forEach((def, i) => {
+        const r = runRival(i, 150, race.stages);
+        expect(r.finished, `${race.id} stage ${i + 1} ${def.name}`).toBe(true);
+      });
+    }, 60000);
   }
 });

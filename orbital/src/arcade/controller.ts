@@ -5,18 +5,21 @@ import { arcadeScreens } from '../ui/arcadeScreens';
 import { type Ui } from '../ui/ui';
 import { ArcadeGame } from './game';
 import { type Meta, type Upgrades, buyUpgrade, loadMeta, saveMeta } from './meta';
+import { RACES } from './races';
+import { type RaceDef } from './types';
 import { Mission } from './mission';
 import { drawArcade, drawArcadeHud } from './render';
 import { drawStars } from '../render/world';
 import { type View } from '../render/view';
 
-type Screen = 'hub' | 'intro' | 'play' | 'cleared' | 'failed' | 'pause';
+type Screen = 'races' | 'hub' | 'intro' | 'play' | 'cleared' | 'failed' | 'pause';
 
 /** Menus and flow around the arcade race: hub, stage cards, results and pause. */
 export class ArcadeController {
   meta: Meta = loadMeta();
   game: ArcadeGame | null = null;
   screen: Screen = 'hub';
+  race: RaceDef = RACES[0];
   private width = 800;
   private height = 400;
 
@@ -40,7 +43,17 @@ export class ArcadeController {
 
   // ----------------------------------------------------------------- flow
 
-  openHub(): void {
+  /** The list of races. */
+  openRaces(): void {
+    this.screen = 'races';
+    this.input.enabled = false;
+    if (this.game) this.game.playing = false;
+    saveMeta(this.meta);
+    this.overlay.show(arcadeScreens.races(this));
+  }
+
+  openHub(race?: RaceDef): void {
+    if (race) this.race = race;
     this.screen = 'hub';
     this.input.enabled = false;
     if (this.game) this.game.playing = false;
@@ -67,7 +80,7 @@ export class ArcadeController {
   }
 
   startMission(stage: number, practice: boolean): void {
-    const m = new Mission(this.meta, { stage, practice });
+    const m = new Mission(this.meta, { stage, practice, race: this.race });
     if (this.game) this.game.setMission(m);
     else this.game = new ArcadeGame(this.meta, this.input, this.ui, this.audio, m);
     this.game.playing = false;

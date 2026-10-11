@@ -26,6 +26,8 @@ export interface BodyDef {
   pads?: PadDef[];
   /** Touching it is fatal and it burns nearby ships. */
   star?: boolean;
+  /** A black hole: fatal inside its horizon, burns in its disc, and pulls hard. */
+  hole?: boolean;
 }
 
 export interface GateDef {
@@ -38,6 +40,8 @@ export interface GateDef {
 }
 
 export interface FieldDef {
+  /** Offset from `body` when attached to one (a comet's dust cloud), else an absolute position. */
+  body?: string;
   x: number;
   y: number;
   r: number;
@@ -73,6 +77,7 @@ export interface CellDef {
 export interface StageDef {
   id: number;
   name: string;
+  /** Year shown on the stage card; 0 for fiction. */
   year: number;
   blurb: string;
   skulls: number;
@@ -154,3 +159,12 @@ export type ArenaEvent =
   | { type: 'cell'; ship: number }
   | { type: 'bump'; a: number; b: number }
   | { type: 'slingshot'; ship: number; body: number };
+
+/** A series of stages with its own story, rival and hazards. */
+export interface RaceDef {
+  id: string;
+  name: string;
+  subtitle: string;
+  blurb: string;
+  stages: StageDef[];
+}

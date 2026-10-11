@@ -90,7 +90,7 @@ export class App {
     }
     this.mode = 'arcade';
     this.flight = null;
-    this.arcade.openHub();
+    this.arcade.openRaces();
   }
 
   hasSave(): boolean {

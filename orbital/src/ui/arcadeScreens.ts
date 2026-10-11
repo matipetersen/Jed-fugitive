@@ -1,6 +1,7 @@
 import { type ArcadeController } from '../arcade/controller';
 import { type MissionRecord, UPGRADES, kitCount } from '../arcade/meta';
-import { STAGES } from '../arcade/stages';
+import { raceProgress } from '../arcade/meta';
+import { RACES } from '../arcade/races';
 import { h } from './dom';
 
 function btn(label: string, onclick: () => void, cls = '', disabled = false): HTMLButtonElement {
@@ -40,31 +41,59 @@ function shop(c: ArcadeController): HTMLElement[] {
 }
 
 export const arcadeScreens = {
-  hub(c: ArcadeController): HTMLElement {
-    const m = c.meta;
-    const next = Math.min(Math.max(m.cleared, m.reached - 1), STAGES.length - 1);
+  races(c: ArcadeController): HTMLElement {
     return h('div', { class: 'screen' },
-      h('h1', {}, 'CARRERA ESPACIAL'),
-      h('p', { class: 'sub' }, `Etapas ganadas alguna vez ${m.cleared}/5 · misiones ${m.attempts} · naves perdidas ${m.deaths}`),
-      h('div', { class: 'row' },
-        btn('INICIAR MISIÓN', () => c.startMission(0, false), 'go'),
+      h('h1', {}, 'ELEGÍ UNA CARRERA'),
+      h('p', { class: 'sub' }, `Misiones ${c.meta.attempts} · naves perdidas ${c.meta.deaths}`),
+      ...RACES.map((r) => {
+        const pr = raceProgress(c.meta, r.id, r.stages.length);
+        return h('div', { class: 'panel' },
+          h('div', { class: 'row' },
+            h('span', { class: 'amber' }, r.name),
+            h('span', { class: 'k' }, r.subtitle),
+          ),
+          h('div', {}, r.blurb),
+          h('div', { class: 'row' },
+            btn(pr.won ? 'JUGAR (COMPLETADA)' : 'JUGAR', () => c.openHub(r), 'go'),
+            h('span', { class: pr.won ? 'good' : 'k' }, `${r.stages.length} etapas · mejor ${pr.cleared}/${r.stages.length}`),
+          ),
+        );
+      }),
+      h('div', { class: 'row', style: 'margin-top:14px' },
+        btn('CÓMO SE JUEGA', () => c.openHelp(() => c.openRaces())),
         btn('VOLVER AL INICIO', () => c.exit()),
       ),
-      h('p', { class: 'sub' }, m.won
-        ? 'Llegaste a Plutón primero. La carrera sigue abierta: probá mejorar tus tiempos.'
-        : m.cleared === 0 ? 'La misión completa son 5 etapas contra la nave rival. Tenés 3 vidas.' : `Tu mejor avance: etapa ${m.cleared}. El rival no espera.`),
+    );
+  },
+
+  hub(c: ArcadeController): HTMLElement {
+    const m = c.meta;
+    const race = c.race;
+    const stages = race.stages;
+    const pr = raceProgress(m, race.id, stages.length);
+    const next = Math.min(Math.max(pr.cleared, pr.reached - 1), stages.length - 1);
+    return h('div', { class: 'screen' },
+      h('h1', {}, race.name),
+      h('p', { class: 'sub' }, `${race.subtitle} · etapas ganadas alguna vez ${pr.cleared}/${stages.length} · misiones ${m.attempts} · naves perdidas ${m.deaths}`),
+      h('div', { class: 'row' },
+        btn('INICIAR MISIÓN', () => c.startMission(0, false), 'go'),
+        btn('OTRAS CARRERAS', () => c.openRaces()),
+      ),
+      h('p', { class: 'sub' }, pr.won
+        ? 'Completaste esta carrera. Probá mejorar tus tiempos.'
+        : pr.cleared === 0 ? `La misión completa son ${stages.length} etapas contra la nave rival. Tenés 3 vidas por etapa.` : `Tu mejor avance: etapa ${pr.cleared}. El rival no espera.`),
       h('h2', {}, 'PRÁCTICA'),
-      h('div', { class: 'row' }, ...STAGES.map((s, i) => btn(`${s.id}. ${s.name}`, () => c.startMission(i, true), '', i > next))),
+      h('div', { class: 'row' }, ...stages.map((s, i) => btn(`${s.id}. ${s.name}`, () => c.startMission(i, true), '', i > next))),
       h('h2', {}, 'TECNOLOGÍA'),
       h('p', { class: 'sub' }, 'Cada misión empieza con la nave básica. Los datos que ganás (y la telemetría de las naves que perdés) se gastan en mejoras entre etapa y etapa, pero solo valen para esa misión.'),
       h('h2', {}, 'MEJORES TIEMPOS'),
-      h('div', { class: 'grid' }, ...STAGES.map((s, i) => kv(`${s.id}. ${s.name}`, m.best[i] === null ? '--' : fmtT(m.best[i]!)))),
+      h('div', { class: 'grid' }, ...stages.map((s, i) => kv(`${s.id}. ${s.name}`, pr.best[i] == null ? '--' : fmtT(pr.best[i]!)))),
       h('h2', {}, 'MEJORES MISIONES'),
-      ...(m.records.length === 0
-        ? [h('p', { class: 'sub' }, 'Todavía no terminaste ninguna misión.')]
-        : m.records.slice(0, 5).map((r: MissionRecord, i) => h('div', { class: 'row' },
+      ...(m.records.filter((r) => (r.race ?? 'guerra') === race.id).length === 0
+        ? [h('p', { class: 'sub' }, 'Todavía no terminaste ninguna misión de esta carrera.')]
+        : m.records.filter((r) => (r.race ?? 'guerra') === race.id).slice(0, 5).map((r: MissionRecord, i) => h('div', { class: 'row' },
             h('span', { class: 'amber' }, `#${i + 1}`),
-            h('span', { class: r.won ? 'good' : 'v' }, r.won ? 'VICTORIA' : `${r.stages}/5 etapas`),
+            h('span', { class: r.won ? 'good' : 'v' }, r.won ? 'VICTORIA' : `${r.stages}/${stages.length} etapas`),
             h('span', { class: 'k' }, `${fmtT(r.time)} · ${r.data} datos · ${r.deaths} muertes`),
           ))),
       h('div', { class: 'row', style: 'margin-top:14px' }, btn('CÓMO SE JUEGA', () => c.openHelp())),
@@ -83,7 +112,7 @@ export const arcadeScreens = {
     const m = c.mission;
     const def = m.def;
     return h('div', { class: 'screen' },
-      h('p', { class: 'sub' }, `${def.year} · etapa ${def.id} de ${STAGES.length}${m.practice ? ' · PRÁCTICA' : ''}`),
+      h('p', { class: 'sub' }, `${def.year ? `${def.year} · ` : ''}etapa ${def.id} de ${c.mission.stageCount}${m.practice ? ' · PRÁCTICA' : ''}`),
       h('h1', {}, def.name.toUpperCase()),
       h('p', { class: 'amber' }, `Dificultad ${skulls(def.skulls)}`),
       h('p', {}, def.blurb),
@@ -121,10 +150,10 @@ export const arcadeScreens = {
   cleared(c: ArcadeController): HTMLElement {
     const m = c.mission;
     const r = m.result!;
-    const last = m.stageIdx === STAGES.length - 1;
+    const last = m.stageIdx === c.mission.stageCount - 1;
     const final = !!m.over;
     const title = final ? (r.won ? 'LLEGASTE A PLUTÓN' : 'MISIÓN TERMINADA') : r.won ? 'ETAPA SUPERADA' : 'ETAPA PERDIDA';
-    const next = !last && !m.practice && !final ? STAGES[m.stageIdx + 1] : null;
+    const next = !last && !m.practice && !final ? m.race.stages[m.stageIdx + 1] : null;
     return h('div', { class: 'screen' },
       h('h1', { class: r.won ? 'good' : 'bad' }, title),
       h('p', { class: 'sub' }, r.won ? `Llegaste primero a ${m.def.name}.` : r.reason),
@@ -134,7 +163,7 @@ export const arcadeScreens = {
         !m.practice ? kv(r.won ? 'Recompensa' : 'Recompensa reducida', `+${r.reward} datos`, 'amber') : null,
         !m.practice ? kv('Naves perdidas', `${m.deaths}`) : null,
         !m.practice ? kv('Datos de la misión', `${m.earned}`) : null,
-        !m.practice ? kv('Etapas ganadas', `${m.stagesCleared}/${STAGES.length}`) : null,
+        !m.practice ? kv('Etapas ganadas', `${m.stagesCleared}/${c.mission.stageCount}`) : null,
       ),
       final && r.won ? h('p', {}, 'El primer humano en Plutón. La Guerra Fría terminó en el borde del sistema solar.') : null,
       final && !r.won ? h('p', {}, 'La carrera se decidió sin vos. Cada misión empieza de cero: la próxima vez ya sabés dónde cae la gravedad.') : null,
@@ -162,7 +191,7 @@ export const arcadeScreens = {
       h('h1', { class: 'bad' }, 'MISIÓN FRACASADA'),
       h('p', { class: 'sub' }, r?.reason ?? ''),
       h('div', { class: 'panel' },
-        kv('Etapas superadas', `${m.stagesCleared}/${STAGES.length}`),
+        kv('Etapas superadas', `${m.stagesCleared}/${c.mission.stageCount}`),
         kv('Muertes', String(m.deaths)),
         kv('Datos ganados esta misión', String(m.earned), 'amber'),
         kv('Datos perdidos', `${m.carried}`, 'bad'),

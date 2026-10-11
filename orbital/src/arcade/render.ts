@@ -169,6 +169,17 @@ function drawBodies(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void
       ctx.arc(cxp, cyp, rp * reach, 0, TAU);
       ctx.fill();
     }
+    if (b.def.hole) {
+      drawHole(ctx, v, g, x, y, b.def.r, b.def.color);
+      proj(v, x, y);
+      const rp2 = b.def.r * v.zoom;
+      if (rp2 > 6 && P.x > -50 && P.x < v.w + 50 && P.y > -50 && P.y < v.h + 50) {
+        ctx.globalAlpha = 0.8;
+        text(ctx, b.def.name, P.x - ctx.measureText(b.def.name).width / 2, P.y + rp2 * 2.6 + 12, b.def.color, 11);
+        ctx.globalAlpha = 1;
+      }
+      continue;
+    }
     neonStroke(ctx, b.def.color, 1.8, () => circlePath(ctx, v, x, y, b.def.r));
     // Wireframe: parallels and a hatch of inner rings, as if the sphere were a vector model.
     if (rp > 14) {
@@ -210,6 +221,51 @@ function drawBodies(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void
   }
 }
 
+/** Black hole: dark horizon, a tilted accretion disc and lensing arcs. */
+function drawHole(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame, x: number, y: number, r: number, color: string): void {
+  proj(v, x, y);
+  const sx = P.x;
+  const sy = P.y;
+  const rp = r * v.zoom;
+  if (sx < -rp * 4 || sx > v.w + rp * 4 || sy < -rp * 4 || sy > v.h + rp * 4) return;
+  // Hot glow around the horizon.
+  const gr = ctx.createRadialGradient(sx, sy, rp * 0.9, sx, sy, rp * 3.2);
+  gr.addColorStop(0, hexA(color, 0.5));
+  gr.addColorStop(0.35, hexA('#ff7a1a', 0.18));
+  gr.addColorStop(1, hexA(color, 0));
+  ctx.fillStyle = gr;
+  ctx.beginPath();
+  ctx.arc(sx, sy, rp * 3.2, 0, TAU);
+  ctx.fill();
+  // The horizon itself blocks the light behind it.
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(sx, sy, rp * 0.98, 0, TAU);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'lighter';
+  neonStroke(ctx, '#ffffff', 1.8, () => {
+    ctx.moveTo(sx + rp, sy);
+    ctx.arc(sx, sy, rp, 0, TAU);
+  }, 0.9);
+  // Accretion disc: tilted ellipses spinning against each other.
+  for (const [k, c, w] of [[1.7, '#ff7a1a', 0.55], [2.2, color, 0.4], [2.7, '#ff2bd6', 0.3]] as [number, string, number][]) {
+    ctx.setLineDash([12, 9]);
+    ctx.lineDashOffset = -g.clock * 30 * (3 - k);
+    lineStroke(ctx, c, 1.6, () => {
+      ctx.moveTo(sx + rp * k, sy);
+      ctx.ellipse(sx, sy, rp * k, rp * k * 0.28, -0.35, 0, TAU);
+    }, w);
+  }
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+  // Danger ring at the edge of the burning zone.
+  lineStroke(ctx, '#ff3b3b', 1, () => {
+    ctx.moveTo(sx + rp * 2.2, sy);
+    ctx.arc(sx, sy, rp * 2.2, 0, TAU);
+  }, 0.25);
+}
+
 function drawFlame(ctx: CanvasRenderingContext2D, v: View, x: number, y: number, clock: number): void {
   proj(v, x, y);
   const sx = P.x;
@@ -228,18 +284,24 @@ function drawFlame(ctx: CanvasRenderingContext2D, v: View, x: number, y: number,
 }
 
 function drawFields(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
-  for (const f of g.mission.arena.def.fields) {
+  const a = g.mission.arena;
+  for (const f of a.def.fields) {
+    const fb = f.body ? a.bodyIndex(f.body) : -1;
+    const fx = f.x + (fb >= 0 ? a.bx[fb] : 0);
+    const fy = f.y + (fb >= 0 ? a.by[fb] : 0);
     ctx.setLineDash([10, 8]);
-    lineStroke(ctx, f.color, 1.4, () => circlePath(ctx, v, f.x, f.y, f.r), 0.5);
+    ctx.lineDashOffset = -g.clock * 12;
+    lineStroke(ctx, f.color, 1.4, () => circlePath(ctx, v, fx, fy, f.r), 0.5);
     ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
     if (f.kind === 'wind') {
       const n = 14;
       lineStroke(ctx, f.color, 1.2, () => {
         for (let i = 0; i < n; i++) {
-          const a = (i / n) * TAU;
+          const an = (i / n) * TAU;
           const rr = f.r * (0.25 + 0.6 * ((i * 7) % n) / n);
-          const x0 = f.x + Math.cos(a) * rr;
-          const y0 = f.y + Math.sin(a) * rr;
+          const x0 = fx + Math.cos(an) * rr;
+          const y0 = fy + Math.sin(an) * rr;
           const len = 55;
           const l = Math.hypot(f.ax ?? 1, f.ay ?? 0) || 1;
           proj(v, x0, y0);
@@ -248,8 +310,20 @@ function drawFields(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void
           ctx.lineTo(P.x, P.y);
         }
       }, 0.35);
+    } else if (!quality.low) {
+      // Radiation and dust: flickering specks inside the area.
+      lineStroke(ctx, f.color, 1.4, () => {
+        for (let i = 0; i < 26; i++) {
+          const an = hash(i, 5) * TAU;
+          const rr = f.r * Math.sqrt(hash(i, 6)) * 0.95;
+          const wob = Math.sin(g.clock * 3 + i) * 6;
+          proj(v, fx + Math.cos(an) * rr + wob, fy + Math.sin(an) * rr);
+          ctx.moveTo(P.x - 2, P.y);
+          ctx.lineTo(P.x + 2, P.y);
+        }
+      }, 0.5);
     }
-    proj(v, f.x, f.y - f.r - 14);
+    proj(v, fx, fy - f.r - 14);
     if (f.label && P.x > 0 && P.x < v.w && P.y > 0 && P.y < v.h) text(ctx, f.label, P.x - 28, P.y, f.color, 10);
   }
 }

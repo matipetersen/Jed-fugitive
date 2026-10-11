@@ -1,9 +1,9 @@
 import { mulberry32 } from '../sim/rng';
 import { RIVAL_AI, RivalDriver } from './ai';
 import { Arena, STEP } from './arena';
-import { type Meta, MISSION_LIVES, type Upgrades, addRecord, kitCount, shipStats, zeroUpgrades } from './meta';
-import { STAGES } from './stages';
-import { type ArenaEvent, type Controls, type Ship, type StageDef } from './types';
+import { type Meta, MISSION_LIVES, type Upgrades, addRecord, kitCount, raceProgress, shipStats, zeroUpgrades } from './meta';
+import { RACES } from './races';
+import { type ArenaEvent, type Controls, type RaceDef, type Ship, type StageDef } from './types';
 
 export type Phase = 'countdown' | 'race' | 'dead' | 'cleared' | 'failed';
 
@@ -67,8 +67,9 @@ export class Mission {
 
   constructor(
     readonly meta: Meta,
-    opts: { stage?: number; practice?: boolean } = {},
+    opts: { stage?: number; practice?: boolean; race?: RaceDef } = {},
   ) {
+    this.race = opts.race ?? RACES[0];
     this.practice = !!opts.practice;
     this.stageIdx = opts.stage ?? 0;
     if (!this.practice) {
@@ -88,14 +89,19 @@ export class Mission {
   }
 
   readonly practice: boolean;
+  readonly race: RaceDef;
+
+  get stageCount(): number {
+    return this.race.stages.length;
+  }
 
   get def(): StageDef {
-    return STAGES[this.stageIdx];
+    return this.race.stages[this.stageIdx];
   }
 
   private loadStage(idx: number): void {
     this.stageIdx = idx;
-    const def = STAGES[idx];
+    const def = this.race.stages[idx];
     this.arena = new Arena(def);
     const stats = shipStats(this.upgrades);
     this.player = this.arena.addShip({ isPlayer: true, name: 'Tú', color: '#00f0ff', stats, start: def.start });
@@ -110,7 +116,10 @@ export class Mission {
     this.rivalRnd = mulberry32(1000 + idx);
     this.driver = new RivalDriver(this.rivalRnd, def.rival.ai ?? RIVAL_AI, def.rival.delay);
     this.lives = MISSION_LIVES;
-    if (!this.practice) this.meta.reached = Math.max(this.meta.reached, idx + 1);
+    if (!this.practice) {
+      const pr = raceProgress(this.meta, this.race.id, this.stageCount);
+      pr.reached = Math.max(pr.reached, idx + 1);
+    }
     this.phase = 'countdown';
     this.result = null;
     this.beacon = null;
@@ -205,7 +214,7 @@ export class Mission {
     const a = this.arena;
     for (let i = 0; i < a.bodies.length; i++) {
       const b = a.bodies[i];
-      if (b.def.star) continue;
+      if (b.def.star || b.def.hole) continue;
       const alt = Math.hypot(p.x - a.bx[i], p.y - a.by[i]) - b.def.r;
       const rel = Math.hypot(p.vx - a.bvx[i], p.vy - a.bvy[i]);
       if (alt < 70 && rel > 110) this.close.set(i, true);
@@ -311,7 +320,7 @@ export class Mission {
 
   private finishStage(won: boolean, lost = ''): void {
     const a = this.arena;
-    const last = this.stageIdx === STAGES.length - 1;
+    const last = this.stageIdx === this.stageCount - 1;
     const time = this.player.finished ? this.player.finishTime : a.clock;
     const rivalTime = this.rival.finished ? this.rival.finishTime : a.clock;
     let reward = 0;
@@ -322,9 +331,10 @@ export class Mission {
       this.stagesCleared++;
       this.clearedTime += time;
       if (!this.practice) {
-        this.meta.cleared = Math.max(this.meta.cleared, this.stageIdx + 1);
-        const best = this.meta.best[this.stageIdx];
-        if (best === null || time < best) this.meta.best[this.stageIdx] = time;
+        const pr = raceProgress(this.meta, this.race.id, this.stageCount);
+        pr.cleared = Math.max(pr.cleared, this.stageIdx + 1);
+        const best = pr.best[this.stageIdx];
+        if (best === null || time < best) pr.best[this.stageIdx] = time;
       }
       this.note(`Etapa ${this.stageIdx + 1} superada en ${time.toFixed(1)} s`, 'good');
     } else {
@@ -349,8 +359,8 @@ export class Mission {
     if (this.phase !== 'cleared') this.phase = 'failed';
     if (this.practice || this.recorded) return;
     this.recorded = true;
-    if (kind === 'won') this.meta.won = true;
-    addRecord(this.meta, { stages: this.stagesCleared, time: this.clearedTime, data: this.earned, won: kind === 'won', deaths: this.deaths });
+    if (kind === 'won') raceProgress(this.meta, this.race.id, this.stageCount).won = true;
+    addRecord(this.meta, { race: this.race.id, stages: this.stagesCleared, time: this.clearedTime, data: this.earned, won: kind === 'won', deaths: this.deaths });
   }
 
   /** Leaving a run early: it ends and is recorded as it stands. */
@@ -361,7 +371,7 @@ export class Mission {
 
   /** Moves on after a cleared stage: refills the ship partly and loads the next stage. */
   nextStage(): boolean {
-    if (this.phase !== 'cleared' || this.over || this.stageIdx >= STAGES.length - 1) return false;
+    if (this.phase !== 'cleared' || this.over || this.stageIdx >= this.stageCount - 1) return false;
     this.loadStage(this.stageIdx + 1);
     this.kits = kitCount(this.upgrades);
     return true;

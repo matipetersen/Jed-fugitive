@@ -360,9 +360,13 @@ export class Arena {
         fy -= atm.drag * rho * sp * rvy;
       }
       if (b.def.star && d < b.def.r * 1.9) this.damage(s, 16 * h, 'calor');
+      if (b.def.hole && d < b.def.r * 2.2) this.damage(s, 18 * h, 'disco de acreción');
     }
     for (const f of this.def.fields) {
-      if (Math.hypot(s.x - f.x, s.y - f.y) > f.r) continue;
+      const fb = f.body ? this.index.get(f.body) ?? -1 : -1;
+      const fx0 = f.x + (fb >= 0 ? this.cur.x[fb] : 0);
+      const fy0 = f.y + (fb >= 0 ? this.cur.y[fb] : 0);
+      if (Math.hypot(s.x - fx0, s.y - fy0) > f.r) continue;
       if (f.kind === 'wind') {
         fx += f.ax ?? 0;
         fy += f.ay ?? 0;
@@ -394,8 +398,8 @@ export class Arena {
       const speed = Math.hypot(s.vx - f.vx[i], s.vy - f.vy[i]);
       const normal = Math.atan2(dy, dx);
       const tilt = Math.abs(wrap(s.angle - normal));
-      if (b.def.star) {
-        this.die(s, 'sol');
+      if (b.def.star || b.def.hole) {
+        this.die(s, b.def.hole ? 'agujero negro' : 'sol');
         return;
       }
       if (speed <= LAND_SPEED && tilt <= LAND_TILT) {

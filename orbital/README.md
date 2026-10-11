@@ -84,3 +84,12 @@ con una nave rival simultánea (IA predictiva) que choca con vos. Cada etapa ter
 al morir perdés los datos que llevabas (recuperables en la baliza), se guardan en fogatas (pads) o al
 terminar etapa; si el rival termina primero, la misión falla. Mejoras permanentes entre intentos.
 El simulador realista sigue disponible como modo aparte. Código en `src/arcade/`.
+
+### Carreras
+
+El menú de la carrera ofrece varias series de etapas, cada una con su rival y sus peligros:
+La Carrera Espacial (5), La Carrera de Kessel (5, agujeros negros), Polo Sur Lunar 2023, Venera (Venus),
+La Armada del Halley 1986, El Gran Tour (Voyager), La Ventana a Marte 2020, Los Cohetes que Vuelven
+(Ansari X Prize, aterrizaje vertical, multimillonarios), Boonta Eve y Redline (ficción, 3 etapas c/u).
+Los datos de las carreras viven en `src/arcade/{stages,kessel,more}.ts`. `scripts/verify-races.ts` comprueba que
+el rival y los bots puedan completar cada etapa.

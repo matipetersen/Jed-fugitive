@@ -55,8 +55,8 @@ export function landControl(arena: Arena, ship: Ship): Controls {
   }
   const dl = l - tgtL;
   // Over the target when the sideways offset is small for the height; otherwise stay up and slide across.
-  const aligned = Math.abs(dl) < 14 + Math.abs(h - tgtH) * 0.25;
-  let vtDes = clamp(-0.9 * dl, -110, 110);
+  const aligned = Math.abs(dl) < 16 + Math.abs(h - tgtH) * 0.3;
+  let vtDes = clamp(-1.5 * dl, -110, 110);
   const vtMax = Math.sqrt(2 * 0.45 * amax * Math.abs(dl));
   vtDes = clamp(vtDes, -vtMax, vtMax);
   let vnDes: number;

@@ -19,21 +19,34 @@ export interface MissionRecord {
   data: number;
   won: boolean;
   deaths: number;
+  race?: string;
+}
+
+export interface RaceProgress {
+  /** Highest stage count won at least once. */
+  cleared: number;
+  /** Furthest stage played in a real run (1-based), for unlocking practice. */
+  reached: number;
+  best: (number | null)[];
+  won: boolean;
 }
 
 export interface Meta {
   version: 1;
   data: number;
   upgrades: Upgrades;
-  /** Highest stage cleared at least once (0..5). */
-  cleared: number;
-  /** Furthest stage played in a real run (1..5), for unlocking practice. */
-  reached: number;
-  best: (number | null)[];
+  races: Record<string, RaceProgress>;
   attempts: number;
   deaths: number;
-  won: boolean;
   records: MissionRecord[];
+}
+
+/** Progress in one race, created on first use. */
+export function raceProgress(meta: Meta, id: string, stages = 5): RaceProgress {
+  let r = meta.races[id];
+  if (!r) r = meta.races[id] = { cleared: 0, reached: 0, best: [], won: false };
+  while (r.best.length < stages) r.best.push(null);
+  return r;
 }
 
 export interface UpgradeDef {
@@ -63,12 +76,9 @@ export function newMeta(): Meta {
     version: 1,
     data: 0,
     upgrades: zeroUpgrades(),
-    cleared: 0,
-    reached: 0,
-    best: [null, null, null, null, null],
+    races: {},
     attempts: 0,
     deaths: 0,
-    won: false,
     records: [],
   };
 }
@@ -103,9 +113,12 @@ export function loadMeta(): Meta {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return newMeta();
-    const m = JSON.parse(raw) as Meta;
+    const m = JSON.parse(raw) as Meta & { cleared?: number; reached?: number; best?: (number | null)[]; won?: boolean };
     if (m.version !== 1) return newMeta();
-    return { ...newMeta(), ...m, upgrades: { ...newMeta().upgrades, ...m.upgrades } };
+    const meta: Meta = { ...newMeta(), ...m, upgrades: { ...newMeta().upgrades, ...m.upgrades }, races: m.races ?? {} };
+    // Saves from before there were several races: that progress belongs to the first one.
+    if (!m.races && (m.cleared || m.best)) meta.races.guerra = { cleared: m.cleared ?? 0, reached: m.reached ?? 0, best: m.best ?? [], won: !!m.won };
+    return meta;
   } catch {
     return newMeta();
   }

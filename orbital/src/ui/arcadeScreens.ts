@@ -1,7 +1,7 @@
 import { type ArcadeController } from '../arcade/controller';
 import { type MissionRecord, UPGRADES, kitCount } from '../arcade/meta';
 import { raceProgress } from '../arcade/meta';
-import { RACES } from '../arcade/races';
+import { RACES, endingOf } from '../arcade/races';
 import { h } from './dom';
 
 function btn(label: string, onclick: () => void, cls = '', disabled = false): HTMLButtonElement {
@@ -152,7 +152,8 @@ export const arcadeScreens = {
     const r = m.result!;
     const last = m.stageIdx === c.mission.stageCount - 1;
     const final = !!m.over;
-    const title = final ? (r.won ? 'LLEGASTE A PLUTÓN' : 'MISIÓN TERMINADA') : r.won ? 'ETAPA SUPERADA' : 'ETAPA PERDIDA';
+    const end = endingOf(m.race.id);
+    const title = final ? (r.won ? end.winTitle : 'MISIÓN TERMINADA') : r.won ? 'ETAPA SUPERADA' : 'ETAPA PERDIDA';
     const next = !last && !m.practice && !final ? m.race.stages[m.stageIdx + 1] : null;
     return h('div', { class: 'screen' },
       h('h1', { class: r.won ? 'good' : 'bad' }, title),
@@ -165,8 +166,8 @@ export const arcadeScreens = {
         !m.practice ? kv('Datos de la misión', `${m.earned}`) : null,
         !m.practice ? kv('Etapas ganadas', `${m.stagesCleared}/${c.mission.stageCount}`) : null,
       ),
-      final && r.won ? h('p', {}, 'El primer humano en Plutón. La Guerra Fría terminó en el borde del sistema solar.') : null,
-      final && !r.won ? h('p', {}, 'La carrera se decidió sin vos. Cada misión empieza de cero: la próxima vez ya sabés dónde cae la gravedad.') : null,
+      final && r.won ? h('p', {}, end.win) : null,
+      final && !r.won ? h('p', {}, `${end.lose} Cada misión empieza de cero: la próxima vez ya sabés dónde cae la gravedad.`) : null,
       h('div', { class: 'row' },
         next ? btn('SIGUIENTE ETAPA', () => c.nextStage(), 'go') : null,
         m.practice ? btn('REPETIR', () => c.retry(), 'warn') : null,

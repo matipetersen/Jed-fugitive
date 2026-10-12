@@ -26,18 +26,19 @@ export function drawGuides(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame
   const a = m.arena;
   const p = m.player;
   if (!g.guides || p.status === 'dead' || m.phase === 'cleared') return;
-  const n = a.gates.length;
+  const route = p.route;
+  const n = route.length;
   const k0 = p.nextGate;
 
   // 1. The line: ship, then the next few targets, smoothed.
   const pts: Pt[] = [{ x: p.x, y: p.y }];
   const tmp = { x: 0, y: 0 };
   for (let i = k0; i < Math.min(n, k0 + 4); i++) {
-    a.gatePos(i, tmp);
+    a.gatePos(i, tmp, a.cur, route);
     pts.push({ x: tmp.x, y: tmp.y });
   }
   if (k0 >= n) {
-    a.finishPoint(tmp);
+    a.padPoint(p.finishPad.body, p.finishPad.pad, tmp);
     pts.push({ x: tmp.x, y: tmp.y });
   }
   if (pts.length >= 2) drawLine(ctx, v, g, pts);
@@ -45,21 +46,21 @@ export function drawGuides(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame
   // 2. Fly-bys: the ideal arc round each planet whose gates come up.
   const done = new Set<number>();
   for (let i = k0; i < Math.min(n, k0 + 9); i++) {
-    const gate = a.gates[i];
+    const gate = route[i];
     if (gate.land || gate.body < 0 || done.has(gate.body)) continue;
     // Gates in a row on the same body make a fly-by.
     let j = i;
-    while (j + 1 < n && a.gates[j + 1].body === gate.body && !a.gates[j + 1].land) j++;
+    while (j + 1 < n && route[j + 1].body === gate.body && !route[j + 1].land) j++;
     if (j - i < 1) continue;
     done.add(gate.body);
     drawFlyby(ctx, v, g, a, gate.body, i, j);
   }
 
   // 3. The last metres of a landing: speed limits by height.
-  const wp = a.gates[k0]?.land;
+  const wp = route[k0]?.land;
   if (wp || k0 >= n) {
-    const body = wp ? wp.body : a.finish.body;
-    const pad = wp ? wp.pad : a.finish.pad;
+    const body = wp ? wp.body : p.finishPad.body;
+    const pad = wp ? wp.pad : p.finishPad.pad;
     drawLadder(ctx, v, g, a, body, pad);
   }
 }
@@ -109,15 +110,16 @@ function drawLine(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame, pts: Pt
 }
 
 function drawFlyby(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame, a: Arena, bi: number, i0: number, i1: number): void {
+  const route = g.mission.player.route;
   const b = a.bodies[bi];
   const cx = a.bx[bi];
   const cy = a.by[bi];
   const g0 = { x: 0, y: 0 };
   const g1 = { x: 0, y: 0 };
   const gm = { x: 0, y: 0 };
-  a.gatePos(i0, g0);
-  a.gatePos(i1, g1);
-  a.gatePos(Math.floor((i0 + i1) / 2), gm);
+  a.gatePos(i0, g0, a.cur, route);
+  a.gatePos(i1, g1, a.cur, route);
+  a.gatePos(Math.floor((i0 + i1) / 2), gm, a.cur, route);
   const aE = Math.atan2(g0.y - cy, g0.x - cx);
   const aX = Math.atan2(g1.y - cy, g1.x - cx);
   const aM = Math.atan2(gm.y - cy, gm.x - cx);

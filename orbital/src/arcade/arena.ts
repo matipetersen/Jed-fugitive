@@ -95,14 +95,17 @@ export class Arena {
     this.finish = { body: this.index.get(def.finish.body) ?? 0, pad: def.finish.pad };
     this.cur = makeFrame(this.bodies.length);
     this.nxt = makeFrame(this.bodies.length);
-    for (const g of def.gates) {
-      this.gates.push({ def: g, body: g.body ? (this.index.get(g.body) ?? -1) : -1, r: g.r ?? GATE_R, land: g.landing ? { body: this.index.get(g.landing.body) ?? 0, pad: g.landing.pad } : null });
-    }
+    for (const g of def.gates) this.gates.push(this.makeGate(g));
     for (const c of def.cells) {
       this.cells.push({ x: c.x, y: c.y, body: c.body ? (this.index.get(c.body) ?? -1) : -1, fuel: c.fuel, taken: false });
     }
     this.framesAt(0, this.cur);
     this.spawnAsteroids();
+  }
+
+  /** A gate as the arena runs it. */
+  makeGate(g: GateDef): RGate {
+    return { def: g, body: g.body ? (this.index.get(g.body) ?? -1) : -1, r: g.r ?? GATE_R, land: g.landing ? { body: this.index.get(g.landing.body) ?? 0, pad: g.landing.pad } : null };
   }
 
   bodyIndex(id: string): number {
@@ -144,8 +147,8 @@ export class Arena {
   }
 
   /** Gate centre at the arena's current time. */
-  gatePos(i: number, out: { x: number; y: number }, f: Frame = this.cur): void {
-    const g = this.gates[i];
+  gatePos(i: number, out: { x: number; y: number }, f: Frame = this.cur, route: RGate[] = this.gates): void {
+    const g = route[i];
     if (g.land) {
       this.padPoint(g.land.body, g.land.pad, out, f);
       return;
@@ -205,6 +208,8 @@ export class Arena {
       infiniteFuel: !!opts.infiniteFuel,
       bonfire: null,
       cargo: false,
+      route: this.gates,
+      finishPad: this.finish,
       hold: false,
       boostT: 0,
       boostCd: 0,
@@ -495,12 +500,12 @@ export class Arena {
           s.hull = s.stats.hullMax;
         }
         this.events.push({ type: 'land', ship: s.id, body: i, pad, bonfire });
-        const wp = this.gates[s.nextGate]?.land;
+        const wp = s.route[s.nextGate]?.land;
         if (wp && this.onFinishPad(i, normal, wp)) {
           this.events.push({ type: 'gate', ship: s.id, index: s.nextGate, final: false });
           s.nextGate++;
         }
-        if (!s.finished && this.gatesDone(s) && this.onFinishPad(i, normal)) {
+        if (!s.finished && this.gatesDone(s) && this.onFinishPad(i, normal, s.finishPad)) {
           s.finished = true;
           s.finishTime = this.clock;
           if (this.winner < 0) this.winner = s.id;
@@ -581,15 +586,15 @@ export class Arena {
     if (!this.go) return;
     for (const s of this.ships) {
       if (s.status !== 'flying' || s.finished) continue;
-      if (s.nextGate >= this.gates.length) continue;
-      if (this.gates[s.nextGate].land) continue;
-      this.gatePos(s.nextGate, this.gp);
-      if (Math.hypot(s.x - this.gp.x, s.y - this.gp.y) <= this.gates[s.nextGate].r) {
+      if (s.nextGate >= s.route.length) continue;
+      if (s.route[s.nextGate].land) continue;
+      this.gatePos(s.nextGate, this.gp, this.cur, s.route);
+      if (Math.hypot(s.x - this.gp.x, s.y - this.gp.y) <= s.route[s.nextGate].r) {
         const idx = s.nextGate;
-        const final = !!this.gates[idx].def.final || idx === this.gates.length - 1;
+        const final = !!s.route[idx].def.final || idx === s.route.length - 1;
         s.nextGate++;
         this.events.push({ type: 'gate', ship: s.id, index: idx, final });
-        if (this.gates[idx].def.cargo && !s.cargo) {
+        if (s.route[idx].def.cargo && !s.cargo) {
           s.cargo = true;
           this.events.push({ type: 'cargo', ship: s.id });
         }
@@ -600,7 +605,7 @@ export class Arena {
 
   /** True once the ship has passed every gate and only the landing is left. */
   gatesDone(s: Ship): boolean {
-    return s.nextGate >= this.gates.length;
+    return s.nextGate >= s.route.length;
   }
 
   /** Surface point of the finish pad at the current time, and its outward normal angle. */
@@ -619,8 +624,8 @@ export class Arena {
 
   /** What the ship should go to next: its next gate, or the finish pad once the gates are done. */
   objective(s: Ship, out: { x: number; y: number }): void {
-    if (s.nextGate < this.gates.length) this.gatePos(s.nextGate, out);
-    else this.finishPoint(out);
+    if (s.nextGate < s.route.length) this.gatePos(s.nextGate, out, this.cur, s.route);
+    else this.padPoint(s.finishPad.body, s.finishPad.pad, out);
   }
 
   private onFinishPad(i: number, normal: number, target = this.finish): boolean {

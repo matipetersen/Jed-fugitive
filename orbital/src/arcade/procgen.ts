@@ -231,25 +231,21 @@ export function makeGrandPrix(seed: number): RaceDef {
   const a0 = Math.round(between(r, 0, 360));
   const step = 360 / n;
   const slotAngle = (k: number): number => (a0 + step * k) % 360;
-  const metaAngle = (a0 + step * 0.5) % 360;
-  const pads = Array.from({ length: n }, (_, k) => pad(`Grilla ${k + 1}`, true, 22, slotAngle(k)));
-  pads.push(pad('Meta', true, 55, metaAngle));
+  const pads = Array.from({ length: n }, (_, k) => pad(`Grilla ${k + 1}`, true, 30, slotAngle(k)));
   const playerSlot = Math.floor(r() * n);
   const aiSlots = Array.from({ length: n }, (_, k) => k).filter((k) => k !== playerSlot).map((k) => slotAngle(k));
   const dir = r() < 0.5 ? 1 : -1;
-  const theta0 = Math.round(between(r, 0, 360));
   const perLap = 8;
   const rr = R0 + 250;
+  const ring0 = Math.round(between(r, 0, 360));
+  // One lap of gates. Every ship runs it from its own pad, so nobody starts closer to the line than anybody else.
   const gates: GateDef[] = [];
-  for (let lap = 0; lap < 2; lap++) {
-    for (let i = 0; i < perLap; i++) {
-      const ang = (theta0 + dir * (360 / perLap) * i) * d2r;
-      const rad = rr + between(r, -40, 70);
-      gates.push({ x: round(Math.cos(ang) * rad), y: round(Math.sin(ang) * rad) });
-    }
+  for (let i = 0; i < perLap; i++) {
+    const ang = (ring0 + dir * (360 / perLap) * i) * d2r;
+    const rad = rr + between(r, -40, 70);
+    gates.push({ x: round(Math.cos(ang) * rad), y: round(Math.sin(ang) * rad) });
   }
-  const fa = metaAngle * d2r;
-  gates.push({ x: round(Math.cos(fa) * (R0 + 110)), y: round(Math.sin(fa) * (R0 + 110)), final: true });
+  const theta0 = ring0;
   const moon = (id: string, a: number, om: number): BodyDef => ({ id, name: pick(r, NAMES), r: 58, g: 38, color: pick(r, COLORS), orbit: { parent: 'a', a, phase: between(r, 0, TAU), omega: om } });
   const bodies: BodyDef[] = [
     { id: 'a', name: aName, r: R0, g: 80, color: pick(r, COLORS), x: 0, y: 0, atm: { h: 45, drag: 0.003 }, pads },
@@ -259,7 +255,7 @@ export function makeGrandPrix(seed: number): RaceDef {
   const st = stage({
     id: 1,
     name: `Gran Premio de ${aName}`,
-    blurb: `${n} naves salen de todos lados del planeta ${aName}. Dos vueltas por los mismos aros y a aterrizar en la Meta: suben al podio los tres primeros.`,
+    blurb: `${n} naves salen de todos lados del planeta ${aName}. Cada una corre dos vueltas por los mismos aros desde su propia grilla y vuelve a aterrizar en ella: todas la misma distancia. Gana el podio quien aterriza primero.`,
     skulls: 4,
     bodies,
     gates,
@@ -267,10 +263,10 @@ export function makeGrandPrix(seed: number): RaceDef {
     cells: [0, 1, 2].map((k) => ({ x: round(Math.cos((theta0 + dir * 120 * k + 30) * d2r) * (rr + 40)), y: round(Math.sin((theta0 + dir * 120 * k + 30) * d2r) * (rr + 40)), fuel: 35 })),
     start: { body: 'a', angle: slotAngle(playerSlot) * d2r },
     rivalStart: { body: 'a', angle: slotAngle((playerSlot + 1) % n) * d2r },
-    field: { body: 'a', slots: aiSlots, podium: 3 },
+    field: { body: 'a', slots: aiSlots, podium: 3, laps: 2, dir: dir as 1 | -1 },
     tank: 0.9,
-    rival: { skill: 0.88, name: 'Piloto', delay: 1.4, ai: { noise: 0.2 } },
-    finish: { body: 'a', pad: n },
+    rival: { skill: 0.76, name: 'Piloto', delay: 1.4, ai: { noise: 0.25 } },
+    finish: { body: 'a', pad: 0 },
     par: 90,
     kind: 'Gran Premio',
   });
@@ -278,7 +274,7 @@ export function makeGrandPrix(seed: number): RaceDef {
     id: 'granpremio',
     name: 'GRAN PREMIO DIARIO',
     subtitle: `Semilla ${dailyLabel(new Date(seed * 86400000))} · ${n} naves`,
-    blurb: 'Una grilla de 9 a 12 naves, salida desde todos los lados del planeta y dos vueltas caóticas. Hay que llegar al podio.',
+    blurb: 'Una grilla de 9 a 12 naves con salida desde todos los lados del planeta. Cada una hace dos vueltas desde su pad y vuelve a él: todas la misma distancia. Hay que llegar al podio.',
     stages: [st],
   };
 }

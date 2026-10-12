@@ -1,6 +1,6 @@
 import { mulberry32 } from '../sim/rng';
 import { RIVAL_AI, RivalDriver } from './ai';
-import { Arena, STEP } from './arena';
+import { Arena, type RGate, STEP } from './arena';
 import { type Meta, MISSION_LIVES, type Upgrades, addRecord, kitCount, raceProgress, shipStats, zeroUpgrades } from './meta';
 import { RACES } from './races';
 import { type ArenaEvent, type Controls, type RaceDef, type Ship, type StageDef } from './types';
@@ -141,6 +141,8 @@ export class Mission {
       });
       this.rival = this.rivals[0];
       this.driver = this.drivers[0];
+      this.applyFieldRoute(this.player, def.start.angle);
+      this.rivals.forEach((sh, k) => this.applyFieldRoute(sh, (f.slots[k] * Math.PI) / 180));
     } else {
       this.rival = this.arena.addShip({
         isPlayer: false,
@@ -178,6 +180,47 @@ export class Mission {
   private note(text: string, kind: MissionEvent['kind'] = 'info'): void {
     this.log.push({ text, kind });
     if (this.log.length > 30) this.log.shift();
+  }
+
+  /**
+   * A mass start gives every ship its own route: the first ring gate ahead of its pad, the same number of
+   * laps, and a landing on its own pad. All run the same distance wherever on the planet they start.
+   */
+  private applyFieldRoute(ship: Ship, angle: number): void {
+    const f = this.def.field;
+    if (!f) return;
+    const a = this.arena;
+    const bi = a.bodyIndex(f.body);
+    const body = a.bodies[bi];
+    const pads = body.def.pads ?? [];
+    let padIdx = 0;
+    let bestPad = Infinity;
+    pads.forEach((pd, i) => {
+      const d = Math.abs(Math.atan2(Math.sin(pd.angle - angle), Math.cos(pd.angle - angle)));
+      if (d < bestPad) {
+        bestPad = d;
+        padIdx = i;
+      }
+    });
+    const ring = a.gates;
+    const TAU = Math.PI * 2;
+    let first = 0;
+    let bestAhead = Infinity;
+    ring.forEach((gt, i) => {
+      let ahead = (((Math.atan2(gt.def.y, gt.def.x) - angle) * f.dir) % TAU + TAU) % TAU;
+      if (ahead < 0.3) ahead += TAU;
+      if (ahead < bestAhead) {
+        bestAhead = ahead;
+        first = i;
+      }
+    });
+    const route: RGate[] = [];
+    for (let k = 0; k < f.laps * ring.length; k++) route.push(ring[(first + k) % ring.length]);
+    const pa = pads[padIdx]?.angle ?? angle;
+    const R = body.def.r + 110;
+    route.push(a.makeGate({ x: Math.round(Math.cos(pa) * R), y: Math.round(Math.sin(pa) * R), final: true }));
+    ship.route = route;
+    ship.finishPad = { body: bi, pad: padIdx };
   }
 
   /** Position of the player among all ships, by gates passed and distance to the next target. */
@@ -443,7 +486,7 @@ export class Mission {
       reward = this.practice ? 0 : 25 * (this.stageIdx + 1);
       if (lost) reason = lost;
       else {
-        const total = a.gates.length;
+        const total = this.player.route.length;
         reason = `${this.rival.name} llegó primero: pasó los ${total} aros y aterrizó a los ${rivalTime.toFixed(0)} s; vos ${a.gatesDone(this.player) ? 'ya habías pasado los aros pero no llegaste a aterrizar' : `ibas por ${this.player.nextGate}/${total} aros`}.`;
       }
     }

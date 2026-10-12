@@ -23,15 +23,15 @@ export interface LandTarget {
 /** The pad to land on right now, if the ship is close enough for guidance to take over from the route planner. */
 export function landTarget(arena: Arena, ship: Ship): LandTarget | null {
   const n = ship.nextGate;
-  const wp = n < arena.gates.length ? arena.gates[n].land : null;
+  const wp = n < ship.route.length ? ship.route[n].land : null;
   if (wp) {
     arena.padPoint(wp.body, wp.pad, PT);
     return Math.hypot(ship.x - PT.x, ship.y - PT.y) < 700 ? { body: wp.body, pad: wp.pad, ring: false } : null;
   }
-  if (n < arena.gates.length - 1) return null;
-  arena.finishPoint(PT);
-  if (n < arena.gates.length && Math.hypot(ship.x - PT.x, ship.y - PT.y) >= 700) return null;
-  return { body: arena.finish.body, pad: arena.finish.pad, ring: n < arena.gates.length };
+  if (n < ship.route.length - 1) return null;
+  arena.padPoint(ship.finishPad.body, ship.finishPad.pad, PT);
+  if (n < ship.route.length && Math.hypot(ship.x - PT.x, ship.y - PT.y) >= 700) return null;
+  return { body: ship.finishPad.body, pad: ship.finishPad.pad, ring: n < ship.route.length };
 }
 
 /**
@@ -61,7 +61,7 @@ export function landControl(arena: Arena, ship: Ship, tgt: LandTarget): Controls
   let tgtH = 0;
   const pending = tgt.ring;
   if (pending) {
-    arena.gatePos(ship.nextGate, GT);
+    arena.gatePos(ship.nextGate, GT, arena.cur, ship.route);
     const gx = GT.x - arena.cur.x[bi];
     const gy = GT.y - arena.cur.y[bi];
     tgtL = gx * tx + gy * ty;

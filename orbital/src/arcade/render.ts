@@ -332,13 +332,15 @@ function drawFields(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void
 
 function drawGates(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
   const a = g.mission.arena;
-  const next = g.mission.player.nextGate;
+  const pl = g.mission.player;
+  const route = pl.route;
+  const next = pl.nextGate;
   const gp = { x: 0, y: 0 };
-  for (let i = next; i < a.gates.length; i++) {
+  for (let i = next; i < route.length; i++) {
     if (i > next + 3) break;
-    a.gatePos(i, gp);
-    const gate = a.gates[i];
-    const final = !!gate.def.final || i === a.gates.length - 1;
+    a.gatePos(i, gp, a.cur, route);
+    const gate = route[i];
+    const final = !!gate.def.final || i === route.length - 1;
     const isNext = i === next;
     if (gate.land) {
       const ang = a.padPoint(gate.land.body, gate.land.pad, gp);
@@ -381,14 +383,14 @@ function drawGates(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void 
     }
   }
   // The finish pad: a pulsing marker above it once the last gate is next or passed.
-  if (next >= a.gates.length - 1) {
-    const ang = a.finishPoint(gp);
+  if (next >= route.length - 1) {
+    const ang = a.padPoint(pl.finishPad.body, pl.finishPad.pad, gp);
     const lift = 26 + 4 * Math.sin(g.clock * 5);
     proj(v, gp.x + Math.cos(ang) * lift, gp.y + Math.sin(ang) * lift);
     const mx = P.x;
     const my = P.y;
-    const bi = a.finish.body;
-    const half = a.bodies[bi].def.pads?.[a.finish.pad]?.half ?? 30;
+    const bi = pl.finishPad.body;
+    const half = a.bodies[bi].def.pads?.[pl.finishPad.pad]?.half ?? 30;
     const sa = screenAngle(v, ang);
     neonStroke(ctx, GOOD, 2, () => {
       ctx.save();
@@ -704,13 +706,13 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   const cx = (150 + width - 8 - 3 * 50 - 8) / 2;
   const ringTxt = `ETAPA ${m.stageIdx + 1} · ${m.def.name.toUpperCase()}`;
   text(ctx, ringTxt, cx, TOP + 18, AMBER, 12, true);
-  const total = a.gates.length;
+  const total = p.route.length;
   const done = (sh: Ship): string => (a.gatesDone(sh) ? 'ATERRIZAR' : `${sh.nextGate}/${total}`);
   const fieldDef = a.def.field;
   const rank = fieldDef ? m.rank() : null;
   text(ctx, fieldDef && rank ? `AROS ${done(p)}  ·  POSICIÓN ${rank.pos}/${rank.total}  ·  ${Math.max(0, a.clock).toFixed(0)} s` : `AROS ${done(p)}  ·  RIVAL ${done(m.rival)}  ·  ${Math.max(0, a.clock).toFixed(0)} s`, cx, TOP + 34, COLORS.hud, 12, true);
   const lead = m.gateLead();
-  const padName = a.bodies[a.finish.body].def.pads?.[a.finish.pad]?.name ?? 'la meta';
+  const padName = a.bodies[p.finishPad.body].def.pads?.[p.finishPad.pad]?.name ?? 'la meta';
   let leadTxt = 'RIVAL AL PAR';
   let leadColor = COLORS.hud;
   if (fieldDef && rank) {
@@ -719,8 +721,8 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     leadColor = inPodium ? GOOD : AMBER;
   } else if (a.clock < 0) {
     leadTxt = `${m.rival.name}`;
-  } else if (a.gatesDone(p) || a.gates[p.nextGate]?.land) {
-    const wp = a.gates[p.nextGate]?.land;
+  } else if (a.gatesDone(p) || p.route[p.nextGate]?.land) {
+    const wp = p.route[p.nextGate]?.land;
     const wpName = wp ? a.bodies[wp.body].def.pads?.[wp.pad]?.name ?? 'la escala' : padName;
     leadTxt = `ATERRIZÁ EN ${wpName.toUpperCase()}`;
     leadColor = GOOD;
@@ -732,7 +734,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     leadColor = '#ff2bd6';
   } else if (!a.gatesDone(p) && !a.gatesDone(m.rival)) {
     const gp = { x: 0, y: 0 };
-    a.gatePos(p.nextGate, gp);
+    a.gatePos(p.nextGate, gp, a.cur, p.route);
     const dp = Math.hypot(p.x - gp.x, p.y - gp.y);
     const dr = Math.hypot(m.rival.x - gp.x, m.rival.y - gp.y);
     leadTxt = dp <= dr ? 'VAS ADELANTE' : `${m.rival.name} VA ADELANTE`;
@@ -760,9 +762,9 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     const dist = Math.hypot(gp.x - p.x, gp.y - p.y);
     const done = a.gatesDone(p);
     const warnShown = !a.def.field && a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared';
-    const gate = a.gates[p.nextGate];
+    const gate = p.route[p.nextGate];
     let name = `ARO ${p.nextGate + 1}`;
-    if (done) name = a.bodies[a.finish.body].def.name;
+    if (done) name = a.bodies[p.finishPad.body].def.name;
     else if (gate?.land) name = a.bodies[gate.land.body].def.name;
     else if (gate && gate.body >= 0) name = a.bodies[gate.body].def.name;
     edgeArrow(ctx, v, gp.x, gp.y, done ? GOOD : AMBER, `${name} ${Math.round(dist)}`);

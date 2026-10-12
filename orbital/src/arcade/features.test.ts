@@ -178,6 +178,29 @@ describe('grand prix', () => {
     }
   });
 
+  it('every ship runs the same distance from its own pad, whichever side of the planet it starts on', () => {
+    for (const seed of [11, 12, 13]) {
+      const race = makeGrandPrix(seed);
+      const m = new Mission(newMeta(), { stage: 0, race });
+      const ships = [m.player, ...m.rivals];
+      const len = m.player.route.length;
+      expect(len).toBe(2 * m.arena.gates.length + 1);
+      const pads = new Set<number>();
+      for (const sh of ships) {
+        expect(sh.route.length).toBe(len);
+        pads.add(sh.finishPad.pad);
+        // The first gate is a short hop ahead: well under half a lap from the ship, the same for all.
+        const g0 = sh.route[0];
+        const a0 = Math.atan2(g0.def.y, g0.def.x);
+        const a1 = Math.atan2(sh.y, sh.x);
+        const ahead = ((((a0 - a1) * race.stages[0].field!.dir) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        expect(ahead).toBeGreaterThan(0.29);
+        expect(ahead).toBeLessThan((2 * Math.PI) / 8 + 0.35 + 0.8);
+      }
+      expect(pads.size).toBe(ships.length);
+    }
+  });
+
   it('the podium decides the stage: top three win, a full podium without the player loses', () => {
     const race = makeGrandPrix(7);
     const win = new Mission(newMeta(), { stage: 0, race });

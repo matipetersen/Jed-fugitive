@@ -68,8 +68,8 @@ export function aiControl(arena: Arena, ship: Ship, ai: AiState, rnd: () => numb
 
 function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: AiOptions): void {
   const steps = Math.round(opts.horizon / opts.dt);
-  arena.gatePos(ship.nextGate, GP);
-  const gate = arena.gates[ship.nextGate];
+  arena.gatePos(ship.nextGate, GP, arena.cur, ship.route);
+  const gate = ship.route[ship.nextGate];
   const toGate = Math.atan2(GP.y - ship.y, GP.x - ship.x);
   const speed = Math.hypot(ship.vx, ship.vy);
   const startD = Math.hypot(GP.x - ship.x, GP.y - ship.y);
@@ -147,7 +147,7 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
         vy += (G.y + ny * aT + fy) * opts.dt;
         x += vx * opts.dt;
         y += vy * opts.dt;
-        arena.gatePos(ship.nextGate, GP, PF);
+        arena.gatePos(ship.nextGate, GP, PF, ship.route);
         const dg = Math.hypot(x - GP.x, y - GP.y);
         if (dg < minD) minD = dg;
         for (let i = 0; i < arena.bodies.length; i++) {
@@ -171,12 +171,12 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
           if (d < a.r + SHIP_R + 12) danger += 900;
         }
       }
-      arena.gatePos(ship.nextGate, GP, PF);
+      arena.gatePos(ship.nextGate, GP, PF, ship.route);
       const endD = Math.hypot(x - GP.x, y - GP.y);
       const dir = Math.atan2(GP.y - y, GP.x - x);
       const vToward = (vx - PF.vx[0]) * Math.cos(dir) + (vy - PF.vy[0]) * Math.sin(dir);
       // Speed towards the gate is good, but only as much as can be used: no point arriving faster than the gate is far.
-      const lastGate = ship.nextGate === arena.gates.length - 1 || !!arena.gates[ship.nextGate].land;
+      const lastGate = ship.nextGate === ship.route.length - 1 || !!ship.route[ship.nextGate].land;
       const cap = lastGate ? 40 + startD / 6 : 80 + startD / 1.1;
       let J = endD * 0.5 + minD - 0.35 * clamp(vToward, -50, Math.min(260, cap)) * opts.horizon + danger;
       // Beyond the speed a pilot can steer, going faster only means missing the next gate.
@@ -218,7 +218,7 @@ export class RivalDriver {
         if (ship.nextGate === 0) {
           arena.respawn(ship, { body: ship.landedBody, angle: ship.landedAngle }, { fuel: ship.stats.fuelMax, hull: ship.stats.hullMax });
         } else {
-          arena.gatePos(gi, p);
+          arena.gatePos(gi, p, arena.cur, ship.route);
           arena.respawnFlying(ship, p.x, p.y);
         }
       }

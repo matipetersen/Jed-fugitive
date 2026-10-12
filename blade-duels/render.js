@@ -154,6 +154,19 @@
     const sc = (c) => c.y + out * (c.x - sx) * 0.8;
     return { el: sc(c1) >= sc(c2) ? c1 : c2, hd: { x: tx, y: ty } };
   }
+  // comic-book sound effects, by kind of impact
+  const WORDS = {
+    quick: ['SLASH!', 'SWISH!', 'SNIKT!', 'SLICE!', 'ZIP!'],
+    heavy: ['WHAM!', 'CRUNCH!', 'SMASH!', 'THWACK!', 'KA-POW!'],
+    thrust: ['STAB!', 'THWIP!', 'PIERCE!', 'SKEWER!'],
+    punish: ['GOTCHA!', 'BUSTED!'],
+    block: ['CLANG!', 'CLASH!', 'KLANK!', 'CLINK!'],
+    break: ['KRAKOOM!', 'SHATTER!'],
+    parry: ['CLING!', 'DEFLECT!'],
+    interrupt: ['THUD!', 'BONK!'],
+    open: ['WHOOSH!', 'WHIFF!'],
+  };
+  const TONE = { hit: '#e63946', heavy: '#c1121f', block: '#1d6fd8', break: '#f77f00', parry: '#7b2cbf', open: '#0aa89e' };
   const WLEN = { blade: 330, dagger: 190, spear: 470, axe: 300 };
   const WTHK = { blade: 34, dagger: 42, spear: 28, axe: 26 };
 
@@ -168,6 +181,7 @@
       this.parts = []; this.lens = []; this.slits = []; this.wounds = []; this.cracks = []; this.pool = 0;
       this.trailE = []; this.trailP = [];
       this.texts = []; this.banners = []; this.callouts = [];
+      this.comics = []; this.dots = []; this.kirby = []; this.lastWord = '';
       this.cam = { shake: 0, roll: 0, rollT: 0, dy: 0, dyT: 0, zoom: 0 };
       this.busy = false; this.idleAmp = 1;
       this.freeze = 0; this.slowmo = 0; this.impact = 0; this.flashWhite = 0; this.flashRed = 0; this.koFade = 0;
@@ -203,6 +217,7 @@
       this.en.snap(EP0); this.pl.snap(PP0);
       this.eF = { dizzy: false, swinging: false, broken: false, flash: 0 }; this.pF = { swinging: false, open: false, broken: false };
       this.parts = []; this.lens = []; this.slits = []; this.wounds = []; this.trailE = []; this.trailP = []; this.pool = 0;
+      this.comics = []; this.dots = []; this.kirby = [];
       this.cam = { shake: 0, roll: 0, rollT: 0, dy: 0, dyT: 0, zoom: 0 }; this.koFade = 0; this.flashRed = 0;
       this.dmg.a = this.dmg.b = 0; this.dmgT.a = this.dmgT.b = 0;
       this.makeCracks();
@@ -325,6 +340,8 @@
       this.texts.forEach((t) => { t.life -= dt; t.y -= t.vy * dt; }); this.texts = this.texts.filter((t) => t.life > 0);
       this.banners.forEach((b) => { b.t += dt; }); this.banners.filter((b) => b.t >= b.dur).forEach((b) => b.done()); this.banners = this.banners.filter((b) => b.t < b.dur);
       this.callouts.forEach((c) => { c.t += dt; }); this.callouts = this.callouts.filter((c) => c.t < c.dur);
+      [this.comics, this.dots, this.kirby].forEach((l) => l.forEach((c) => { c.t += dt; }));
+      this.comics = this.comics.filter((c) => c.t < c.dur); this.dots = this.dots.filter((c) => c.t < c.dur); this.kirby = this.kirby.filter((c) => c.t < c.dur);
     }
 
     // ---------- fluids and wounds ----------
@@ -383,6 +400,22 @@
       for (let i = 0; i < 4; i++) this.lensSplat(x + Math.cos(ang) * rnd(-len, len) * 0.5, y + Math.sin(ang) * rnd(-len, len) * 0.5, rnd(4, 9));
     }
 
+    pickWord(pool) {
+      let w; for (let i = 0; i < 4; i++) { w = pool[Math.floor(Math.random() * pool.length)]; if (w !== this.lastWord) break; }
+      this.lastWord = w; return w;
+    }
+    // comic-book hit: sound-effect word on a starburst, halftone dots and kinetic lines
+    comic(x, y, word, tone, size, opt) {
+      const o = opt || {}, sz = size, w = this.wctx;
+      w.save(); w.font = '400 ' + sz + 'px Bangers, Impact, "Arial Black", sans-serif'; const tw = w.measureText(word).width; w.restore();
+      const R = Math.max(tw * 0.56, sz * 0.98) + 22, n = 13 + Math.floor(Math.random() * 5);
+      const cx = clamp(x, R * 0.7, W - R * 0.7), cy = clamp(y, R * 0.55 + 20, H - R * 0.55);
+      const jit = Array.from({ length: n }, () => rnd(0.82, 1.12));
+      this.comics.push({ x: cx, y: cy, word, tone, size: sz, R, n, jit, rot: rnd(-0.22, 0.22), t: 0, dur: o.big ? 0.95 : 0.7 });
+      this.dots.push({ x, y, r: 120 + sz * 1.5, step: 11, col: this.neon ? tone : '#0b0b0b', alpha: this.neon ? 0.8 : 0.45, t: 0, dur: 0.4 });
+      if (o.big) this.dots.push({ x: W / 2, y: H / 2, r: 560, step: 24, col: this.neon ? tone : '#0b0b0b', alpha: this.neon ? 0.22 : 0.16, t: 0, dur: 0.26 });
+      this.kirby.push({ x, y, n: 12 + Math.floor(Math.random() * 6), base: rnd(0, 6.283), r0: R * 0.8, len: R * (o.big ? 1.7 : 1.15), tone, t: 0, dur: 0.3 });
+    }
     floatText(x, y, text, col, size) { this.texts.push({ x, y, text, col, size: size || 26, life: 1.0, max: 1.0, vy: 40 }); }
     callout(text, col) { this.callouts.push({ text, col, t: 0, dur: 1.2 }); }
     banner(text, sub, dur) { return new Promise((res) => { this.banners.push({ text, sub: sub || '', t: 0, dur: dur || 1.1, done: res }); }); }
@@ -444,6 +477,7 @@
       const eBuck = this.ubWorld(P, P.bx, P.by), pBuck = { x: this.pl.cur.bx, y: this.pl.cur.by };
       switch (e.kind) {
         case 'hit': case 'punish': {
+          let cx = 480, cy = 270;
           if (mine) {
             const w = this.addWound(zone, e.type, e.dmg), pos = this.woundWorld(P, w);
             this.en.go(EHIT(Math.random() < 0.5 ? -1 : 1), 0.09, E.out); this.eF.flash = 0.16;
@@ -452,10 +486,10 @@
             this.sparks(pos.x, pos.y, 8, '#ff5c6e', 300);
             this.ring(pos.x, pos.y, this.bloodCol(false), 30 + e.dmg);
             this.doFreeze(0.05 + e.dmg * 0.003); this.doShake(4 + e.dmg * 0.5); this.cam.zoom = Math.min(0.08, 0.02 + e.dmg * 0.002);
-            this.fxBlur(0.7, rnd(-1, 1), rnd(-1, 1), e.dmg >= 14 ? 0.8 : 0.4);
+            this.fxBlur(0.7, rnd(-1, 1), rnd(-1, 1), e.dmg >= 14 ? 0.8 : 0.4); cx = pos.x; cy = pos.y;
             if (e.power >= 1.2 && !e.combo) this.callout('FAST!', '#19e6ff');
           } else {
-            const c = this.playerContact(zone), big = e.dmg >= 14;
+            const c = this.playerContact(zone), big = e.dmg >= 14; cx = c.x; cy = c.y;
             this.cam.roll += (Math.random() < 0.5 ? -1 : 1) * (3 + e.dmg * 0.25); this.cam.rollT = 0;
             this.flashRed = Math.min(0.8, 0.3 + e.dmg * 0.02);
             const ang = zone === 0 ? 0.7 : zone === 2 ? -0.6 : rnd(-0.2, 0.2);
@@ -464,6 +498,8 @@
             this.doFreeze(0.06 + e.dmg * 0.003); this.doShake(5 + e.dmg * 0.6);
             this.pl.go(PHIT, 0.09, E.out); this.fxBlur(0.8, rnd(-1, 1), rnd(-1, 1), e.dmg >= 14 ? 0.9 : 0.5);
           }
+          this.comic(cx, cy - 24, e.combo ? e.combo.name.toUpperCase() + '!!' : this.pickWord(e.kind === 'punish' ? WORDS.punish : (WORDS[e.type] || WORDS.quick)),
+            e.type === 'heavy' || e.combo ? TONE.heavy : TONE.hit, 54 + Math.min(46, e.dmg * 1.7) + (e.power >= 1.2 ? 10 : 0), { big: e.dmg >= 16 || !!e.combo });
           if (e.kind === 'punish') this.callout('PUNISHED!', '#ffd60a');
           if (e.counter) this.callout('COUNTER!', '#ffd60a');
           if (e.combo) { this.callout(e.combo.name.toUpperCase() + '!', mine ? this.pColor : this.eColor); this.doShake(14); this.impact = 0.14; }
@@ -475,6 +511,7 @@
           const at = mine ? eBuck : pBuck;
           this.sparks(at.x, at.y, 12, '#ffe08a', 320, Math.random() * 6.283, 6.283);
           this.ring(at.x, at.y, '#fff', 36, 3); this.doFreeze(0.04); this.doShake(mine ? 3 : 6);
+          this.comic(at.x + (mine ? 0 : 40), at.y - 10, this.pickWord(WORDS.block), TONE.block, 48);
           if (e.dmg > 0) { if (mine) { const w = this.addWound(zone, 'quick', e.dmg * 0.6); this.spray(at.x, at.y, 4, 0.5); w.size *= 0.7; } else { this.lensSplat(rnd(300, 660), rnd(120, 400), rnd(6, 12)); } }
           if (e.perfect && !mine) this.callout('PERFECT BLOCK!', '#7dffb0');
           ap('block');
@@ -486,6 +523,7 @@
           this.shards(at.x, at.y, 18, mine ? this.eColor : this.pColor);
           this.sparks(at.x, at.y, 16, '#ffe08a', 400);
           if (mine) { this.en.go(EHIT(1), 0.1, E.out); if (e.dmg > 0) this.addWound(zone, 'quick', e.dmg * 0.7); } else { this.pl.go(PHIT, 0.1, E.out); this.lensSplat(rnd(300, 660), rnd(120, 400), rnd(8, 16)); }
+          this.comic(at.x, at.y - 20, this.pickWord(WORDS.break), TONE.break, 78, { big: true });
           this.callout('GUARD BREAK!', '#ff8c00'); this.ring(at.x, at.y, '#ff8c00', 80); this.doFreeze(0.1); this.doShake(12); this.impact = 0.1;
           ap('break');
           break;
@@ -495,6 +533,7 @@
           if (mine) this.pl.go(PSTAG, 0.12, E.out); else this.en.go(ESTAG, 0.12, E.out);
           this.pF.swinging = false; this.eF.swinging = false;
           this.ring(480, 270, '#fff', 100, 6); this.sparks(480, 270, 24, '#fff', 480);
+          this.comic(480, 260, this.pickWord(WORDS.parry), TONE.parry, 66, { big: true });
           this.callout('PARRY!', '#ffffff'); this.doFreeze(0.12); this.doShake(10); this.flashWhite = 0.5; this.impact = 0.1;
           ap('parry');
           void at;
@@ -502,18 +541,19 @@
         }
         case 'interrupt': {
           if (mine) this.pl.go(PSTAG, 0.1, E.out); else this.en.go(ESTAG, 0.1, E.out);
-          this.sparks(480, 250, 12, '#ffd60a', 260); this.callout('INTERRUPTED!', '#ffd60a'); this.doFreeze(0.06); this.doShake(5);
+          this.sparks(480, 250, 12, '#ffd60a', 260); this.comic(480, 250, this.pickWord(WORDS.interrupt), TONE.parry, 56); this.callout('INTERRUPTED!', '#ffd60a'); this.doFreeze(0.06); this.doShake(5);
           ap('block');
           break;
         }
         case 'feintOpen': {
           if (mine) { this.en.go(EDIZ, 0.15, E.out); this.eF.dizzy = true; this.ring(eBuck.x, eBuck.y, '#ffd60a', 60); }
           else { this.pF.open = true; this.cam.roll += 6; this.ring(pBuck.x, pBuck.y, '#ffd60a', 60); }
+          this.comic(mine ? eBuck.x : 480, mine ? eBuck.y - 20 : 300, this.pickWord(WORDS.open), TONE.open, 54);
           this.callout(mine ? 'OPEN!' : 'YOU\'RE OPEN!', '#ffd60a'); this.doShake(4);
           ap('feint');
           break;
         }
-        case 'rest': if (mine) { this.floatText(480, 500, 'breathe', '#7dffb0', 22); } break;
+        case 'rest': if (mine) { this.floatText(480, 420, 'breathe', '#7dffb0', 22); } break;
         default: break;
       }
     }
@@ -527,8 +567,10 @@
           const P = this.puppet(), c = this.enemyContact(1);
           this.eF.collapsed = true; this.en.go(EKO, 0.8, E.in); this.pl.go(PWIN, 0.5, E.out);
           this.spray(c.x, c.y, 60, 1.3); this.chunks(c.x, c.y, 16); this.pool += 40; void P;
+          this.comic(c.x, c.y - 10, 'KA-BOOM!!', TONE.heavy, 112, { big: true });
           await this.wait(0.6);
         } else {
+          this.comic(480, 280, 'THUD...', TONE.parry, 90, { big: true });
           this.cam.rollT = 24; this.cam.dyT = 150; this.pl.go(PKO, 0.8, E.in); this.koFade = 0.001;
           await this.wait(0.6);
         }
@@ -566,6 +608,7 @@
       this.drawLens(ctx, neon);
       this.drawVignette(ctx);
       if (this.speedLines > 0) this.drawSpeedLines(ctx, neon);
+      this.drawComic(ctx, neon);
       if (this.flashWhite > 0) { ctx.globalAlpha = Math.min(1, this.flashWhite) * 0.6; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
       if (this.flashRed > 0) { ctx.globalAlpha = Math.min(1, this.flashRed) * 0.55; ctx.fillStyle = '#c1121f'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
       this.drawHud(ctx, neon); this.drawTimer(ctx, neon); this.drawTexts(ctx, neon);
@@ -578,6 +621,44 @@
       const soft = this.softAmt();
       if (soft > 0.05) { const o = soft * 4; ctx.globalAlpha = 0.22; [[-o, 0], [o, 0], [0, -o], [0, o]].forEach(([x, y]) => ctx.drawImage(wc, x, y)); ctx.globalAlpha = 1; }
       if (neon && this.impact > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.22; ctx.drawImage(wc, 7, 0); ctx.drawImage(wc, -7, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; this.drawGlitch(ctx); }
+    }
+    drawComic(ctx, neon) {
+      // halftone (Ben-Day) dots that shrink away from the impact point
+      this.dots.forEach((d) => {
+        const k = d.t / d.dur, R = d.r * (0.55 + 0.55 * k);
+        ctx.save(); ctx.globalAlpha = (1 - k) * d.alpha; ctx.fillStyle = d.col; if (neon) ctx.globalCompositeOperation = 'lighter';
+        for (let gy = -R; gy <= R; gy += d.step) for (let gx = -R; gx <= R; gx += d.step) {
+          const px = gx + (Math.round(gy / d.step) & 1 ? d.step / 2 : 0), dist = Math.hypot(px, gy); if (dist > R) continue;
+          const rad = (1 - dist / R) * d.step * 0.5; if (rad < 0.8) continue;
+          ctx.beginPath(); ctx.arc(d.x + px, d.y + gy, rad, 0, 6.283); ctx.fill();
+        }
+        ctx.restore();
+      });
+      // kinetic lines radiating from the impact
+      this.kirby.forEach((c) => {
+        const k = c.t / c.dur, r0 = c.r0 * (0.9 + 0.5 * k), L = c.len * (1 - 0.4 * k);
+        ctx.save(); ctx.globalAlpha = 1 - k; ctx.fillStyle = neon ? c.tone : '#0b0b0b'; if (neon) ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < c.n; i++) {
+          const a = c.base + (i / c.n) * 6.283 + Math.sin(i * 12.9) * 0.12, nx = -Math.sin(a), ny = Math.cos(a), w = 7 + (i % 3) * 3;
+          ctx.beginPath(); ctx.moveTo(c.x + Math.cos(a) * r0 + nx * w, c.y + Math.sin(a) * r0 + ny * w); ctx.lineTo(c.x + Math.cos(a) * (r0 + L * (0.7 + 0.3 * ((i * 7) % 3) / 2)), c.y + Math.sin(a) * (r0 + L * (0.7 + 0.3 * ((i * 7) % 3) / 2)));
+          ctx.lineTo(c.x + Math.cos(a) * r0 - nx * w, c.y + Math.sin(a) * r0 - ny * w); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+      });
+      // starburst + sound effect word
+      this.comics.forEach((c) => {
+        const k = c.t / c.dur, sc = k < 0.16 ? E.back(k / 0.16) * 1.18 : 1.18 - Math.min(0.18, (k - 0.16) * 0.5) + Math.sin(c.t * 32) * 0.012 * (1 - k), al = k > 0.8 ? 1 - (k - 0.8) / 0.2 : 1;
+        const star = (r) => { ctx.beginPath(); for (let i = 0; i < c.n * 2; i++) { const a = (i / (c.n * 2)) * 6.283, rr = r * (i % 2 ? 0.66 : c.jit[i >> 1]); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * 0.82); } ctx.closePath(); };
+        ctx.save(); ctx.translate(c.x + rnd(-2, 2) * (1 - k), c.y + rnd(-2, 2) * (1 - k)); ctx.rotate(c.rot); ctx.scale(sc, sc); ctx.globalAlpha = al; ctx.lineJoin = 'round';
+        ctx.fillStyle = '#0b0b0b'; ctx.save(); ctx.translate(6, 7); star(c.R * 1.04); ctx.fill(); ctx.restore();
+        if (neon) { ctx.shadowColor = c.tone; ctx.shadowBlur = 26; }
+        ctx.fillStyle = c.tone; ctx.strokeStyle = '#0b0b0b'; ctx.lineWidth = 7; star(c.R); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.22)'; star(c.R * 0.74); ctx.fill();
+        ctx.font = '400 ' + c.size + 'px Bangers, Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#0b0b0b'; ctx.fillText(c.word, 5, 6); ctx.strokeStyle = '#0b0b0b'; ctx.lineWidth = c.size * 0.26; ctx.strokeText(c.word, 0, 0);
+        ctx.fillStyle = '#fff'; ctx.fillText(c.word, 0, 0);
+        ctx.restore();
+      });
     }
     drawSpeedLines(ctx, neon) {
       const a = Math.min(1, this.speedLines * 3);
@@ -883,7 +964,7 @@
       });
       this.callouts.forEach((c, ci) => {
         const k = c.t / c.dur, sc = k < 0.15 ? E.back(k / 0.15) : 1, al = k > 0.75 ? 1 - (k - 0.75) * 4 : 1;
-        ctx.save(); ctx.translate(W / 2, 176 + ci * 66); ctx.scale(sc, sc); ctx.rotate(neon ? 0 : -0.04); ctx.globalAlpha = al; ctx.textAlign = 'center'; ctx.font = this.font(42, neon); ctx.lineJoin = 'round';
+        ctx.save(); ctx.translate(W / 2, 488 - ci * 66); ctx.scale(sc, sc); ctx.rotate(neon ? 0 : -0.04); ctx.globalAlpha = al; ctx.textAlign = 'center'; ctx.font = this.font(42, neon); ctx.lineJoin = 'round';
         const tw = ctx.measureText(c.text).width;
         ctx.fillStyle = 'rgba(8,4,16,.88)'; ctx.strokeStyle = c.col === '#ffffff' ? '#e8e8e8' : c.col; ctx.lineWidth = 5;
         if (neon) { ctx.shadowColor = c.col; ctx.shadowBlur = 18; }

@@ -37,6 +37,10 @@ If time runs out, whatever is missing is filled in at random with no bonus (if y
 The bot decides at a speed that depends on its level. Changing a pick you already made does not reset the clock.
 While you decide, the mannequin keeps moving: footwork, weapon and guard, more agitated as the clock runs down.
 
+**Comic-book hits.** Every impact lands as a comic panel: a starburst with a sound-effect word (SLASH!, WHAM!, STAB!,
+CLANG!, KRAKOOM!, or the combo name), halftone Ben-Day dots, kinetic lines radiating from the point of impact, and on big
+hits a red inked freeze frame with black silhouettes (primal) or a glitch flash (neon).
+
 **Blur and motion.** Directional blur on slashes, radial zoom on thrusts and charges, speed lines when you attack fast,
 and blurred vision when you are badly hurt or left open.
 

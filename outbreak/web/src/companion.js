@@ -102,6 +102,7 @@ function comp_recruit(game, npc, archetype = null, bond = COMP_BOND_START_STRANG
 }
 
 function comp_release(game, c, why, state = 'patrol') {
+  comp_return_gear(game, c);
   c.state = state; game.companion_uid = 0;
   if (c.group && game.patrol_nodes.length) game.patrol_goals[c.group] = game.rng.choice(game.patrol_nodes);
   comp_note(game, why, true);
@@ -151,10 +152,88 @@ function comp_mirror(game, c) {
   c.sneaking = sneak; c.sprinting = sprint;
 }
 // ...and levels up when you do.
+// ---- gear: what you hand them to fight and dress with
+const COMP_GEAR_AMMO_MAX = 40;
+function comp_base(c) { if (!c.bdmg) { c.bdmg = c.dmg.slice(); c.bacc = c.acc; c.breach = c.reach; } }
+function comp_refit(game, c) {                                          // their fighting stats from who they are and what they carry
+  comp_base(c);
+  const w = c.gear_weapon ? game.item_def(c.gear_weapon.id) : null;
+  if (!w) { c.dmg = c.bdmg.slice(); c.acc = c.bacc; c.reach = c.breach; return; }
+  c.dmg = [w.dmg[0] + Math.floor(c.bdmg[0] / 2), w.dmg[1] + Math.floor(c.bdmg[1] / 2)];
+  c.acc = Math.min(92, c.bacc + w.accuracy + 6);
+  c.reach = is_ranged(w) && (!w.ammo || (c.gear_ammo || 0) > 0) ? Math.min(8, w.reach) : 1;
+}
+function comp_hand_back(game, item) { const p = game.player, d = game.item_def(item.id); if (!p.add_item(item, d.stackable)) game.level.drop(apos(p), item); }
+function comp_gear_lines(game, c) {
+  const out = [];
+  if (c.gear_weapon) { const w = game.item_def(c.gear_weapon.id); out.push(`Carries: ${w.name.toLowerCase()}` + (w.ammo ? `, ${c.gear_ammo || 0} ${game.item_def(w.ammo).name.toLowerCase()}` : '')); }
+  if (c.gear_armor) out.push(`Wears: ${game.item_def(c.gear_armor.id).name.toLowerCase()}`);
+  return out;
+}
+// Hand them a weapon or armour from your pack, or ammunition for the weapon they carry.
+function comp_equip(game, c, index) {
+  const p = game.player;
+  if (!(index >= 0 && index < p.inventory.length)) return '';
+  const it = p.inventory[index], d = game.item_def(it.id), a = comp_arch(c), rng = game.rng, say = COMP.gear_say;
+  if (d.kind === 'weapon') {
+    if (a && a.flaw === 'pacifist' && !c.tamed) return `${c.name} shakes their head. "I will not carry that."`;
+    const old = c.gear_weapon;
+    p.inventory.splice(index, 1);
+    if (old) { comp_hand_back(game, old); const oa = game.item_def(old.id).ammo; if (c.gear_ammo && oa) comp_hand_back(game, make_item(oa, c.gear_ammo)); c.gear_ammo = 0; }
+    c.gear_weapon = it; comp_refit(game, c);
+    comp_say(game, c, rng.choice(a && a.flaw === 'reckless' ? say.reckless_weapon : say.weapon)); comp_add_bond(c, 2);
+    return `${c.name} takes the ${d.name.toLowerCase()}.` + (d.ammo ? ` It needs ${game.item_def(d.ammo).name.toLowerCase()}: hand some over.` : '');
+  }
+  if (d.kind === 'armor') {
+    const old = c.gear_armor;
+    p.inventory.splice(index, 1);
+    if (old) comp_hand_back(game, old);
+    c.gear_armor = it;
+    comp_say(game, c, rng.choice(a && a.flaw === 'coward' ? say.coward_armor : say.armor)); comp_add_bond(c, 2);
+    return `${c.name} puts on the ${d.name.toLowerCase()}.`;
+  }
+  if (d.kind === 'ammo') {
+    const w = c.gear_weapon ? game.item_def(c.gear_weapon.id) : null;
+    if (!w || w.ammo !== it.id) return `${c.name} has nothing that uses ${d.name.toLowerCase()}.`;
+    const n = Math.min(it.qty, COMP_GEAR_AMMO_MAX - (c.gear_ammo || 0));
+    if (n <= 0) return `${c.name} is carrying all they can.`;
+    p.take(it.id, n); c.gear_ammo = (c.gear_ammo || 0) + n; comp_refit(game, c);
+    comp_say(game, c, rng.choice(say.ammo)); comp_add_bond(c, 1);
+    return `${c.name} takes ${n} ${d.name.toLowerCase()}.`;
+  }
+  return `${c.name} has no use for the ${d.name.toLowerCase()}.`;
+}
+function comp_unequip(game, c, slot) {                                  // take it back
+  if (slot === 'weapon' && c.gear_weapon) {
+    const w = game.item_def(c.gear_weapon.id);
+    comp_hand_back(game, c.gear_weapon);
+    if (c.gear_ammo && w.ammo) comp_hand_back(game, make_item(w.ammo, c.gear_ammo));
+    c.gear_weapon = null; c.gear_ammo = 0; comp_refit(game, c);
+    return `You take the ${w.name.toLowerCase()} back.`;
+  }
+  if (slot === 'armor' && c.gear_armor) { const d = game.item_def(c.gear_armor.id); comp_hand_back(game, c.gear_armor); c.gear_armor = null; return `You take the ${d.name.toLowerCase()} back.`; }
+  return '';
+}
+function comp_return_gear(game, c) { comp_unequip(game, c, 'weapon'); comp_unequip(game, c, 'armor'); }    // they go their own way: it comes back to you
+function comp_drop_gear(game, c) {                                                                          // they fall: it is left where they fell
+  const lv = game.level;
+  if (c.gear_weapon) { lv.drop(apos(c), c.gear_weapon); const w = game.item_def(c.gear_weapon.id); if (c.gear_ammo && w.ammo) lv.drop(apos(c), make_item(w.ammo, c.gear_ammo)); }
+  if (c.gear_armor) lv.drop(apos(c), c.gear_armor);
+  c.gear_weapon = c.gear_armor = null; c.gear_ammo = 0;
+}
+// One shot fired from what you handed them; when it runs out they fall back to melee.
+function comp_use_ammo(game, c) {
+  if (!c.gear_weapon || !game.item_def(c.gear_weapon.id).ammo) return;
+  c.gear_ammo = Math.max(0, (c.gear_ammo || 0) - 1);
+  if (c.gear_ammo === 0) { comp_refit(game, c); comp_say(game, c, '"I am out! Hand me more, or I am swinging."'); }
+}
+
 function comp_grow(game, c) {
   const p = game.player;
   if (c.lvl >= p.level) return;
-  while (c.lvl < p.level) { c.lvl++; c.max_hp += 3; c.hp = Math.min(c.max_hp, c.hp + 6); c.dmg = [c.dmg[0] + (c.lvl % 2), c.dmg[1] + 1]; c.acc = Math.min(90, c.acc + 2); }
+  comp_base(c);
+  while (c.lvl < p.level) { c.lvl++; c.max_hp += 3; c.hp = Math.min(c.max_hp, c.hp + 6); c.bdmg = [c.bdmg[0] + (c.lvl % 2), c.bdmg[1] + 1]; c.bacc = Math.min(90, c.bacc + 2); }
+  comp_refit(game, c);
   comp_note(game, `${c.name} grows with you: level ${c.lvl}.`, true);
 }
 
@@ -307,6 +386,7 @@ function comp_on_hurt(game, c) { const a = comp_arch(c); if (a && game.rng.rando
 
 function comp_on_death(game, h, killer) {
   if (h.uid !== game.companion_uid) return;
+  comp_drop_gear(game, h);
   const a = comp_arch(h), days = Math.max(0, Math.floor((game.clock.turn - h.since) / 240));
   const by = killer && typeof killer === 'object' ? ` at the hands of ${killer.name.toLowerCase()}` : '';
   comp_note(game, `${h.name} is dead${by}. ${days} day${days !== 1 ? 's' : ''} together, ${h.kills} kill${h.kills !== 1 ? 's' : ''}. Gone for good.`, true);

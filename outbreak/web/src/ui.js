@@ -240,13 +240,14 @@ function tileSprite(t, x, y) {
 function actorSprite(a) {
   if (a.kind === 'player') return 'player';
   const map = activeSprites().map;
+  if (a.kind === 'animal') return map['a_' + a.species] ? 'a_' + a.species : null;
   if (a.kind === 'zombie') return map['z_' + a.special] ? 'z_' + a.special : 'z_walker';
   if (a.hostile) return 'raider';
   return map[a.role] ? a.role : 'human';
 }
 
 function drawActor(a, px, py, ts) {
-  if (sprOn() && a.kind !== 'animal') return drawActorSprite(a, px, py, ts);
+  if (sprOn() && (a.kind !== 'animal' || actorSprite(a))) return drawActorSprite(a, px, py, ts);
   const c = ctx, cx = px + ts / 2, cy = py + ts / 2;
   let fill, ink = '#fff', ring = null;
   if (a.kind === 'player') { fill = '#efe8d2'; ink = '#0d1214'; ring = '#d99a2b'; }
@@ -273,6 +274,10 @@ function drawActor(a, px, py, ts) {
       if (al > 0) { c.fillStyle = '#000'; c.fillRect(px + 3, py + 1, ts - 6, 3); c.fillStyle = al >= 70 ? '#e2573f' : '#d99a2b'; c.fillRect(px + 3, py + 1, (ts - 6) * Math.min(1, al / 100), 3); }
     }
   }
+  if (a.kind === 'animal') {                                         // what sort of animal it is to you: yours, a stray you could feed, or hunting you
+    const mark = a.pet ? '#c79bf2' : a.stray ? '#68c0c8' : a.state === 'charge' ? '#e2573f' : null;
+    if (mark) { c.fillStyle = '#0d1214'; c.beginPath(); c.arc(px + ts * .86, py + ts * .16, ts * .13, 0, 7); c.fill(); c.fillStyle = mark; c.beginPath(); c.arc(px + ts * .86, py + ts * .16, ts * .09, 0, 7); c.fill(); }
+  }
   if (a.kind !== 'player' && a.hp < a.max_hp) {
     c.fillStyle = '#000'; c.fillRect(px + 3, py + ts - 5, ts - 6, 3);
     c.fillStyle = '#e2573f'; c.fillRect(px + 3, py + ts - 5, (ts - 6) * Math.max(0, a.hp / a.max_hp), 3);
@@ -281,7 +286,7 @@ function drawActor(a, px, py, ts) {
 
 function drawActorSprite(a, px, py, ts) {
   const c = ctx, cx = px + ts / 2, cy = py + ts / 2;
-  const big = a.kind === 'zombie' && (a.special === 'alpha' ? 1.3 : a.special === 'brute' ? 1.12 : 1.0), sz = ts * (big || 1);
+  const big = a.kind === 'zombie' ? (a.special === 'alpha' ? 1.3 : a.special === 'brute' ? 1.12 : 1.0) : a.kind === 'animal' ? 1.2 : 1, sz = ts * (big || 1);
   if (a.kind === 'player') { c.strokeStyle = '#d99a2b'; c.lineWidth = 2; c.beginPath(); c.ellipse(cx, py + ts * .86, ts * .36, ts * .14, 0, 0, 7); c.stroke(); }
   else if (a.kind !== 'zombie') { c.fillStyle = a.hostile ? 'rgba(226,87,63,.55)' : 'rgba(85,179,196,.5)'; c.beginPath(); c.ellipse(cx, py + ts * .86, ts * .34, ts * .12, 0, 0, 7); c.fill(); }
   if (a.kind === 'zombie' && a.state === 'dormant') c.globalAlpha = 0.7;
@@ -1169,6 +1174,22 @@ function openCompanion(c, line = '') {
     acts.append(btn('btn', c.state === 'wait' ? 'Follow me' : 'Wait here', () => { const l = comp_toggle_wait(g, c); refresh(); openCompanion(c, l); }));
     acts.append(btn('btn', 'Orders', () => openOrders()));
     b.append(acts);
+    const gl = comp_gear_lines(g, c);
+    b.append(el('h3', 'sec', 'Equipment'));
+    b.append(el('p', 'note', gl.length ? gl.join(' · ') : 'Nothing but what they came with. Hand them a weapon or armour from your pack.'));
+    const gear = g.player.inventory.map((it, i) => [it, i]).filter(([it]) => ['weapon', 'armor', 'ammo'].includes(g.item_def(it.id).kind));
+    if (gear.length) {
+      const grow = el('div', 'actionrow');
+      for (const [it, i] of gear) grow.append(btn('btn', `Give ${g.item_def(it.id).name}${it.qty > 1 ? ' x' + it.qty : ''}`, () => { const l = comp_equip(g, c, i); refresh(); openCompanion(c, l); }));
+      b.append(grow);
+      b.append(el('p', 'note', 'Only what is in your pack: unequip what you wear first.'));
+    }
+    if (c.gear_weapon || c.gear_armor) {
+      const back = el('div', 'actionrow');
+      if (c.gear_weapon) back.append(btn('btn', 'Take back the weapon', () => { const l = comp_unequip(g, c, 'weapon'); refresh(); openCompanion(c, l); }));
+      if (c.gear_armor) back.append(btn('btn', 'Take back the armour', () => { const l = comp_unequip(g, c, 'armor'); refresh(); openCompanion(c, l); }));
+      b.append(back);
+    }
     const gifts = g.player.inventory.map((it, i) => [it, i]).filter(([it]) => ['food', 'med'].includes(g.item_def(it.id).kind));
     if (gifts.length) {
       b.append(el('h3', 'sec', 'Give'));

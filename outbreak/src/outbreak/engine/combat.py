@@ -515,6 +515,8 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
     d = cheb(attacker.pos, defender.pos)
     if ranged and d > 1:
         game.emit_noise(attacker.pos, 18 if game.era.firearms else 4, "fight")
+        if getattr(attacker, "gear_weapon", None) is not None:
+            companion.use_ammo(game, attacker)
     victim = ref(defender)
     tag = "ally" if (getattr(attacker, "trait", "") or getattr(attacker, "pet", False) or getattr(defender, "trait", "") or getattr(defender, "pet", False)) else "combat"
     if game.rng.random() * 100 >= clamp(attacker.acc - 8 - max(0, d - 1) * 2, 12, 90):
@@ -524,6 +526,8 @@ def attack_actor(game, attacker: Actor, defender: Actor, ranged: bool = False) -
     raw = game.rng.randint(*attacker.dmg)
     if (getattr(defender, "trait", "") or getattr(defender, "pet", False)) and companion.early_grace(game):
         raw = max(1, int(raw * companion.GRACE_DAMAGE))                       # the first days go easy on your people
+    if getattr(defender, "gear_armor", None) is not None:
+        raw = max(1, raw - game.item_def(defender.gear_armor.id).defense)      # what you handed them to wear
     if isinstance(defender, Zombie):
         head = game.rng.random() < (0.25 if ranged else 0.2)
         dealt = zombie_damage(game, defender, raw, head)

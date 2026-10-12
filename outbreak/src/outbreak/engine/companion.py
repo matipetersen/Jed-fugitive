@@ -11,7 +11,7 @@ import dataclasses
 import random
 from typing import Optional
 
-from outbreak.content.companions import (ARCHETYPES, BY_ID, ERA_VARIANTS, COMBAT_LINES, FLAWS, NAMES, PERSONAL, PERSONAL_VARIANTS, ROLE_ARCHETYPE,
+from outbreak.content.companions import (ARCHETYPES, BY_ID, ERA_VARIANTS, COMBAT_LINES, FLAWS, NAMES, GEAR_SAY, PERSONAL, PERSONAL_VARIANTS, ROLE_ARCHETYPE,
                                          SITUATION_LINES, STRENGTHS)
 from outbreak.engine import tiles as T
 from outbreak.engine.model import Human, Item
@@ -180,6 +180,7 @@ def recruit(game, npc: Human, archetype: Optional[str] = None, bond: int = BOND_
 
 
 def release(game, c: Human, why: str, state: str = "patrol") -> None:
+    return_gear(game, c)
     c.state = state
     game.companion_uid = 0
     if c.group and game.patrol_nodes:
@@ -275,12 +276,14 @@ def grow(game, c: Human) -> None:
     if c.lvl >= p.level:
         return
     n = p.level - c.lvl
+    _base(c)
     for _ in range(n):
         c.lvl += 1
         c.max_hp += 3
         c.hp = min(c.max_hp, c.hp + 6)
-        c.dmg = (c.dmg[0] + (c.lvl % 2), c.dmg[1] + 1)
-        c.acc = min(90, c.acc + 2)
+        c.bdmg = (c.bdmg[0] + (c.lvl % 2), c.bdmg[1] + 1)
+        c.bacc = min(90, c.bacc + 2)
+    refit(game, c)
     note(game, f"{c.name} grows with you: level {c.lvl}.", key=True)
 
 
@@ -504,6 +507,7 @@ def on_death(game, h: Human, killer=None) -> None:
     if h.uid != getattr(game, "companion_uid", 0):
         return
     a = arch_of(h)
+    drop_gear(game, h)
     days = max(0, (game.clock.turn - h.since) // 240)
     by = f" at the hands of {killer.name.lower()}" if killer is not None and not isinstance(killer, str) else ""
     note(game, f"{h.name} is dead{by}. {days} day{'s' if days != 1 else ''} together, {h.kills} kill{'s' if h.kills != 1 else ''}. "
@@ -580,6 +584,143 @@ def give(game, c: Human, index: int) -> str:
         say(game, c, "\"You did not have to.\"")
         return f"You patch {c.name} up."
     return f"{c.name} has no use for the {d.name.lower()}."
+
+
+# ------------------------------------------------------------------ gear
+GEAR_AMMO_MAX = 40
+
+
+def _base(c: Human) -> None:
+    if c.bdmg == (0, 0):
+        c.bdmg, c.bacc, c.breach = c.dmg, c.acc, c.reach
+
+
+def refit(game, c: Human) -> None:
+    """Their fighting stats from who they are and what they carry."""
+    _base(c)
+    w = game.item_def(c.gear_weapon.id) if c.gear_weapon is not None else None
+    if w is None:
+        c.dmg, c.acc, c.reach = c.bdmg, c.bacc, c.breach
+        return
+    c.dmg = (w.dmg[0] + c.bdmg[0] // 2, w.dmg[1] + c.bdmg[1] // 2)
+    c.acc = min(92, c.bacc + w.accuracy + 6)
+    c.reach = min(8, w.reach) if w.is_ranged and (not w.ammo or c.gear_ammo > 0) else 1
+
+
+def _hand_back(game, item) -> None:
+    p = game.player
+    d = game.item_def(item.id)
+    if not p.add_item(item, d.stackable):
+        game.level.drop(p.pos, item)
+
+
+def gear_lines(game, c: Human) -> list:
+    out = []
+    if c.gear_weapon is not None:
+        w = game.item_def(c.gear_weapon.id)
+        out.append(f"Carries: {w.name.lower()}" + (f", {c.gear_ammo} {game.item_def(w.ammo).name.lower()}" if w.ammo else ""))
+    if c.gear_armor is not None:
+        out.append(f"Wears: {game.item_def(c.gear_armor.id).name.lower()}")
+    return out
+
+
+def equip(game, c: Human, index: int) -> str:
+    """Hand them a weapon or armour from your pack, or ammunition for the weapon they carry."""
+    p = game.player
+    if not 0 <= index < len(p.inventory):
+        return ""
+    it = p.inventory[index]
+    d = game.item_def(it.id)
+    a, rng = arch_of(c), game.rng
+    if d.kind == "weapon":
+        if a is not None and a.flaw == "pacifist" and not c.tamed:
+            return f"{c.name} shakes their head. \"I will not carry that.\""
+        old = c.gear_weapon
+        p.inventory.pop(index)
+        if old is not None:
+            _hand_back(game, old)
+            if c.gear_ammo and game.item_def(old.id).ammo:
+                _hand_back(game, Item(game.item_def(old.id).ammo, c.gear_ammo))
+            c.gear_ammo = 0
+        c.gear_weapon = it
+        refit(game, c)
+        pool = GEAR_SAY["reckless_weapon"] if (a is not None and a.flaw == "reckless") else GEAR_SAY["weapon"]
+        say(game, c, rng.choice(pool))
+        add_bond(c, 2)
+        extra = f" It needs {game.item_def(d.ammo).name.lower()}: hand some over." if d.ammo else ""
+        return f"{c.name} takes the {d.name.lower()}.{extra}"
+    if d.kind == "armor":
+        old = c.gear_armor
+        p.inventory.pop(index)
+        if old is not None:
+            _hand_back(game, old)
+        c.gear_armor = it
+        pool = GEAR_SAY["coward_armor"] if (a is not None and a.flaw == "coward") else GEAR_SAY["armor"]
+        say(game, c, rng.choice(pool))
+        add_bond(c, 2)
+        return f"{c.name} puts on the {d.name.lower()}."
+    if d.kind == "ammo":
+        w = game.item_def(c.gear_weapon.id) if c.gear_weapon is not None else None
+        if w is None or w.ammo != it.id:
+            return f"{c.name} has nothing that uses {d.name.lower()}."
+        n = min(it.qty, GEAR_AMMO_MAX - c.gear_ammo)
+        if n <= 0:
+            return f"{c.name} is carrying all they can."
+        p.take(it.id, n)
+        c.gear_ammo += n
+        refit(game, c)
+        say(game, c, rng.choice(GEAR_SAY["ammo"]))
+        add_bond(c, 1)
+        return f"{c.name} takes {n} {d.name.lower()}."
+    return f"{c.name} has no use for the {d.name.lower()}."
+
+
+def unequip(game, c: Human, slot: str) -> str:
+    """Take it back."""
+    if slot == "weapon" and c.gear_weapon is not None:
+        w = game.item_def(c.gear_weapon.id)
+        _hand_back(game, c.gear_weapon)
+        if c.gear_ammo and w.ammo:
+            _hand_back(game, Item(w.ammo, c.gear_ammo))
+        c.gear_weapon, c.gear_ammo = None, 0
+        refit(game, c)
+        return f"You take the {w.name.lower()} back."
+    if slot == "armor" and c.gear_armor is not None:
+        d = game.item_def(c.gear_armor.id)
+        _hand_back(game, c.gear_armor)
+        c.gear_armor = None
+        return f"You take the {d.name.lower()} back."
+    return ""
+
+
+def return_gear(game, c: Human) -> None:
+    """They go their own way: what you gave them comes back to you."""
+    unequip(game, c, "weapon")
+    unequip(game, c, "armor")
+
+
+def drop_gear(game, c: Human) -> None:
+    """They fall: what they carried is left where they fell."""
+    lv = game.level
+    if c.gear_weapon is not None:
+        lv.drop(c.pos, c.gear_weapon)
+        w = game.item_def(c.gear_weapon.id)
+        if c.gear_ammo and w.ammo:
+            lv.drop(c.pos, Item(w.ammo, c.gear_ammo))
+    if c.gear_armor is not None:
+        lv.drop(c.pos, c.gear_armor)
+    c.gear_weapon = c.gear_armor = None
+    c.gear_ammo = 0
+
+
+def use_ammo(game, c: Human) -> None:
+    """One shot fired from what you handed them; when it runs out they fall back to melee."""
+    if c.gear_weapon is None or not game.item_def(c.gear_weapon.id).ammo:
+        return
+    c.gear_ammo = max(0, c.gear_ammo - 1)
+    if c.gear_ammo == 0:
+        refit(game, c)
+        say(game, c, "\"I am out! Hand me more, or I am swinging.\"")
 
 
 def advice(game) -> str:

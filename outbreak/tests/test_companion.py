@@ -564,3 +564,75 @@ class Trees(unittest.TestCase):
             ai.run(g)
         self.assertLessEqual(max(abs(c.x - p.x), abs(c.y - p.y)), 5)
         self.assertTrue(any("undergrowth" in t for _, t, _ in g.log))
+
+
+class Gear(unittest.TestCase):
+    def _give(self, g, item_id, qty=1):
+        from outbreak.engine.model import Item
+        g.player.inventory.append(Item(item_id, qty, g.item_def(item_id).durability or None))
+        return len(g.player.inventory) - 1
+
+    def test_a_weapon_changes_what_they_hit_with(self):
+        g, lv, c = field(arch="medic")
+        base = c.dmg
+        i = self._give(g, "mace" if "mace" in g.items else "bat")
+        c.tamed = True
+        companion.equip(g, c, i)
+        self.assertIsNotNone(c.gear_weapon)
+        self.assertGreater(c.dmg[1], base[1])
+        self.assertFalse(any(it.id == c.gear_weapon.id and it is c.gear_weapon for it in g.player.inventory))
+        companion.unequip(g, c, "weapon")
+        self.assertEqual(c.dmg, base)
+        self.assertTrue(any(it.id in ("mace", "bat") for it in g.player.inventory))
+
+    def test_armour_turns_blows_and_levelling_keeps_the_base(self):
+        from outbreak.engine import combat
+        g, lv, c = field(arch="medic")
+        g.clock.turn = 2000
+        c.hp = c.max_hp = 1000
+        z = spawn_zombie(g, lv, (c.x + 1, c.y), "walker", False)
+        z.dmg, z.acc = (6, 6), 100
+        hits = {}
+        for armour in (False, True):
+            if armour:
+                companion.equip(g, c, self._give(g, "vest" if "vest" in g.items else "jerkin"))
+            hp = c.hp
+            for _ in range(10):
+                combat.attack_actor(g, z, c)
+            hits[armour] = hp - c.hp
+        self.assertLess(hits[True], hits[False])
+        base = c.bdmg
+        g.player.gain_xp(10 ** 5)
+        companion.tick(g)
+        self.assertGreater(c.bdmg[1], base[1])
+
+    def test_a_ranged_weapon_needs_ammunition_and_a_pacifist_refuses(self):
+        g, lv, c = field(arch="brute")
+        c.tamed = True
+        bow = "bow" if "bow" in g.items else "pistol"
+        ammo = g.item_def(bow).ammo
+        companion.equip(g, c, self._give(g, bow))
+        self.assertEqual(c.reach, 1, "no ammunition yet")
+        companion.equip(g, c, self._give(g, ammo, 5))
+        self.assertGreater(c.reach, 1)
+        self.assertEqual(c.gear_ammo, 5)
+        for _ in range(5):
+            companion.use_ammo(g, c)
+        self.assertEqual(c.reach, 1, "out of ammunition: melee again")
+        g2, lv2, p = field(arch="preacher")
+        msg = companion.equip(g2, p, self._give(g2, "mace" if "mace" in g2.items else "bat"))
+        self.assertIsNone(p.gear_weapon)
+        self.assertIn("will not carry", msg)
+
+    def test_gear_comes_back_when_they_leave_and_drops_when_they_fall(self):
+        g, lv, c = field(arch="brute")
+        c.tamed = True
+        companion.equip(g, c, self._give(g, "mace" if "mace" in g.items else "bat"))
+        companion.dismiss(g, c)
+        self.assertIsNone(c.gear_weapon)
+        self.assertTrue(any(it.id in ("mace", "bat") for it in g.player.inventory))
+        g, lv, c = field(arch="brute")
+        c.tamed = True
+        companion.equip(g, c, self._give(g, "mace" if "mace" in g.items else "bat"))
+        companion.on_death(g, c, "a test")
+        self.assertTrue(any(it.id in ("mace", "bat") for stack in lv.items.values() for it in stack))

@@ -425,9 +425,11 @@ class UI:
         g = self.g
         while True:
             waiting = c.state == "wait"
-            r = self.pick(f"{c.name}   {companion.describe(c)}   ({companion.bond_word(c)}, hp {c.hp}/{c.max_hp})",
+            r = self.pick(f"{c.name}   {companion.describe(c)}   ({companion.bond_word(c)}, hp {c.hp}/{c.max_hp})" + ("   " + "; ".join(companion.gear_lines(g, c)) if companion.gear_lines(g, c) else ""),
                           [("Talk", "white"), ("Ask what to do next", "white"), ("Give them something", "white"),
                            ("Ask them to follow you again" if waiting else "Ask them to wait here", "white"),
+                           ("Equip them (weapon, armour, ammunition)", "white"),
+                           ("Take back what you gave them", "white"),
                            ("Tell them to go their way", "white"), ("Never mind", "grey")])
             if r == 0:
                 self.message(companion.talk(g, c))
@@ -446,6 +448,24 @@ class UI:
             elif r == 3:
                 self.message(companion.toggle_wait(g, c))
             elif r == 4:
+                kinds = ("weapon", "armor", "ammo")
+                have = [(n, i) for n, i in enumerate(g.player.inventory) if g.item_def(i.id).kind in kinds]
+                if not have:
+                    self.message("You have no weapon, armour or ammunition in your pack to give. (Unequip what you wear first.)")
+                    continue
+                rows = [(f"{g.item_def(i.id).name} ({g.item_def(i.id).kind})" + (f" x{i.qty}" if i.qty > 1 else ""), "white") for _, i in have]
+                k = self.pick("Give them", rows)
+                if k is not None:
+                    self.message(companion.equip(g, c, have[k][0]))
+            elif r == 5:
+                slots = [s for s, held in (("weapon", c.gear_weapon), ("armor", c.gear_armor)) if held is not None]
+                if not slots:
+                    self.message("You have not given them anything.")
+                    continue
+                k = self.pick("Take back", [(s, "white") for s in slots])
+                if k is not None:
+                    self.message(companion.unequip(g, c, slots[k]))
+            elif r == 6:
                 self.message(companion.dismiss(g, c))
                 return
             else:

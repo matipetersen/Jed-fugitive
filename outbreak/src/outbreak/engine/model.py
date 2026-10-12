@@ -181,6 +181,12 @@ class Human(Actor):
     lastfought: int = -99
     order: str = ""                  # a standing command from the player (engage, fallback, escape, ranged, guard)
     order_until: int = 0
+    gear_weapon: Optional[Item] = None   # what you have handed them to fight with...
+    gear_armor: Optional[Item] = None    # ...to wear...
+    gear_ammo: int = 0                   # ...and to shoot (a ranged weapon needs it)
+    bdmg: Tuple[int, int] = (0, 0)       # their own stats before gear (captured the first time they are fitted)
+    bacc: int = 0
+    breach: int = 0
     chats: int = 0                    # how many times you have spoken (to anyone who is not your companion)
     asked: int = 0                    # bio lines you have heard
     heard: int = 0                    # news items you have heard

@@ -354,7 +354,7 @@ const Ref = (a) => { const r = ref(a); return r[0].toUpperCase() + r.slice(1); }
 
 function attack_actor(game, attacker, defender, ranged = false) {
   const d = cheb(apos(attacker), apos(defender));
-  if (ranged && d > 1) { game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight'); sfx(game, game.era.firearms ? 'shoot' : 'swing', apos(attacker)); }
+  if (ranged && d > 1) { game.emit_noise(apos(attacker), game.era.firearms ? 18 : 4, 'fight'); sfx(game, game.era.firearms ? 'shoot' : 'swing', apos(attacker)); if (attacker.gear_weapon) comp_use_ammo(game, attacker); }
   const victim = ref(defender), tag = (attacker.trait || attacker.pet || defender.trait || defender.pet) ? 'ally' : 'combat';
   if (game.rng.random() * 100 >= clamp(attacker.acc - 8 - Math.max(0, d - 1) * 2, 12, 90)) {
     if (_seen(game, attacker, defender)) game.msg(`${Ref(attacker)} ${ranged && d > 1 ? 'shoots' : 'strikes'} at ${victim} and misses.`, tag);
@@ -362,6 +362,7 @@ function attack_actor(game, attacker, defender, ranged = false) {
   }
   let raw = game.rng.randint(attacker.dmg[0], attacker.dmg[1]);
   if ((defender.trait || defender.pet) && comp_early_grace(game)) raw = Math.max(1, Math.trunc(raw * COMP_GRACE_DAMAGE));      // the first days go easy on your people
+  if (defender.gear_armor) raw = Math.max(1, raw - game.item_def(defender.gear_armor.id).defense);      // what you handed them to wear
   if (defender.kind === 'zombie') {
     const head = game.rng.random() < (ranged ? 0.25 : 0.2);
     defender.hp -= zombie_damage(game, defender, raw, head);

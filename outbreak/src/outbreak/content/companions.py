@@ -342,3 +342,15 @@ PERSONAL_VARIANTS: Dict[Tuple[str, str], Dict[str, str]] = {
         "read": "You read the name cut into the die. It is a debt. They tell you how they paid it."},
 }
 
+
+# What they say when you hand them something to fight or dress with
+GEAR_SAY: Dict[str, Tuple[str, ...]] = {
+    "weapon": ("\"Better than nothing. Thank you.\"", "\"I will take care of it. I will.\"", "\"Now we are talking.\"",
+               "\"I know how to use this. Mostly.\""),
+    "armor": ("\"That will turn a blow or two. Thank you.\"", "\"Heavier than it looks. I like it.\"",
+              "\"I feel safer already.\""),
+    "ammo": ("\"I will count every one.\"", "\"I will not waste these.\""),
+    "coward_armor": ("\"Armour. Oh, good. Oh, thank you. I will stand closer to it.\"",),
+    "reckless_weapon": ("\"Oh, now I am dangerous.\"",),
+}
+

@@ -172,6 +172,15 @@ ages the mechanic is a smith (hammer and forge, not toolboxes and elevators), th
 preacher a friar, the gambler a dicer, and the dialogue drops rifles, radios and doctorates (`ERA_VARIANTS`, `PERSONAL_VARIANTS`,
 `MEDIEVAL_SWAPS`); the sci-fi mechanic is an engineer who serviced airlocks.
 
+**Equip your companion; animals with sprites.** From the companion's sheet (terminal: talk to them, "Equip them") you can hand them a
+weapon or armour from your pack, and ammunition for what they carry. A weapon sets their damage (its damage plus half their own) and
+accuracy; a bow or firearm gives them reach but only while they have ammunition (each shot uses one, then they fall back to melee and
+say so; handing them more fixes it); armour takes its defence off every blow. A pacifist will not carry a weapon, a coward is very glad of
+armour, and gifts raise the bond. What you gave comes back to your pack when they leave and is left on the ground where they fall; their
+own base stats still level up with you. The wildlife and your pets (rabbit, deer, boar, wolf, dog, cat, crow, fox) are drawn as pixel
+sprites in the same style as the people (`web/art/animals.py`; the sci-fi station has lit-eye versions), with a small dot for a pet
+(purple), a stray you could feed (teal) or an animal charging you (red).
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

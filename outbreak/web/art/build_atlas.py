@@ -208,10 +208,11 @@ def build(name, sprites):
 
 
 def main():
-    build("modern", modern())
-    build("medieval", medieval())
+    import animals
     import scifi
-    build("scifi", scifi.sprites())
+    build("modern", {**modern(), **animals.sprites()})
+    build("medieval", {**medieval(), **animals.sprites()})
+    build("scifi", {**scifi.sprites(), **animals.sprites("scifi")})
 
 
 if __name__ == "__main__":

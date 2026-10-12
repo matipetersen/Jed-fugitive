@@ -166,3 +166,17 @@ console.log('companion: a pool of people, strengths and flaws, bonds, permanent 
   assert(OB.comp_personal('mechanic').ask.includes('hammer') && OB.comp_personal('medic').ask.includes('infirmary'));
   OB.comp_set_era('modern');
 }
+{ // gear: a weapon changes what they hit with, armour turns blows, a bow needs arrows, a pacifist refuses, it comes back or drops
+  const give = (g, id, qty = 1) => { g.player.inventory.push(OB.make_item(id, qty, g.item_def(id).durability || null)); return g.player.inventory.length - 1; };
+  let [g, lv, c] = field(3, 'medic'); c.tamed = true; const base = c.dmg.slice(); const sword = g.items.mace ? 'mace' : 'bat';
+  OB.comp_equip(g, c, give(g, sword)); assert(c.gear_weapon && c.dmg[1] > base[1]); OB.comp_unequip(g, c, 'weapon'); assert.deepStrictEqual(c.dmg, base);
+  [g, lv, c] = field(3, 'medic'); g.clock.turn = 2000; c.hp = c.max_hp = 1000; const z = OB.spawn_zombie(g, lv, [c.x + 1, c.y], 'walker', false); z.dmg = [6, 6]; z.acc = 100;
+  const hits = {}; for (const armour of [false, true]) { if (armour) OB.comp_equip(g, c, give(g, g.items.vest ? 'vest' : 'jerkin')); const hp = c.hp; for (let i = 0; i < 10; i++) OB.attack_actor(g, z, c); hits[armour] = hp - c.hp; }
+  assert(hits[true] < hits[false], 'armour turns blows');
+  [g, lv, c] = field(3, 'brute'); c.tamed = true; const bow = g.items.bow ? 'bow' : 'pistol', ammo = g.item_def(bow).ammo;
+  OB.comp_equip(g, c, give(g, bow)); assert.strictEqual(c.reach, 1); OB.comp_equip(g, c, give(g, ammo, 5)); assert(c.reach > 1 && c.gear_ammo === 5);
+  for (let i = 0; i < 5; i++) OB.comp_use_ammo(g, c); assert.strictEqual(c.reach, 1, 'out of ammunition');
+  const [g2, , p] = field(3, 'preacher'); const msg = OB.comp_equip(g2, p, give(g2, g2.items.mace ? 'mace' : 'bat')); assert(!p.gear_weapon && msg.includes('will not carry'));
+  [g, lv, c] = field(3, 'brute'); c.tamed = true; OB.comp_equip(g, c, give(g, sword)); OB.comp_dismiss(g, c); assert(!c.gear_weapon && g.player.inventory.some((i) => i.id === sword));
+  [g, lv, c] = field(3, 'brute'); c.tamed = true; OB.comp_equip(g, c, give(g, sword)); OB.comp_on_death(g, c, 'a test'); assert(Object.values(lv.items).some((st) => st.some((i) => i.id === sword)));
+}

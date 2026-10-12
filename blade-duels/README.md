@@ -30,6 +30,15 @@ racha 0 = todo libre; 1 = no repetir dirección y menos tipos; 2 = direcciones c
 multiplicador de daño (Tijera, Aguijón, Embestida, Engaño, Marea, Guillotina, Eclipse).
 Todo gasta **aguante**; sin aguante solo se puede descansar.
 
+**Reloj de 3 segundos.** Cada turno tenés 3 s para elegir. Al completar las 3 cosas se envía solo. La velocidad con la que
+decidís es poder: el ataque pega de ×0.8 (lento) a ×1.3 (instantáneo) y el bloqueo filtra menos castigo (guardia rota,
+estocada) cuanto más rápido lo elegís; con un bloqueo muy rápido (>= 0.8) es **perfecto** y además rompe la racha del
+atacante. Si se acaba el tiempo, lo que falte se completa al azar y sin bonus (si no elegiste nada, descansás).
+El bot también decide con una velocidad según su nivel. Cambiar una elección ya hecha no reinicia el reloj.
+
+**Blur y movimiento.** Desenfoque direccional en tajos, zoom radial en estocadas y embestidas, líneas de velocidad cuando
+atacás rápido y visión borrosa cuando estás malherido o abierto.
+
 **Sin barra de vida.** El daño se ve en los cuerpos: cada golpe abre una herida persistente en el maniquí
 (corte, agujero o tajo grande según el ataque) que chorrea y gotea hasta el final de la ronda, deja charcos y salpica la
 cámara; con el daño se agrietan, se encorvan y pierden la guardia. Tu propio daño se ve en tu visión: sangre en la lente,

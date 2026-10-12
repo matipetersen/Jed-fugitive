@@ -20,6 +20,13 @@
   const BLOCK_COST = 3;
   const MAX_CHAIN = 3; // la 4ª jugada de una racha es el cierre obligatorio
   const TURN_LIMIT = 14;
+  // Velocidad de decisión (0 = se acabó el tiempo, 1 = instantáneo). 0.4 es neutro.
+  // Ataque: x0.8 (lento) a x1.3 (instantáneo). Bloqueo: reduce el castigo que se cuela
+  // (guardia rota, estocada) de x1.4 (lento) a x0.4; con >= 0.8 es un bloqueo perfecto.
+  const NEUTRAL_SPEED = 0.4, PERFECT_BLOCK = 0.8;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const speedOf = (m, key) => (m[key] == null ? NEUTRAL_SPEED : clamp01(m[key]));
+  const attackPower = (sp) => 0.8 + 0.5 * sp;
 
   // Qué puede seguir a cada movimiento (el árbol de combos).
   const FOLLOW1 = {
@@ -177,7 +184,10 @@
       const dBlock = D.open ? -1 : md.block;
       const blocked = dBlock === ma.zone;
       const wm = WEAPONS[A.weapon].dmg[ma.type] || 1;
-      const base = TYPES[ma.type].dmg * wm * A.mods.dmgMult;
+      const pw = attackPower(speedOf(ma, 'pa'));
+      const sB = speedOf(md, 'pb'), chipMult = 1.4 - sB;
+      let perfect = false;
+      const base = TYPES[ma.type].dmg * wm * A.mods.dmgMult * pw;
       const zm = ZONE_MULT[ma.zone];
       const openMult = D.open ? 1.2 : 1;
       const combo = info[att].combo;
@@ -193,14 +203,15 @@
         if (ma.type === 'feint') {
           kind = 'feintOpen'; flags[def].open = true;
         } else if (ma.type === 'heavy') {
-          kind = 'guardbreak'; dmg = base * zm * 0.4; stLoss[def] += 12; flags[def].broken = true;
+          kind = 'guardbreak'; dmg = base * zm * 0.4 * chipMult; stLoss[def] += Math.round(12 * chipMult); flags[def].broken = true;
         } else if (ma.type === 'thrust') {
           if (info[att].streak >= 2) { kind = 'parry'; flags[att].broken = true; flags[att].open = true; }
-          else { kind = 'block'; dmg = base * zm * 0.35; flags[att].broken = true; }
+          else { kind = 'block'; dmg = base * zm * 0.35 * chipMult; flags[att].broken = true; }
         } else { // quick
           if (info[att].streak >= 2) { kind = 'parry'; flags[att].broken = true; flags[att].open = true; }
           else kind = 'block';
         }
+        if (kind === 'block' && sB >= PERFECT_BLOCK) { perfect = true; flags[att].broken = true; stLoss[att] += 5; }
       } else if (ma.type === 'feint') {
         kind = 'whiff';
       } else {
@@ -209,7 +220,7 @@
         dmg = base * zm * comboMult * openMult * (counter ? 1.25 : 1);
       }
       dmg = Math.round(dmg * D.mods.armor);
-      out[att] = { kind, dmg, counter, combo: kind === 'hit' || kind === 'punish' ? combo : null };
+      out[att] = { kind, dmg, counter, power: pw, perfect, combo: kind === 'hit' || kind === 'punish' ? combo : null };
       dmgTaken[def] += dmg;
     });
 
@@ -252,7 +263,7 @@
   }
 
   Object.assign(BD, {
-    ZONES, ZONE_MULT, TYPES, TYPE_ORDER, BLOCK_COST, MAX_CHAIN, TURN_LIMIT, COMBOS, WEAPONS, PERKS,
+    ZONES, ZONE_MULT, TYPES, TYPE_ORDER, BLOCK_COST, MAX_CHAIN, TURN_LIMIT, COMBOS, WEAPONS, PERKS, NEUTRAL_SPEED, attackPower,
     makeFighter, resetFighter, cloneState, newDuel, attackCost, blockCost, legalAttacks, isLegal, findCombo, step, roundOver,
   });
   if (typeof module !== 'undefined' && module.exports) module.exports = BD;

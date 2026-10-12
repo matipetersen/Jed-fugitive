@@ -81,6 +81,17 @@ const fresh = (wa = 'katana', wb = 'katana') => BD.newDuel(mk(wa), mk(wb));
   // sin aguante => solo descansar
   s = fresh(); s.a.st = 0;
   assert.deepStrictEqual(BD.legalAttacks(s.a).map((m) => m.type), ['rest']);
+  // velocidad: ataque rápido pega más; bloqueo rápido deja pasar menos; bloqueo perfecto rompe la racha
+  const hit = (pa) => { const q = fresh(); BD.step(q, { a: { type: 'quick', zone: 1, block: 0, pa }, b: dm('rest', -1, 2) }); return q.b.maxHp - q.b.hp; };
+  assert.ok(hit(1) > hit(0.4) && hit(0.4) > hit(0), 'más rápido, más daño: ' + [hit(0), hit(0.4), hit(1)]);
+  const gb = (pb) => { const q = fresh(); BD.step(q, { a: dm('heavy', 1, 0), b: { type: 'rest', zone: -1, block: 1, pb } }); return q.b.maxHp - q.b.hp; };
+  assert.ok(gb(1) < gb(0.4) && gb(0.4) < gb(0), 'bloqueo rápido filtra menos: ' + [gb(0), gb(0.4), gb(1)]);
+  s = fresh(); s.a.chain = [{ type: 'quick', zone: 0 }];
+  r = BD.step(s, { a: dm('quick', 1, 0), b: { type: 'rest', zone: -1, block: 1, pb: 0.9 } });
+  assert.strictEqual(r.out.a.perfect, true); assert.strictEqual(s.a.chain.length, 0);
+  s = fresh(); s.a.chain = [{ type: 'quick', zone: 0 }];
+  r = BD.step(s, { a: dm('quick', 1, 0), b: dm('rest', -1, 1) });
+  assert.strictEqual(r.out.a.perfect, false); assert.strictEqual(s.a.chain.length, 2);
   console.log('reglas OK');
 })();
 

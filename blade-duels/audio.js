@@ -31,6 +31,7 @@
   }
 
   const SFX = {
+    tick: () => tone('square', 880, 700, 0.05, 0.09),
     splat: () => { noise(0.22, 'lowpass', 1100, 140, 0.55); tone('sine', 130, 55, 0.2, 0.35); },
     heart: () => { tone('sine', 62, 38, 0.16, 0.8); tone('sine', 58, 36, 0.2, 0.7, 0.2); },
     whoosh: () => noise(0.3, 'bandpass', 400, 1800, 0.12),

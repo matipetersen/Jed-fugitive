@@ -9,6 +9,7 @@
     set(k, v) { try { localStorage.setItem('bd_' + k, v); } catch (e) { /* sin storage */ } },
   };
 
+  const TURN_MS = 3000;
   const ME = { name: 'Vos', title: 'Aspirante', color: '#19e6ff' };
   const ROSTER = [
     { name: 'Taro', title: 'El Aprendiz', weapon: 'katana', level: 1, persona: 'balanced', color: '#7cff6b', taunt: 'Es mi primer torneo... ¡no me subestimes!' },
@@ -55,7 +56,7 @@
   function vitals(me, foe) {
     [['a', me], ['b', foe]].forEach(([k, f]) => {
       const c = BD.condition(f.hp / f.maxHp), el = $('#vc-' + k);
-      el.textContent = c.text; el.style.color = c.col;
+      el.textContent = c.text; el.style.background = c.col; el.style.color = '#10080c';
       $('#vs-' + k).style.width = Math.round(100 * f.st / f.maxSt) + '%';
       $('#vt-' + k).textContent = f.st + '/' + f.maxSt;
     });
@@ -65,6 +66,7 @@
   // ---------- panel de elección ----------
   const panel = {
     sel: { type: null, zone: null, block: null }, me: null, foe: null, habit: null, resolve: null,
+    t0: 0, tAtk: null, tBlk: null, timerId: 0, lastTick: 0,
     build() {
       const types = $('#types'), az = $('#azones'), bz = $('#bzones');
       const keysT = ['Q', 'W', 'E', 'R', 'T'], keysA = ['1', '2', '3'], keysB = ['Z', 'X', 'C'];
@@ -75,7 +77,6 @@
       types.onclick = (e) => { const b = e.target.closest('[data-t]'); if (b && !b.disabled) this.pickType(b.dataset.t); };
       az.onclick = (e) => { const b = e.target.closest('[data-z]'); if (b && !b.disabled) this.pickZone(+b.dataset.z); };
       bz.onclick = (e) => { const b = e.target.closest('[data-b]'); if (b) this.pickBlock(+b.dataset.b); };
-      $('#go').onclick = () => this.confirm();
       document.addEventListener('keydown', (e) => {
         if (!this.resolve || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
         const k = e.key.toUpperCase();
@@ -83,7 +84,6 @@
         if (iT >= 0) { const t = BD.TYPE_ORDER[iT]; if (this.legalTypes().has(t)) this.pickType(t); }
         else if (iA >= 0) { if (!$('#azones [data-z="' + iA + '"]').disabled) this.pickZone(iA); }
         else if (iB >= 0) this.pickBlock(iB);
-        else if (k === 'ENTER' || k === ' ') { e.preventDefault(); this.confirm(); }
       });
     },
     legalTypes() { return new Set(BD.legalAttacks(this.me).map((m) => m.type)); },
@@ -92,21 +92,56 @@
       this.sel.type = t;
       if (t === 'rest') this.sel.zone = -1;
       else if (this.sel.zone === -1 || (this.sel.zone != null && !BD.isLegal(this.me, { type: t, zone: this.sel.zone }))) this.sel.zone = null;
-      this.refresh();
+      this.markAtk(); this.refresh(); this.maybeGo();
     },
     pickZone(z) {
       BD.Audio.sfx('ui');
       this.sel.zone = z;
       if (this.sel.type && this.sel.type !== 'rest' && !BD.isLegal(this.me, { type: this.sel.type, zone: z })) this.sel.type = null;
-      this.refresh();
+      this.markAtk(); this.refresh(); this.maybeGo();
     },
-    pickBlock(b) { BD.Audio.sfx('ui'); this.sel.block = b; this.refresh(); },
-    ready() { const s = this.sel; return s.type && (s.type === 'rest' || s.zone >= 0 && s.zone != null) && s.block != null; },
+    pickBlock(b) { BD.Audio.sfx('ui'); this.sel.block = b; this.tBlk = performance.now(); this.refresh(); this.maybeGo(); },
+    attackDone() { const s = this.sel; return !!s.type && (s.type === 'rest' || (s.zone != null && s.zone >= 0)); },
+    // el ataque cuenta como "decidido" cuando tipo y dirección quedan completos (si lo cambiás, el reloj sigue corriendo)
+    markAtk() { if (this.attackDone()) this.tAtk = performance.now(); },
+    ready() { return this.attackDone() && this.sel.block != null; },
+    maybeGo() { if (this.ready()) this.confirm(); },
+    speedOf(t) { return t == null ? 0 : Math.max(0, Math.min(1, 1 - (t - this.t0) / TURN_MS)); },
     confirm() {
       if (!this.resolve || !this.ready()) return;
-      const mv = { type: this.sel.type, zone: this.sel.type === 'rest' ? -1 : this.sel.zone, block: this.sel.block };
-      const r = this.resolve; this.resolve = null; $('#panel').classList.add('locked'); $('#go').disabled = true;
+      const s = this.sel;
+      const mv = { type: s.type, zone: s.type === 'rest' ? -1 : s.zone, block: s.block, pa: this.speedOf(this.tAtk), pb: this.speedOf(this.tBlk) };
+      this.finish(mv);
+    },
+    finish(mv) {
+      clearInterval(this.timerId); this.timerId = 0; G.scene.timer = null;
+      const r = this.resolve; this.resolve = null; $('#panel').classList.add('locked');
       BD.Audio.unlock(); r(mv);
+    },
+    // se acabó el tiempo: se completa lo que falte al azar, sin bonus de velocidad
+    timeout() {
+      if (!this.resolve) return;
+      const s = this.sel, legal = BD.legalAttacks(this.me).filter((m) => m.type !== 'rest');
+      let atk;
+      if (this.attackDone()) atk = { type: s.type, zone: s.type === 'rest' ? -1 : s.zone };
+      else {
+        const pool = legal.filter((m) => (!s.type || m.type === s.type) && (s.zone == null || s.zone < 0 || m.zone === s.zone));
+        atk = (!s.type && (s.zone == null || s.zone < 0)) || !pool.length ? { type: 'rest', zone: -1 } : pool[Math.floor(Math.random() * pool.length)];
+      }
+      const slowA = !this.attackDone();
+      this.finish({ type: atk.type, zone: atk.zone, block: s.block != null ? s.block : Math.floor(Math.random() * 3), pa: slowA ? 0 : this.speedOf(this.tAtk), pb: s.block != null ? this.speedOf(this.tBlk) : 0 });
+    },
+    startTimer() {
+      this.t0 = performance.now(); this.tAtk = null; this.tBlk = null; this.lastTick = 3;
+      clearInterval(this.timerId);
+      this.timerId = setInterval(() => {
+        const left = Math.max(0, 1 - (performance.now() - this.t0) / TURN_MS);
+        G.scene.timer = { frac: left, power: BD.attackPower(left) };
+        const sec = left * TURN_MS / 1000;
+        if (sec <= 1 && this.lastTick > 1) { this.lastTick = 1; BD.Audio.sfx('tick'); }
+        if (sec <= 0.5 && this.lastTick > 0.5) { this.lastTick = 0.5; BD.Audio.sfx('tick'); }
+        if (left <= 0) this.timeout();
+      }, 30);
     },
     refresh() {
       const me = this.me, s = this.sel, legal = BD.legalAttacks(me), n = me.chain.length;
@@ -121,7 +156,6 @@
         b.disabled = !ok; b.classList.toggle('sel', s.zone === z);
       });
       document.querySelectorAll('#bzones .btn').forEach((b) => b.classList.toggle('sel', s.block === +b.dataset.b));
-      $('#go').disabled = !this.ready();
       this.hint();
     },
     hint() {
@@ -150,7 +184,7 @@
       vitals(me, foe);
       $('#panel').classList.remove('locked');
       this.refresh();
-      return new Promise((res) => { this.resolve = res; });
+      return new Promise((res) => { this.resolve = res; this.startTimer(); });
     },
   };
 
@@ -163,6 +197,7 @@
       const s = BD.newDuel(A, B);
       for (;;) {
         const ma = BD.decide(brA, s, 'a'), mb = BD.decide(brB, s, 'b');
+        ma.pa = BD.botSpeed(A.level); ma.pb = BD.botSpeed(A.level); mb.pa = BD.botSpeed(B.level); mb.pb = BD.botSpeed(B.level);
         BD.observe(brA, mb); BD.observe(brB, ma);
         BD.step(s, { a: ma, b: mb });
         const r = BD.roundOver(s);
@@ -180,7 +215,7 @@
       <b>Cada turno elegís 3 cosas en secreto</b> (el rival también): <b>tipo de ataque</b>, <b>dirección</b> (alta/media/baja) y <b>bloqueo</b> (alta/media/baja).<br>
       <b>Rápido</b> interrumpe a Pesado · <b>Pesado</b> rompe la guardia · <b>Finta</b> abre al que bloquea · <b>Estocada</b> castiga la Finta.<br>
       Encadenar ataques arma <b>combos</b> con más daño, pero el árbol se estrecha: en la 3ª jugada solo queda el cierre, y un Rápido/Estocada bloqueado en racha larga es <b>parry</b>.<br>
-      Todo gasta <b>aguante</b>. Ganás una ronda con KO o con más vida al turno 14. Mejor de 3 rondas por combate.</div>`;
+      <b>Tenés 3 segundos por turno:</b> cuanto más rápido elegís, más fuerte pega tu ataque (de ×0.8 a ×1.3) y mejor bloquea tu bloqueo (muy rápido = bloqueo perfecto). Si se acaba el tiempo, se completa solo al azar y sin bonus. Todo gasta <b>aguante</b>. Ganás una ronda con KO o con más vida al turno 14. Mejor de 3 rondas por combate.</div>`;
     await ask(`<h2>Blade Duels</h2><p>Torneo del Filo Supremo · 8 luchadores · 3 combates para la gloria</p>${rules}
       <div><button class="cta" data-val="go">Inscribirme</button></div>`);
   }
@@ -245,6 +280,7 @@
       for (;;) {
         const mvA = await panel.choose(duel.a, duel.b, habit);
         const mvB = BD.decide(brain, duel, 'b');
+        mvB.pa = BD.botSpeed(foe.level); mvB.pb = BD.botSpeed(foe.level);
         BD.observe(brain, mvA); BD.observe(habit, mvB);
         const res = BD.step(duel, { a: mvA, b: mvB });
         const after = { a: snapF(duel.a), b: snapF(duel.b) };

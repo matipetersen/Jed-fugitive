@@ -26,6 +26,13 @@
     };
   }
 
+  // velocidad de decisión del bot según su nivel (ruido para que no sea constante)
+  const BOT_SPEED = [0.3, 0.42, 0.55, 0.68, 0.8];
+  function botSpeed(level, rng) {
+    const r = rng || Math.random;
+    return Math.max(0.05, Math.min(0.98, BOT_SPEED[Math.max(1, Math.min(5, level)) - 1] + (r() + r() - 1) * 0.2));
+  }
+
   function emptyCounts() {
     return { zone: [0, 0, 0], block: [0, 0, 0], type: { quick: 0, heavy: 0, thrust: 0, feint: 0, rest: 0 } };
   }
@@ -131,6 +138,6 @@
     return { zone: +z, zoneP: pz[z], block: +b, blockP: pb[b], type: t, typeP: pt[t] };
   }
 
-  Object.assign(BD, { PERSONAS, mulberry32, makeBrain, observe, decide, readout });
+  Object.assign(BD, { PERSONAS, botSpeed, mulberry32, makeBrain, observe, decide, readout });
   if (typeof module !== 'undefined' && module.exports) module.exports = BD;
 })();

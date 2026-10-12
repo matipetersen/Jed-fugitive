@@ -93,3 +93,12 @@ La Armada del Halley 1986, El Gran Tour (Voyager), La Ventana a Marte 2020, Los 
 (Ansari X Prize, aterrizaje vertical, multimillonarios), Boonta Eve y Redline (ficción, 3 etapas c/u).
 Los datos de las carreras viven en `src/arcade/{stages,kessel,more}.ts`. `scripts/verify-races.ts` comprueba que
 el rival y los bots puedan completar cada etapa.
+
+### Tipos de etapa y equipo
+
+Además del salto entre cuerpos hay etapas que empiezan en vuelo, con escala (aterrizaje a mitad de camino:
+`GateDef.landing`), con carga (`GateDef.cargo`, la nave pesa 15 % más), con tanque reducido (`StageDef.tank`),
+con calor/radiación y agujeros negros. La nave lleva como máximo 3 tipos de mejora a la vez (escudo térmico,
+postquemador, motor, tanque, casco, giro, predictor, cápsulas). `src/arcade/procgen.ts` genera etapas al azar
+(carrera diaria con semilla por fecha y sector aleatorio); `scripts/verify-procgen.ts` comprueba que el rival
+pueda volarlas.

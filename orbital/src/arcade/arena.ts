@@ -16,7 +16,7 @@ export const LAND_TILT = 0.8;
 /** Height above a surface within which the player's ship gets landing help. */
 const ASSIST_H = 70;
 export const BURN_RATE = 5;
-export const BASE_STATS: ShipStats = { thrust: 150, turnRate: 3.4, fuelMax: 130, hullMax: 100 };
+export const BASE_STATS: ShipStats = { thrust: 150, turnRate: 3.4, fuelMax: 130, hullMax: 100, shield: 0, boost: 0 };
 export const STEP = 1 / 120;
 
 const TAU = Math.PI * 2;
@@ -38,6 +38,8 @@ export interface RGate {
   def: GateDef;
   body: number;
   r: number;
+  /** Landing waypoint: body index and pad. */
+  land: { body: number; pad: number } | null;
 }
 
 export interface RCell {
@@ -92,7 +94,7 @@ export class Arena {
     this.cur = makeFrame(this.bodies.length);
     this.nxt = makeFrame(this.bodies.length);
     for (const g of def.gates) {
-      this.gates.push({ def: g, body: g.body ? (this.index.get(g.body) ?? -1) : -1, r: g.r ?? GATE_R });
+      this.gates.push({ def: g, body: g.body ? (this.index.get(g.body) ?? -1) : -1, r: g.r ?? GATE_R, land: g.landing ? { body: this.index.get(g.landing.body) ?? 0, pad: g.landing.pad } : null });
     }
     for (const c of def.cells) {
       this.cells.push({ x: c.x, y: c.y, body: c.body ? (this.index.get(c.body) ?? -1) : -1, fuel: c.fuel, taken: false });
@@ -142,6 +144,10 @@ export class Arena {
   /** Gate centre at the arena's current time. */
   gatePos(i: number, out: { x: number; y: number }, f: Frame = this.cur): void {
     const g = this.gates[i];
+    if (g.land) {
+      this.padPoint(g.land.body, g.land.pad, out, f);
+      return;
+    }
     out.x = g.def.x + (g.body >= 0 ? f.x[g.body] : 0);
     out.y = g.def.y + (g.body >= 0 ? f.y[g.body] : 0);
   }
@@ -169,7 +175,7 @@ export class Arena {
     }
   }
 
-  addShip(opts: { isPlayer: boolean; name: string; color: string; stats: ShipStats; start: { body: string; angle: number }; infiniteFuel?: boolean }): Ship {
+  addShip(opts: { isPlayer: boolean; name: string; color: string; stats: ShipStats; start: { body: string; angle: number }; orbit?: NonNullable<StageDef['startAt']>; infiniteFuel?: boolean }): Ship {
     const body = this.index.get(opts.start.body) ?? 0;
     const ship: Ship = {
       id: this.ships.length,
@@ -196,9 +202,14 @@ export class Arena {
       finishTime: 0,
       infiniteFuel: !!opts.infiniteFuel,
       bonfire: null,
+      cargo: false,
+      hold: false,
+      boostT: 0,
+      boostCd: 0,
     };
     this.ships.push(ship);
     this.place(ship);
+    if (opts.orbit) this.putInOrbit(ship, opts.orbit);
     return ship;
   }
 
@@ -210,6 +221,22 @@ export class Arena {
     s.y = f.y[s.landedBody] + r * Math.sin(s.landedAngle);
     s.vx = f.vx[s.landedBody];
     s.vy = f.vy[s.landedBody];
+  }
+
+  /** Starts a ship flying around a body: a circular orbit, slowed or with a push inwards if asked. */
+  putInOrbit(s: Ship, o: NonNullable<StageDef['startAt']>, f: Frame = this.cur): void {
+    const bi = this.index.get(o.body) ?? 0;
+    const b = this.bodies[bi];
+    const ang = (o.angle * Math.PI) / 180;
+    const r = b.def.r + o.alt;
+    const vc = Math.sqrt(b.gm / r) * (o.speed ?? 1) * (o.dir ?? 1);
+    const inward = o.inward ?? 0;
+    s.status = 'flying';
+    s.x = f.x[bi] + r * Math.cos(ang);
+    s.y = f.y[bi] + r * Math.sin(ang);
+    s.vx = f.vx[bi] - Math.sin(ang) * vc - Math.cos(ang) * inward;
+    s.vy = f.vy[bi] + Math.cos(ang) * vc - Math.sin(ang) * inward;
+    s.angle = Math.atan2(s.vy - f.vy[bi], s.vx - f.vx[bi]);
   }
 
   /** Brings a dead ship back, landed on a pad or at the start. */
@@ -269,6 +296,7 @@ export class Arena {
 
   damage(s: Ship, amount: number, by: string): void {
     if (s.status === 'dead' || s.invuln > 0) return;
+    if (s.stats.shield > 0 && (by === 'calor' || by === 'radiación' || by === 'disco de acreción')) amount *= 1 - s.stats.shield;
     s.hull -= amount;
     this.events.push({ type: 'hit', ship: s.id, damage: amount, by });
     if (s.hull <= 0) this.die(s, by);
@@ -323,14 +351,25 @@ export class Arena {
 
   private stepShip(s: Ship, c: Controls, h: number): void {
     if (s.invuln > 0) s.invuln = Math.max(0, s.invuln - h);
+    if (s.status === 'flying' && (s.hold || !this.go)) return;
     if (s.status === 'dead') {
       s.deadTimer -= h;
       return;
     }
     const thr = this.go && (s.fuel > 0 || s.infiniteFuel) ? clamp(c.throttle, 0, 1) : 0;
     s.throttle = thr;
-    const aT = thr * s.stats.thrust;
-    if (!s.infiniteFuel) s.fuel = Math.max(0, s.fuel - thr * BURN_RATE * h);
+    // Afterburner: a short, strong push with a cooldown.
+    if (s.boostCd > 0) s.boostCd = Math.max(0, s.boostCd - h);
+    if (s.boostT > 0) s.boostT = Math.max(0, s.boostT - h);
+    if (c.boost && this.go && s.stats.boost > 0 && s.boostCd <= 0 && s.boostT <= 0) {
+      s.boostT = 1.8 + 0.8 * s.stats.boost;
+      s.boostCd = 12 - 2 * s.stats.boost + s.boostT;
+      this.events.push({ type: 'boost', ship: s.id });
+    }
+    const boosting = s.boostT > 0 && (s.fuel > 0 || s.infiniteFuel);
+    const load = s.cargo ? 0.85 : 1;
+    const aT = (boosting ? Math.max(thr, 0.6) * 1.7 : thr) * s.stats.thrust * load;
+    if (!s.infiniteFuel) s.fuel = Math.max(0, s.fuel - (boosting ? Math.max(thr, 0.6) * 1.5 : thr) * BURN_RATE * h * (s.cargo ? 1.15 : 1));
 
     if (s.status === 'landed') {
       const b = this.bodies[s.landedBody];
@@ -454,6 +493,11 @@ export class Arena {
           s.hull = s.stats.hullMax;
         }
         this.events.push({ type: 'land', ship: s.id, body: i, pad, bonfire });
+        const wp = this.gates[s.nextGate]?.land;
+        if (wp && this.onFinishPad(i, normal, wp)) {
+          this.events.push({ type: 'gate', ship: s.id, index: s.nextGate, final: false });
+          s.nextGate++;
+        }
         if (!s.finished && this.gatesDone(s) && this.onFinishPad(i, normal)) {
           s.finished = true;
           s.finishTime = this.clock;
@@ -535,12 +579,17 @@ export class Arena {
     for (const s of this.ships) {
       if (s.status !== 'flying' || s.finished) continue;
       if (s.nextGate >= this.gates.length) continue;
+      if (this.gates[s.nextGate].land) continue;
       this.gatePos(s.nextGate, this.gp);
       if (Math.hypot(s.x - this.gp.x, s.y - this.gp.y) <= this.gates[s.nextGate].r) {
         const idx = s.nextGate;
         const final = !!this.gates[idx].def.final || idx === this.gates.length - 1;
         s.nextGate++;
         this.events.push({ type: 'gate', ship: s.id, index: idx, final });
+        if (this.gates[idx].def.cargo && !s.cargo) {
+          s.cargo = true;
+          this.events.push({ type: 'cargo', ship: s.id });
+        }
         void final;
       }
     }
@@ -553,8 +602,13 @@ export class Arena {
 
   /** Surface point of the finish pad at the current time, and its outward normal angle. */
   finishPoint(out: { x: number; y: number }, f: Frame = this.cur): number {
-    const b = this.bodies[this.finish.body];
-    const ang = b.def.pads?.[this.finish.pad]?.angle ?? Math.PI / 2;
+    return this.padPoint(this.finish.body, this.finish.pad, out, f);
+  }
+
+  /** Surface point of a pad and its outward normal angle. */
+  padPoint(body: number, pad: number, out: { x: number; y: number }, f: Frame = this.cur): number {
+    const b = this.bodies[body];
+    const ang = b.def.pads?.[pad]?.angle ?? Math.PI / 2;
     out.x = f.x[b.index] + b.def.r * Math.cos(ang);
     out.y = f.y[b.index] + b.def.r * Math.sin(ang);
     return ang;
@@ -566,10 +620,10 @@ export class Arena {
     else this.finishPoint(out);
   }
 
-  private onFinishPad(i: number, normal: number): boolean {
-    if (i !== this.finish.body) return false;
+  private onFinishPad(i: number, normal: number, target = this.finish): boolean {
+    if (i !== target.body) return false;
     const b = this.bodies[i];
-    const pad = b.def.pads?.[this.finish.pad];
+    const pad = b.def.pads?.[target.pad];
     return !!pad && Math.abs(wrap(normal - pad.angle)) * b.def.r <= pad.half * 1.4 + 20;
   }
 

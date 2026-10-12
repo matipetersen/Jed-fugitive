@@ -37,6 +37,10 @@ export interface GateDef {
   body?: string;
   r?: number;
   final?: boolean;
+  /** Satisfied by landing on this pad instead of flying through the ring. */
+  landing?: { body: string; pad: number };
+  /** Passing through picks up cargo: heavier ship until the stage ends. */
+  cargo?: boolean;
 }
 
 export interface FieldDef {
@@ -89,6 +93,12 @@ export interface StageDef {
   /** Where the player and the rival start. */
   start: { body: string; angle: number };
   rivalStart: { body: string; angle: number };
+  /** Start already flying around a body instead of from a pad (the rival gets the same, a little behind). */
+  startAt?: { body: string; angle: number; alt: number; speed?: number; dir?: 1 | -1; inward?: number };
+  /** Fraction of the usual tank for the player in this stage. */
+  tank?: number;
+  /** Short label for the kind of stage, shown on the stage card. */
+  kind?: string;
   /** Rival tuning: thrust multiplier and decision interval. */
   rival: { skill: number; name: string; delay: number; ai?: { horizon: number; dt: number; interval: number; noise: number } };
   /** The stage ends when a ship has passed every gate and then lands on this pad. */
@@ -100,6 +110,8 @@ export interface StageDef {
 export interface Controls {
   throttle: number;
   turn: number;
+  /** Afterburner request. */
+  boost?: boolean;
 }
 
 export type ShipStatus = 'landed' | 'flying' | 'dead';
@@ -109,6 +121,10 @@ export interface ShipStats {
   turnRate: number;
   fuelMax: number;
   hullMax: number;
+  /** Fraction of heat, radiation and disc damage the ship shrugs off. */
+  shield: number;
+  /** Afterburner level; 0 means none. */
+  boost: number;
 }
 
 export interface Ship {
@@ -139,6 +155,12 @@ export interface Ship {
   infiniteFuel: boolean;
   /** Last pad this ship landed on (body index, pad index) or null. */
   bonfire: { body: number; pad: number } | null;
+  cargo: boolean;
+  /** Frozen in place (a rival waiting for its head-start delay while already flying). */
+  hold: boolean;
+  /** Afterburner time left and cooldown, in seconds. */
+  boostT: number;
+  boostCd: number;
 }
 
 export interface Asteroid {
@@ -157,6 +179,8 @@ export type ArenaEvent =
   | { type: 'land'; ship: number; body: number; pad: number; bonfire: boolean }
   | { type: 'hit'; ship: number; damage: number; by: string }
   | { type: 'cell'; ship: number }
+  | { type: 'cargo'; ship: number }
+  | { type: 'boost'; ship: number }
   | { type: 'bump'; a: number; b: number }
   | { type: 'slingshot'; ship: number; body: number };
 

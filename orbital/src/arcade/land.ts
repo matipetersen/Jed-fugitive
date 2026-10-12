@@ -13,21 +13,35 @@ const G = { x: 0, y: 0 };
 const PT = { x: 0, y: 0 };
 const GT = { x: 0, y: 0 };
 
-/** Distance from the ship to the finish pad, once only the last gate (or the landing) is left. */
-export function finishRange(arena: Arena, ship: Ship): number {
-  if (ship.nextGate < arena.gates.length - 1) return Infinity;
+export interface LandTarget {
+  body: number;
+  pad: number;
+  /** A ring that hangs over the pad still has to be passed before touching down. */
+  ring: boolean;
+}
+
+/** The pad to land on right now, if the ship is close enough for guidance to take over from the route planner. */
+export function landTarget(arena: Arena, ship: Ship): LandTarget | null {
+  const n = ship.nextGate;
+  const wp = n < arena.gates.length ? arena.gates[n].land : null;
+  if (wp) {
+    arena.padPoint(wp.body, wp.pad, PT);
+    return Math.hypot(ship.x - PT.x, ship.y - PT.y) < 700 ? { body: wp.body, pad: wp.pad, ring: false } : null;
+  }
+  if (n < arena.gates.length - 1) return null;
   arena.finishPoint(PT);
-  return Math.hypot(ship.x - PT.x, ship.y - PT.y);
+  if (n < arena.gates.length && Math.hypot(ship.x - PT.x, ship.y - PT.y) >= 700) return null;
+  return { body: arena.finish.body, pad: arena.finish.pad, ring: n < arena.gates.length };
 }
 
 /**
  * Landing guidance in the frame of the target body: line up over the pad, then come down
  * at a speed that shrinks with height. Used by the rival and by the practice bots.
  */
-export function landControl(arena: Arena, ship: Ship): Controls {
-  const bi = arena.finish.body;
+export function landControl(arena: Arena, ship: Ship, tgt: LandTarget): Controls {
+  const bi = tgt.body;
   const body = arena.bodies[bi];
-  const ang = arena.finishPoint(PT);
+  const ang = arena.padPoint(tgt.body, tgt.pad, PT);
   const nx = Math.cos(ang);
   const ny = Math.sin(ang);
   const tx = -ny;
@@ -45,7 +59,7 @@ export function landControl(arena: Arena, ship: Ship): Controls {
   // Until the last gate is behind us, the target is the gate (it hangs over the pad); then it is the pad itself.
   let tgtL = 0;
   let tgtH = 0;
-  const pending = ship.nextGate < arena.gates.length;
+  const pending = tgt.ring;
   if (pending) {
     arena.gatePos(ship.nextGate, GT);
     const gx = GT.x - arena.cur.x[bi];

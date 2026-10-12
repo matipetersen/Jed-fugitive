@@ -9,6 +9,8 @@ export interface Upgrades {
   turn: number;
   predictor: number;
   kits: number;
+  shield: number;
+  boost: number;
 }
 
 export interface MissionRecord {
@@ -64,11 +66,16 @@ export const UPGRADES: UpgradeDef[] = [
   { id: 'turn', name: 'Giro', desc: '+12 % de velocidad de giro por nivel', max: 3, cost: (l) => 80 + l * 80 },
   { id: 'predictor', name: 'Predictor', desc: 'Muestra tu trayectoria: 1,5 s, 3 s, 5 s', max: 3, cost: (l) => 150 + l * 150 },
   { id: 'kits', name: 'Cápsulas', desc: '+1 cápsula de reparación por misión', max: 3, cost: (l) => 140 + l * 140 },
+  { id: 'shield', name: 'Escudo térmico', desc: '-30 % de daño por calor, radiación y discos de acreción por nivel', max: 3, cost: (l) => 110 + l * 90 },
+  { id: 'boost', name: 'Postquemador', desc: 'Botón IMPULSO: +70 % de empuje unos segundos; cada nivel dura más y recarga antes', max: 3, cost: (l) => 130 + l * 100 },
 ];
 
 /** Lives per stage. */
 export const MISSION_LIVES = 3;
-export const zeroUpgrades = (): Upgrades => ({ motor: 0, tank: 0, hull: 0, turn: 0, predictor: 0, kits: 0 });
+export const zeroUpgrades = (): Upgrades => ({ motor: 0, tank: 0, hull: 0, turn: 0, predictor: 0, kits: 0, shield: 0, boost: 0 });
+/** Different upgrades a ship can carry at once: a choice, not a shopping list. */
+export const UPGRADE_SLOTS = 3;
+export const usedSlots = (u: Upgrades): number => Object.values(u).filter((v) => v > 0).length;
 export const BASE_KITS = 2;
 
 export function newMeta(): Meta {
@@ -89,6 +96,8 @@ export function shipStats(u: Upgrades): ShipStats {
     turnRate: BASE_STATS.turnRate * (1 + 0.12 * u.turn),
     fuelMax: BASE_STATS.fuelMax + 20 * u.tank,
     hullMax: BASE_STATS.hullMax + 20 * u.hull,
+    shield: Math.min(0.9, 0.3 * u.shield),
+    boost: u.boost,
   };
 }
 
@@ -100,6 +109,7 @@ export function buyUpgrade(meta: Meta, id: keyof Upgrades): boolean {
   if (!def) return false;
   const level = meta.upgrades[id];
   if (level >= def.max) return false;
+  if (level === 0 && usedSlots(meta.upgrades) >= UPGRADE_SLOTS) return false;
   const cost = def.cost(level);
   if (meta.data < cost) return false;
   meta.data -= cost;

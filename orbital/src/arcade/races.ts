@@ -1,7 +1,13 @@
 import { STAGES } from './stages';
 import { KESSEL_RACE } from './kessel';
 import { BOONTA, HALLEY, MARTE2020, POLO_SUR, REDLINE, REUTILIZABLES, VENERA, VOYAGER } from './more';
+import * as N from './more2';
 import { type RaceDef } from './types';
+
+/** A race with extra stages spliced in; stage numbers follow the new order. */
+function extend(race: RaceDef, order: (s: RaceDef['stages']) => RaceDef['stages']): RaceDef {
+  return { ...race, stages: order(race.stages).map((st, i) => ({ ...st, id: i + 1 })) };
+}
 
 /** Every race in the game. The first is the Cold War space race. */
 export const RACES: RaceDef[] = [
@@ -13,14 +19,14 @@ export const RACES: RaceDef[] = [
     stages: STAGES,
   },
   KESSEL_RACE,
-  POLO_SUR,
-  VENERA,
-  HALLEY,
-  VOYAGER,
-  MARTE2020,
-  REUTILIZABLES,
-  BOONTA,
-  REDLINE,
+  extend(POLO_SUR, (s) => [s[0], N.polo_fall, s[1], N.polo_double, s[2]]),
+  extend(VENERA, (s) => [s[0], N.venera_air, s[1], N.venera_balloon, s[2]]),
+  extend(HALLEY, (s) => [s[0], N.halley_chase, s[1], N.halley_cargo, s[2]]),
+  extend(VOYAGER, (s) => [s[0], N.voyager_belt, s[1], N.voyager_rings, s[2]]),
+  extend(MARTE2020, (s) => [s[0], s[1], N.marte_entry, N.marte_cargo, s[2]]),
+  extend(REUTILIZABLES, (s) => [s[0], N.reut_double, s[1], N.reut_reentry, s[2]]),
+  extend(BOONTA, (s) => [s[0], N.boonta_night, s[1], N.boonta_run, s[2]]),
+  extend(REDLINE, (s) => [s[0], N.redline_fall, s[1], N.redline_cargo, s[2]]),
 ];
 
 export const raceById = (id: string): RaceDef => RACES.find((r) => r.id === id) ?? RACES[0];
@@ -77,6 +83,17 @@ const ENDINGS: Record<string, { winTitle: string; win: string; lose: string }> =
     win: 'La carrera más peligrosa del universo y vos en el podio, con la nave humeando. Neón y velocidad hasta el final.',
     lose: 'Redline se lleva a los que no frenan a tiempo. La próxima, más lento en las curvas y más rápido en las rectas.',
   },
+};
+
+ENDINGS.diaria = {
+  winTitle: 'SECTOR DIARIO LIMPIO',
+  win: 'Completaste los seis sectores de hoy. Mañana habrá otros, y más difíciles de adivinar.',
+  lose: 'El rival se llevó la carrera de hoy. Mañana, otra semilla.',
+};
+ENDINGS.sinfin = {
+  winTitle: 'SECTORES SUPERADOS',
+  win: 'Los diez sectores al azar quedaron atrás. El próximo mapa no se parece a ninguno.',
+  lose: 'El sector se te cerró. Los mapas cambian en cada misión: aprendés los principios, no las rutas.',
 };
 
 export const endingOf = (id: string): { winTitle: string; win: string; lose: string } => ENDINGS[id] ?? ENDINGS.guerra;

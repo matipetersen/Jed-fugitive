@@ -338,7 +338,12 @@ function drawGates(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void 
     const gate = a.gates[i];
     const final = !!gate.def.final || i === a.gates.length - 1;
     const isNext = i === next;
-    const color = final ? GOOD : isNext ? AMBER : COLORS.hud;
+    if (gate.land) {
+      const ang = a.padPoint(gate.land.body, gate.land.pad, gp);
+      drawPadMarker(ctx, v, g, gp.x, gp.y, ang, isNext ? AMBER : COLORS.hud, `ESCALA ${i + 1}`);
+      continue;
+    }
+    const color = gate.def.cargo ? '#ff2bd6' : final ? GOOD : isNext ? AMBER : COLORS.hud;
     const pulse = isNext ? 0.75 + 0.25 * Math.sin(g.clock * 6) : 0.4;
     if (isNext) {
       ctx.setLineDash([9, 6]);
@@ -394,6 +399,25 @@ function drawGates(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void 
     }, 0.9);
     void half;
   }
+}
+
+/** Pulsing arrow over a landing pad, with a label. */
+function drawPadMarker(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame, x: number, y: number, ang: number, color: string, label: string): void {
+  const lift = 26 + 4 * Math.sin(g.clock * 5);
+  proj(v, x + Math.cos(ang) * lift, y + Math.sin(ang) * lift);
+  const mx = P.x;
+  const my = P.y;
+  const sa = screenAngle(v, ang);
+  neonStroke(ctx, color, 2, () => {
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.rotate(sa + Math.PI / 2);
+    ctx.moveTo(-8, -8);
+    ctx.lineTo(0, 4);
+    ctx.lineTo(8, -8);
+    ctx.restore();
+  }, 0.9);
+  if (mx > 0 && mx < v.w && my > 0 && my < v.h) text(ctx, label, mx - 24, my - 14, color, 10);
 }
 
 function drawCells(ctx: CanvasRenderingContext2D, v: View, g: ArcadeGame): void {
@@ -652,6 +676,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   text(ctx, `VEL ${speed.toFixed(0)}`, x, TOP + 52, COLORS.hud);
   text(ctx, `VIDAS ${'♥'.repeat(Math.max(0, m.lives))}${m.practice ? ' ∞' : ''}`, x, TOP + 68, m.lives <= 1 && !m.practice ? BAD : COLORS.hud);
   text(ctx, `DATOS ${m.carried}`, x, TOP + 84, m.carried > 0 ? AMBER : COLORS.dim);
+  if (p.cargo) text(ctx, 'CARGA A BORDO', x, TOP + 116, '#ff2bd6');
 
   // Near a surface: height and speed relative to it, green when a touchdown would be safe.
   if (p.status === 'flying') {
@@ -686,8 +711,10 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   let leadColor = COLORS.hud;
   if (a.clock < 0) {
     leadTxt = `${m.rival.name}`;
-  } else if (a.gatesDone(p)) {
-    leadTxt = `ATERRIZÁ EN ${padName.toUpperCase()}`;
+  } else if (a.gatesDone(p) || a.gates[p.nextGate]?.land) {
+    const wp = a.gates[p.nextGate]?.land;
+    const wpName = wp ? a.bodies[wp.body].def.pads?.[wp.pad]?.name ?? 'la escala' : padName;
+    leadTxt = `ATERRIZÁ EN ${wpName.toUpperCase()}`;
     leadColor = GOOD;
   } else if (lead > 0) {
     leadTxt = `ADELANTE +${lead} ${lead === 1 ? 'aro' : 'aros'}`;
@@ -713,6 +740,9 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   btn(ctx, ui, 'kit', bx + bw + 4, TOP + 8, bw, bh, `CÁP ${m.kits}`, { dim: m.kits <= 0 || m.kitCooldown > 0, color: GOOD });
   btn(ctx, ui, 'aim', bx + 2 * (bw + 4), TOP + 8, bw, bh, 'APUNTA', { on: g.autoAim });
   btn(ctx, ui, 'zoom', bx + 2 * (bw + 4), TOP + 8 + bh + 4, bw, bh, 'ZOOM', { on: !g.input.zoomManual });
+  if (p.stats.boost > 0) {
+    btn(ctx, ui, 'boost', bx, TOP + 8 + bh + 4, 2 * bw + 4, bh, 'IMPULSO', { dim: p.boostCd > 0 && p.boostT <= 0, on: p.boostT > 0, color: AMBER });
+  }
 
   // Edge arrows.
   {

@@ -1,7 +1,9 @@
 import { type ArcadeController } from '../arcade/controller';
 import { type MissionRecord, UPGRADES, kitCount } from '../arcade/meta';
-import { raceProgress } from '../arcade/meta';
+import { UPGRADE_SLOTS, raceProgress, usedSlots } from '../arcade/meta';
+import { stageNotes } from '../arcade/notes';
 import { RACES, endingOf } from '../arcade/races';
+import { dailySeed, makeProceduralRace } from '../arcade/procgen';
 import { h } from './dom';
 
 function btn(label: string, onclick: () => void, cls = '', disabled = false): HTMLButtonElement {
@@ -19,6 +21,8 @@ const ARCADE_HELP: [string, string][] = [
   ['Aterrizar', 'Despacio (menos de 60 u/s) y más o menos derecho: cerca del suelo la nave se endereza sola y se amortigua la caída. Las franjas amarillas con llama son estaciones: reparan, recargan, guardan tus datos y son tu punto de reaparición.'],
   ['Vidas', 'Tenés 3 por etapa. Si te quedás sin vidas, o el rival aterriza primero, perdés la etapa (cobrás menos) pero la misión sigue: se juegan las 5 etapas.'],
   ['Datos', 'Los ganás pasando aros, con hondas gravitatorias y adelantando al rival. Si morís perdés los que llevabas, pero quedan en una baliza: volvé a tocarla para recuperarlos. Cada nave que explota además deja telemetría (datos extra). Con los datos comprás mejoras entre etapas; al terminar la misión la tecnología se reinicia.'],
+  ['Equipo', 'Entre etapas comprás mejoras con datos, pero la nave solo lleva 3 tipos distintos a la vez: elegí según los peligros. El Escudo térmico aguanta calor y radiación; el Postquemador (botón IMPULSO) da un empujón fuerte con recarga.'],
+  ['Etapas distintas', 'Algunas empiezan en vuelo, otras piden aterrizar a mitad de camino (escala: recarga y guarda), llevar carga (más pesada) o tienen el tanque reducido. La tarjeta de cada etapa lo avisa.'],
   ['Cápsulas', 'Tocá CÁP para recuperar combustible y casco. Se recargan en cada estación.'],
   ['Rival', 'Corre a la vez que vos y se pueden chocar. Un golpe fuerte lo frena a él también.'],
   ['Práctica', 'Las etapas que ya alcanzaste se pueden practicar sin vidas ni recompensas, con la nave básica.'],
@@ -27,17 +31,22 @@ const ARCADE_HELP: [string, string][] = [
 /** Upgrade list, bought with saved data; used in the centre and between stages. */
 function shop(c: ArcadeController): HTMLElement[] {
   const m = c.meta;
-  return UPGRADES.map((u) => {
-    const level = m.upgrades[u.id];
-    const maxed = level >= u.max;
-    return h('div', { class: 'panel' },
-      h('div', { class: 'row' },
-        h('span', { class: maxed ? 'good' : 'v' }, `${u.name} ${'■'.repeat(level)}${'□'.repeat(u.max - level)}`),
-        h('span', { class: 'k' }, u.desc),
-        btn(maxed ? 'AL MÁXIMO' : `${u.cost(level)} DATOS`, () => c.buy(u.id), 'go', maxed || m.data < u.cost(level)),
-      ),
-    );
-  });
+  const used = usedSlots(m.upgrades);
+  return [
+    h('p', { class: 'sub' }, `Ranuras de equipo: ${used}/${UPGRADE_SLOTS}. Subir de nivel algo que ya llevás no ocupa otra ranura.`),
+    ...UPGRADES.map((u) => {
+      const level = m.upgrades[u.id];
+      const maxed = level >= u.max;
+      const noSlot = level === 0 && used >= UPGRADE_SLOTS;
+      return h('div', { class: 'panel' },
+        h('div', { class: 'row' },
+          h('span', { class: maxed ? 'good' : 'v' }, `${u.name} ${'■'.repeat(level)}${'□'.repeat(u.max - level)}`),
+          h('span', { class: 'k' }, u.desc),
+          btn(maxed ? 'AL MÁXIMO' : noSlot ? 'SIN RANURA' : `${u.cost(level)} DATOS`, () => c.buy(u.id), 'go', maxed || noSlot || m.data < u.cost(level)),
+        ),
+      );
+    }),
+  ];
 }
 
 export const arcadeScreens = {
@@ -56,6 +65,18 @@ export const arcadeScreens = {
           h('div', { class: 'row' },
             btn(pr.won ? 'JUGAR (COMPLETADA)' : 'JUGAR', () => c.openHub(r), 'go'),
             h('span', { class: pr.won ? 'good' : 'k' }, `${r.stages.length} etapas · mejor ${pr.cleared}/${r.stages.length}`),
+          ),
+        );
+      }),
+      h('h2', {}, 'GENERADAS'),
+      ...[makeProceduralRace('diaria', dailySeed()), makeProceduralRace('sinfin', 1)].map((r) => {
+        const pr = raceProgress(c.meta, r.id, r.stages.length);
+        return h('div', { class: 'panel' },
+          h('div', { class: 'row' }, h('span', { class: 'amber' }, r.name), h('span', { class: 'k' }, r.subtitle)),
+          h('div', {}, r.blurb),
+          h('div', { class: 'row' },
+            btn('JUGAR', () => c.openHub(r), 'go'),
+            h('span', { class: pr.won ? 'good' : 'k' }, `${r.stages.length} etapas`),
           ),
         );
       }),
@@ -116,6 +137,7 @@ export const arcadeScreens = {
       h('h1', {}, def.name.toUpperCase()),
       h('p', { class: 'amber' }, `Dificultad ${skulls(def.skulls)}`),
       h('p', {}, def.blurb),
+      ...(stageNotes(def).length ? [h('ul', { class: 'tight' }, ...stageNotes(def).map((n) => h('li', {}, n)))] : []),
       h('div', { class: 'panel' },
         kv('Rival', def.rival.name, 'bad'),
         kv('Aros', String(def.gates.length)),

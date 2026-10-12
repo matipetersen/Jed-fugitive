@@ -46,7 +46,7 @@ const k2 = stage({
   cells: [{ x: 900, y: 700, fuel: 35 }, { x: 1900, y: 520, fuel: 35 }],
   start: { body: 'kessel', angle: 90 * d2r },
   rivalStart: { body: 'kessel', angle: 55 * d2r },
-  rival: { skill: 0.88, name: 'Contrabandista Pyke', delay: 8 },
+  rival: { skill: 0.88, name: 'Contrabandista Pyke', delay: 10 },
   finish: { body: 'roca', pad: 0 },
   par: 55,
 });

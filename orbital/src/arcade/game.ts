@@ -53,6 +53,7 @@ export class ArcadeGame {
   playing = false;
   shake = 0;
   pauseRequested = false;
+  boostRequested = false;
   private logSeen = 0;
   private flameAcc = 0;
 
@@ -93,6 +94,14 @@ export class ArcadeGame {
         this.burst(p.x, p.y, e.final ? '#7dff6b' : '#00f0ff', 14, 90);
         this.ring(p.x, p.y, e.final ? '#7dff6b' : '#00f0ff', 20, 140, 0.7);
         this.audio.chime();
+      } else if (e.type === 'cargo' && e.ship === p.id) {
+        this.burst(p.x, p.y, '#ff2bd6', 20, 90);
+        this.ring(p.x, p.y, '#ff2bd6', 10, 120, 0.7);
+        this.toast('Carga a bordo: menos empuje hasta entregarla', 'info', 3);
+      } else if (e.type === 'boost' && e.ship === p.id) {
+        this.burst(p.x, p.y, '#ffffff', 22, 160);
+        this.ring(p.x, p.y, '#ffb000', 8, 220, 0.5);
+        this.shake = Math.max(this.shake, 0.25);
       } else if (e.type === 'cell' && e.ship === p.id) {
         this.burst(p.x, p.y, '#7dff6b', 18, 100);
         this.ring(p.x, p.y, '#7dff6b', 8, 110, 0.6);
@@ -192,8 +201,14 @@ export class ArcadeGame {
         if (!m.useKit()) this.toast('SIN CÁPSULAS O EN ESPERA', 'bad', 1.5);
       }
       if (ui.pressed('aim')) this.autoAim = !this.autoAim;
+      if (ui.pressed('boost')) this.boostRequested = true;
       if (ui.pressed('zoom')) this.input.zoomManual = !this.input.zoomManual;
-      m.update(dtReal, this.controls());
+      const ctl = this.controls();
+      if (this.boostRequested) {
+        ctl.boost = true;
+        this.boostRequested = false;
+      }
+      m.update(dtReal, ctl);
       m.checkBeacon();
       if (m.player.status === 'dead') this.input.throttle = 0;
       this.pullLog();

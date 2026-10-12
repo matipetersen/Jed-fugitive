@@ -2,7 +2,7 @@ import { STAGES } from './stages';
 import { type BodyDef, type RaceDef } from './types';
 import { d2r, gate, near, pad, stage } from './build';
 
-const EARTH = (pads: BodyDef['pads'] = [pad('Cabo Cañaveral', true, 50), pad('Baikonur', false, 50, 55)]): BodyDef => ({
+export const EARTH = (pads: BodyDef['pads'] = [pad('Cabo Cañaveral', true, 50), pad('Baikonur', false, 50, 55)]): BodyDef => ({
   id: 'tierra',
   name: 'Tierra',
   r: 240,
@@ -13,7 +13,7 @@ const EARTH = (pads: BodyDef['pads'] = [pad('Cabo Cañaveral', true, 50), pad('B
   atm: { h: 45, drag: 0.003 },
   pads,
 });
-const startOn = (body: string, deg = 90): { body: string; angle: number } => ({ body, angle: deg * d2r });
+export const startOn = (body: string, deg = 90): { body: string; angle: number } => ({ body, angle: deg * d2r });
 
 // ======================================================================= Polo sur 2023
 
@@ -86,7 +86,7 @@ export const POLO_SUR: RaceDef = {
 
 // ======================================================================= Venera
 
-const VENUS = (x: number, y: number, pads: BodyDef['pads']): BodyDef => ({ id: 'venus', name: 'Venus', r: 215, g: 78, color: '#ffd28a', x, y, atm: { h: 95, drag: 0.009 }, pads });
+export const VENUS = (x: number, y: number, pads: BodyDef['pads']): BodyDef => ({ id: 'venus', name: 'Venus', r: 215, g: 78, color: '#ffd28a', x, y, atm: { h: 95, drag: 0.009 }, pads });
 
 const v1 = stage({
   id: 1,
@@ -155,7 +155,7 @@ export const VENERA: RaceDef = {
 
 // ======================================================================= Halley 1986
 
-const comet = (r: number, phase: number): BodyDef => ({ id: 'halley', name: 'Halley', r, g: 7, color: '#9be8ff', orbit: { parent: 'tierra', a: 2300, phase, omega: -0.045 }, pads: [pad('Núcleo', true, r * 0.9)] });
+export const comet = (r: number, phase: number): BodyDef => ({ id: 'halley', name: 'Halley', r, g: 7, color: '#9be8ff', orbit: { parent: 'tierra', a: 2300, phase, omega: -0.045 }, pads: [pad('Núcleo', true, r * 0.9)] });
 
 const h1 = stage({
   id: 1,
@@ -221,9 +221,9 @@ export const HALLEY: RaceDef = {
 
 // ======================================================================= Voyager
 
-const JUP = (x: number, y: number): BodyDef => ({ id: 'jupiter', name: 'Júpiter', r: 380, g: 150, color: '#ff9a5a', x, y, atm: { h: 70, drag: 0.002 } });
-const SAT = (x: number, y: number): BodyDef => ({ id: 'saturno', name: 'Saturno', r: 330, g: 130, color: '#ffe0a0', x, y, atm: { h: 70, drag: 0.002 } });
-const NEP = (x: number, y: number): BodyDef => ({ id: 'neptuno', name: 'Neptuno', r: 260, g: 115, color: '#4b8bff', x, y, atm: { h: 60, drag: 0.002 } });
+export const JUP = (x: number, y: number): BodyDef => ({ id: 'jupiter', name: 'Júpiter', r: 380, g: 150, color: '#ff9a5a', x, y, atm: { h: 70, drag: 0.002 } });
+export const SAT = (x: number, y: number): BodyDef => ({ id: 'saturno', name: 'Saturno', r: 330, g: 130, color: '#ffe0a0', x, y, atm: { h: 70, drag: 0.002 } });
+export const NEP = (x: number, y: number): BodyDef => ({ id: 'neptuno', name: 'Neptuno', r: 260, g: 115, color: '#4b8bff', x, y, atm: { h: 60, drag: 0.002 } });
 
 const y1 = stage({
   id: 1,
@@ -326,7 +326,7 @@ const m2 = {
   year: 2020,
   blurb: 'El Sol tira de vos y el viento solar te empuja. Llegá a Marte antes que la sonda de los Emiratos.',
   skulls: 4,
-  rival: { ...STAGES[2].rival, name: 'Hope (EAU)', delay: 6 },
+  rival: { ...STAGES[2].rival, name: 'Hope (EAU)', delay: 9 },
 };
 
 const m3 = stage({
@@ -422,9 +422,9 @@ export const REUTILIZABLES: RaceDef = {
 
 // ======================================================================= Boonta Eve (fiction)
 
-const TATOOINE = (pads: BodyDef['pads']): BodyDef => ({ id: 'tatooine', name: 'Tatooine', r: 300, g: 48, color: '#ffc46b', x: 0, y: 0, atm: { h: 55, drag: 0.002 }, pads });
+export const TATOOINE = (pads: BodyDef['pads']): BodyDef => ({ id: 'tatooine', name: 'Tatooine', r: 300, g: 48, color: '#ffc46b', x: 0, y: 0, atm: { h: 55, drag: 0.002 }, pads });
 
-const lap = (r: number, from: number, to: number, n: number): ReturnType<typeof gate>[] => {
+export const lap = (r: number, from: number, to: number, n: number): ReturnType<typeof gate>[] => {
   const out: ReturnType<typeof gate>[] = [];
   for (let i = 0; i < n; i++) out.push(gate(r, from + ((to - from) * i) / (n - 1)));
   return out;

@@ -6,6 +6,7 @@ import { type Ui } from '../ui/ui';
 import { ArcadeGame } from './game';
 import { type Meta, type Upgrades, buyUpgrade, loadMeta, saveMeta } from './meta';
 import { RACES } from './races';
+import { makeProceduralRace } from './procgen';
 import { type RaceDef } from './types';
 import { Mission } from './mission';
 import { drawArcade, drawArcadeHud } from './render';
@@ -80,6 +81,8 @@ export class ArcadeController {
   }
 
   startMission(stage: number, practice: boolean): void {
+    // The random race builds fresh sectors every time a real mission begins.
+    if (this.race.id === 'sinfin' && !practice && stage === 0) this.race = makeProceduralRace('sinfin', Math.floor(Math.random() * 1e9));
     const m = new Mission(this.meta, { stage, practice, race: this.race });
     if (this.game) this.game.setMission(m);
     else this.game = new ArcadeGame(this.meta, this.input, this.ui, this.audio, m);

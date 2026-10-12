@@ -104,13 +104,15 @@ export class Mission {
     const def = this.race.stages[idx];
     this.arena = new Arena(def);
     const stats = shipStats(this.upgrades);
-    this.player = this.arena.addShip({ isPlayer: true, name: 'Tú', color: '#00f0ff', stats, start: def.start });
+    stats.fuelMax = Math.round(stats.fuelMax * (def.tank ?? 1));
+    this.player = this.arena.addShip({ isPlayer: true, name: 'Tú', color: '#00f0ff', stats, start: def.start, orbit: def.startAt });
     this.rival = this.arena.addShip({
       isPlayer: false,
       name: def.rival.name,
       color: '#ff2bd6',
-      stats: { thrust: 150 * def.rival.skill, turnRate: 3.6, fuelMax: 100, hullMax: 100 },
+      stats: { thrust: 150 * def.rival.skill, turnRate: 3.6, fuelMax: 100, hullMax: 100, shield: 0, boost: 0 },
       start: def.rivalStart,
+      orbit: def.startAt ? { ...def.startAt, angle: def.startAt.angle + 9 * (def.startAt.dir ?? 1) } : undefined,
       infiniteFuel: true,
     });
     this.rivalRnd = mulberry32(1000 + idx);
@@ -299,7 +301,15 @@ export class Mission {
     const a = this.arena;
     const bf = p.bonfire;
     const spot = bf ? { body: bf.body, angle: a.bodies[bf.body].def.pads![bf.pad].angle } : { body: a.bodyIndex(this.def.start.body), angle: this.def.start.angle };
-    a.respawn(p, spot, { fuel: p.stats.fuelMax, hull: p.stats.hullMax * 0.7 });
+    if (!bf && this.def.startAt) {
+      // A stage that starts in flight restarts in flight.
+      a.putInOrbit(p, this.def.startAt);
+      p.fuel = p.stats.fuelMax;
+      p.hull = p.stats.hullMax * 0.7;
+      p.deadTimer = 0;
+      p.deathReason = '';
+      p.invuln = 1.5;
+    } else a.respawn(p, spot, { fuel: p.stats.fuelMax, hull: p.stats.hullMax * 0.7 });
     this.kits = Math.max(this.kits, kitCount(this.upgrades) - (bf ? 0 : 1));
     this.phase = 'race';
     this.deadFor = 0;

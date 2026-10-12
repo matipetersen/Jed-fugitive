@@ -92,6 +92,11 @@ const ENDINGS: Record<string, { winTitle: string; win: string; lose: string }> =
   },
 };
 
+ENDINGS.granpremio = {
+  winTitle: 'SUBISTE AL PODIO',
+  win: 'Saliste de la grilla entre once naves, sobreviviste a las dos vueltas y aterrizaste entre los tres primeros. Hoy el podio tiene tu nombre.',
+  lose: 'Entre los empujones y las rocas el podio se llenó sin vos. Mañana, otra grilla y otro planeta.',
+};
 ENDINGS.diaria = {
   winTitle: 'SECTOR DIARIO LIMPIO',
   win: 'Completaste los seis sectores de hoy. Mañana habrá otros, y más difíciles de adivinar.',

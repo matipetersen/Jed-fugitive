@@ -218,3 +218,67 @@ export function makeProceduralRace(kind: 'diaria' | 'sinfin', seed: number): Rac
         stages,
       };
 }
+
+/**
+ * The daily Grand Prix: 9 to 12 ships start from pads all round one planet and race two laps through
+ * the same gates before landing on a wide finish pad. The first three to land make the podium.
+ */
+export function makeGrandPrix(seed: number): RaceDef {
+  const r = mulberry32(seed * 6151 + 99);
+  const n = 9 + Math.floor(r() * 4);
+  const aName = pick(r, NAMES);
+  const R0 = 300;
+  const a0 = Math.round(between(r, 0, 360));
+  const step = 360 / n;
+  const slotAngle = (k: number): number => (a0 + step * k) % 360;
+  const metaAngle = (a0 + step * 0.5) % 360;
+  const pads = Array.from({ length: n }, (_, k) => pad(`Grilla ${k + 1}`, true, 22, slotAngle(k)));
+  pads.push(pad('Meta', true, 55, metaAngle));
+  const playerSlot = Math.floor(r() * n);
+  const aiSlots = Array.from({ length: n }, (_, k) => k).filter((k) => k !== playerSlot).map((k) => slotAngle(k));
+  const dir = r() < 0.5 ? 1 : -1;
+  const theta0 = Math.round(between(r, 0, 360));
+  const perLap = 8;
+  const rr = R0 + 250;
+  const gates: GateDef[] = [];
+  for (let lap = 0; lap < 2; lap++) {
+    for (let i = 0; i < perLap; i++) {
+      const ang = (theta0 + dir * (360 / perLap) * i) * d2r;
+      const rad = rr + between(r, -40, 70);
+      gates.push({ x: round(Math.cos(ang) * rad), y: round(Math.sin(ang) * rad) });
+    }
+  }
+  const fa = metaAngle * d2r;
+  gates.push({ x: round(Math.cos(fa) * (R0 + 110)), y: round(Math.sin(fa) * (R0 + 110)), final: true });
+  const moon = (id: string, a: number, om: number): BodyDef => ({ id, name: pick(r, NAMES), r: 58, g: 38, color: pick(r, COLORS), orbit: { parent: 'a', a, phase: between(r, 0, TAU), omega: om } });
+  const bodies: BodyDef[] = [
+    { id: 'a', name: aName, r: R0, g: 80, color: pick(r, COLORS), x: 0, y: 0, atm: { h: 45, drag: 0.003 }, pads },
+    moon('m1', 1150, Math.round(between(r, 0.02, 0.035) * 1000) / 1000),
+    moon('m2', 1550, -Math.round(between(r, 0.015, 0.03) * 1000) / 1000),
+  ];
+  const st = stage({
+    id: 1,
+    name: `Gran Premio de ${aName}`,
+    blurb: `${n} naves salen de todos lados del planeta ${aName}. Dos vueltas por los mismos aros y a aterrizar en la Meta: suben al podio los tres primeros.`,
+    skulls: 4,
+    bodies,
+    gates,
+    asteroids: [{ count: 14, seed: seed + 5, around: 'a', rIn: 760, rOut: 1050, size: [4, 7], speed: 0.9 }],
+    cells: [0, 1, 2].map((k) => ({ x: round(Math.cos((theta0 + dir * 120 * k + 30) * d2r) * (rr + 40)), y: round(Math.sin((theta0 + dir * 120 * k + 30) * d2r) * (rr + 40)), fuel: 35 })),
+    start: { body: 'a', angle: slotAngle(playerSlot) * d2r },
+    rivalStart: { body: 'a', angle: slotAngle((playerSlot + 1) % n) * d2r },
+    field: { body: 'a', slots: aiSlots, podium: 3 },
+    tank: 0.9,
+    rival: { skill: 0.88, name: 'Piloto', delay: 1.4, ai: { noise: 0.2 } },
+    finish: { body: 'a', pad: n },
+    par: 90,
+    kind: 'Gran Premio',
+  });
+  return {
+    id: 'granpremio',
+    name: 'GRAN PREMIO DIARIO',
+    subtitle: `Semilla ${dailyLabel(new Date(seed * 86400000))} · ${n} naves`,
+    blurb: 'Una grilla de 9 a 12 naves, salida desde todos los lados del planeta y dos vueltas caóticas. Hay que llegar al podio.',
+    stages: [st],
+  };
+}

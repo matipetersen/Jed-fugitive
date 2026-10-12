@@ -54,6 +54,8 @@ export class ArcadeGame {
   shake = 0;
   pauseRequested = false;
   boostRequested = false;
+  /** Racing-line guides on or off. */
+  guides = true;
   private logSeen = 0;
   private flameAcc = 0;
 
@@ -202,6 +204,7 @@ export class ArcadeGame {
       }
       if (ui.pressed('aim')) this.autoAim = !this.autoAim;
       if (ui.pressed('boost')) this.boostRequested = true;
+      if (ui.pressed('guide')) this.guides = !this.guides;
       if (ui.pressed('zoom')) this.input.zoomManual = !this.input.zoomManual;
       const ctl = this.controls();
       if (this.boostRequested) {

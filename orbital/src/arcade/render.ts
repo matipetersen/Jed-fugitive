@@ -8,6 +8,7 @@ import { type ArcadeGame } from './game';
 import { type Ship } from './types';
 import { coastPath } from './predict';
 import { LAND_SPEED, SHIP_R } from './arena';
+import { drawGuides } from './guides';
 
 const TAU = Math.PI * 2;
 
@@ -33,6 +34,7 @@ export function drawArcade(ctx: CanvasRenderingContext2D, g: ArcadeGame, width: 
   drawBodies(ctx, view, g);
   drawFields(ctx, view, g);
   drawGates(ctx, view, g);
+  drawGuides(ctx, view, g);
   drawCells(ctx, view, g);
   drawAsteroids(ctx, view, g);
   drawBeacon(ctx, view, g);
@@ -704,12 +706,18 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   text(ctx, ringTxt, cx, TOP + 18, AMBER, 12, true);
   const total = a.gates.length;
   const done = (sh: Ship): string => (a.gatesDone(sh) ? 'ATERRIZAR' : `${sh.nextGate}/${total}`);
-  text(ctx, `AROS ${done(p)}  ·  RIVAL ${done(m.rival)}  ·  ${Math.max(0, a.clock).toFixed(0)} s`, cx, TOP + 34, COLORS.hud, 12, true);
+  const fieldDef = a.def.field;
+  const rank = fieldDef ? m.rank() : null;
+  text(ctx, fieldDef && rank ? `AROS ${done(p)}  ·  POSICIÓN ${rank.pos}/${rank.total}  ·  ${Math.max(0, a.clock).toFixed(0)} s` : `AROS ${done(p)}  ·  RIVAL ${done(m.rival)}  ·  ${Math.max(0, a.clock).toFixed(0)} s`, cx, TOP + 34, COLORS.hud, 12, true);
   const lead = m.gateLead();
   const padName = a.bodies[a.finish.body].def.pads?.[a.finish.pad]?.name ?? 'la meta';
   let leadTxt = 'RIVAL AL PAR';
   let leadColor = COLORS.hud;
-  if (a.clock < 0) {
+  if (fieldDef && rank) {
+    const inPodium = rank.pos <= fieldDef.podium;
+    leadTxt = a.finishOrder.length ? `${a.finishOrder.length}/${fieldDef.podium} EN EL PODIO` : `PODIO: LOS ${fieldDef.podium} PRIMEROS EN ATERRIZAR`;
+    leadColor = inPodium ? GOOD : AMBER;
+  } else if (a.clock < 0) {
     leadTxt = `${m.rival.name}`;
   } else if (a.gatesDone(p) || a.gates[p.nextGate]?.land) {
     const wp = a.gates[p.nextGate]?.land;
@@ -740,6 +748,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   btn(ctx, ui, 'kit', bx + bw + 4, TOP + 8, bw, bh, `CÁP ${m.kits}`, { dim: m.kits <= 0 || m.kitCooldown > 0, color: GOOD });
   btn(ctx, ui, 'aim', bx + 2 * (bw + 4), TOP + 8, bw, bh, 'APUNTA', { on: g.autoAim });
   btn(ctx, ui, 'zoom', bx + 2 * (bw + 4), TOP + 8 + bh + 4, bw, bh, 'ZOOM', { on: !g.input.zoomManual });
+  btn(ctx, ui, 'guide', 10, height - 48, 64, 34, 'GUÍA', { on: g.guides });
   if (p.stats.boost > 0) {
     btn(ctx, ui, 'boost', bx, TOP + 8 + bh + 4, 2 * bw + 4, bh, 'IMPULSO', { dim: p.boostCd > 0 && p.boostT <= 0, on: p.boostT > 0, color: AMBER });
   }
@@ -750,7 +759,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     a.objective(p, gp);
     const dist = Math.hypot(gp.x - p.x, gp.y - p.y);
     const done = a.gatesDone(p);
-    const warnShown = a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared';
+    const warnShown = !a.def.field && a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared';
     const gate = a.gates[p.nextGate];
     let name = `ARO ${p.nextGate + 1}`;
     if (done) name = a.bodies[a.finish.body].def.name;
@@ -775,7 +784,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
       ctx.setLineDash([]);
     }
   }
-  if (m.rival.status !== 'dead') edgeArrow(ctx, v, m.rival.x, m.rival.y, '#ff2bd6', m.rival.name);
+  if (!a.def.field && m.rival.status !== 'dead') edgeArrow(ctx, v, m.rival.x, m.rival.y, '#ff2bd6', m.rival.name);
   const bp = m.beaconPos();
   if (bp) edgeArrow(ctx, v, bp.x, bp.y, AMBER, 'BALIZA');
 
@@ -786,7 +795,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
     y += 16;
   }
 
-  if (a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared') {
+  if (!a.def.field && a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared') {
     const warn = total - m.rival.nextGate;
     text(ctx, warn <= 0 ? `¡${m.rival.name} ESTÁ ATERRIZANDO!` : `¡${m.rival.name} ESTÁ A ${warn} ${warn === 1 ? 'ARO' : 'AROS'} DE GANAR!`, cx, TOP + 66, BAD, 12, true);
   }

@@ -108,3 +108,10 @@ pueda volarlas.
 `src/arcade/assist.ts`: cinco misiones famosas (Mariner 10, Galileo, Cassini, MESSENGER, New Horizons) con destinos
 a miles de unidades, planetas que se mueven y combustible justo. `flyby()` arma los aros alrededor de un planeta
 con el planeta del lado interno de la curva. El HUD muestra destino, distancia, ETA y la velocidad ganada en cada pasada.
+
+### Guías y Gran Premio
+
+`src/arcade/guides.ts` dibuja la línea ideal, el arco de cada sobrevuelo con su ápice, el movimiento del planeta,
+la velocidad ideal (entre la circular y la de escape) y una escalera de velocidad máxima al aterrizar (botón GUÍA).
+`makeGrandPrix` (en `procgen.ts`) genera cada día una grilla de 9 a 12 naves alrededor de un planeta, dos vueltas
+y aterrizaje en la Meta; el podio son los tres primeros (`StageDef.field`, `Mission.rivals`, `Mission.rank()`).

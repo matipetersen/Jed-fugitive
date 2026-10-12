@@ -66,6 +66,8 @@ export class Arena {
   clock = -3;
   go = false;
   winner = -1;
+  /** Ship ids in the order they finished. */
+  finishOrder: number[] = [];
   readonly bodies: RBody[] = [];
   readonly gates: RGate[] = [];
   readonly cells: RCell[] = [];
@@ -502,6 +504,7 @@ export class Arena {
           s.finished = true;
           s.finishTime = this.clock;
           if (this.winner < 0) this.winner = s.id;
+          this.finishOrder.push(s.id);
         }
       } else this.die(s, speed > LAND_SPEED ? 'impacto' : 'mal aterrizaje');
       return;

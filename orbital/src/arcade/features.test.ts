@@ -3,7 +3,8 @@ import { mulberry32 } from '../sim/rng';
 import { RivalDriver } from './ai';
 import { Arena, BASE_STATS, STEP } from './arena';
 import { UPGRADE_SLOTS, buyUpgrade, newMeta, shipStats, usedSlots } from './meta';
-import { generateStage, makeProceduralRace } from './procgen';
+import { generateStage, makeGrandPrix, makeProceduralRace } from './procgen';
+import { Mission } from './mission';
 import { RACES } from './races';
 import { type StageDef } from './types';
 
@@ -161,4 +162,40 @@ describe('random races', () => {
     }
     expect(fails / total).toBeLessThan(0.1);
   }, 120000);
+});
+
+describe('grand prix', () => {
+  it('has 9 to 12 ships on distinct pads all round the planet, reproducible from the seed', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const race = makeGrandPrix(seed);
+      const st = race.stages[0];
+      const total = st.field!.slots.length + 1;
+      expect(total).toBeGreaterThanOrEqual(9);
+      expect(total).toBeLessThanOrEqual(12);
+      const angles = new Set([...st.field!.slots, (st.start.angle * 180) / Math.PI].map((a) => Math.round(((a % 360) + 360) % 360)));
+      expect(angles.size).toBe(total);
+      expect(JSON.stringify(makeGrandPrix(seed))).toBe(JSON.stringify(race));
+    }
+  });
+
+  it('the podium decides the stage: top three win, a full podium without the player loses', () => {
+    const race = makeGrandPrix(7);
+    const win = new Mission(newMeta(), { stage: 0, race });
+    win.update(0.1, { throttle: 0, turn: 0 });
+    for (let i = 0; i < 40 && win.phase === 'countdown'; i++) win.update(0.1, { throttle: 0, turn: 0 });
+    win.arena.finishOrder.push(win.rivals[0].id);
+    win.player.finished = true;
+    win.player.finishTime = 50;
+    win.arena.finishOrder.push(win.player.id);
+    win.update(0.1, { throttle: 0, turn: 0 });
+    expect(win.result?.won).toBe(true);
+    expect(win.result?.place).toBe(2);
+
+    const lose = new Mission(newMeta(), { stage: 0, race });
+    for (let i = 0; i < 40 && lose.phase === 'countdown'; i++) lose.update(0.1, { throttle: 0, turn: 0 });
+    for (let i = 0; i < 3; i++) lose.arena.finishOrder.push(lose.rivals[i].id);
+    lose.update(0.1, { throttle: 0, turn: 0 });
+    expect(lose.result?.won).toBe(false);
+    expect(lose.result?.place).toBeGreaterThan(0);
+  });
 });

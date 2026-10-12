@@ -3,7 +3,7 @@ import { type MissionRecord, UPGRADES, kitCount } from '../arcade/meta';
 import { UPGRADE_SLOTS, raceProgress, usedSlots } from '../arcade/meta';
 import { stageNotes } from '../arcade/notes';
 import { RACES, endingOf } from '../arcade/races';
-import { dailySeed, makeProceduralRace } from '../arcade/procgen';
+import { dailySeed, makeGrandPrix, makeProceduralRace } from '../arcade/procgen';
 import { h } from './dom';
 
 function btn(label: string, onclick: () => void, cls = '', disabled = false): HTMLButtonElement {
@@ -22,6 +22,8 @@ const ARCADE_HELP: [string, string][] = [
   ['Vidas', 'Tenés 3 por etapa. Si te quedás sin vidas, o el rival aterriza primero, perdés la etapa (cobrás menos) pero la misión sigue: se juegan las 5 etapas.'],
   ['Datos', 'Los ganás pasando aros, con hondas gravitatorias y adelantando al rival. Si morís perdés los que llevabas, pero quedan en una baliza: volvé a tocarla para recuperarlos. Cada nave que explota además deja telemetría (datos extra). Con los datos comprás mejoras entre etapas; al terminar la misión la tecnología se reinicia.'],
   ['Honda gravitatoria', 'Pasar cerca de un planeta que se mueve te dobla la trayectoria sin gastar combustible y puede darte velocidad si pasás por detrás de él. Los aros alrededor de los planetas marcan la curva; el HUD muestra la distancia, el tiempo estimado al destino y cuánta velocidad ganaste en cada pasada.'],
+  ['Guías de carrera', 'Una línea punteada marca la trayectoria ideal (verde: recta, ámbar: giro cerrado). Alrededor de los planetas ves el arco, el ápice, hacia dónde se mueve el planeta (pasar por detrás da velocidad) y la velocidad ideal contra la tuya. Al aterrizar, una escalera muestra la velocidad máxima por altura. El botón GUÍA las apaga.'],
+  ['Gran Premio', 'Cada día hay una carrera con 9 a 12 naves que salen de todos lados del planeta. Dos vueltas por los mismos aros y a aterrizar en la Meta: ganás con un lugar en el podio (los 3 primeros). Se chocan entre ellas.'],
   ['Equipo', 'Entre etapas comprás mejoras con datos, pero la nave solo lleva 3 tipos distintos a la vez: elegí según los peligros. El Escudo térmico aguanta calor y radiación; el Postquemador (botón IMPULSO) da un empujón fuerte con recarga.'],
   ['Etapas distintas', 'Algunas empiezan en vuelo, otras piden aterrizar a mitad de camino (escala: recarga y guarda), llevar carga (más pesada) o tienen el tanque reducido. La tarjeta de cada etapa lo avisa.'],
   ['Cápsulas', 'Tocá CÁP para recuperar combustible y casco. Se recargan en cada estación.'],
@@ -70,7 +72,7 @@ export const arcadeScreens = {
         );
       }),
       h('h2', {}, 'GENERADAS'),
-      ...[makeProceduralRace('diaria', dailySeed()), makeProceduralRace('sinfin', 1)].map((r) => {
+      ...[makeGrandPrix(dailySeed()), makeProceduralRace('diaria', dailySeed()), makeProceduralRace('sinfin', 1)].map((r) => {
         const pr = raceProgress(c.meta, r.id, r.stages.length);
         return h('div', { class: 'panel' },
           h('div', { class: 'row' }, h('span', { class: 'amber' }, r.name), h('span', { class: 'k' }, r.subtitle)),
@@ -140,7 +142,7 @@ export const arcadeScreens = {
       h('p', {}, def.blurb),
       ...(stageNotes(def).length ? [h('ul', { class: 'tight' }, ...stageNotes(def).map((n) => h('li', {}, n)))] : []),
       h('div', { class: 'panel' },
-        kv('Rival', def.rival.name, 'bad'),
+        def.field ? kv('Naves en la grilla', String(def.field.slots.length + 1), 'bad') : kv('Rival', def.rival.name, 'bad'),
         kv('Aros', String(def.gates.length)),
         kv('Vidas', m.practice ? 'sin límite' : `${m.lives}`),
         kv('Cápsulas', String(m.kits)),
@@ -180,10 +182,10 @@ export const arcadeScreens = {
     const next = !last && !m.practice && !final ? m.race.stages[m.stageIdx + 1] : null;
     return h('div', { class: 'screen' },
       h('h1', { class: r.won ? 'good' : 'bad' }, title),
-      h('p', { class: 'sub' }, r.won ? `Llegaste primero a ${m.def.name}.` : r.reason),
+      h('p', { class: 'sub' }, r.place ? (r.won ? `Podio: llegaste ${r.place}º de ${r.field}.` : r.reason) : r.won ? `Llegaste primero a ${m.def.name}.` : r.reason),
       h('div', { class: 'panel' },
         r.won ? kv('Tu tiempo', fmtT(r.time), 'good') : null,
-        kv(m.rival.name, m.rival.finished ? fmtT(r.rivalTime) : 'no llegó', 'bad'),
+        r.place ? kv('Posición', `${r.place} de ${r.field}`, r.won ? 'good' : 'bad') : kv(m.rival.name, m.rival.finished ? fmtT(r.rivalTime) : 'no llegó', 'bad'),
         !m.practice ? kv(r.won ? 'Recompensa' : 'Recompensa reducida', `+${r.reward} datos`, 'amber') : null,
         !m.practice ? kv('Naves perdidas', `${m.deaths}`) : null,
         !m.practice ? kv('Datos de la misión', `${m.earned}`) : null,

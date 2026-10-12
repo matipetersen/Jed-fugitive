@@ -95,6 +95,8 @@ export interface StageDef {
   rivalStart: { body: string; angle: number };
   /** Start already flying around a body instead of from a pad (the rival gets the same, a little behind). */
   startAt?: { body: string; angle: number; alt: number; speed?: number; dir?: 1 | -1; inward?: number };
+  /** A mass start: many AI ships around one body. The stage is won with a place on the podium. */
+  field?: { body: string; slots: number[]; podium: number };
   /** Fraction of the usual tank for the player in this stage. */
   tank?: number;
   /** Short label for the kind of stage, shown on the stage card. */

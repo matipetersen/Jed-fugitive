@@ -31,6 +31,8 @@
   }
 
   const SFX = {
+    splat: () => { noise(0.22, 'lowpass', 1100, 140, 0.55); tone('sine', 130, 55, 0.2, 0.35); },
+    heart: () => { tone('sine', 62, 38, 0.16, 0.8); tone('sine', 58, 36, 0.2, 0.7, 0.2); },
     whoosh: () => noise(0.3, 'bandpass', 400, 1800, 0.12),
     swing: () => noise(0.16, 'bandpass', 900, 3200, 0.3),
     hit: () => { noise(0.14, 'lowpass', 2400, 200, 0.7); tone('sine', 150, 50, 0.18, 0.7); },

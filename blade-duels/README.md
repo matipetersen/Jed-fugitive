@@ -1,6 +1,6 @@
 # Blade Duels
 
-Torneo de duelos de armas blancas en el navegador (HTML5 canvas, sin dependencias ni build).
+Torneo de duelos de armas blancas en **primera persona** en el navegador (HTML5 canvas, sin dependencias ni build).
 8 luchadores, 3 combates (cuartos, semifinal, final), cada combate al mejor de 3 rondas.
 
 ## Jugar
@@ -30,6 +30,12 @@ racha 0 = todo libre; 1 = no repetir dirección y menos tipos; 2 = direcciones c
 multiplicador de daño (Tijera, Aguijón, Embestida, Engaño, Marea, Guillotina, Eclipse).
 Todo gasta **aguante**; sin aguante solo se puede descansar.
 
+**Sin barra de vida.** El daño se ve en los cuerpos: cada golpe abre una herida persistente en el maniquí
+(corte, agujero o tajo grande según el ataque) que chorrea y gotea hasta el final de la ronda, deja charcos y salpica la
+cámara; con el daño se agrietan, se encorvan y pierden la guardia. Tu propio daño se ve en tu visión: sangre en la lente,
+cortes, viñeta roja con latidos y temblor en la mano. El estado también se resume en palabras
+(Ileso, Rasguñado, Herido, Malherido, Al borde) en la pantalla y en el panel.
+
 Teclas: `Q W E R T` tipo de ataque, `1 2 3` dirección, `Z X C` bloqueo, `Enter` golpear.
 
 ## Estructura
@@ -38,7 +44,7 @@ Teclas: `Q W E R T` tipo de ataque, `1 2 3` dirección, `Z X C` bloqueo, `Enter`
 |---|---|
 | `core.js` | Reglas puras (sin DOM): árbol de combos, `step()` que devuelve eventos |
 | `ai.js` | Bot: modela tus hábitos y simula candidatas con el mismo `step()`. No ve tu jugada |
-| `render.js` | Rig vectorial procedural, skins **Neón** y **Primal**, efectos (hitstop, shake, impact frames) |
+| `render.js` | Cámara en primera persona, maniquí procedural con heridas persistentes, fluidos y salpicaduras, skins **Neón** y **Primal**, hitstop y shake |
 | `audio.js` | Efectos sintetizados con WebAudio |
 | `main.js`, `index.html`, `style.css` | Flujo del torneo e interfaz |
 | `tests/sim.js` | Tests de reglas y simulación de balance bot vs bot |

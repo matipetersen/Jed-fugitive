@@ -107,3 +107,12 @@ body.theme-primal .cta.alt { background: #3a2418; }
   .topbar h1 { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { #go:not(:disabled) { animation: none; } }
+
+#vitals { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 12px; flex-wrap: wrap; }
+.vt { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.vt b { letter-spacing: .06em; text-transform: uppercase; }
+.vt small { color: var(--dim); font-family: system-ui, sans-serif; font-size: 11px; font-variant-numeric: tabular-nums; }
+.vt .cond { font-family: system-ui, sans-serif; font-weight: 700; font-size: 12px; }
+.sb { width: 70px; height: 8px; border: 2px solid var(--line); border-radius: 4px; overflow: hidden; background: #0d0720; flex: none; }
+.sb i { display: block; height: 100%; width: 100%; background: var(--ok); }
+@media (max-width: 640px) { .sb { width: 48px; } }

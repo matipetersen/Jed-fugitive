@@ -51,6 +51,17 @@
     const b = $('#btn-theme'); if (b) b.textContent = t === 'neon' ? 'Estilo: Neón' : 'Estilo: Primal';
   }
 
+  // estado del cuerpo y aguante (sin barras de vida: el daño se ve en el maniquí)
+  function vitals(me, foe) {
+    [['a', me], ['b', foe]].forEach(([k, f]) => {
+      const c = BD.condition(f.hp / f.maxHp), el = $('#vc-' + k);
+      el.textContent = c.text; el.style.color = c.col;
+      $('#vs-' + k).style.width = Math.round(100 * f.st / f.maxSt) + '%';
+      $('#vt-' + k).textContent = f.st + '/' + f.maxSt;
+    });
+    $('#vn-b').textContent = foe.name;
+  }
+
   // ---------- panel de elección ----------
   const panel = {
     sel: { type: null, zone: null, block: null }, me: null, foe: null, habit: null, resolve: null,
@@ -136,6 +147,7 @@
     },
     choose(me, foe, habit) {
       this.me = me; this.foe = foe; this.habit = habit; this.sel = { type: null, zone: null, block: null };
+      vitals(me, foe);
       $('#panel').classList.remove('locked');
       this.refresh();
       return new Promise((res) => { this.resolve = res; });

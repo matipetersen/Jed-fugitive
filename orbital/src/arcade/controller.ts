@@ -76,6 +76,12 @@ export class ArcadeController {
     }
   }
 
+  cycleRival(): void {
+    this.meta.rivalLevel = ((this.meta.rivalLevel ?? 1) + 1) % 3;
+    saveMeta(this.meta);
+    this.overlay.show(this.screen === 'hub' ? arcadeScreens.hub(this) : arcadeScreens.races(this), true);
+  }
+
   openHelp(back?: () => void): void {
     this.overlay.show(arcadeScreens.help(back ?? (() => this.openHub())));
   }

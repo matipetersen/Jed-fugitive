@@ -222,3 +222,15 @@ describe('grand prix', () => {
     expect(lose.result?.place).toBeGreaterThan(0);
   });
 });
+
+describe('same start', () => {
+  it('the rival leaves the pad at the same moment as the player, on any stage', () => {
+    for (const [raceId, name] of [['guerra', 'Sputnik'], ['kessel', 'Los Cúmulos'], ['polosur', 'Doble alunizaje']] as const) {
+      const m = new Mission(newMeta(), { stage: RACES.find((r) => r.id === raceId)!.stages.findIndex((s) => s.name === name), race: RACES.find((r) => r.id === raceId)! });
+      for (let i = 0; i < 60 && m.phase === 'countdown'; i++) m.update(0.1, { throttle: 0, turn: 0 });
+      expect(m.phase).toBe('race');
+      for (let i = 0; i < 12; i++) m.update(0.1, { throttle: 0, turn: 0 });
+      expect(m.rival.status === 'flying' || m.rival.throttle > 0, `${raceId} ${name}`).toBe(true);
+    }
+  });
+});

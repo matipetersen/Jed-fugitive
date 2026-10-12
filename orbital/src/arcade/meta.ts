@@ -38,6 +38,8 @@ export interface Meta {
   data: number;
   upgrades: Upgrades;
   races: Record<string, RaceProgress>;
+  /** Rival strength: 0 easy, 1 normal, 2 hard. */
+  rivalLevel: number;
   attempts: number;
   deaths: number;
   records: MissionRecord[];
@@ -84,6 +86,7 @@ export function newMeta(): Meta {
     data: 0,
     upgrades: zeroUpgrades(),
     races: {},
+    rivalLevel: 1,
     attempts: 0,
     deaths: 0,
     records: [],

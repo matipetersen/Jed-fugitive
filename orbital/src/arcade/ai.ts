@@ -31,6 +31,8 @@ export interface AiOptions {
   interval: number;
   /** Random heading error in radians (a less sharp pilot). */
   noise: number;
+  /** Fraction of the usual cruise speed this pilot is willing to carry (1 = full). */
+  pace?: number;
 }
 
 /** Price of burning fuel for pilots with a finite tank: base and extra as the tank empties. */
@@ -182,10 +184,11 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
       // Speed towards the gate is good, but only as much as can be used: no point arriving faster than the gate is far.
       const lastGate = (!arena.def.sprint && ship.nextGate === ship.route.length - 1) || !!ship.route[ship.nextGate].land;
       const cap = lastGate ? 40 + startD / 6 : 80 + startD / 1.1;
-      let J = endD * 0.5 + minD - 0.35 * clamp(vToward, -50, Math.min(260, cap)) * opts.horizon + danger;
+      const pace = opts.pace ?? 1;
+      let J = endD * 0.5 + minD - 0.35 * clamp(vToward, -50, Math.min(260, cap) * pace) * opts.horizon + danger;
       // Beyond the speed a pilot can steer, going faster only means missing the next gate.
       const sp = Math.hypot(vx, vy);
-      if (sp > 230) J += (sp - 230) * 3;
+      if (sp > 230 * pace) J += (sp - 230 * pace) * 3;
       if (minD < gate.r * 0.8) J -= 400;
       if (!ship.infiniteFuel) {
         // Fuel is limited: burning has a price that rises as the tank empties.
@@ -209,7 +212,7 @@ export class RivalDriver {
   constructor(
     private readonly rnd: () => number,
     private readonly opts: AiOptions = RIVAL_AI,
-    /** Seconds after GO before the rival starts moving. */
+    /** Seconds after GO before the rival starts moving (the game itself always uses 0: everyone leaves together). */
     private readonly delay = 0,
   ) {}
 

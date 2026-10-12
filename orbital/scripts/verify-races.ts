@@ -5,7 +5,7 @@ import { RivalDriver } from '../src/arcade/ai';
 import { Arena, BASE_STATS, STEP } from '../src/arcade/arena';
 import { BOT_PROFILES, PlayerBot } from '../src/arcade/bot';
 import { newMeta } from '../src/arcade/meta';
-import { Mission } from '../src/arcade/mission';
+import { Mission, rivalPace } from '../src/arcade/mission';
 import { RACES } from '../src/arcade/races';
 
 const only = process.env.RACE;
@@ -17,8 +17,8 @@ for (const race of RACES) {
   console.log(`== ${race.name}`);
   race.stages.forEach((def, i) => {
     const arena = new Arena(def);
-    const ship = arena.addShip({ isPlayer: false, name: 'r', color: '#f0f', stats: { ...BASE_STATS, thrust: BASE_STATS.thrust * def.rival.skill }, start: def.rivalStart, orbit: def.startAt ? { ...def.startAt, angle: def.startAt.angle + 9 * (def.startAt.dir ?? 1) } : undefined, infiniteFuel: true });
-    const d = new RivalDriver(mulberry32(7 + i), def.rival.ai);
+    const ship = arena.addShip({ isPlayer: false, name: 'r', color: '#f0f', stats: { ...BASE_STATS, thrust: BASE_STATS.thrust * def.rival.skill * (0.55 + 0.45 * rivalPace(def)) }, start: def.rivalStart, orbit: def.startAt ? { ...def.startAt, angle: def.startAt.angle + 9 * (def.startAt.dir ?? 1) } : undefined, infiniteFuel: true });
+    const d = new RivalDriver(mulberry32(7 + i), { ...(def.rival.ai ?? { horizon: 1.2, dt: 0.05, interval: 0.2, noise: 0.2 }), pace: rivalPace(def) });
     let deaths = 0;
     while (arena.t < 260 && !ship.finished) {
       arena.step([d.control(arena, ship)], STEP);

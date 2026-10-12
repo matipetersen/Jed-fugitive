@@ -27,7 +27,7 @@ const ARCADE_HELP: [string, string][] = [
   ['Equipo', 'Entre etapas comprás mejoras con datos, pero la nave solo lleva 3 tipos distintos a la vez: elegí según los peligros. El Escudo térmico aguanta calor y radiación; el Postquemador (botón IMPULSO) da un empujón fuerte con recarga.'],
   ['Etapas distintas', 'Algunas empiezan en vuelo, otras piden aterrizar a mitad de camino (escala: recarga y guarda), llevar carga (más pesada) o tienen el tanque reducido. La tarjeta de cada etapa lo avisa.'],
   ['Cápsulas', 'Tocá CÁP para recuperar combustible y casco. Se recargan en cada estación.'],
-  ['Rival', 'Corre a la vez que vos y se pueden chocar. Un golpe fuerte lo frena a él también.'],
+  ['Rival', 'Sale en el mismo instante que vos (nadie espera en la largada), corre a la vez y se pueden chocar. Su fuerza se cambia en el centro de misión: RIVAL FÁCIL, NORMAL o DIFÍCIL. Un golpe fuerte lo frena a él también.'],
   ['Práctica', 'Las etapas que ya alcanzaste se pueden practicar sin vidas ni recompensas, con la nave básica.'],
 ];
 
@@ -102,6 +102,7 @@ export const arcadeScreens = {
       h('div', { class: 'row' },
         btn('INICIAR MISIÓN', () => c.startMission(0, false), 'go'),
         btn('OTRAS CARRERAS', () => c.openRaces()),
+        btn(`RIVAL: ${['FÁCIL', 'NORMAL', 'DIFÍCIL'][m.rivalLevel ?? 1]}`, () => c.cycleRival()),
       ),
       h('p', { class: 'sub' }, pr.won
         ? 'Completaste esta carrera. Probá mejorar tus tiempos.'

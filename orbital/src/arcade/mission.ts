@@ -36,6 +36,14 @@ const DATA_SLING = 15;
 const DATA_LAND = 25;
 const DATA_OVERTAKE = 20;
 const DATA_WRECK = 14;
+/**
+ * Everyone leaves at the same moment; what used to be the rival's head-start delay is now a slightly
+ * lower cruise pace, so a stage is about as hard as before without anybody waiting at the start.
+ */
+export function rivalPace(def: StageDef, level = 1): number {
+  return Math.max(0.45, Math.min(1.05, Math.min(1, 1 - def.rival.delay / (def.par * 0.9 + 5)) * 0.9 * [0.88, 1, 1.1][level]!));
+}
+
 const FIELD_COLORS = ['#ff2bd6', '#ffb000', '#7dff6b', '#b46bff', '#ff6a3c', '#2f9bff', '#ffe14a', '#ff4d8d', '#4dffd2', '#c8d4ff', '#ff9a5a'];
 
 /** A run through the stages: lives, carried data, beacon, kits and the rival. */
@@ -133,8 +141,8 @@ export class Mission {
           start: { body: f.body, angle: (ang * Math.PI) / 180 },
           infiniteFuel: true,
         });
-        const ai = { ...(def.rival.ai ?? RIVAL_AI), noise: (def.rival.ai?.noise ?? 0.2) * (0.6 + 0.9 * rnd()), interval: 0.25 };
-        const drv = new RivalDriver(mulberry32(7000 + idx * 31 + k), ai, def.rival.delay * rnd());
+        const ai = { ...(def.rival.ai ?? RIVAL_AI), noise: (def.rival.ai?.noise ?? 0.2) * (0.6 + 0.9 * rnd()), interval: 0.25, pace: 0.86 + 0.14 * rnd() };
+        const drv = new RivalDriver(mulberry32(7000 + idx * 31 + k), ai, 0);
         drv.ai.nextAt = rnd() * ai.interval;
         this.rivals.push(ship);
         this.drivers.push(drv);
@@ -148,13 +156,13 @@ export class Mission {
         isPlayer: false,
         name: def.rival.name,
         color: '#ff2bd6',
-        stats: { thrust: 150 * def.rival.skill, turnRate: 3.6, fuelMax: 100, hullMax: 100, shield: 0, boost: 0 },
+        stats: { thrust: 150 * def.rival.skill * (0.55 + 0.45 * rivalPace(def, this.meta.rivalLevel ?? 1)), turnRate: 3.6, fuelMax: 100, hullMax: 100, shield: 0, boost: 0 },
         start: def.rivalStart,
         orbit: def.startAt ? { ...def.startAt, angle: def.startAt.angle + 9 * (def.startAt.dir ?? 1) } : undefined,
         infiniteFuel: true,
       });
       this.rivalRnd = mulberry32(1000 + idx);
-      this.driver = new RivalDriver(this.rivalRnd, def.rival.ai ?? RIVAL_AI, def.rival.delay);
+      this.driver = new RivalDriver(this.rivalRnd, { ...(def.rival.ai ?? RIVAL_AI), pace: rivalPace(def, this.meta.rivalLevel ?? 1) }, 0);
       this.rivals = [this.rival];
       this.drivers = [this.driver];
     }

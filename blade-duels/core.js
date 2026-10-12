@@ -1,34 +1,34 @@
-/* Blade Duels - reglas del duelo (sin gráficos, sin DOM).
+/* Blade Duels - duel rules (no graphics, no DOM).
  *
- * Cada turno ambos luchadores eligen EN SECRETO: tipo de ataque, dirección
- * del ataque y dirección del bloqueo. Luego se revelan y se resuelven a la vez.
- * step() devuelve una lista de eventos que la capa visual reproduce.
+ * Each turn both fighters pick IN SECRET: attack type, attack direction and
+ * block direction. Then the picks are revealed and resolved at the same time.
+ * step() returns a list of events that the visual layer plays back.
  */
 (function () {
   const BD = (globalThis.BD = globalThis.BD || {});
 
-  const ZONES = ['Alta', 'Media', 'Baja'];
+  const ZONES = ['High', 'Mid', 'Low'];
   const ZONE_MULT = [1.2, 1.0, 0.85];
   const TYPES = {
-    quick: { name: 'Rápido', dmg: 8, cost: 6 },
-    heavy: { name: 'Pesado', dmg: 22, cost: 18 },
-    thrust: { name: 'Estocada', dmg: 14, cost: 12 },
-    feint: { name: 'Finta', dmg: 0, cost: 8 },
-    rest: { name: 'Descansar', dmg: 0, cost: 0 },
+    quick: { name: 'Quick', dmg: 8, cost: 6 },
+    heavy: { name: 'Heavy', dmg: 22, cost: 18 },
+    thrust: { name: 'Thrust', dmg: 14, cost: 12 },
+    feint: { name: 'Feint', dmg: 0, cost: 8 },
+    rest: { name: 'Rest', dmg: 0, cost: 0 },
   };
   const TYPE_ORDER = ['quick', 'heavy', 'thrust', 'feint', 'rest'];
   const BLOCK_COST = 3;
-  const MAX_CHAIN = 3; // la 4ª jugada de una racha es el cierre obligatorio
+  const MAX_CHAIN = 3; // the 4th move of a streak is the forced finisher
   const TURN_LIMIT = 14;
-  // Velocidad de decisión (0 = se acabó el tiempo, 1 = instantáneo). 0.4 es neutro.
-  // Ataque: x0.8 (lento) a x1.3 (instantáneo). Bloqueo: reduce el castigo que se cuela
-  // (guardia rota, estocada) de x1.4 (lento) a x0.4; con >= 0.8 es un bloqueo perfecto.
+  // Decision speed (0 = ran out of time, 1 = instant). 0.4 is neutral.
+  // Attack: x0.8 (slow) to x1.3 (instant). Block: scales the punishment that leaks through
+  // (guard break, thrust) from x1.4 (slow) to x0.4; at >= 0.8 it is a perfect block.
   const NEUTRAL_SPEED = 0.4, PERFECT_BLOCK = 0.8;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const speedOf = (m, key) => (m[key] == null ? NEUTRAL_SPEED : clamp01(m[key]));
   const attackPower = (sp) => 0.8 + 0.5 * sp;
 
-  // Qué puede seguir a cada movimiento (el árbol de combos).
+  // What may follow each move (the combo tree).
   const FOLLOW1 = {
     quick: ['quick', 'heavy', 'thrust', 'feint'],
     heavy: ['quick', 'feint'],
@@ -45,45 +45,45 @@
 
   const COMBOS = [
     { seq: ['feint', 'thrust', 'heavy'], name: 'Eclipse', mult: 2.0 },
-    { seq: ['quick', 'quick', 'heavy'], name: 'Guillotina', mult: 1.8 },
-    { seq: ['quick', 'heavy', 'thrust'], name: 'Marea', mult: 1.7 },
-    { seq: ['feint', 'heavy'], name: 'Engaño', mult: 1.4 },
-    { seq: ['quick', 'thrust'], name: 'Aguijón', mult: 1.3 },
-    { seq: ['thrust', 'heavy'], name: 'Embestida', mult: 1.3 },
-    { seq: ['quick', 'quick'], name: 'Tijera', mult: 1.25 },
+    { seq: ['quick', 'quick', 'heavy'], name: 'Guillotine', mult: 1.8 },
+    { seq: ['quick', 'heavy', 'thrust'], name: 'Tide', mult: 1.7 },
+    { seq: ['feint', 'heavy'], name: 'Decoy', mult: 1.4 },
+    { seq: ['quick', 'thrust'], name: 'Stinger', mult: 1.3 },
+    { seq: ['thrust', 'heavy'], name: 'Charge', mult: 1.3 },
+    { seq: ['quick', 'quick'], name: 'Scissors', mult: 1.25 },
   ];
 
   const WEAPONS = {
     katana: {
-      id: 'katana', name: 'Katana', desc: 'Equilibrada. Sin debilidades.',
+      id: 'katana', name: 'Katana', desc: 'Balanced. No weak spots.',
       dmg: { quick: 1, heavy: 1, thrust: 1 }, cost: { quick: 1, heavy: 1, thrust: 1, feint: 1 },
       hp: 106, st: 100, regen: 8, len: 84, shape: 'blade',
     },
-    dagas: {
-      id: 'dagas', name: 'Daga', desc: 'Rápidos baratos y letales. Pesado débil. Poca vida.',
+    dagger: {
+      id: 'dagger', name: 'Dagger', desc: 'Cheap, deadly quick strikes. Weak heavy. Low health.',
       dmg: { quick: 1.6, heavy: 0.75, thrust: 1.05 }, cost: { quick: 0.65, heavy: 1, thrust: 1, feint: 0.8 },
       hp: 94, st: 100, regen: 9, len: 46, shape: 'dagger',
     },
-    lanza: {
-      id: 'lanza', name: 'Lanza', desc: 'Estocadas devastadoras y baratas. Rápidos flojos.',
+    spear: {
+      id: 'spear', name: 'Spear', desc: 'Devastating, cheap thrusts. Weak quick strikes.',
       dmg: { quick: 0.85, heavy: 0.9, thrust: 1.3 }, cost: { quick: 1, heavy: 1, thrust: 0.9, feint: 1 },
       hp: 100, st: 100, regen: 8, len: 138, shape: 'spear',
     },
-    hacha: {
-      id: 'hacha', name: 'Hacha', desc: 'Pesados brutales y mucha vida. Se cansa rápido.',
+    axe: {
+      id: 'axe', name: 'Axe', desc: 'Brutal heavy strikes and lots of health. Tires quickly.',
       dmg: { quick: 0.8, heavy: 1.28, thrust: 0.9 }, cost: { quick: 1.1, heavy: 1, thrust: 1.1, feint: 1.1 },
       hp: 108, st: 100, regen: 7, len: 76, shape: 'axe',
     },
   };
 
   const PERKS = [
-    { id: 'hp', name: 'Corazón de piedra', desc: '+15 vida máxima', apply: (m) => { m.hp += 15; } },
-    { id: 'lungs', name: 'Pulmones de acero', desc: '+3 recuperación y +10 aguante', apply: (m) => { m.regen += 3; m.st += 10; } },
-    { id: 'edge', name: 'Filo afilado', desc: '+12% de daño', apply: (m) => { m.dmgMult *= 1.12; } },
-    { id: 'armor', name: 'Armadura ligera', desc: '-10% de daño recibido', apply: (m) => { m.armor *= 0.9; } },
-    { id: 'guard', name: 'Guardia firme', desc: 'Bloquear no gasta aguante', apply: (m) => { m.blockFree = true; } },
-    { id: 'combo', name: 'Maestro de combos', desc: 'Los combos pegan mucho más', apply: (m) => { m.comboBoost += 0.5; } },
-    { id: 'reader', name: 'Ojo de halcón', desc: 'Ves las costumbres del rival', apply: (m) => { m.reader = true; } },
+    { id: 'hp', name: 'Heart of Stone', desc: '+15 max health', apply: (m) => { m.hp += 15; } },
+    { id: 'lungs', name: 'Steel Lungs', desc: '+3 recovery and +10 stamina', apply: (m) => { m.regen += 3; m.st += 10; } },
+    { id: 'edge', name: 'Sharpened Edge', desc: '+12% damage', apply: (m) => { m.dmgMult *= 1.12; } },
+    { id: 'armor', name: 'Light Armor', desc: '-10% damage taken', apply: (m) => { m.armor *= 0.9; } },
+    { id: 'guard', name: 'Steady Guard', desc: 'Blocking costs no stamina', apply: (m) => { m.blockFree = true; } },
+    { id: 'combo', name: 'Combo Master', desc: 'Combos hit much harder', apply: (m) => { m.comboBoost += 0.5; } },
+    { id: 'reader', name: 'Hawk Eye', desc: 'See your rival\'s habits', apply: (m) => { m.reader = true; } },
   ];
 
   function makeFighter(spec) {
@@ -128,7 +128,7 @@
     return f.mods.blockFree ? 0 : BLOCK_COST;
   }
 
-  // Ataques que el luchador puede elegir ahora. El árbol se estrecha con la racha.
+  // Attacks the fighter may pick now. The tree narrows as the streak grows.
   function legalAttacks(f) {
     const out = [];
     const n = f.chain.length;
@@ -160,7 +160,7 @@
     return null;
   }
 
-  // Resuelve un turno. mv = { a:{type,zone,block}, b:{type,zone,block} }. Muta el estado.
+  // Resolves a turn. mv = { a:{type,zone,block}, b:{type,zone,block} }. Mutates the state.
   function step(s, mv) {
     const F = { a: s.a, b: s.b };
     const other = { a: 'b', b: 'a' };
@@ -224,7 +224,7 @@
       dmgTaken[def] += dmg;
     });
 
-    // aplicar
+    // apply
     ['a', 'b'].forEach((k) => {
       const f = F[k], m = mv[k], o = out[k];
       const foeOut = out[other[k]];
@@ -234,7 +234,7 @@
       f.st -= info[k].cost + blockCost(f) + stLoss[k];
       f.st = Math.max(0, f.st);
       f.st = Math.min(f.maxSt, f.st + f.regen + (m.type === 'rest' ? 14 : 0));
-      // cadena
+      // streak
       if (m.type === 'rest' || flags[k].broken || info[k].streak >= MAX_CHAIN) f.chain = [];
       else f.chain.push({ type: m.type, zone: m.zone });
       f.open = flags[k].open;

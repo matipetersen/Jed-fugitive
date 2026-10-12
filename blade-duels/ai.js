@@ -1,7 +1,7 @@
 /* Blade Duels - bot.
- * Sin trampas: no ve tu jugada. Aprende tus costumbres (modelo de frecuencias
- * condicionado a tu jugada anterior), muestrea qué podrías hacer y evalúa cada
- * candidata simulando el turno con el MISMO step() que usa el juego.
+ * No cheating: it cannot see your move. It learns your habits (a frequency model
+ * conditioned on your previous move), samples what you might do and scores each
+ * candidate by simulating the turn with the SAME step() the game uses.
  */
 (function () {
   const BD = (globalThis.BD = globalThis.BD || {});
@@ -26,7 +26,7 @@
     };
   }
 
-  // velocidad de decisión del bot según su nivel (ruido para que no sea constante)
+  // bot decision speed by level (noisy so it is never constant)
   const BOT_SPEED = [0.3, 0.42, 0.55, 0.68, 0.8];
   function botSpeed(level, rng) {
     const r = rng || Math.random;
@@ -45,7 +45,7 @@
     return m ? m.type + (m.zone >= 0 ? m.zone : '') : null;
   }
 
-  // Registra lo que hizo el rival en un turno.
+  // Records what the rival did this turn.
   function observe(brain, foeMove) {
     const keys = ['any'];
     const ck = ctxKey(brain.prev);
@@ -67,7 +67,7 @@
     const p = {};
     let tot = 0;
     keys.forEach((k) => {
-      let v = 1; // prior uniforme
+      let v = 1; // uniform prior
       if (useModel) {
         v += any[field][k] * 0.5;
         if (ctx && brain.level >= 3) v += ctx[field][k] * 1.5;
@@ -78,7 +78,7 @@
     return p;
   }
 
-  function pick(rng, weights) { // weights: array de [item, w]
+  function pick(rng, weights) { // weights: array of [item, w]
     let tot = 0;
     weights.forEach((x) => { tot += x[1]; });
     let r = rng() * tot;
@@ -128,7 +128,7 @@
     return pick(brain.rng, scored.map((x) => [x.c, Math.exp((x.v - best) / T)]));
   }
 
-  // Resumen legible de las costumbres del rival (perk "Ojo de halcón").
+  // Readable summary of the rival's habits (Hawk Eye perk).
   function readout(brain) {
     const pz = dist(brain, 'zone'), pb = dist(brain, 'block'), pt = dist(brain, 'type');
     const argmax = (o) => Object.keys(o).reduce((a, b) => (o[a] >= o[b] ? a : b));

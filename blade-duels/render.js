@@ -1,9 +1,9 @@
-/* Blade Duels - render en PRIMERA PERSONA.
- * Vos sos la cámara: tu arma (mano derecha) y tu buckler (mano izquierda) están en pantalla,
- * el maniquí rival está enfrente. No hay barra de vida: el daño se ve en el cuerpo
- * (heridas persistentes que chorrean, grietas, postura) y en tu propia visión
- * (viñeta roja, sangre en la lente, cortes).
- * Skins: neón y primal. La lógica de reglas llega como eventos de BD.step().
+/* Blade Duels - FIRST-PERSON renderer.
+ * You are the camera: your weapon (right hand) and your buckler (left hand) are on screen,
+ * the rival mannequin stands in front of you. There is no health bar: damage shows on the
+ * body (persistent wounds that run and drip, cracks, posture) and in your own vision
+ * (red vignette, blood on the lens, slashes).
+ * Skins: neon and primal. Rules logic arrives as events from BD.step().
  */
 (function () {
   const BD = (globalThis.BD = globalThis.BD || {});
@@ -20,14 +20,14 @@
   };
 
   function condition(f) {
-    if (f > 0.9) return { text: 'Ileso', col: '#7dffb0' };
-    if (f > 0.7) return { text: 'Rasguñado', col: '#c8ff7d' };
-    if (f > 0.45) return { text: 'Herido', col: '#ffd60a' };
-    if (f > 0.2) return { text: 'Malherido', col: '#ff8c00' };
-    return { text: 'Al borde', col: '#ff3b3b' };
+    if (f > 0.9) return { text: 'Unhurt', col: '#7dffb0' };
+    if (f > 0.7) return { text: 'Scratched', col: '#c8ff7d' };
+    if (f > 0.45) return { text: 'Wounded', col: '#ffd60a' };
+    if (f > 0.2) return { text: 'Badly hurt', col: '#ff8c00' };
+    return { text: 'Near death', col: '#ff3b3b' };
   }
 
-  // ---------- interpolación de poses ----------
+  // ---------- pose interpolation ----------
   class Tween {
     constructor(base) { this.keys = Object.keys(base); this.cur = Object.assign({}, base); this.from = Object.assign({}, base); this.to = Object.assign({}, base); this.t = 1; this.dur = 0.001; this.ease = E.out; }
     go(p, dur, ease) { this.from = Object.assign({}, this.cur); this.to = p; this.t = 0; this.dur = Math.max(0.001, dur); this.ease = ease || E.out; }
@@ -41,7 +41,7 @@
   }
   const mixP = (a, b, t) => { const r = {}; Object.keys(a).forEach((k) => { r[k] = lerp(a[k], b[k], t); }); return r; };
 
-  // ---------- poses del maniquí (coordenadas locales, origen en los pies, y negativo = arriba) ----------
+  // ---------- mannequin poses (local coordinates, origin at the feet, negative y = up) ----------
   const EP0 = { x: 0, y: 0, sc: 1, lean: 0, tilt: 0, sink: 0, rot: 0, hx: -70, hy: -192, w: -82, wl: 1, bx: 60, by: -172, bs: 1 };
   const ep = (o) => Object.assign({}, EP0, o);
   const ZYE = [-262, -190, -112];
@@ -66,7 +66,7 @@
   const EDIZ = ep({ lean: 8, tilt: 20, hx: -80, hy: -150, w: -30, bx: 70, by: -140, sink: 10 });
   const EKO = ep({ rot: 78, x: 70, y: 60, sc: 0.86, hx: -100, hy: -120, w: -10, bx: 90, by: -100, sink: 22 });
 
-  // ---------- poses de tu mano (pantalla) ----------
+  // ---------- your hand poses (screen space) ----------
   const PP0 = { hx: 790, hy: 476, a: -78, ls: 1, bx: 150, by: 468, bs: 1 };
   const pp = (o) => Object.assign({}, PP0, o);
   const PBLOCK = [{ bx: 380, by: 150 }, { bx: 380, by: 275 }, { bx: 380, by: 405 }];
@@ -91,7 +91,7 @@
   const PKO = pp({ hx: 900, hy: 720, a: -20, by: 700 });
   const PWIN = pp({ hx: 700, hy: 330, a: -95 });
 
-  // ---------- helpers de trazo (neón / primal) ----------
+  // ---------- stroke helpers (neon / primal) ----------
   function path(ctx, pts) { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke(); }
   function glowStroke(ctx, col, w, a) {
     a = a == null ? 1 : a;
@@ -104,7 +104,7 @@
     ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.7 * a; ctx.lineWidth = Math.max(1, w * 0.3); ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  // rellena el path ya construido según el estilo
+  // fills the already-built path according to the style
   function paint(ctx, st, o) {
     if (st.sil) { ctx.fillStyle = '#0b0b0b'; ctx.fill(); return; }
     if (st.neon) { ctx.fillStyle = o.nfill || '#0d0822'; ctx.fill(); glowStroke(ctx, o.col || '#19e6ff', o.w || 2.5, o.a); }
@@ -123,7 +123,7 @@
     poly(ctx, [{ x: a.x + nx * w1 / 2, y: a.y + ny * w1 / 2 }, { x: b.x + nx * w2 / 2, y: b.y + ny * w2 / 2 }, { x: b.x - nx * w2 / 2, y: b.y - ny * w2 / 2 }, { x: a.x - nx * w1 / 2, y: a.y - ny * w1 / 2 }]);
   }
 
-  // geometría de armas: o = origen de la mano, ang en grados, L largo, t grosor
+  // weapon geometry: o = hand origin, ang in degrees, L length, t thickness
   function weaponShape(ctx, st, shape, ox, oy, ang, L, t, col) {
     const c = Math.cos(ang * D2R), s = Math.sin(ang * D2R);
     const P = (d, n) => ({ x: ox + c * d - s * (n || 0), y: oy + s * d + c * (n || 0) });
@@ -142,7 +142,7 @@
     }
   }
 
-  // IK de dos huesos en el plano de pantalla
+  // two-bone IK in screen space
   function ik(sx, sy, tx, ty, l1, l2, out) {
     let dx = tx - sx, dy = ty - sy, d = Math.hypot(dx, dy) || 0.001;
     const mx = l1 + l2 - 0.5;
@@ -169,6 +169,7 @@
       this.trailE = []; this.trailP = [];
       this.texts = []; this.banners = []; this.callouts = [];
       this.cam = { shake: 0, roll: 0, rollT: 0, dy: 0, dyT: 0, zoom: 0 };
+      this.busy = false; this.idleAmp = 1;
       this.freeze = 0; this.slowmo = 0; this.impact = 0; this.flashWhite = 0; this.flashRed = 0; this.koFade = 0;
       this.fx = { mb: 0, dx: 1, dy: 0, rad: 0 }; this.speedLines = 0; this.timer = null;
       this.wcv = document.createElement('canvas'); this.wcv.width = W; this.wcv.height = H; this.wctx = this.wcv.getContext('2d');
@@ -196,8 +197,9 @@
     }
     syncHudInstant() { this.dmg.a = this.dmgT.a; this.dmg.b = this.dmgT.b; }
 
-    // nueva ronda: cuerpo y visión limpios
+    // new round: clean body and vision
     idleAll() {
+      this.busy = false; this.idleAmp = 1;
       this.en.snap(EP0); this.pl.snap(PP0);
       this.eF = { dizzy: false, swinging: false, broken: false, flash: 0 }; this.pF = { swinging: false, open: false, broken: false };
       this.parts = []; this.lens = []; this.slits = []; this.wounds = []; this.trailE = []; this.trailP = []; this.pool = 0;
@@ -217,7 +219,7 @@
     at(t, fn) { this.sched.push({ at: this.clock + t, fn }); this.sched.sort((x, y) => x.at - y.at); }
     wait(t) { return new Promise((res) => this.at(t, res)); }
 
-    // ---------- ciclo ----------
+    // ---------- loop ----------
     start() {
       if (this.running) return; this.running = true;
       const loop = (ts) => {
@@ -236,10 +238,21 @@
       P.sink += (d * 16 + Math.sin(t * 2.2) * 1.5) * col;
       P.hy += d * 30 * col; P.w += d * 16 * col;
       if (this.eF.dizzy) { P.tilt += Math.sin(t * 5) * 9; P.lean += Math.sin(t * 4) * 5; }
+      // waiting for your move: footwork, weapon and guard keep moving (more agitated as the clock runs out)
+      const amp = this.idleAmp * col;
+      if (amp > 0.01) {
+        const ag = 1 + (this.timer ? (1 - this.timer.frac) * 1.1 : 0), k = (t * 0.72) % 1;
+        const pump = k > 0.86 ? Math.sin(((k - 0.86) / 0.14) * Math.PI) : 0; // quick probing jab
+        P.x += (Math.sin(t * 1.3 * ag) * 30 + Math.sin(t * 2.9) * 8) * amp * (1 - d * 0.5);
+        P.sc += (Math.sin(t * 1.1 * ag) * 0.035 + pump * 0.07) * amp;
+        P.hx += (Math.sin(t * 2.3 * ag) * 11 + pump * 26) * amp; P.hy += (Math.sin(t * 3.1 * ag + 1) * 10 - pump * 14) * amp; P.w += Math.sin(t * 2.7 * ag) * 8 * amp;
+        P.bx += Math.sin(t * 1.7) * 14 * amp; P.by += Math.sin(t * 1.9 * ag + 2) * 28 * amp;
+        P.lean += Math.sin(t * 1.5) * 3.5 * amp; P.sink += Math.abs(Math.sin(t * 2.6 * ag)) * 6 * amp;
+      }
       P.fy = FEET + (P.sc - 1) * 150 + P.y;
       return P;
     }
-    // punto local del torso/cabeza -> mundo
+    // local torso/head point -> world
     ubWorld(P, x, y) {
       const a = P.lean * D2R, ux = x * Math.cos(a) - (y + 110) * Math.sin(a), uy = x * Math.sin(a) + (y + 110) * Math.cos(a) - 110;
       const r = P.rot * D2R, rx = ux * Math.cos(r) - uy * Math.sin(r), ry = ux * Math.sin(r) + uy * Math.cos(r);
@@ -271,19 +284,20 @@
       if (this.timer && this.timer.frac < 0.35) cam.zoom = Math.max(cam.zoom, 0.025 * (0.5 + 0.5 * Math.sin(this.time * 14)) * ((0.35 - this.timer.frac) / 0.35));
       if (this.freeze > 0) { this.freeze -= real; return; }
       const dt = real * this.speed * (this.slowmo > 0 ? 0.3 : 1);
+      this.idleAmp += ((this.busy ? 0 : 1) - this.idleAmp) * Math.min(1, real * (this.busy ? 9 : 2.5));
       if (this.slowmo > 0) this.slowmo -= real;
       this.clock += dt;
       while (this.sched.length && this.sched[0].at <= this.clock) this.sched.shift().fn();
       this.en.update(dt); this.pl.update(dt);
       if (this.eF.flash > 0) this.eF.flash -= dt;
       ['a', 'b'].forEach((k) => { this.dmg[k] += (this.dmgT[k] - this.dmg[k]) * Math.min(1, dt * 3); });
-      // estelas
+      // trails
       const P = this.puppet();
       if (this.eF.swinging) { const g = this.enemyTip(P); this.trailE.push({ bx: lerp(g.h.x, g.t.x, 0.3), by: lerp(g.h.y, g.t.y, 0.3), tx: g.t.x, ty: g.t.y, age: 0 }); }
       if (this.pF.swinging) { const g = this.playerTip(); this.trailP.push({ bx: g.b.x, by: g.b.y, tx: g.t.x, ty: g.t.y, age: 0 }); }
       [this.trailE, this.trailP].forEach((tr) => tr.forEach((t) => { t.age += dt; }));
       this.trailE = this.trailE.filter((t) => t.age < 0.22).slice(-16); this.trailP = this.trailP.filter((t) => t.age < 0.22).slice(-16);
-      // heridas: crecen, chorrean y gotean
+      // wounds: grow, run and drip
       this.wounds.forEach((w) => {
         w.age += dt; w.streak = Math.min(w.maxStreak, w.streak + dt * (26 + w.rate * 20));
         w.acc += dt * w.rate * Math.max(0.12, 1 - w.age / 28);
@@ -292,7 +306,7 @@
           this.parts.push({ type: 'drop', x: p.x + rnd(-2, 2), y: p.y, vx: rnd(-8, 8), vy: rnd(20, 90), z: 0, vz: 0, r: rnd(2, 4.2), landY: P.fy + rnd(-6, 24), life: 4 });
         }
       });
-      // partículas
+      // particles
       this.parts.forEach((p) => {
         p.life -= dt;
         if (p.type === 'drop' || p.type === 'chunk') {
@@ -304,7 +318,7 @@
         } else if (p.type === 'ring') p.r += p.vr * dt;
       });
       this.parts = this.parts.filter((p) => p.life > 0);
-      // lente: gotas resbalan
+      // lens: drops slide down
       this.lens.forEach((l) => { l.age += dt; l.vy = Math.min(l.vmax, l.vy + l.r * 0.5 * dt); l.y += l.vy * dt; });
       this.lens = this.lens.filter((l) => l.age < l.life && l.y < H + 40);
       this.slits.forEach((s) => { s.age += dt; });
@@ -313,7 +327,7 @@
       this.callouts.forEach((c) => { c.t += dt; }); this.callouts = this.callouts.filter((c) => c.t < c.dur);
     }
 
-    // ---------- fluidos y heridas ----------
+    // ---------- fluids and wounds ----------
     bloodCol(sil) { return sil ? '#ffffff' : (this.neon ? '#ff1744' : '#a4161a'); }
     splat(x, y, r) {
       const g = this.dctx, neon = this.neon;
@@ -331,7 +345,7 @@
       this.lens.push({ x, y, y0: y, r, vy: rnd(2, 10), vmax: rnd(14, 46) * (r > 12 ? 1.4 : 1), age: 0, life: rnd(10, 17), bl });
       if (this.lens.length > 70) this.lens.shift();
     }
-    // ráfaga de gotas desde (x,y); power escala velocidad y cantidad
+    // burst of drops from (x,y); power scales speed and amount
     spray(x, y, n, power) {
       const P = this.puppet();
       for (let i = 0; i < n; i++) {
@@ -380,11 +394,12 @@
     doFreeze(s) { this.freeze = Math.max(this.freeze, s); }
     doShake(m) { this.cam.shake = Math.max(this.cam.shake, m); }
 
-    // ---------- un turno ----------
-    // a = vos (cámara), b = maniquí
+    // ---------- one turn ----------
+    // a = you (camera), b = mannequin
     playTurn(mv, res, after) {
       return new Promise((resolve) => {
         const ev = {}; res.events.forEach((e) => { ev[e.src] = e; });
+        this.busy = true;
         this.pF.swinging = false; this.eF.swinging = false;
         this.en.go(withBlock(enemyAttack(mv.b.type, Math.max(0, mv.b.zone), 'wind'), mv.b.block), mv.b.type === 'rest' ? 0.3 : (mv.b.type === 'heavy' ? 0.42 : 0.34), E.out);
         this.pl.go(withPBlock(playerAttack(mv.a.type, Math.max(0, mv.a.zone), 'wind'), mv.a.block), mv.a.type === 'rest' ? 0.3 : (mv.a.type === 'heavy' ? 0.42 : 0.34), E.out);
@@ -415,7 +430,7 @@
           if (after.b.hp > 0) this.en.go(this.eF.dizzy ? EDIZ : EP0, 0.35, E.inout);
           if (after.a.hp > 0) this.pl.go(PP0, 0.35, E.inout);
         });
-        this.at(1.5, resolve);
+        this.at(1.5, () => { this.busy = false; resolve(); });
       });
     }
 
@@ -423,7 +438,7 @@
     playerContact(zone) { return { x: 480 + rnd(-70, 70), y: [150, 275, 400][Math.max(0, zone)] }; }
 
     applyEvent(e) {
-      const mine = e.src === 'a'; // vos atacás
+      const mine = e.src === 'a'; // you attack
       const zone = e.zone, ap = BD.Audio ? (n) => BD.Audio.sfx(n) : () => {};
       const P = this.puppet();
       const eBuck = this.ubWorld(P, P.bx, P.by), pBuck = { x: this.pl.cur.bx, y: this.pl.cur.by };
@@ -438,7 +453,7 @@
             this.ring(pos.x, pos.y, this.bloodCol(false), 30 + e.dmg);
             this.doFreeze(0.05 + e.dmg * 0.003); this.doShake(4 + e.dmg * 0.5); this.cam.zoom = Math.min(0.08, 0.02 + e.dmg * 0.002);
             this.fxBlur(0.7, rnd(-1, 1), rnd(-1, 1), e.dmg >= 14 ? 0.8 : 0.4);
-            if (e.power >= 1.2 && !e.combo) this.callout('¡VELOZ!', '#19e6ff');
+            if (e.power >= 1.2 && !e.combo) this.callout('FAST!', '#19e6ff');
           } else {
             const c = this.playerContact(zone), big = e.dmg >= 14;
             this.cam.roll += (Math.random() < 0.5 ? -1 : 1) * (3 + e.dmg * 0.25); this.cam.rollT = 0;
@@ -449,9 +464,9 @@
             this.doFreeze(0.06 + e.dmg * 0.003); this.doShake(5 + e.dmg * 0.6);
             this.pl.go(PHIT, 0.09, E.out); this.fxBlur(0.8, rnd(-1, 1), rnd(-1, 1), e.dmg >= 14 ? 0.9 : 0.5);
           }
-          if (e.kind === 'punish') this.callout('¡CASTIGO!', '#ffd60a');
-          if (e.counter) this.callout('¡CONTRAGOLPE!', '#ffd60a');
-          if (e.combo) { this.callout('¡' + e.combo.name.toUpperCase() + '!', mine ? this.pColor : this.eColor); this.doShake(14); this.impact = 0.14; }
+          if (e.kind === 'punish') this.callout('PUNISHED!', '#ffd60a');
+          if (e.counter) this.callout('COUNTER!', '#ffd60a');
+          if (e.combo) { this.callout(e.combo.name.toUpperCase() + '!', mine ? this.pColor : this.eColor); this.doShake(14); this.impact = 0.14; }
           else if (e.dmg >= 18) this.impact = 0.12;
           ap('splat'); ap(e.dmg >= 18 ? 'heavy' : 'hit');
           break;
@@ -461,7 +476,7 @@
           this.sparks(at.x, at.y, 12, '#ffe08a', 320, Math.random() * 6.283, 6.283);
           this.ring(at.x, at.y, '#fff', 36, 3); this.doFreeze(0.04); this.doShake(mine ? 3 : 6);
           if (e.dmg > 0) { if (mine) { const w = this.addWound(zone, 'quick', e.dmg * 0.6); this.spray(at.x, at.y, 4, 0.5); w.size *= 0.7; } else { this.lensSplat(rnd(300, 660), rnd(120, 400), rnd(6, 12)); } }
-          if (e.perfect && !mine) this.callout('¡BLOQUEO PERFECTO!', '#7dffb0');
+          if (e.perfect && !mine) this.callout('PERFECT BLOCK!', '#7dffb0');
           ap('block');
           break;
         }
@@ -471,7 +486,7 @@
           this.shards(at.x, at.y, 18, mine ? this.eColor : this.pColor);
           this.sparks(at.x, at.y, 16, '#ffe08a', 400);
           if (mine) { this.en.go(EHIT(1), 0.1, E.out); if (e.dmg > 0) this.addWound(zone, 'quick', e.dmg * 0.7); } else { this.pl.go(PHIT, 0.1, E.out); this.lensSplat(rnd(300, 660), rnd(120, 400), rnd(8, 16)); }
-          this.callout('¡GUARDIA ROTA!', '#ff8c00'); this.ring(at.x, at.y, '#ff8c00', 80); this.doFreeze(0.1); this.doShake(12); this.impact = 0.1;
+          this.callout('GUARD BREAK!', '#ff8c00'); this.ring(at.x, at.y, '#ff8c00', 80); this.doFreeze(0.1); this.doShake(12); this.impact = 0.1;
           ap('break');
           break;
         }
@@ -480,30 +495,31 @@
           if (mine) this.pl.go(PSTAG, 0.12, E.out); else this.en.go(ESTAG, 0.12, E.out);
           this.pF.swinging = false; this.eF.swinging = false;
           this.ring(480, 270, '#fff', 100, 6); this.sparks(480, 270, 24, '#fff', 480);
-          this.callout('¡PARRY!', '#ffffff'); this.doFreeze(0.12); this.doShake(10); this.flashWhite = 0.5; this.impact = 0.1;
+          this.callout('PARRY!', '#ffffff'); this.doFreeze(0.12); this.doShake(10); this.flashWhite = 0.5; this.impact = 0.1;
           ap('parry');
           void at;
           break;
         }
         case 'interrupt': {
           if (mine) this.pl.go(PSTAG, 0.1, E.out); else this.en.go(ESTAG, 0.1, E.out);
-          this.sparks(480, 250, 12, '#ffd60a', 260); this.callout('¡INTERRUMPIDO!', '#ffd60a'); this.doFreeze(0.06); this.doShake(5);
+          this.sparks(480, 250, 12, '#ffd60a', 260); this.callout('INTERRUPTED!', '#ffd60a'); this.doFreeze(0.06); this.doShake(5);
           ap('block');
           break;
         }
         case 'feintOpen': {
           if (mine) { this.en.go(EDIZ, 0.15, E.out); this.eF.dizzy = true; this.ring(eBuck.x, eBuck.y, '#ffd60a', 60); }
           else { this.pF.open = true; this.cam.roll += 6; this.ring(pBuck.x, pBuck.y, '#ffd60a', 60); }
-          this.callout(mine ? '¡ABIERTO!' : '¡TE ABRIERON!', '#ffd60a'); this.doShake(4);
+          this.callout(mine ? 'OPEN!' : 'YOU\'RE OPEN!', '#ffd60a'); this.doShake(4);
           ap('feint');
           break;
         }
-        case 'rest': if (mine) { this.floatText(480, 500, 'respirás', '#7dffb0', 22); } break;
+        case 'rest': if (mine) { this.floatText(480, 500, 'breathe', '#7dffb0', 22); } break;
         default: break;
       }
     }
 
     async ko(winner, isKo) {
+      this.busy = true;
       if (isKo) {
         this.slowmo = 0.9; this.impact = 0.2; this.doShake(18); this.eF.swinging = this.pF.swinging = false;
         BD.Audio && BD.Audio.sfx('ko');
@@ -516,13 +532,13 @@
           this.cam.rollT = 24; this.cam.dyT = 150; this.pl.go(PKO, 0.8, E.in); this.koFade = 0.001;
           await this.wait(0.6);
         }
-        await this.banner('¡K.O.!', '', 1.3);
+        await this.banner('K.O.!', '', 1.3);
       } else {
-        await this.banner('¡TIEMPO!', '', 1.2);
+        await this.banner('TIME!', '', 1.2);
       }
     }
 
-    // ---------- dibujo ----------
+    // ---------- drawing ----------
     font(size, neon) { return (neon ? '800 ' : '900 ') + size + 'px ' + (neon ? 'Orbitron, "Trebuchet MS", "Segoe UI", sans-serif' : 'Bangers, Impact, "Arial Black", sans-serif'); }
 
     softAmt() { return clamp((this.dmg.a - 0.45) * 1.3, 0, 0.8) + (this.pF.open ? 0.4 : 0) + this.koFade * 0.6; }
@@ -530,7 +546,7 @@
     draw() {
       const ctx = this.ctx, w = this.wctx, neon = this.neon, cam = this.cam;
       if (this.koFade > 0) this.koFade = Math.min(0.85, this.koFade + 0.01);
-      // 1) el mundo (con cámara) en un canvas aparte
+      // 1) the world (with camera) on a separate canvas
       w.save(); w.clearRect(0, 0, W, H);
       const sx = (Math.random() - 0.5) * cam.shake, sy = (Math.random() - 0.5) * cam.shake;
       const wob = this.pF.open ? Math.sin(this.time * 4) * 2 : 0;
@@ -545,7 +561,7 @@
       this.drawTrail(w, this.trailP, this.pColor, neon);
       this.drawPlayer(w, st);
       w.restore();
-      // 2) composición: motion blur direccional, zoom blur radial, visión borrosa
+      // 2) compositing: directional motion blur, radial zoom blur, blurred vision
       this.compose(ctx, neon);
       this.drawLens(ctx, neon);
       this.drawVignette(ctx);
@@ -569,7 +585,7 @@
       for (let i = 0; i < 30; i++) { const ang = Math.random() * 6.283, r0 = rnd(300, 380), r1 = r0 + rnd(160, 320); ctx.beginPath(); ctx.moveTo(W / 2 + Math.cos(ang) * r0, H / 2 + Math.sin(ang) * r0 * 0.75); ctx.lineTo(W / 2 + Math.cos(ang) * r1, H / 2 + Math.sin(ang) * r1 * 0.75); ctx.stroke(); }
       ctx.restore();
     }
-    // barra de 3 s: cuanto antes elegís, más poder
+    // 3 s bar: the sooner you pick, the more power
     drawTimer(ctx, neon) {
       const t = this.timer; if (!t) return;
       const c = this.cv.clientWidth < 600, bw = c ? 520 : 400, bh = c ? 30 : 20, x = W / 2 - bw / 2, y = c ? 92 : 74;
@@ -580,7 +596,7 @@
       ctx.fillStyle = col; if (neon) { ctx.shadowColor = col; ctx.shadowBlur = 12; }
       roundRect(ctx, x + 3, y + 3, Math.max(0, (bw - 6) * t.frac), bh - 6, 4); ctx.fill(); ctx.shadowBlur = 0;
       ctx.textAlign = 'center'; ctx.font = this.font(c ? 22 : 14, neon); ctx.lineJoin = 'round';
-      const label = 'PODER ×' + t.power.toFixed(2) + (t.frac < 0.25 ? '  ¡YA!' : '');
+      const label = 'POWER ×' + t.power.toFixed(2) + (t.frac < 0.25 ? '  NOW!' : '');
       ctx.lineWidth = 5; ctx.strokeStyle = '#0b0b0b'; ctx.strokeText(label, W / 2, y + bh / 2 + (c ? 8 : 5)); ctx.fillStyle = '#fff'; ctx.fillText(label, W / 2, y + bh / 2 + (c ? 8 : 5));
       ctx.restore();
     }
@@ -681,14 +697,14 @@
       ctx.restore();
     }
 
-    // ----- maniquí -----
+    // ----- mannequin -----
     drawPuppet(ctx, st) {
       const P = this.puppet(), d = this.dmg.b, neon = st.neon, sil = st.sil;
       const col = this.eF.flash > 0 ? '#ffffff' : this.eColor;
       const skin = shade('#efe0c2', -Math.round(d * 55));
       const wep = this.eWeapon, wlen = WLEN[wep.shape] * 0.5 * P.wl, wthk = WTHK[wep.shape] * 0.5;
       ctx.save(); ctx.translate(CX + P.x, P.fy); ctx.scale(P.sc, P.sc); ctx.rotate(P.rot * D2R);
-      // piernas
+      // legs
       const hipY = -122 + P.sink;
       [-1, 1].forEach((sd) => {
         const hip = { x: sd * 15, y: hipY }, knee = { x: sd * (21 + P.sink * 0.4), y: hipY * 0.5 }, foot = { x: sd * 25, y: 0 };
@@ -698,22 +714,22 @@
       });
       ctx.beginPath(); ctx.moveTo(-30, hipY - 8); ctx.lineTo(30, hipY - 8); ctx.lineTo(26, hipY + 16); ctx.lineTo(-26, hipY + 16); ctx.closePath(); paint(ctx, st, { col, pfill: shade(col, -70) });
       this.drawWoundsPart(ctx, st, P, 'legs');
-      // torso (se inclina sobre la cadera)
+      // upper body (leans over the hips)
       ctx.save(); ctx.translate(0, -110); ctx.rotate(P.lean * D2R); ctx.translate(0, 110);
-      // brazo del buckler
+      // buckler arm
       const S2 = { x: 44, y: -204 }, A2 = ik(S2.x, S2.y, P.bx + 10, P.by + 8, 54, 50, 1);
       thick(ctx, st, [S2, A2.el, A2.hd], 13, col, skin);
       ctx.beginPath(); ctx.arc(P.bx, P.by, 48 * P.bs, 0, 6.283); paint(ctx, st, { col, pfill: this.eF.broken ? '#8a7a66' : '#b9b3a8', w: 3, pw: 5 });
       ctx.beginPath(); ctx.arc(P.bx, P.by, 14 * P.bs, 0, 6.283); paint(ctx, st, { col, pfill: shade(col, -20), pw: 4 });
       if (this.eF.broken && !sil) { ctx.strokeStyle = neon ? '#ff1744' : '#0b0b0b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(P.bx - 30, P.by - 26); ctx.lineTo(P.bx - 4, P.by + 4); ctx.lineTo(P.bx - 18, P.by + 34); ctx.moveTo(P.bx - 4, P.by + 4); ctx.lineTo(P.bx + 30, P.by + 8); ctx.stroke(); }
-      // tronco
+      // torso
       ctx.beginPath(); ctx.moveTo(-44, -208); ctx.lineTo(44, -208); ctx.lineTo(30, -130); ctx.lineTo(-30, -130); ctx.closePath(); paint(ctx, st, { col, pfill: skin });
       if (!sil) {
         ctx.strokeStyle = neon ? col : '#0b0b0b'; ctx.globalAlpha = neon ? 0.5 : 1; ctx.lineWidth = neon ? 1.5 : 3;
         ctx.beginPath(); ctx.moveTo(0, -208); ctx.lineTo(0, -130); ctx.moveTo(-40, -166); ctx.quadraticCurveTo(0, -150, 40, -166); ctx.stroke(); ctx.globalAlpha = 1;
         if (!neon) { ctx.strokeStyle = '#0b0b0b'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(-40, -204); ctx.lineTo(24, -140); ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.stroke(); }
       }
-      // cuello y cabeza
+      // neck and head
       ctx.beginPath(); ctx.rect(-9, -228, 18, 22); paint(ctx, st, { col, pfill: skin, pw: 4 });
       ctx.save(); ctx.translate(0, -222); ctx.rotate(P.tilt * D2R); ctx.translate(0, 222);
       ctx.beginPath(); ctx.ellipse(0, -254, 23, 29, 0, 0, 6.283); paint(ctx, st, { col, pfill: skin });
@@ -724,14 +740,14 @@
         ctx.beginPath(); ctx.moveTo(0, -283); ctx.lineTo(0, -226); ctx.stroke(); ctx.globalAlpha = 1;
       }
       ctx.restore();
-      // grietas por daño
+      // damage cracks
       if (!sil) this.cracks.forEach((c) => {
         if (d < c.th) return;
         ctx.strokeStyle = neon ? '#ff1744' : '#2a1a10'; ctx.lineWidth = neon ? 1.6 : 2.4; ctx.globalAlpha = Math.min(1, (d - c.th) * 5);
         ctx.beginPath(); c.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke(); ctx.globalAlpha = 1;
       });
       this.drawWoundsPart(ctx, st, P, 'up');
-      // brazo del arma
+      // weapon arm
       const S1 = { x: -44, y: -204 }, A1 = ik(S1.x, S1.y, P.hx, P.hy, 54, 50, -1);
       thick(ctx, st, [S1, A1.el, A1.hd], 13, col, skin);
       weaponShape(ctx, st, wep.shape, A1.hd.x, A1.hd.y, P.w, wlen, wthk, col);
@@ -747,7 +763,7 @@
         if (w.part !== part) return;
         const s = w.size * Math.min(1, w.age * 3 + 0.35);
         ctx.save(); ctx.translate(w.x, w.y);
-        // chorreo
+        // drip streak
         const len = w.streak;
         if (len > 2) {
           const pts = []; for (let i = 0; i <= 5; i++) pts.push({ x: Math.sin(i * 1.7 + w.x) * 2.2 * (i / 5), y: (len * i) / 5 });
@@ -783,21 +799,21 @@
       }
     }
 
-    // ----- tus manos -----
+    // ----- your hands -----
     drawPlayer(ctx, st) {
       const p = this.pl.cur, neon = st.neon, col = this.pColor, wep = this.pWeapon, d = this.dmg.a, t = this.time;
       const tr = d * 4, jx = (Math.random() - 0.5) * tr, jy = (Math.random() - 0.5) * tr;
-      const bob = Math.sin(t * 2) * 3 + (this.pl.t >= 1 ? 0 : 0);
-      const hx = p.hx + jx, hy = p.hy + bob + jy, L = WLEN[wep.shape] * p.ls, th = WTHK[wep.shape];
+      const bob = Math.sin(t * 2) * (3 + 3 * this.idleAmp);
+      const hx = p.hx + jx + Math.sin(t * 1.6) * 7 * this.idleAmp, hy = p.hy + bob + jy, L = WLEN[wep.shape] * p.ls, th = WTHK[wep.shape];
       const skin = shade('#e8b88a', -Math.round(d * 40)), sleeve = neon ? '#0d0822' : shade(col, -60);
-      // mano izquierda + buckler (detrás del arma)
+      // left hand + buckler (behind the weapon)
       const bx = p.bx + jx, by = p.by + jy, br = 84 * p.bs;
       capsule(ctx, { x: bx - 40, y: by + 70 }, { x: -60, y: H + 140 }, 110, 160); paint(ctx, st, { nfill: sleeve, col, w: 3, pfill: sleeve });
       ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.283); paint(ctx, st, { col, w: 4, pfill: this.pF.broken ? '#8a7a66' : '#c9c3b8', pw: 7 });
       ctx.beginPath(); ctx.arc(bx, by, br * 0.62, 0, 6.283); paint(ctx, st, { col, w: 2, pfill: '#a9a398', pw: 4 });
       ctx.beginPath(); ctx.arc(bx, by, br * 0.2, 0, 6.283); paint(ctx, st, { col, w: 3, pfill: shade(col, -10), pw: 5 });
       if (this.pF.broken && !st.sil) { ctx.strokeStyle = neon ? '#ff1744' : '#0b0b0b'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(bx - br * 0.7, by - br * 0.5); ctx.lineTo(bx - br * 0.1, by + 6); ctx.lineTo(bx - br * 0.4, by + br * 0.7); ctx.moveTo(bx - br * 0.1, by + 6); ctx.lineTo(bx + br * 0.7, by + br * 0.1); ctx.stroke(); }
-      // arma y mano derecha
+      // weapon and right hand
       weaponShape(ctx, st, wep.shape, hx, hy, p.a, L, th, col);
       const vx = 1020 - hx, vy = 640 - hy, vd = Math.hypot(vx, vy) || 1;
       capsule(ctx, { x: hx + (vx / vd) * 20, y: hy + (vy / vd) * 20 }, { x: 1020, y: 640 }, 76, 150); paint(ctx, st, { nfill: sleeve, col, w: 3, pfill: sleeve });
@@ -805,7 +821,7 @@
       if (!st.sil) { ctx.strokeStyle = neon ? col : '#0b0b0b'; ctx.lineWidth = neon ? 1.5 : 3; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(hx + i * 2, hy + 8 + i * 12, 22, 3.6, 5.6); ctx.stroke(); } }
     }
 
-    // ----- partículas, lente, textos, HUD -----
+    // ----- particles, lens, text, HUD -----
     drawParts(ctx, neon) {
       this.parts.forEach((p) => {
         const k = clamp(p.life / (p.max || 1), 0, 1);
@@ -883,19 +899,19 @@
         ctx.restore();
       });
     }
-    // HUD sin barras de vida: nombre, estado del cuerpo, racha y rondas ganadas
+    // HUD without health bars: name, body condition, streak and rounds won
     drawHud(ctx, neon) {
       const c = this.cv.clientWidth < 600, f = (n) => this.font(c ? n * 1.55 : n, neon);
       const side = (k, x, al) => {
         const h = this.hud[k], cond = condition(1 - this.dmg[k]), y = c ? 34 : 30;
         ctx.save(); ctx.textAlign = al;
-        ctx.font = f(17); const nm = (k === 'a' ? 'VOS' : h.name.toUpperCase());
+        ctx.font = f(17); const nm = (k === 'a' ? 'YOU' : h.name.toUpperCase());
         if (neon) { ctx.shadowColor = k === 'a' ? this.pColor : this.eColor; ctx.shadowBlur = 10; ctx.fillStyle = '#fff'; ctx.fillText(nm, x, y); ctx.shadowBlur = 0; }
         else { ctx.lineWidth = 5; ctx.strokeStyle = '#0b0b0b'; ctx.lineJoin = 'round'; ctx.strokeText(nm, x, y); ctx.fillStyle = '#fff'; ctx.fillText(nm, x, y); }
         ctx.font = f(13); const y2 = y + (c ? 26 : 20);
         pill(ctx, cond.text, x, y2, al, cond.col, c);
-        if (h.open) pill(ctx, '¡ABIERTO!', x, y2 + (c ? 30 : 23), al, '#ffd60a', c);
-        // racha y rondas
+        if (h.open) pill(ctx, 'OPEN!', x, y2 + (c ? 30 : 23), al, '#ffd60a', c);
+        // streak and rounds
         const dir = al === 'left' ? 1 : -1, py = c ? 14 : 12;
         for (let i = 0; i < 3; i++) { const px = x + dir * (i * (c ? 22 : 16) + 6) + (dir > 0 ? 0 : 0); ctx.beginPath(); ctx.arc(px, py, c ? 8 : 5.5, 0, 6.283); ctx.fillStyle = i < h.chain ? '#ffd60a' : 'rgba(255,255,255,.14)'; ctx.fill(); ctx.strokeStyle = neon ? '#ffd60a' : '#0b0b0b'; ctx.lineWidth = neon ? 1 : 2.5; ctx.stroke(); }
         ctx.restore();
@@ -904,15 +920,15 @@
       };
       side('a', 20, 'left'); side('b', W - 20, 'right');
       ctx.save(); ctx.textAlign = 'center'; ctx.font = f(18);
-      const label = (c ? 'R' : 'RONDA ') + this.hud.round;
+      const label = (c ? 'R' : 'ROUND ') + this.hud.round;
       if (neon) { ctx.shadowColor = '#ff2d95'; ctx.shadowBlur = 10; ctx.fillStyle = '#fff'; } else { ctx.lineWidth = 5; ctx.strokeStyle = '#0b0b0b'; ctx.strokeText(label, W / 2, c ? 36 : 32); ctx.fillStyle = '#fff'; }
       ctx.fillText(label, W / 2, c ? 36 : 32);
       ctx.font = f(13); ctx.fillStyle = neon ? '#bbb' : '#f2e8cf'; ctx.shadowBlur = 0;
-      ctx.fillText((c ? '' : 'TURNO ') + Math.min(this.hud.turn + 1, this.hud.limit) + '/' + this.hud.limit, W / 2, c ? 62 : 52);
+      ctx.fillText((c ? '' : 'TURN ') + Math.min(this.hud.turn + 1, this.hud.limit) + '/' + this.hud.limit, W / 2, c ? 62 : 52);
       ctx.restore();
     }
 
-    // para capturas de prueba: deja al maniquí y a vos con un nivel de daño dado
+    // for test screenshots: leaves the mannequin and you at a given damage level
     demo(dEnemy, dPlayer) {
       this.idleAll(); this.dmgT.a = this.dmg.a = dPlayer; this.dmgT.b = this.dmg.b = dEnemy;
       const n = Math.round(dEnemy * 11);
@@ -926,7 +942,7 @@
   function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
-  // pastilla de color con texto oscuro: legible sobre cualquier fondo
+  // colour pill with dark text: readable on any background
   function pill(ctx, text, x, y, al, col, big) {
     ctx.save(); ctx.font = (big ? '800 21px ' : '800 13px ') + 'system-ui, "Segoe UI", sans-serif';
     const tw = ctx.measureText(text).width, ph = big ? 26 : 18, px = big ? 12 : 9, x0 = al === 'left' ? x : x - tw - px * 2;

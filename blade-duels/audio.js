@@ -1,4 +1,4 @@
-/* Blade Duels - efectos de sonido sintetizados con WebAudio (sin archivos). */
+/* Blade Duels - sound effects synthesized with WebAudio (no files). */
 (function () {
   const BD = (globalThis.BD = globalThis.BD || {});
   let ctx = null, master = null, noiseBuf = null;
@@ -52,7 +52,7 @@
   A.sfx = function (name) {
     if (A.muted || !init()) return;
     if (ctx.state === 'suspended') ctx.resume();
-    try { SFX[name] && SFX[name](); } catch (e) { /* audio es opcional */ }
+    try { SFX[name] && SFX[name](); } catch (e) { /* audio is optional */ }
   };
   A.unlock = function () { if (init() && ctx.state === 'suspended') ctx.resume(); };
   BD.Audio = A;

@@ -62,6 +62,11 @@ export class Mission {
   private overtook = false;
   private slung = new Set<number>();
   private close = new Map<number, boolean>();
+  private entry = new Map<number, { vx: number; vy: number }>();
+  /** Bodies the ship has already been well clear of, so leaving its own planet is not a fly-by. */
+  private seenFar = new Set<number>();
+  /** Speed won from gravity assists in this stage. */
+  slingGain = 0;
   private rivalRnd: () => number;
   private recorded = false;
 
@@ -128,6 +133,9 @@ export class Mission {
     this.overtook = false;
     this.slung.clear();
     this.close.clear();
+    this.entry.clear();
+    this.seenFar.clear();
+    this.slingGain = 0;
     this.deadFor = 0;
     this.kitCooldown = 0;
     this.acc = 0;
@@ -219,11 +227,25 @@ export class Mission {
       if (b.def.star || b.def.hole) continue;
       const alt = Math.hypot(p.x - a.bx[i], p.y - a.by[i]) - b.def.r;
       const rel = Math.hypot(p.vx - a.bvx[i], p.vy - a.bvy[i]);
-      if (alt < 70 && rel > 110) this.close.set(i, true);
-      if (alt > 130 && this.close.get(i) && !this.slung.has(i)) {
+      // Big planets count from farther out: a fly-by is "close" in proportion to the body.
+      const near = 50 + 0.8 * b.def.r;
+      if (alt > near + 90) this.seenFar.add(i);
+      if (alt < near && rel > 90 && this.seenFar.has(i)) {
+        if (!this.close.get(i)) this.entry.set(i, { vx: p.vx, vy: p.vy });
+        this.close.set(i, true);
+      }
+      if (alt > near + 90 && this.close.get(i) && !this.slung.has(i)) {
         this.slung.add(i);
         this.close.set(i, false);
-        this.gain(DATA_SLING, `Honda gravitatoria en ${b.def.name}`);
+        const e = this.entry.get(i);
+        const sIn = e ? Math.hypot(e.vx, e.vy) : 0;
+        const sOut = Math.hypot(p.vx, p.vy);
+        const gainSpeed = sOut - sIn;
+        let turn = 0;
+        if (e && sIn > 1 && sOut > 1) turn = Math.abs(Math.atan2(p.vx * e.vy - p.vy * e.vx, p.vx * e.vx + p.vy * e.vy)) * (180 / Math.PI);
+        const bonus = Math.max(0, Math.round(gainSpeed * 0.25)) + Math.round(turn * 0.15);
+        this.slingGain += Math.max(0, gainSpeed);
+        this.gain(DATA_SLING + bonus, `Honda gravitatoria en ${b.def.name}: ${gainSpeed >= 0 ? '+' : ''}${Math.round(gainSpeed)} u/s, giro ${Math.round(turn)}°`);
       }
     }
   }

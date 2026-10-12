@@ -10,7 +10,7 @@ const S = Number(process.env.S ?? 0) | 0;
 const m = new Mission(newMeta(), { stage: S, race });
 const bot = new PlayerBot(mulberry32(100 + S), BOT_PROFILES[process.env.P ?? 'expert']);
 let last = -1;
-for (let f = 0; f < 60 * 160 && m.phase !== 'cleared'; f++) {
+for (let f = 0; f < 60 * 260 && m.phase !== 'cleared'; f++) {
   m.update(1 / 60, bot.control(m));
   const a = m.arena;
   const p = m.player;

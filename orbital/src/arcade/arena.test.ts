@@ -14,6 +14,7 @@ function runRival(stageIdx: number, maxSeconds = 120, stages = STAGES): { time: 
     color: '#ff2bd6',
     stats: { ...BASE_STATS, thrust: BASE_STATS.thrust * def.rival.skill },
     start: def.rivalStart,
+    orbit: def.startAt ? { ...def.startAt, angle: def.startAt.angle + 9 * (def.startAt.dir ?? 1) } : undefined,
     infiniteFuel: true,
   });
   const driver = new RivalDriver(mulberry32(7 + stageIdx));
@@ -145,7 +146,7 @@ describe('every race', () => {
   for (const race of RACES) {
     it(`${race.name}: the rival can fly every stage alone`, () => {
       race.stages.forEach((def, i) => {
-        const r = runRival(i, 150, race.stages);
+        const r = runRival(i, 260, race.stages);
         expect(r.finished, `${race.id} stage ${i + 1} ${def.name}`).toBe(true);
       });
     }, 60000);

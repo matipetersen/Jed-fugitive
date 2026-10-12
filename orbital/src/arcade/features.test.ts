@@ -108,6 +108,28 @@ describe('new stage mechanics', () => {
   });
 });
 
+describe('gravity assist', () => {
+  it('a coasting ship that wraps the moving planet leaves faster and bent towards its motion', () => {
+    const def = stageOf('asistencias', 'New Horizons: Plutón');
+    const arena = new Arena(def);
+    const ship = arena.addShip({ isPlayer: false, name: 'r', color: '#f0f', stats: BASE_STATS, start: def.start, infiniteFuel: true });
+    arena.start();
+    for (let i = 0; i < 20 / STEP; i++) arena.step([undefined as never]);
+    const bi = arena.bodyIndex('jupiter');
+    const h = (-21 * Math.PI) / 180;
+    const off = -520;
+    ship.status = 'flying';
+    ship.x = arena.cur.x[bi] - Math.cos(h) * 1300 - Math.sin(h) * off;
+    ship.y = arena.cur.y[bi] - Math.sin(h) * 1300 + Math.cos(h) * off;
+    ship.vx = Math.cos(h) * 250;
+    ship.vy = Math.sin(h) * 250;
+    for (let i = 0; i < 30 / STEP && (ship.status as string) !== 'dead'; i++) arena.step([{ throttle: 0, turn: 0 }]);
+    expect(ship.status).toBe('flying');
+    expect(Math.hypot(ship.vx, ship.vy)).toBeGreaterThan(290);
+    expect((Math.atan2(ship.vy, ship.vx) * 180) / Math.PI).toBeGreaterThan(20);
+  });
+});
+
 describe('random races', () => {
   it('are reproducible from the seed and vary with it', () => {
     const a = makeProceduralRace('diaria', 123);

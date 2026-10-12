@@ -102,3 +102,9 @@ con calor/radiación y agujeros negros. La nave lleva como máximo 3 tipos de me
 postquemador, motor, tanque, casco, giro, predictor, cápsulas). `src/arcade/procgen.ts` genera etapas al azar
 (carrera diaria con semilla por fecha y sector aleatorio); `scripts/verify-procgen.ts` comprueba que el rival
 pueda volarlas.
+
+### La honda gravitatoria
+
+`src/arcade/assist.ts`: cinco misiones famosas (Mariner 10, Galileo, Cassini, MESSENGER, New Horizons) con destinos
+a miles de unidades, planetas que se mueven y combustible justo. `flyby()` arma los aros alrededor de un planeta
+con el planeta del lado interno de la curva. El HUD muestra destino, distancia, ETA y la velocidad ganada en cada pasada.

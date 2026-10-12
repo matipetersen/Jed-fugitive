@@ -748,7 +748,32 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   {
     const gp = { x: 0, y: 0 };
     a.objective(p, gp);
-    edgeArrow(ctx, v, gp.x, gp.y, a.gatesDone(p) ? GOOD : AMBER, `${Math.round(Math.hypot(gp.x - p.x, gp.y - p.y))}`);
+    const dist = Math.hypot(gp.x - p.x, gp.y - p.y);
+    const done = a.gatesDone(p);
+    const warnShown = a.clock > 0 && !m.rival.finished && total - m.rival.nextGate <= 2 && m.rival.status !== 'dead' && m.phase !== 'cleared';
+    const gate = a.gates[p.nextGate];
+    let name = `ARO ${p.nextGate + 1}`;
+    if (done) name = a.bodies[a.finish.body].def.name;
+    else if (gate?.land) name = a.bodies[gate.land.body].def.name;
+    else if (gate && gate.body >= 0) name = a.bodies[gate.body].def.name;
+    edgeArrow(ctx, v, gp.x, gp.y, done ? GOOD : AMBER, `${name} ${Math.round(dist)}`);
+    // A far objective: distance, closing speed and a guide line from the ship towards it.
+    if (dist > 1500 && p.status !== 'dead' && a.clock > 0) {
+      const closing = (p.vx * (gp.x - p.x) + p.vy * (gp.y - p.y)) / (dist || 1);
+      const eta = closing > 15 ? `${Math.round(dist / closing)} s` : '--';
+      text(ctx, `DESTINO ${name.toUpperCase()} · ${Math.round(dist)} u · ETA ${eta}`, cx, TOP + 66 + (warnShown ? 16 : 0), COLORS.dim, 11, true);
+      proj(v, p.x, p.y);
+      const sx = P.x;
+      const sy = P.y;
+      proj(v, gp.x, gp.y);
+      const ang = Math.atan2(P.y - sy, P.x - sx);
+      ctx.setLineDash([3, 9]);
+      lineStroke(ctx, done ? GOOD : AMBER, 1, () => {
+        ctx.moveTo(sx + Math.cos(ang) * 40, sy + Math.sin(ang) * 40);
+        ctx.lineTo(sx + Math.cos(ang) * 190, sy + Math.sin(ang) * 190);
+      }, 0.45);
+      ctx.setLineDash([]);
+    }
   }
   if (m.rival.status !== 'dead') edgeArrow(ctx, v, m.rival.x, m.rival.y, '#ff2bd6', m.rival.name);
   const bp = m.beaconPos();

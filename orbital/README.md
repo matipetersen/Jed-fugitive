@@ -115,3 +115,10 @@ con el planeta del lado interno de la curva. El HUD muestra destino, distancia, 
 la velocidad ideal (entre la circular y la de escape) y una escalera de velocidad máxima al aterrizar (botón GUÍA).
 `makeGrandPrix` (en `procgen.ts`) genera cada día una grilla de 9 a 12 naves alrededor de un planeta, dos vueltas
 y aterrizaje en la Meta; el podio son los tres primeros (`StageDef.field`, `Mission.rivals`, `Mission.rank()`).
+
+### Sprint del Gigante
+
+`src/arcade/sprint.ts`: tres sprints que salen de un planeta gigante y atraviesan entre 450 y 1100 asteroides en órbita
+(algunos retrógrados y algunos más rápidos que la órbita circular). `StageDef.sprint` hace que la etapa termine al cruzar
+el último aro, sin aterrizar. El piloto automático solo evalúa los asteroides que pueden alcanzarlo dentro del horizonte
+(unas 7 veces más rápido en campos densos).

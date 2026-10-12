@@ -22,6 +22,7 @@ export interface LandTarget {
 
 /** The pad to land on right now, if the ship is close enough for guidance to take over from the route planner. */
 export function landTarget(arena: Arena, ship: Ship): LandTarget | null {
+  if (arena.def.sprint) return null;
   const n = ship.nextGate;
   const wp = n < ship.route.length ? ship.route[n].land : null;
   if (wp) {

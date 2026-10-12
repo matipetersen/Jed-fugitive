@@ -92,6 +92,11 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
     headings.push(pro, pro + Math.PI);
   }
 
+  // Only the rocks that can reach the ship within the planning horizon matter.
+  const reach = 450 + (speed + 330) * opts.horizon;
+  const reach2 = reach * reach;
+  const rocks = arena.asteroids.filter((a) => a.alive && (a.x - ship.x) ** 2 + (a.y - ship.y) ** 2 < reach2);
+
   let bestJ = Infinity;
   let bestH = ai.heading;
   let bestT = ai.throttle;
@@ -163,12 +168,11 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
           if (alt < SHIP_R + 2 && rv < 6) danger += 5000;
           else if (alt < 24 && rel > 60) danger += (24 - alt) * 5;
         }
-        for (const a of arena.asteroids) {
-          if (!a.alive) continue;
-          const ax = a.x + a.vx * (t - arena.t);
-          const ay = a.y + a.vy * (t - arena.t);
-          const d = Math.hypot(x - ax, y - ay);
-          if (d < a.r + SHIP_R + 12) danger += 900;
+        for (const a of rocks) {
+          const ex = x - (a.x + a.vx * (t - arena.t));
+          const ey = y - (a.y + a.vy * (t - arena.t));
+          const lim = a.r + SHIP_R + 12;
+          if (ex * ex + ey * ey < lim * lim) danger += 900;
         }
       }
       arena.gatePos(ship.nextGate, GP, PF, ship.route);
@@ -176,7 +180,7 @@ function plan(arena: Arena, ship: Ship, ai: AiState, rnd: () => number, opts: Ai
       const dir = Math.atan2(GP.y - y, GP.x - x);
       const vToward = (vx - PF.vx[0]) * Math.cos(dir) + (vy - PF.vy[0]) * Math.sin(dir);
       // Speed towards the gate is good, but only as much as can be used: no point arriving faster than the gate is far.
-      const lastGate = ship.nextGate === ship.route.length - 1 || !!ship.route[ship.nextGate].land;
+      const lastGate = (!arena.def.sprint && ship.nextGate === ship.route.length - 1) || !!ship.route[ship.nextGate].land;
       const cap = lastGate ? 40 + startD / 6 : 80 + startD / 1.1;
       let J = endD * 0.5 + minD - 0.35 * clamp(vToward, -50, Math.min(260, cap)) * opts.horizon + danger;
       // Beyond the speed a pilot can steer, going faster only means missing the next gate.

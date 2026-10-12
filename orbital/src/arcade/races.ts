@@ -3,6 +3,7 @@ import { KESSEL_RACE } from './kessel';
 import { BOONTA, HALLEY, MARTE2020, POLO_SUR, REDLINE, REUTILIZABLES, VENERA, VOYAGER } from './more';
 import * as N from './more2';
 import { ASISTENCIAS } from './assist';
+import { SPRINT } from './sprint';
 import { type RaceDef } from './types';
 
 /** A race with extra stages spliced in; stage numbers follow the new order. */
@@ -21,6 +22,7 @@ export const RACES: RaceDef[] = [
   },
   KESSEL_RACE,
   ASISTENCIAS,
+  SPRINT,
   extend(POLO_SUR, (s) => [s[0], N.polo_fall, s[1], N.polo_double, s[2]]),
   extend(VENERA, (s) => [s[0], N.venera_air, s[1], N.venera_balloon, s[2]]),
   extend(HALLEY, (s) => [s[0], N.halley_chase, s[1], N.halley_cargo, s[2]]),
@@ -49,6 +51,11 @@ const ENDINGS: Record<string, { winTitle: string; win: string; lose: string }> =
     winTitle: 'LLEGASTE SIN COMBUSTIBLE',
     win: 'Cinco misiones que no habrían llegado sin la gravedad de los planetas. La honda gravitatoria es la forma más barata de cruzar el sistema solar.',
     lose: 'El destino quedó lejos y el tanque no alcanzó. Cada curva cerrada alrededor de un planeta es combustible que no gastás.',
+  },
+  sprint: {
+    winTitle: 'CRUZASTE LA LÍNEA',
+    win: 'Atravesaste los anillos a toda velocidad y cruzaste la línea sin un rasguño de más. La velocidad es solo coraje con buena puntería.',
+    lose: 'El campo de rocas te frenó o el rival fue más rápido. En un sprint, un solo choque cuesta la carrera.',
   },
   polosur: {
     winTitle: 'POLO SUR CONQUISTADO',

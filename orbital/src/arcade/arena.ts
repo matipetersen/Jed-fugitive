@@ -598,6 +598,12 @@ export class Arena {
           s.cargo = true;
           this.events.push({ type: 'cargo', ship: s.id });
         }
+        if (final && this.def.sprint && !s.finished) {
+          s.finished = true;
+          s.finishTime = this.clock;
+          if (this.winner < 0) this.winner = s.id;
+          this.finishOrder.push(s.id);
+        }
         void final;
       }
     }

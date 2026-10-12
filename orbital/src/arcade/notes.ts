@@ -3,6 +3,9 @@ import { type StageDef } from './types';
 /** What makes this stage different, in one short line each, for the stage card. */
 export function stageNotes(def: StageDef): string[] {
   const out: string[] = [];
+  if (def.sprint) out.push('Sprint: se gana cruzando el último aro a toda velocidad, sin aterrizar.');
+  const rocks = def.asteroids.reduce((n, a) => n + a.count, 0);
+  if (rocks >= 120) out.push(`${rocks} asteroides en órbita: algunos van de frente. Un choque a esta velocidad duele.`);
   if (def.field) out.push(`Salida en grilla: ${def.field.slots.length + 1} naves alrededor del planeta. Cada una corre ${def.field.laps} vueltas desde su propio pad y vuelve a aterrizar en él, así todas hacen la misma distancia. Ganás con un lugar en el podio (los ${def.field.podium} primeros).`);
   if (def.startAt) out.push('Empezás en vuelo, sin plataforma.');
   if (def.gates.some((g) => g.landing)) out.push('Con escala: hay que aterrizar a mitad de camino (la estación recarga y guarda).');

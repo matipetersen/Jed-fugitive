@@ -97,6 +97,8 @@ export interface StageDef {
   startAt?: { body: string; angle: number; alt: number; speed?: number; dir?: 1 | -1; inward?: number };
   /** A mass start: many AI ships around one body. The stage is won with a place on the podium. */
   field?: { body: string; slots: number[]; podium: number; /** Laps of the ring in `gates`, run from each ship's own pad. */ laps: number; /** +1 counter-clockwise, -1 clockwise. */ dir: 1 | -1 };
+  /** A sprint ends the moment the last gate is crossed: no landing. */
+  sprint?: boolean;
   /** Fraction of the usual tank for the player in this stage. */
   tank?: number;
   /** Short label for the kind of stage, shown on the stage card. */

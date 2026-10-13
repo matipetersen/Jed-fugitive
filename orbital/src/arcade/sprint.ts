@@ -105,3 +105,43 @@ export const SPRINT: RaceDef = {
   blurb: 'Tres sprints de velocidad pura: salís de un planeta gigante, atravesás cientos de rocas en órbita y cruzás la línea sin aterrizar. Gana el que no frena y no choca.',
   stages: [s1, s2, s3],
 };
+
+const GIANTS: [string, string][] = [['Júpiter', '#ff9a5a'], ['Saturno', '#ffe0a0'], ['Neptuno', '#4b8bff'], ['Urano', '#7dffe8'], ['Kepler-9', '#ff2bd6']];
+
+/** A sprint made on demand; d is difficulty (0 easy .. 1 brutal): more rocks, farther, more rocks flying head-on. */
+export function makeSprintStage(seed: number, d: number): StageDefLike {
+  const r = (k: number): number => {
+    const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  const [name, color] = GIANTS[Math.floor(r(1) * GIANTS.length)];
+  const deg = Math.round(r(2) * 360);
+  const dist = R(4500 + 2800 * d);
+  const rad = 520 + Math.round(r(3) * 60);
+  const total = R(300 + 800 * d);
+  const head = Math.round(total * (0.35 + 0.1 * d));
+  const fast = d > 0.6 ? Math.round(total * 0.15) : 0;
+  const specs = [rocks(total - head - fast, seed + 1, 820, 2400 + 900 * d, 1.0), rocks(head, seed + 2, 820, 2400 + 900 * d, -0.9)];
+  if (fast) specs.push(rocks(fast, seed + 3, 820, 2400 + 900 * d, 1.38, [5, 10]));
+  return stage({
+    id: 1,
+    name: `Sprint ${name}`,
+    blurb: `Salís de ${name} y atravesás ${total} asteroides en órbita hasta el puesto, a ${dist} unidades. Cruzar el último aro termina la carrera.`,
+    skulls: Math.max(2, Math.min(5, 2 + Math.round(d * 3))),
+    bodies: [giant(name, rad, 110 + Math.round(r(4) * 14), color, deg), outpost(dist, deg)],
+    gates: lane(rad, dist, deg, 7 + Math.round(d * 2)),
+    asteroids: specs,
+    cells: [{ x: R(Math.cos(deg * d2r) * 1700), y: R(Math.sin(deg * d2r) * 1700), fuel: 30 }],
+    start: { body: 'gigante', angle: deg * d2r },
+    rivalStart: { body: 'gigante', angle: (deg + 28) * d2r },
+    sprint: true,
+    rival: { skill: 0.94 + 0.03 * d, name: pickName(r(5)), delay: 4, ai: { noise: 0.13 - 0.05 * d, interval: 0.15 } },
+    finish: { body: 'puesto', pad: 0 },
+    par: 38 + R(17 * d),
+    kind: 'Sprint',
+  });
+}
+
+const RIVAL_NAMES = ['Cometa Roja', 'Aguja', 'Relámpago', 'Fantasma', 'Víbora', 'Sombra'];
+const pickName = (x: number): string => RIVAL_NAMES[Math.floor(x * RIVAL_NAMES.length)];
+type StageDefLike = ReturnType<typeof stage>;

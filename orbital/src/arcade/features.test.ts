@@ -5,6 +5,7 @@ import { Arena, BASE_STATS, STEP } from './arena';
 import { UPGRADE_SLOTS, buyUpgrade, newMeta, shipStats, usedSlots } from './meta';
 import { generateStage, makeGrandPrix, makeProceduralRace } from './procgen';
 import { Mission } from './mission';
+import { endlessDifficulty, makeEndlessRace } from './endless';
 import { RACES } from './races';
 import { type StageDef } from './types';
 
@@ -232,5 +233,61 @@ describe('same start', () => {
       for (let i = 0; i < 12; i++) m.update(0.1, { throttle: 0, turn: 0 });
       expect(m.rival.status === 'flying' || m.rival.throttle > 0, `${raceId} ${name}`).toBe(true);
     }
+  });
+});
+
+describe('endless mode', () => {
+  it('is reproducible, mixes kinds and alternates difficulty', () => {
+    const a = makeEndlessRace(42);
+    const b = makeEndlessRace(42);
+    expect(JSON.stringify(a.stages.slice(0, 12))).toBe(JSON.stringify(b.stages.slice(0, 12)));
+    expect(a.stages.length).toBeGreaterThanOrEqual(100);
+    const kinds = new Set(a.stages.slice(0, 20).map((s) => s.kind));
+    expect(kinds.size).toBeGreaterThanOrEqual(5);
+    expect(a.stages.slice(0, 20).some((s) => s.sprint)).toBe(true);
+    expect(a.stages.slice(0, 40).some((s) => s.field)).toBe(true);
+    // Waves: every third stage is harder than the one before it, but the run still climbs.
+    expect(endlessDifficulty(2)).toBeGreaterThan(endlessDifficulty(1));
+    expect(endlessDifficulty(3)).toBeLessThan(endlessDifficulty(2));
+    expect(endlessDifficulty(60)).toBeGreaterThan(endlessDifficulty(0));
+  });
+
+  it('losing stages spends continues until the run ends; a streak of wins earns one back', () => {
+    const race = makeEndlessRace(7);
+    const m = new Mission(newMeta(), { stage: 0, race });
+    const lose = (): void => {
+      for (let i = 0; i < 60 && m.phase === 'countdown'; i++) m.update(0.1, { throttle: 0, turn: 0 });
+      m.rival.finished = true;
+      m.rival.finishTime = 5;
+      m.update(0.1, { throttle: 0, turn: 0 });
+    };
+    const win = (): void => {
+      for (let i = 0; i < 60 && m.phase === 'countdown'; i++) m.update(0.1, { throttle: 0, turn: 0 });
+      m.player.finished = true;
+      m.player.finishTime = 5;
+      m.arena.winner = m.player.id;
+      m.update(0.1, { throttle: 0, turn: 0 });
+    };
+    expect(m.continues).toBe(3);
+    for (let i = 0; i < 5; i++) {
+      win();
+      expect(m.phase).toBe('cleared');
+      expect(m.nextStage()).toBe(true);
+    }
+    expect(m.streak).toBe(5);
+    expect(m.continues).toBe(4);
+    lose();
+    expect(m.continues).toBe(3);
+    expect(m.streak).toBe(0);
+    expect(m.over).toBeNull();
+    m.nextStage();
+    lose();
+    m.nextStage();
+    lose();
+    m.nextStage();
+    lose();
+    expect(m.continues).toBe(0);
+    expect(m.over).toBe('failed');
+    expect(m.stagesCleared).toBe(5);
   });
 });

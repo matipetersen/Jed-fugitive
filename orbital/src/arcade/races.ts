@@ -104,6 +104,11 @@ ENDINGS.granpremio = {
   win: 'Saliste de la grilla entre once naves, sobreviviste a las dos vueltas y aterrizaste entre los tres primeros. Hoy el podio tiene tu nombre.',
   lose: 'Entre los empujones y las rocas el podio se llenó sin vos. Mañana, otra grilla y otro planeta.',
 };
+ENDINGS.endless = {
+  winTitle: 'EL TRAYECTO NO TERMINA',
+  win: 'Completaste todas las etapas generadas. Increíble: el universo se quedó sin mapas.',
+  lose: 'Se acabaron las continuaciones. El mapa de la próxima misión será otro: ya sabés lo que dejaste atrás.',
+};
 ENDINGS.diaria = {
   winTitle: 'SECTOR DIARIO LIMPIO',
   win: 'Completaste los seis sectores de hoy. Mañana habrá otros, y más difíciles de adivinar.',

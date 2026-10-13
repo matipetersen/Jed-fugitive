@@ -196,7 +196,7 @@ export function generateStage(seed: number, index: number, d: number, template?:
 
 /** Days since the epoch, the same for everyone on the same day. */
 export const dailySeed = (now = new Date()): number => Math.floor(now.getTime() / 86400000);
-export const dailyLabel = (now = new Date()): string => now.toISOString().slice(0, 10);
+export const dailyLabel = (now = new Date()): string => (Number.isNaN(now.getTime()) ? 'al azar' : now.toISOString().slice(0, 10));
 
 /** A whole random race. `kind` decides the length and how fast it ramps up. */
 export function makeProceduralRace(kind: 'diaria' | 'sinfin', seed: number): RaceDef {

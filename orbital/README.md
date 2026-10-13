@@ -122,3 +122,10 @@ y aterrizaje en la Meta; el podio son los tres primeros (`StageDef.field`, `Miss
 (algunos retrógrados y algunos más rápidos que la órbita circular). `StageDef.sprint` hace que la etapa termine al cruzar
 el último aro, sin aterrizar. El piloto automático solo evalúa los asteroides que pueden alcanzarlo dentro del horizonte
 (unas 7 veces más rápido en campos densos).
+
+### Modo endless
+
+`src/arcade/endless.ts`: una racha de 120 etapas que mezcla saltos, sprints, gran premio, sobrevuelos, escalas,
+cargas, caídas y circuitos (y etapas clásicas de las otras carreras). La dificultad sube de a poco con olas
+(cada tercera etapa es un pico). Tenés 3 continuaciones: perder una etapa gasta una, cada 5 victorias seguidas
+ganás otra (máx. 5). Cada misión genera una secuencia nueva. `scripts/endless-run.ts` lo juega con un bot.

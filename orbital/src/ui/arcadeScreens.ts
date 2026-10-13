@@ -3,6 +3,7 @@ import { type MissionRecord, UPGRADES, kitCount } from '../arcade/meta';
 import { UPGRADE_SLOTS, raceProgress, usedSlots } from '../arcade/meta';
 import { stageNotes } from '../arcade/notes';
 import { RACES, endingOf } from '../arcade/races';
+import { makeEndlessRace } from '../arcade/endless';
 import { dailySeed, makeGrandPrix, makeProceduralRace } from '../arcade/procgen';
 import { h } from './dom';
 
@@ -30,6 +31,8 @@ const ARCADE_HELP: [string, string][] = [
   ['Rival', 'Sale en el mismo instante que vos (nadie espera en la largada), corre a la vez y se pueden chocar. Su fuerza se cambia en el centro de misión: RIVAL FÁCIL, NORMAL o DIFÍCIL. Un golpe fuerte lo frena a él también.'],
   ['Práctica', 'Las etapas que ya alcanzaste se pueden practicar sin vidas ni recompensas, con la nave básica.'],
 ];
+
+let endlessCard: ReturnType<typeof makeEndlessRace> | null = null;
 
 /** Upgrade list, bought with saved data; used in the centre and between stages. */
 function shop(c: ArcadeController): HTMLElement[] {
@@ -67,19 +70,19 @@ export const arcadeScreens = {
           h('div', {}, r.blurb),
           h('div', { class: 'row' },
             btn(pr.won ? 'JUGAR (COMPLETADA)' : 'JUGAR', () => c.openHub(r), 'go'),
-            h('span', { class: pr.won ? 'good' : 'k' }, `${r.stages.length} etapas · mejor ${pr.cleared}/${r.stages.length}`),
+            h('span', { class: pr.won ? 'good' : 'k' }, r.endless ? `sin fin · mejor racha ${pr.cleared}` : `${r.stages.length} etapas · mejor ${pr.cleared}/${r.stages.length}`),
           ),
         );
       }),
       h('h2', {}, 'GENERADAS'),
-      ...[makeGrandPrix(dailySeed()), makeProceduralRace('diaria', dailySeed()), makeProceduralRace('sinfin', 1)].map((r) => {
+      ...[(endlessCard ??= makeEndlessRace(1)), makeGrandPrix(dailySeed()), makeProceduralRace('diaria', dailySeed())].map((r) => {
         const pr = raceProgress(c.meta, r.id, r.stages.length);
         return h('div', { class: 'panel' },
           h('div', { class: 'row' }, h('span', { class: 'amber' }, r.name), h('span', { class: 'k' }, r.subtitle)),
           h('div', {}, r.blurb),
           h('div', { class: 'row' },
             btn('JUGAR', () => c.openHub(r), 'go'),
-            h('span', { class: pr.won ? 'good' : 'k' }, `${r.stages.length} etapas`),
+            h('span', { class: pr.won ? 'good' : 'k' }, r.endless ? `sin fin · mejor racha ${pr.cleared}` : `${r.stages.length} etapas`),
           ),
         );
       }),
@@ -98,21 +101,28 @@ export const arcadeScreens = {
     const next = Math.min(Math.max(pr.cleared, pr.reached - 1), stages.length - 1);
     return h('div', { class: 'screen' },
       h('h1', {}, race.name),
-      h('p', { class: 'sub' }, `${race.subtitle} · etapas ganadas alguna vez ${pr.cleared}/${stages.length} · misiones ${m.attempts} · naves perdidas ${m.deaths}`),
+      h('p', { class: 'sub' }, `${race.subtitle} · ${race.endless ? `mejor racha ${pr.cleared}` : `etapas ganadas alguna vez ${pr.cleared}/${stages.length}`} · misiones ${m.attempts} · naves perdidas ${m.deaths}`),
       h('div', { class: 'row' },
         btn('INICIAR MISIÓN', () => c.startMission(0, false), 'go'),
         btn('OTRAS CARRERAS', () => c.openRaces()),
         btn(`RIVAL: ${['FÁCIL', 'NORMAL', 'DIFÍCIL'][m.rivalLevel ?? 1]}`, () => c.cycleRival()),
       ),
-      h('p', { class: 'sub' }, pr.won
+      h('p', { class: 'sub' }, race.endless
+        ? 'Etapas de todos los tipos, cada vez más difíciles, con olas de dificultad. Tenés 3 continuaciones: no las malgastes.'
+        : pr.won
         ? 'Completaste esta carrera. Probá mejorar tus tiempos.'
         : pr.cleared === 0 ? `La misión completa son ${stages.length} etapas contra la nave rival. Tenés 3 vidas por etapa.` : `Tu mejor avance: etapa ${pr.cleared}. El rival no espera.`),
-      h('h2', {}, 'PRÁCTICA'),
-      h('div', { class: 'row' }, ...stages.map((s, i) => btn(`${s.id}. ${s.name}`, () => c.startMission(i, true), '', i > next))),
+      ...(race.endless
+        ? [h('p', { class: 'sub' }, `Tu mejor racha: ${pr.cleared} etapas ganadas. Cada misión genera una secuencia nueva.`)]
+        : [
+            h('h2', {}, 'PRÁCTICA'),
+            h('div', { class: 'row' }, ...stages.map((s, i) => btn(`${s.id}. ${s.name}`, () => c.startMission(i, true), '', i > next))),
+          ]),
       h('h2', {}, 'TECNOLOGÍA'),
       h('p', { class: 'sub' }, 'Cada misión empieza con la nave básica. Los datos que ganás (y la telemetría de las naves que perdés) se gastan en mejoras entre etapa y etapa, pero solo valen para esa misión.'),
-      h('h2', {}, 'MEJORES TIEMPOS'),
-      h('div', { class: 'grid' }, ...stages.map((s, i) => kv(`${s.id}. ${s.name}`, pr.best[i] == null ? '--' : fmtT(pr.best[i]!)))),
+      ...(race.endless
+        ? []
+        : [h('h2', {}, 'MEJORES TIEMPOS'), h('div', { class: 'grid' }, ...stages.map((s, i) => kv(`${s.id}. ${s.name}`, pr.best[i] == null ? '--' : fmtT(pr.best[i]!))))]),
       h('h2', {}, 'MEJORES MISIONES'),
       ...(m.records.filter((r) => (r.race ?? 'guerra') === race.id).length === 0
         ? [h('p', { class: 'sub' }, 'Todavía no terminaste ninguna misión de esta carrera.')]
@@ -137,7 +147,7 @@ export const arcadeScreens = {
     const m = c.mission;
     const def = m.def;
     return h('div', { class: 'screen' },
-      h('p', { class: 'sub' }, `${def.year ? `${def.year} · ` : ''}etapa ${def.id} de ${c.mission.stageCount}${m.practice ? ' · PRÁCTICA' : ''}`),
+      h('p', { class: 'sub' }, `${def.year ? `${def.year} · ` : ''}etapa ${def.id}${m.race.endless ? '' : ` de ${c.mission.stageCount}`}${m.practice ? ' · PRÁCTICA' : ''}`),
       h('h1', {}, def.name.toUpperCase()),
       h('p', { class: 'amber' }, `Dificultad ${skulls(def.skulls)}`),
       h('p', {}, def.blurb),
@@ -190,7 +200,9 @@ export const arcadeScreens = {
         !m.practice ? kv(r.won ? 'Recompensa' : 'Recompensa reducida', `+${r.reward} datos`, 'amber') : null,
         !m.practice ? kv('Naves perdidas', `${m.deaths}`) : null,
         !m.practice ? kv('Datos de la misión', `${m.earned}`) : null,
-        !m.practice ? kv('Etapas ganadas', `${m.stagesCleared}/${c.mission.stageCount}`) : null,
+        !m.practice ? kv('Etapas ganadas', m.race.endless ? String(m.stagesCleared) : `${m.stagesCleared}/${c.mission.stageCount}`) : null,
+        m.race.endless ? kv('Continuaciones', '♥'.repeat(Math.max(0, m.continues)) || '0', m.continues <= 1 ? 'bad' : 'good') : null,
+        m.race.endless ? kv('Racha', String(m.streak)) : null,
       ),
       final && r.won ? h('p', {}, end.win) : null,
       final && !r.won ? h('p', {}, `${end.lose} Cada misión empieza de cero: la próxima vez ya sabés dónde cae la gravedad.`) : null,
@@ -218,7 +230,7 @@ export const arcadeScreens = {
       h('h1', { class: 'bad' }, 'MISIÓN FRACASADA'),
       h('p', { class: 'sub' }, r?.reason ?? ''),
       h('div', { class: 'panel' },
-        kv('Etapas superadas', `${m.stagesCleared}/${c.mission.stageCount}`),
+        kv('Etapas superadas', m.race.endless ? String(m.stagesCleared) : `${m.stagesCleared}/${c.mission.stageCount}`),
         kv('Muertes', String(m.deaths)),
         kv('Datos ganados esta misión', String(m.earned), 'amber'),
         kv('Datos perdidos', `${m.carried}`, 'bad'),

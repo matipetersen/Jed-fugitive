@@ -68,6 +68,9 @@ export class Mission {
   deaths = 0;
   clearedTime = 0;
   stagesCleared = 0;
+  /** Endless runs: lost stages left to spend and the current streak of wins. */
+  continues = 0;
+  streak = 0;
   /** Set when the mission is over for good (won or failed). */
   over: 'won' | 'failed' | null = null;
   /** Called for every arena event, for effects and sound. */
@@ -98,6 +101,7 @@ export class Mission {
       meta.data = 0;
       meta.attempts++;
     }
+    this.continues = this.race.endless?.continues ?? 0;
     this.kits = kitCount(this.upgrades);
     this.rivalRnd = mulberry32(1000 + this.stageIdx);
     this.loadStage(this.stageIdx);
@@ -412,7 +416,7 @@ export class Mission {
     this.note(`Muerte: ${reason}${lost > 0 && !this.practice ? ` · ${lost} datos quedaron en la baliza` : ''}`, 'bad');
     if (!this.practice) {
       // The wreck is not wasted: the telemetry of a lost ship pays for improvements.
-      const wreck = DATA_WRECK + 6 * this.stageIdx;
+      const wreck = DATA_WRECK + 6 * Math.min(this.stageIdx, 12);
       this.earned += wreck;
       this.meta.data += wreck;
       this.note(`+${wreck} datos · telemetría de la nave perdida`, 'info');
@@ -479,7 +483,7 @@ export class Mission {
       }
     } else if (won) {
       const margin = Math.max(0, rivalTime - time);
-      reward = this.practice ? 0 : Math.round(100 * (this.stageIdx + 1) + margin * 4 + (this.player.hull / this.player.stats.hullMax) * 30);
+      reward = this.practice ? 0 : Math.round(100 * Math.min(this.stageIdx + 1, 12) + margin * 4 + (this.player.hull / this.player.stats.hullMax) * 30);
       this.stagesCleared++;
       this.clearedTime += time;
       if (!this.practice) {
@@ -491,7 +495,7 @@ export class Mission {
       this.note(`Etapa ${this.stageIdx + 1} superada en ${time.toFixed(1)} s`, 'good');
     } else {
       // A lost stage still pays a little: the run goes on.
-      reward = this.practice ? 0 : 25 * (this.stageIdx + 1);
+      reward = this.practice ? 0 : 25 * Math.min(this.stageIdx + 1, 12);
       if (lost) reason = lost;
       else {
         const total = this.player.route.length;
@@ -503,7 +507,18 @@ export class Mission {
     this.carried = 0;
     this.phase = 'cleared';
     this.result = { won, time, rivalTime, place, field: field ? field.slots.length + 1 : undefined, reward, reason };
-    if (last && !this.practice) this.endMission(won ? 'won' : 'failed');
+    const endless = this.race.endless;
+    if (endless && !this.practice) {
+      if (won) {
+        this.streak++;
+        if (this.streak % 5 === 0) this.continues = Math.min(endless.maxContinues, this.continues + 1);
+      } else {
+        this.streak = 0;
+        this.continues--;
+        if (this.continues <= 0) this.endMission('failed');
+      }
+    }
+    if (last && !this.practice && !this.over) this.endMission(won ? 'won' : 'failed');
   }
 
   private endMission(kind: 'won' | 'failed'): void {

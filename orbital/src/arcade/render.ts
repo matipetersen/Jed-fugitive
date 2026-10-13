@@ -681,6 +681,7 @@ export function drawArcadeHud(ctx: CanvasRenderingContext2D, g: ArcadeGame, widt
   text(ctx, `VIDAS ${'♥'.repeat(Math.max(0, m.lives))}${m.practice ? ' ∞' : ''}`, x, TOP + 68, m.lives <= 1 && !m.practice ? BAD : COLORS.hud);
   text(ctx, `DATOS ${m.carried}`, x, TOP + 84, m.carried > 0 ? AMBER : COLORS.dim);
   if (p.cargo) text(ctx, 'CARGA A BORDO', x, TOP + 116, '#ff2bd6');
+  if (m.race.endless) text(ctx, `CONTINUACIONES ${'♥'.repeat(Math.max(0, m.continues))} · RACHA ${m.streak}`, x, TOP + 132, m.continues <= 1 ? BAD : AMBER);
 
   // Near a surface: height and speed relative to it, green when a touchdown would be safe.
   if (p.status === 'flying') {

@@ -198,4 +198,6 @@ export interface RaceDef {
   subtitle: string;
   blurb: string;
   stages: StageDef[];
+  /** An endless run: losing a stage costs a continue; at zero the run is over. */
+  endless?: { continues: number; maxContinues: number };
 }

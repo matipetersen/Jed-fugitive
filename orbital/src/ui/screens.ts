@@ -16,6 +16,7 @@ import { BODIES } from '../sim/bodies';
 import { ENGINES, TECHS, statsFor } from '../sim/tech';
 import { DAY, fmtDate, fmtDuration, yearOf } from '../sim/units';
 import { h } from './dom';
+import { LOGO_URL } from './logo';
 
 const bar = (frac: number, cls = ''): HTMLElement => h('div', { class: `bar ${cls}` }, h('i', { style: `width:${Math.max(0, Math.min(1, frac)) * 100}%` }));
 
@@ -60,12 +61,14 @@ export const screens = {
   /** First screen: arcade race or realistic simulator. */
   title(app: App): HTMLElement {
     return h('div', { class: 'screen' },
-      h('h1', {}, 'ORBITAL RACE'),
-      h('p', { class: 'sub' }, 'Guerra Fría, 1957. Primero en llegar a Plutón.'),
+      h('div', { class: 'brand' },
+        h('img', { class: 'logo', src: LOGO_URL, alt: 'Orbital Race' }),
+        h('div', {}, h('h1', {}, 'ORBITAL RACE'), h('p', { class: 'sub' }, 'Carreras espaciales en neón: gravedad, hondas y aterrizajes.')),
+      ),
       h('div', { class: 'panel' },
-        h('h2', {}, 'CARRERA ARCADE'),
-        h('p', {}, 'Corré contra la nave rival por aros entre planetas que se mueven. La gravedad te empuja, las rocas chocan y morir es parte del juego. 5 etapas, 3 a 5 minutos, 3 vidas.'),
-        btn('JUGAR LA CARRERA', () => app.openArcade(), 'go'),
+        h('h2', {}, 'CARRERAS ARCADE'),
+        h('p', {}, 'Doce carreras (de la Guerra Fría a Kessel y Redline), un Gran Premio diario con hasta doce naves, sprints entre asteroides y un modo endless. La gravedad te empuja, las rocas chocan y morir es parte del juego.'),
+        btn('JUGAR LAS CARRERAS', () => app.openArcade(), 'go'),
       ),
       h('div', { class: 'panel' },
         h('h2', {}, 'SIMULADOR REALISTA'),

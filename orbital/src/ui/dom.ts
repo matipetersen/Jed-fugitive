@@ -29,6 +29,7 @@ canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-ac
 #overlay{position:fixed;inset:0;display:none;overflow:auto;background:rgba(2,2,10,.92);-webkit-overflow-scrolling:touch;z-index:5}
 #overlay.on{display:block}
 .screen{max-width:760px;margin:0 auto;padding:50px 16px 28px}
+.brand{display:flex;align-items:center;gap:14px;margin:2px 0 8px}.brand h1{margin:0}.brand .sub{margin:2px 0 0}.logo{width:76px;height:76px;border-radius:17px;box-shadow:0 0 16px rgba(0,240,255,.35),0 0 2px #fff3;flex:none}@media (max-height:520px){.logo{width:58px;height:58px;border-radius:13px}}
 .screen h1{font-size:22px;letter-spacing:.2em;margin:6px 0 2px;color:var(--ink);text-shadow:0 0 8px var(--ink)}
 .screen h2{font-size:13px;letter-spacing:.18em;margin:18px 0 8px;color:var(--amber);text-shadow:0 0 6px var(--amber);font-weight:600}
 .sub{color:var(--dim);margin:0 0 6px}

@@ -1,6 +1,6 @@
 // Cache-first service worker so the game runs offline once loaded.
-const CACHE = 'orbital-v1';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
+const CACHE = 'orbital-v2';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-48.png', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));

@@ -53,6 +53,18 @@ lens, slashes, a red vignette with a heartbeat and a trembling hand. Condition i
 
 Keys: `Q W E R T` attack type, `1 2 3` direction, `Z X C` block.
 
+## Install as an app (phone)
+
+The page is an installable web app (manifest, icons, offline fallback). Host this folder on any HTTPS site
+(for example GitHub Pages), open it on the phone and:
+
+- **iPhone / iPad (Safari):** Share -> Add to Home Screen.
+- **Android (Chrome):** menu -> Install app / Add to Home screen.
+
+It then opens full screen with the Blade Duels icon. The service worker is network-first, so when you update the game
+the installed app loads the new version as soon as it is online; the cache is only a fallback for offline play.
+The icons are generated from one SVG: `node tools/make-icons.js` (needs Playwright with Chromium).
+
 ## Layout
 
 | File | Role |
@@ -62,6 +74,7 @@ Keys: `Q W E R T` attack type, `1 2 3` direction, `Z X C` block.
 | `render.js` | First-person camera, procedural mannequin with persistent wounds, fluids and splatter, **Neon** and **Primal** skins, hitstop, shake and blur |
 | `audio.js` | Sound effects synthesized with WebAudio |
 | `main.js`, `index.html`, `style.css` | Tournament flow and interface |
+| `manifest.webmanifest`, `sw.js`, `icons/`, `tools/make-icons.js` | Installable web app: manifest, service worker, icon set and its generator |
 | `tests/sim.js` | Rules tests and a bot-vs-bot balance simulation |
 
 ## Tests and balance

@@ -348,6 +348,13 @@
     }
   }
 
+  // installable web app: offline fallback (network-first, so updates always show up). Not inside iframes.
+  try {
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && window.top === window) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+    }
+  } catch (e) { /* no service worker */ }
+
   window.BDGame = { G, panel, scene: () => G.scene };
   window.addEventListener('DOMContentLoaded', main);
 })();

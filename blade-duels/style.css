@@ -116,3 +116,9 @@ body.theme-primal .cta.alt { background: #3a2418; }
 #speedtip b { color: #fff; }
 #hint b { color: #fff; font-weight: 800; }
 .vt .cond { padding: 2px 9px; border-radius: 999px; font-size: 11px; }
+
+/* installed web app: respect notches, no double-tap zoom, no rubber-band scroll */
+body { overscroll-behavior: none; }
+button { touch-action: manipulation; }
+#app { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+@media (max-width: 640px) { #app { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); } }

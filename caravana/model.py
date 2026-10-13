@@ -233,7 +233,7 @@ class Game:
             for w in g.wagons[:3]:
                 w.reinforce()
         g.sup.ammo = 40 if profession == "soldado" else 0
-        starts = dict(pawnee=5, cheyenne=0, lakota=-10, shoshone=10, cayuse=0, kalapuya=10, chinook=10)
+        starts = dict(pawnee=5, cheyenne=0, lakota=-10, shoshone=10, cayuse=8, kalapuya=10, chinook=10)
         for k, v in starts.items():
             g.tribes[k].attitude = float(v)
         if profession == "soldado":
@@ -720,7 +720,7 @@ class Game:
         ts = self.tribes[tid]
         rng = self.rng
         progress = self.mile / 2000.0
-        strength = (7 + progress * 14 + ts.arms * 1.1 + rng.uniform(0, 3) + extra) * t["strength"]
+        strength = (7 + progress * 12 + ts.arms * 1.1 + rng.uniform(0, 3) + extra) * t["strength"]
         if self.day <= ts.treaty_until:
             strength *= 0.45
         return self.compose_battle(tid, strength)
@@ -1235,6 +1235,10 @@ class Game:
                 self.sup.ammo += loot_a
                 self.sup.goods += loot_g
                 lines.append(f"Botín de los bandidos: +{loot_a} balas, +{loot_g} mercancías.")
+        if res.outcome in ("victoria", "huida") and res.ammo_used > 10:
+            back = int(res.ammo_used * 0.12)
+            self.sup.ammo += back
+            lines.append(f"Recoges balas y flechas aprovechables: +{back} balas.")
         if res.outcome == "victoria":
             self.morale = min(100, self.morale + 6)
         elif res.outcome == "derrota":

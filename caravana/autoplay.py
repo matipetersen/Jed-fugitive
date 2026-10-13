@@ -97,24 +97,28 @@ def play_full(seed: int = 1, profession: str = "granjero", diplomacy: bool = Tru
             g.buy(item, 1.0)
     end = None
     guard = 0
+    last_rest = -99
     while not g.over and guard < 400:
         guard += 1
         if g.pace == "normal" and g.sup.food < 150 and g.sup.money > 40:
             pass
         if g.sup.food < 300 and g.sup.ammo >= 30 and not g.starving:
             resolve(g, g.hunt_day(), diplomacy, stats, seed)
-        if sum(1 for c in g.living() if c.sick) >= 2 or g.morale < 25:
+        if (sum(1 for c in g.living() if c.sick) >= 2 or g.morale < 25) and g.day - last_rest > 8 and g.sup.food > 400:
             g.rest_day(2)
+            last_rest = g.day
         for i, w in enumerate(g.wagons):
             if w.hp < w.max_hp * 0.6 and g.sup.parts > 0:
                 g.repair_wagon(i)
-        if any(c.health < 55 for c in g.living()) and g.sup.food > 150:
+        if any(c.health < 40 for c in g.living()) and g.sup.food > 700 and g.day - last_rest > 8:
             g.rest_day(2)
+            last_rest = g.day
         it = g.advance_day()
         nb = len(stats.get("battles", []))
         r = resolve(g, it, diplomacy, stats, seed)
-        if len(stats.get("battles", [])) > nb:
+        if len(stats.get("battles", [])) > nb and g.sup.food > 500:
             g.rest_day(3)
+            last_rest = g.day
         if isinstance(r, (ForkSpec, EndSpec)):
             end = r
             break

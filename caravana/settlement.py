@@ -103,8 +103,8 @@ class Settlement:
                     "octubre", "noviembre", "diciembre"][mon]
             winter = mon in (11, 0, 1, 2)
             # consumo
-            need = len(alive) * 42.0
-            forage = len(alive) * (8 + site["fertility"] * 2) + (g.best("hunt") * 8)
+            need = len(alive) * 36.0
+            forage = len(alive) * (10 + site["fertility"] * 2.5) + (g.best("hunt") * 10)
             if "establo" in built:
                 forage += 60
             if "puesto" in built:
@@ -112,12 +112,12 @@ class Settlement:
             if m >= harvest_month and farm_plan:
                 forage += len(alive) * 18 * (site["fertility"] / 5.0) * (1.0 / hardship)
             if winter:
-                forage *= 0.35
+                forage *= 0.6
             food += forage - need
             if food < 0:
                 food = 0
                 starve = [c for c in alive if c.group in ("niño", "anciano")] or alive
-                if rng.random() < 0.55:
+                if rng.random() < 0.35:
                     v = rng.choice(starve)
                     v.alive = False
                     v.cause = "hambruna"
@@ -128,7 +128,7 @@ class Settlement:
                 morale -= 3
             # frío
             if winter and not sheltered:
-                exposure = 0.28 * hardship
+                exposure = (0.2 if len(g.wagons) * 2 >= len(alive) else 0.28) * hardship
                 if rng.random() < exposure:
                     v = rng.choice([c for c in alive if c.group in ("niño", "anciano") or c.health < 70] or alive)
                     v.alive = False

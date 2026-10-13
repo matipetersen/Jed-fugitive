@@ -78,7 +78,7 @@ TRIBES = {
         wants="goods", lore="Comerciantes y guías. Conocen cada paso de las montañas.",
     ),
     "cayuse": dict(
-        name="Cayuse", color=(210, 170, 60), aggression=0.9, pride=4, strength=1.0,
+        name="Cayuse", color=(210, 170, 60), aggression=0.8, pride=4, strength=1.0,
         style={"jinete": 5, "guerrero": 2, "bandido": 3},
         greet="Un grupo de jinetes Cayuse, con caballos soberbios, sale del bosque.",
         wants="medicine", lore="Criadores de caballos. Las epidemias de sarampión han roto su confianza.",

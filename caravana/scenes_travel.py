@@ -186,6 +186,15 @@ class TravelScene(Scene):
         self.hover_tip = ""
         self._build()
         self._intro = intro
+        self._labels()
+
+    def _labels(self):
+        g = self.g
+        self.pace_btn.label = f"Ritmo: {data.PACE_LABEL[g.pace]} (R)"
+        self.rations_btn.label = f"Raciones: {data.RATION_LABEL[g.rations]} (T)"
+        self.watch_btn.label = f"{data.WATCH_LABEL[g.watch]} (G)"
+        self.go_btn.label = "Detener la marcha (Espacio)" if self.moving else "Continuar el viaje (Espacio)"
+        self.speed_btn.label = f"x{self.speed}"
 
     def enter(self):
         if self._intro:
@@ -201,6 +210,7 @@ class TravelScene(Scene):
 
     def resume(self):
         self._build()
+        self._labels()
 
     # ------------------------------------------------------------ botones
     def _build(self):
@@ -344,11 +354,7 @@ class TravelScene(Scene):
     def update(self, dt):
         self.t += dt
         g = self.g
-        self.pace_btn.label = f"Ritmo: {data.PACE_LABEL[g.pace]} (R)"
-        self.rations_btn.label = f"Raciones: {data.RATION_LABEL[g.rations]} (T)"
-        self.watch_btn.label = f"{data.WATCH_LABEL[g.watch]} (G)"
-        self.go_btn.label = "Detener la marcha (Espacio)" if self.moving else "Continuar el viaje (Espacio)"
-        self.speed_btn.label = f"x{self.speed}"
+        self._labels()
         if self.moving and not g.over:
             self.scroll += dt * 90 * self.speed * (0.6 if g.pace == "lento" else 1.35 if g.pace == "rapido" else 1.0)
             self.acc += dt * self.speed
@@ -671,11 +677,11 @@ class CampScene(Scene):
         self.msg = ""
         self.t = 0.0
         self._build()
+        self.update(0.0)
 
     def resume(self):
         self._build()
-        if self.g.over or not self.g.living():
-            return
+        self.update(0.0)
 
     def _build(self):
         g = self.g

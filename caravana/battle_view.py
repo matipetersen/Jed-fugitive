@@ -689,8 +689,8 @@ class BattleScene(Scene):
         panel(screen, (cx - 270, 190, 540, 330), C["panel"], C["gold"], 10)
         text(screen, "Parlamento a mitad de la batalla", (cx, 204), 24, C["gold"], serif=True, anchor="midtop")
         ts = self.game.tribes.get(self.spec.foe)
-        text(screen, "Una bandera blanca y un intérprete. El éxito depende de su trato hacia ti, tu labia,",
-             (cx, 232), 13, C["dim"], anchor="midtop")
+        text(screen, "Bandera blanca e intérprete. El éxito depende de su trato hacia ti, tu labia y el regalo.",
+             (cx, 234), 13, C["dim"], anchor="midtop")
         for btn in self._parley_buttons():
             btn.draw(screen)
         text(screen, "(espera 10 s de combate; si fracasan, no podrás intentarlo de nuevo durante 28 s)", (cx, 495), 12, C["dim"], anchor="midtop")

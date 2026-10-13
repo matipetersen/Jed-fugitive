@@ -902,6 +902,12 @@ class Battle:
         bc.flash = 0.35
         self.emit("hurt", bc.x, bc.y)
         if c.health <= 0:
+            surv = 0.4 + 0.04 * self.game.best("medic") - (0.15 if c.group in ("niño", "anciano") else 0.0)
+            if self.rng.random() < surv:
+                c.health = self.rng.uniform(3, 9)
+                c.post = None
+                self.say(f"¡{c.name} cae gravemente herido/a, pero sigue con vida!", (255, 170, 120))
+                return
             c.alive = False
             c.cause = "muerto en combate"
             c.post = None

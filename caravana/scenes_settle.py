@@ -206,7 +206,7 @@ class SettlementScene(Scene):
             text(screen, lbl, (820, y), 14, C["dim"])
             bar(screen, (920, y + 3, 200, 9), min(10, site[key]) / 10.0, C["green"])
             y += 21
-        need = len(g.living()) * 42 * 5
+        need = len(g.living()) * 36 * 4
         y += 8
         para(screen, f"Un invierno largo exige ~{need} lb de comida. Sin cabañas morirá gente por el frío; sin pozo, por fiebres; "
                      f"sin tratado, quizá por incursiones.", (820, y), 400, 14, C["parch"])

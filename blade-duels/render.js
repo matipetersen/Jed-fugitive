@@ -183,7 +183,7 @@
       this.texts = []; this.banners = []; this.callouts = [];
       this.comics = []; this.dots = []; this.kirby = []; this.lastWord = '';
       this.cam = { shake: 0, roll: 0, rollT: 0, dy: 0, dyT: 0, zoom: 0 };
-      this.busy = false; this.idleAmp = 1;
+      this.busy = false; this.idleAmp = 1; this.idlePh = 0; this.agit = 0;
       this.freeze = 0; this.slowmo = 0; this.impact = 0; this.flashWhite = 0; this.flashRed = 0; this.koFade = 0;
       this.fx = { mb: 0, dx: 1, dy: 0, rad: 0 }; this.speedLines = 0; this.timer = null;
       this.wcv = document.createElement('canvas'); this.wcv.width = W; this.wcv.height = H; this.wctx = this.wcv.getContext('2d');
@@ -252,17 +252,22 @@
       P.tilt += (d * 16 + Math.sin(t * 1.1) * (1 + d * 4)) * col;
       P.sink += (d * 16 + Math.sin(t * 2.2) * 1.5) * col;
       P.hy += d * 30 * col; P.w += d * 16 * col;
-      if (this.eF.dizzy) { P.tilt += Math.sin(t * 5) * 9; P.lean += Math.sin(t * 4) * 5; }
-      // waiting for your move: footwork, weapon and guard keep moving (more agitated as the clock runs out)
+      if (this.eF.dizzy) { P.tilt += Math.sin(t * 2.2) * 7; P.lean += Math.sin(t * 1.7) * 4; }
+      // waiting for your move: a relaxed fighting stance. Slow weight shifts, a gentle breathing sway,
+      // an occasional probing jab. Everything runs on one accumulated phase (this.idlePh), so speeding
+      // up when the clock runs low never makes the phase jump.
       const amp = this.idleAmp * col;
       if (amp > 0.01) {
-        const ag = 1 + (this.timer ? (1 - this.timer.frac) * 1.1 : 0), k = (t * 0.72) % 1;
-        const pump = k > 0.86 ? Math.sin(((k - 0.86) / 0.14) * Math.PI) : 0; // quick probing jab
-        P.x += (Math.sin(t * 1.3 * ag) * 30 + Math.sin(t * 2.9) * 8) * amp * (1 - d * 0.5);
-        P.sc += (Math.sin(t * 1.1 * ag) * 0.035 + pump * 0.07) * amp;
-        P.hx += (Math.sin(t * 2.3 * ag) * 11 + pump * 26) * amp; P.hy += (Math.sin(t * 3.1 * ag + 1) * 10 - pump * 14) * amp; P.w += Math.sin(t * 2.7 * ag) * 8 * amp;
-        P.bx += Math.sin(t * 1.7) * 14 * amp; P.by += Math.sin(t * 1.9 * ag + 2) * 28 * amp;
-        P.lean += Math.sin(t * 1.5) * 3.5 * amp; P.sink += Math.abs(Math.sin(t * 2.6 * ag)) * 6 * amp;
+        const ph = this.idlePh, ag = 1 + this.agit * 0.3;
+        const wob = (a) => Math.sin(a) + 0.4 * Math.sin(a * 2.31 + 1.3);     // organic, never perfectly periodic
+        const ease = (v) => v * v * (3 - 2 * v);                              // smoothstep
+        const k = (ph * 0.2) % 1, jab = k > 0.86 ? Math.sin(((k - 0.86) / 0.14) * Math.PI) : 0, pump = jab * jab; // ~0.7 s, soft in and out
+        void ease;
+        P.x += wob(ph * 0.62) * 13 * amp * ag * (1 - d * 0.5);
+        P.sc += (wob(ph * 0.5 + 2) * 0.014 + pump * 0.045) * amp;
+        P.hx += (wob(ph * 0.9 + 1) * 5 + pump * 14) * amp; P.hy += (wob(ph * 0.8 + 3) * 4 - pump * 8) * amp; P.w += wob(ph * 0.85) * 3 * amp;
+        P.bx += wob(ph * 0.55 + 4) * 7 * amp; P.by += wob(ph * 0.6 + 5) * 12 * amp * ag;
+        P.lean += wob(ph * 0.6 + 6) * 1.6 * amp; P.sink += (Math.sin(ph * 1.5) * 0.5 + 0.5) * 3.5 * amp;
       }
       P.fy = FEET + (P.sc - 1) * 150 + P.y;
       return P;
@@ -295,11 +300,13 @@
       cam.roll += (cam.rollT - cam.roll) * Math.min(1, real * 6); cam.dy += (cam.dyT - cam.dy) * Math.min(1, real * 3);
       this.flashWhite = Math.max(0, this.flashWhite - real * 4); this.flashRed = Math.max(0, this.flashRed - real * 2.2);
       this.impact = Math.max(0, this.impact - real);
+      this.agit += ((this.timer ? 1 - this.timer.frac : 0) - this.agit) * Math.min(1, real * 1.5);
+      this.idlePh += real * 1.3 * (1 + this.agit * 0.35);
       const fx = this.fx; fx.mb = Math.max(0, fx.mb - real * 3.4); fx.rad = Math.max(0, fx.rad - real * 3.4); this.speedLines = Math.max(0, this.speedLines - real);
       if (this.timer && this.timer.frac < 0.35) cam.zoom = Math.max(cam.zoom, 0.025 * (0.5 + 0.5 * Math.sin(this.time * 14)) * ((0.35 - this.timer.frac) / 0.35));
       if (this.freeze > 0) { this.freeze -= real; return; }
       const dt = real * this.speed * (this.slowmo > 0 ? 0.3 : 1);
-      this.idleAmp += ((this.busy ? 0 : 1) - this.idleAmp) * Math.min(1, real * (this.busy ? 9 : 2.5));
+      this.idleAmp += ((this.busy ? 0 : 1) - this.idleAmp) * Math.min(1, real * (this.busy ? 5 : 1.8));
       if (this.slowmo > 0) this.slowmo -= real;
       this.clock += dt;
       while (this.sched.length && this.sched[0].at <= this.clock) this.sched.shift().fn();

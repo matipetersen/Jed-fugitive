@@ -35,7 +35,8 @@ is power: the attack hits from ×0.8 (slow) to ×1.3 (instant), and the faster y
 leaks through (guard break, thrust). A very fast block (>= 0.8) is **perfect** and also breaks the attacker's streak.
 If time runs out, whatever is missing is filled in at random with no bonus (if you picked nothing, you rest).
 The bot decides at a speed that depends on its level. Changing a pick you already made does not reset the clock.
-While you decide, the mannequin keeps moving: footwork, weapon and guard, more agitated as the clock runs down.
+While you decide, the mannequin stays alive in a relaxed stance: slow weight shifts, a breathing sway and an occasional
+probing jab, getting slightly more restless as the clock runs down.
 
 **Comic-book hits.** Every impact lands as a comic panel: a starburst with a sound-effect word (SLASH!, WHAM!, STAB!,
 CLANG!, KRAKOOM!, or the combo name), halftone Ben-Day dots, kinetic lines radiating from the point of impact, and on big

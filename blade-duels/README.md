@@ -55,8 +55,16 @@ Keys: `Q W E R T` attack type, `1 2 3` direction, `Z X C` block.
 
 ## Install as an app (phone)
 
-The page is an installable web app (manifest, icons, offline fallback). Host this folder on any HTTPS site
-(for example GitHub Pages), open it on the phone and:
+The page is an installable web app (manifest, icons, offline fallback). It needs to be served over HTTPS.
+Free option, since the repo is on GitHub: **GitHub Pages**.
+
+1. On GitHub open the repo -> **Settings** -> **Pages**.
+2. Under *Build and deployment* choose **Source: Deploy from a branch**, **Branch: `claude/blade-duels`**,
+   folder **`/ (root)`**, and press **Save**.
+3. Wait 1-2 minutes. The game is then at `https://<user>.github.io/<repo>/blade-duels/`
+   (for this repo: `https://matipetersen.github.io/Jed-fugitive/blade-duels/`).
+
+Every push to that branch redeploys automatically. Then open that address on the phone and:
 
 - **iPhone / iPad (Safari):** Share -> Add to Home Screen.
 - **Android (Chrome):** menu -> Install app / Add to Home screen.

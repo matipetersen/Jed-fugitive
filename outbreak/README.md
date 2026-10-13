@@ -181,6 +181,11 @@ own base stats still level up with you. The wildlife and your pets (rabbit, deer
 sprites in the same style as the people (`web/art/animals.py`; the sci-fi station has lit-eye versions), with a small dot for a pet
 (purple), a stray you could feed (teal) or an animal charging you (red).
 
+**An app icon.** The page carries its own icon (`web/art/make_icon.py`: a pixel skull with acid-green eyes on the game's dark teal): favicon, the
+iOS `apple-touch-icon` (180 px) and an installable web manifest (192/512 px, maskable) made when the page loads, plus the standalone meta
+tags, and the title screen shows it. To get it on a phone: remove the old home-screen shortcut and add the page again (iOS caches the icon
+it saw the first time).
+
 **The Director: the hero's journey as a pacing chart.** `engine/director.py` reads two things. *Progress* (65% objectives met, 35% how
 much of the clock is gone, a little more once the final site is known; the endless run goes round the journey again and again)
 picks one of the **twelve stages** (Ordinary World, Call to Adventure, Refusal, Meeting the Mentor, Crossing the Threshold, Tests/

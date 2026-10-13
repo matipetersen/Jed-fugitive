@@ -184,3 +184,5 @@ p.note { color: var(--muted); font-size: 13px; margin: 8px 0; }
 #h-place .dim { opacity: .65; font-weight: 400; }
 #h-place { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #h-time { white-space: nowrap; }
+
+.app-icon { display: block; width: 88px; height: 88px; border-radius: 20px; margin: 14px 0 14px; image-rendering: pixelated; box-shadow: 0 0 0 1px #2b383d, 0 6px 22px rgba(0,0,0,.5); }

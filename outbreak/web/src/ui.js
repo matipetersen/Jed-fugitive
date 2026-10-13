@@ -1309,6 +1309,7 @@ function showTitle() {
   hideAll(); const s = $('#title'); s.hidden = false; s.innerHTML = '';
   const w = el('div', 'wrap');
   w.append(el('div', 'fileno', ['File 0417 · quarantine zone · ', el('span', 'redact', 'CLASSIFIED')]));
+  if (typeof ICON_DATA !== 'undefined') { const im = el('img', 'app-icon'); im.src = ICON_DATA['192']; im.alt = ''; w.append(im); }
   w.append(el('h1', 'logo', 'OUTBREAK'));
   w.append(el('p', 'tag-line', 'Pick the era. Pick the plague. Find what you need before it finds you.'));
   const m = el('div', 'menu');
@@ -1620,4 +1621,20 @@ function boot() {
   window.OB_DEBUG = { get game() { return game; }, get view() { return view; }, showEvent, showEnding, refresh, openDoc, afterAction, start: (cfg) => startGame(Object.assign(default_config(), cfg)), prefs, openMenu, openInventory, openDocs, openSkills, openPlaces, openCraft, openStatus };
 }
 boot();
+})();
+
+// The installable app: a web manifest made on the fly (it needs this page's own address as start_url), with the game's icon.
+(function installable() {
+  try {
+    if (typeof ICON_DATA === 'undefined' || !document.head) return;
+    const manifest = {
+      name: 'OUTBREAK', short_name: 'Outbreak', description: 'A zombie-survival roguelike.', display: 'standalone', orientation: 'portrait',
+      background_color: '#0d1214', theme_color: '#0d1214', start_url: location.href.split('#')[0],
+      icons: [{ src: ICON_DATA['192'], sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: ICON_DATA['512'], sizes: '512x512', type: 'image/png', purpose: 'any' },
+              { src: ICON_DATA['512'], sizes: '512x512', type: 'image/png', purpose: 'maskable' }],
+    };
+    const link = document.createElement('link'); link.rel = 'manifest';
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+    document.head.appendChild(link);
+  } catch (e) { /* the page works without it */ }
 })();

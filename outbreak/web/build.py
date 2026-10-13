@@ -90,6 +90,26 @@ def engine_js() -> str:
     return "\n".join(parts)
 
 
+def _icon_uri(name: str) -> str:
+    import base64
+    with open(os.path.join(HERE, "art", "icons", name), "rb") as fh:
+        return "data:image/png;base64," + base64.b64encode(fh.read()).decode()
+
+
+def icon_tags() -> str:
+    """The home-screen icon (art/make_icon.py): favicon, iOS apple-touch-icon, and the pieces the web manifest is made from."""
+    if not os.path.exists(os.path.join(HERE, "art", "icons", "icon-180.png")):
+        return ""
+    return (f'<link rel="icon" type="image/png" sizes="32x32" href="{_icon_uri("icon-32.png")}">\n'
+            f'<link rel="apple-touch-icon" sizes="180x180" href="{_icon_uri("icon-180.png")}">')
+
+
+def icon_data() -> str:
+    if not os.path.exists(os.path.join(HERE, "art", "icons", "icon-512.png")):
+        return ""
+    return "const ICON_DATA = " + json.dumps({"192": _icon_uri("icon-192.png"), "512": _icon_uri("icon-512.png")}) + ";\n"
+
+
 def sprite_data() -> str:
     """The sprite atlas (art/build_atlas.py, Kenney CC0 packs) inlined as a data URI.  Without it the game draws vectors."""
     import base64
@@ -118,7 +138,7 @@ def main() -> None:
     with open(os.path.join(HERE, "dist", "engine.js"), "w", encoding="utf8") as fh:
         fh.write(engine + export)
     ui = "\n".join(read("src", n + ".js") for n in UI_ORDER)
-    ui = sprite_data() + ui
+    ui = sprite_data() + icon_data() + ui
     pieces = {
         "/*__CSS__*/": read("src", "style.css"),
         "/*__BODY__*/": read("src", "body.html"),
@@ -127,13 +147,14 @@ def main() -> None:
     }
     # 1. a complete standalone document
     html = read("src", "index.template.html")
+    html = html.replace("<!--__ICONS__-->", icon_tags())
     for key, val in pieces.items():
         html = html.replace(key, val)
     out = os.path.join(HERE, "dist", "outbreak.html")
     with open(out, "w", encoding="utf8") as fh:
         fh.write(html)
     # 2. the same page as a fragment for hosts that supply their own <html>/<head>/<body>
-    frag = ("<title>OUTBREAK</title>\n" + FONT_LINK + "\n<style>\n" + pieces["/*__CSS__*/"] + "\n</style>\n" + pieces["/*__BODY__*/"] +
+    frag = ("<title>OUTBREAK</title>\n" + icon_tags() + "\n" + FONT_LINK + "\n<style>\n" + pieces["/*__CSS__*/"] + "\n</style>\n" + pieces["/*__BODY__*/"] +
             "\n<script>\n" + pieces["/*__ENGINE__*/"] + "\n</script>\n<script>\n" + pieces["/*__UI__*/"] + "\n</script>\n")
     out2 = os.path.join(HERE, "dist", "outbreak.fragment.html")
     with open(out2, "w", encoding="utf8") as fh:

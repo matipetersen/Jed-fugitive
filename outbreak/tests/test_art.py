@@ -20,3 +20,12 @@ class Atlases(unittest.TestCase):
         from PIL import Image
         a, b = Image.open(os.path.join(ART, "atlas_scifi.png")), Image.open(os.path.join(ART, "atlas_modern.png"))
         self.assertNotEqual(a.tobytes(), b.tobytes())
+
+
+class AppIcon(unittest.TestCase):
+    def test_the_home_screen_icons_exist_and_are_opaque_squares(self):
+        from PIL import Image
+        for size in (512, 192, 180, 32):
+            im = Image.open(os.path.join(ART, "icons", f"icon-{size}.png"))
+            self.assertEqual(im.size, (size, size))
+            self.assertEqual(im.mode, "RGB", "no transparency: iOS fills it with black")

@@ -12,7 +12,9 @@ from caravana.app import App
 from caravana.battle_view import BattleScene
 from caravana.scenes_defense import DefenseScene
 from caravana.scenes_diplo import DiplomacyScene
+from caravana.scenes_cutscene import CutsceneScene
 from caravana.scenes_menu import EndScene, HowToScene, SetupScene, TitleScene
+from caravana.scenes_origin import OriginScene, RecruitScene
 from caravana.scenes_settle import ChronicleScene, SettlementScene, SiteScene
 from caravana.scenes_trade import ShopScene
 from caravana.scenes_travel import CampScene, ConfirmQuit, JournalScene, PromptScene, TravelScene
@@ -88,6 +90,23 @@ class Driver:
         sc.name = "Tester"
         random.seed(self.seed)
         click_button(self.app, sc.go)
+
+    def do_OriginScene(self, sc):
+        sc.motive = ["tierra", "deudas", "fe", "oro"][self.seed % 4]
+        sc.purpose = ["granja", "comercio", "comunidad", "fortaleza"][self.seed % 4]
+        click_button(self.app, sc.go)
+
+    def do_RecruitScene(self, sc):
+        for i, b in enumerate(sc.btns):
+            if b.enabled and self.rng.random() < 0.7:
+                click_button(self.app, b)
+                if self.app.top is not sc:
+                    return
+        click_button(self.app, sc.done)
+
+    def do_CutsceneScene(self, sc):
+        click(self.app, (640, 300))
+        click(self.app, (640, 300))
 
     def do_HowToScene(self, sc):
         self.app.pop()

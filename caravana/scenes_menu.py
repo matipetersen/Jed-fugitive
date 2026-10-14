@@ -135,6 +135,10 @@ class HowToScene(Scene):
                          "(clic en un colono y luego en la plaza), marca objetivos con clic en un enemigo, controla el fuego (libre, contenido, alto) "
                          "para ahorrar balas, levanta barricadas en los huecos, y si hace falta, parlamenta en plena batalla. "
                          "Las flechas rojas del borde avisan por dónde llega cada oleada. De noche, los faroles son vida."),
+        ("Familia, seguidores y cutscenes", "Antes de partir eliges por qué os vais (motivo) y qué pretendéis al llegar (propósito); y reclutas hasta cuatro "
+                                           "seguidores en la plaza de Independence, cada uno con su carácter. Por el camino, escenas con tu familia plantean decisiones: "
+                                           "su lealtad cambia la moral, la puntería y la diplomacia. Un Director de IA vigila la presión que soportáis y ajusta el ritmo "
+                                           "de ataques y eventos (F3 muestra su panel)."),
         ("Teclas del combate", "Espacio: pausa · 1/2/3: velocidad · Enter: empezar ya · A: auto-asignar por amenaza · F: política de fuego · "
                                "P: parlamento · M: fundir utensilios en balas (5 mercancías = 12 balas) · clic derecho: quitar puesto · "
                                "clic en carreta destruida: barricada."),
@@ -188,7 +192,7 @@ class SetupScene(Scene):
         self.diff = "normal"
         self.t = 0.0
         self.cards = []
-        self.go = Button((ui.W - 360, ui.H - 76, 300, 50), "Comprar provisiones →", self._go, size=21, color=(98, 74, 40))
+        self.go = Button((ui.W - 360, ui.H - 76, 300, 50), "Elegir vuestra historia →", self._go, size=21, color=(98, 74, 40))
         self.rnd = Button((230, 168, 380, 28), "Otro nombre", self._random_name, size=14)
         self.back = Button((60, ui.H - 76, 160, 50), "Volver", self.app.pop, size=19)
         self.bg = art.ground_surface((ui.W + 40, ui.H + 40), "pradera", 11)
@@ -197,8 +201,8 @@ class SetupScene(Scene):
         seed = random.randrange(1, 10 ** 6)
         g = Game.new(self.name.strip() or "Jed", self.prof, seed, self.diff)
         self.app.game = g
-        from .scenes_trade import ShopScene
-        self.app.replace(ShopScene(self.app, ShopSpec("Independence, Misuri", 1.0), initial=True))
+        from .scenes_origin import OriginScene
+        self.app.replace(OriginScene(self.app))
 
     NAMES = ["Jed", "Abel", "Nora", "Caleb", "Lydia", "Gideon", "Tess", "Amos", "Ada", "Isaac"]
 

@@ -157,6 +157,10 @@ class Battle:
         self.peace = False
         self.melt_used = 0
         self.check_cd = 0.0
+        self.last_spawn = 0.0
+        self.wave_shift = 0.0
+        self.delays_used = 0
+        self.spawned_total = 0
         self.pending = sorted([(t, a, dict(c)) for t, a, c in spec.waves], key=lambda w: w[0])
         self.ally_pending = spec.allies > 0
 
@@ -357,11 +361,18 @@ class Battle:
         """Avisos de oleadas inminentes: (ángulo, segundos, composición)."""
         if self.phase == "prep":
             return [(a, t + max(0.0, self.prep), c) for t, a, c in self.pending[:3]]
-        return [(a, t - self.fight_time, c) for t, a, c in self.pending if t - self.fight_time < 9]
+        return [(a, t + self.wave_shift - self.fight_time, c) for t, a, c in self.pending if t + self.wave_shift - self.fight_time < 9]
 
     def _spawn_waves(self):
-        while self.pending and self.pending[0][0] <= self.fight_time:
+        while self.pending:
+            due = self.pending[0][0] + self.wave_shift
+            decision = self.game.director.wave_decision(self, due)
+            if decision == "wait":
+                break
+            if decision != "now" and due > self.fight_time:
+                break
             t, ang, comp = self.pending.pop(0)
+            self.last_spawn = self.fight_time
             names = []
             for kind, cnt in comp.items():
                 names.append(f"{cnt} {data.FOES[kind]['name'].lower()}{'s' if cnt > 1 else ''}")
@@ -376,6 +387,7 @@ class Battle:
                     if kind == "bandido":
                         f.stand_r = self.R_out + self.rng.uniform(150, 230)
                     self.foes.append(f)
+                    self.spawned_total += 1
             dir_txt = self._dir_text(ang)
             self.say(f"¡Oleada por el {dir_txt}!: " + ", ".join(names), (255, 170, 120))
             self.emit("wave", ang)

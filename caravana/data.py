@@ -101,11 +101,11 @@ FOES = {
 }
 
 DIFFICULTY = {
-    "facil": dict(name="Relajada", raid=0.75, money=1.25, disease=0.7, score=0.8,
+    "facil": dict(name="Relajada", raid=0.75, money=1.25, disease=0.7, score=0.8, mercy=1.3,
                   desc="Menos enemigos, más dinero y menos enfermedades."),
-    "normal": dict(name="Normal", raid=1.0, money=1.0, disease=1.0, score=1.0,
+    "normal": dict(name="Normal", raid=1.0, money=1.0, disease=1.0, score=1.0, mercy=1.0,
                    desc="La experiencia pensada."),
-    "dificil": dict(name="Implacable", raid=1.3, money=0.9, disease=1.3, score=1.3,
+    "dificil": dict(name="Implacable", raid=1.3, money=0.9, disease=1.3, score=1.3, mercy=0.6,
                     desc="Ataques más duros, escasez y puntuación ×1,3."),
 }
 
@@ -156,6 +156,9 @@ ROLE_NAMES = {
     "lider": "Líder", "esposa": "Esposa", "hijo": "Hijo", "hija": "Hija", "abuelo": "Abuelo",
     "tomas": "Vecino", "ruth": "Vecina", "ada": "Niña", "silas": "Peón", "mary": "Peón",
     "josiah": "Peón", "hannah": "Peona", "lucas": "Niño", "emma": "Joven",
+    "medico": "Médico", "cazadora": "Cazadora", "herrero": "Herrero", "predicador": "Predicador",
+    "mercenario": "Mercenario", "traductora": "Intérprete", "gemelos": "Joven", "partera": "Partera",
+    "carretero": "Carretero", "viuda": "Viuda",
 }
 FAMILY_ROLES = {"lider", "esposa", "hijo", "hija", "abuelo"}
 

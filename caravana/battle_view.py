@@ -181,6 +181,8 @@ class BattleScene(Scene):
             self._rdown = None
             self._rdrag = False
         elif ev.type == pygame.KEYDOWN:
+            if ev.key == pygame.K_F3:
+                ui.DEBUG_DIRECTOR = not ui.DEBUG_DIRECTOR
             if ev.key == pygame.K_ESCAPE:
                 self.selected = None
             elif ev.key == pygame.K_3:
@@ -427,6 +429,10 @@ class BattleScene(Scene):
             self._draw_parley(screen)
         if b.done:
             self._draw_result(screen)
+        if ui.DEBUG_DIRECTOR:
+            ui.draw_director(screen, self.game)
+            text(screen, f"presión de combate {self.game.director.battle_pressure(b):.2f} · oleadas pend. {len(b.pending)} · retrasos {b.delays_used}",
+                 (LEFT_W + 10, 48), 13, C["blue"])
         if self.hover_tip and not b.done:
             ui.draw_tooltip(screen, self.hover_tip, pygame.mouse.get_pos())
 

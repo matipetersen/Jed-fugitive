@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from . import data
+from .director import Director
 
 
 # ====================================================================== Estructuras
@@ -41,7 +42,7 @@ class Colonist:
     def role_label(self) -> str:
         if self.is_leader:
             return "Líder"
-        if self.role_id and self.role_id in data.ROLE_NAMES:
+        if self.role_id and "_" not in self.role_id and self.role_id in data.ROLE_NAMES:
             return data.ROLE_NAMES[self.role_id]
         return {"adulto": "Adulto", "joven": "Joven", "niño": "Niño/a", "anciano": "Anciano/a"}[self.group]
 
@@ -103,6 +104,24 @@ class Prompt:
     @staticmethod
     def info(title: str, body: str, tone: str = "info", then: Optional[Callable[[], Any]] = None) -> "Prompt":
         return Prompt(title, body, [Option("Continuar", then or (lambda: None))], tone)
+
+
+@dataclass
+class Beat:
+    """Una viñeta de cutscene: fondo, quién habla, qué dice y quién está en escena."""
+    bg: str
+    text: str
+    speaker: str = ""      # id de personaje; "" = narrador; "tu" = el protagonista (de espaldas)
+    mood: str = "neutral"  # neutral | alegre | risa | triste | enojado | miedo
+    cast: tuple = ()       # ids de personajes en escena, de izquierda a derecha
+    fx: str = ""           # "", "shake", "flash", "fade"
+
+
+@dataclass
+class CutsceneSpec:
+    title: str
+    beats: list
+    then: Optional[Callable[[], Any]] = None
 
 
 @dataclass
@@ -200,6 +219,15 @@ class Game:
         self.flags: dict = {}
         self.story_done: set = set()
         self.talked: dict = {}
+        self.director = Director()
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if "director" not in state:
+            self.director = Director()
+        for k, v in (("flags", {}), ("story_done", set()), ("talked", {}), ("difficulty", "normal")):
+            if k not in state:
+                setattr(self, k, v)
 
     # ------------------------------------------------------------ creación
     @classmethod
@@ -490,6 +518,8 @@ class Game:
 
         self._daily_upkeep()
         died = self._daily_health()
+        self.director.update(self)
+        self._desertions()
         self.wagons_wear(miles)
         if not self.living():
             return self._game_over("La caravana ha perecido por completo en el camino.")
@@ -507,7 +537,7 @@ class Game:
 
         # historia familiar
         from . import story
-        evt = story.check(self)
+        evt = story.check(self, scenes=True)
         if evt:
             return evt
         # eventos
@@ -532,6 +562,19 @@ class Game:
             return ArrivalSpec(wp)
         self.morale = min(100, self.morale + 5)
         return Prompt.info(wp["name"], wp["text"] + " La moral sube al ver el hito.", "good")
+
+    def _desertions(self):
+        for c in self.living():
+            if c.trait == "mercenario" and c.loyalty < 25 and self.rng.random() < 0.05:
+                c.alive = False
+                c.cause = "desertó"
+                c.post = None
+                g_ = min(self.sup.goods, 3)
+                self.sup.goods -= g_
+                self.sup.ammo = max(0, self.sup.ammo - 15)
+                self.stats["lost"] += 1
+                self.normalize_posts()
+                self.note(f"{c.name} desaparece de madrugada con 15 balas y {g_} mercancías.")
 
     def wagons_wear(self, miles: float):
         for w in self.wagons:
@@ -561,7 +604,7 @@ class Game:
             self.note("¡La comida se ha agotado! Todos pasan hambre.")
             self.morale = max(0, self.morale - 4)
         # recuperación de moral
-        target = (70 + (self.family_loyalty() - 50) / 8.0) if not self.starving else 20
+        target = (70 + (self.family_loyalty() - 50) / 8.0 + (3 if self.member("predicador") else 0)) if not self.starving else 20
         self.morale += (target - self.morale) * 0.02
         if self.pace == "rapido":
             self.morale -= 0.5
@@ -641,7 +684,7 @@ class Game:
             p *= 0.08
         if self.has_guide() and self.guide_tribe == tid:
             p *= 0.6
-        return p
+        return p * self.director.raid_mult(self)
 
     def _roll_tribe_events(self) -> Optional[Any]:
         tid = self.current_tribe()
@@ -750,7 +793,7 @@ class Game:
 
     def compose_battle(self, tid: str, strength: float) -> BattleSpec:
         rng = self.rng
-        strength *= self.diff["raid"]
+        strength *= self.diff["raid"] * self.director.strength_mult(self)
         style = data.TRIBES[tid]["style"] if tid in data.TRIBES else {"bandido": 6, "guerrero": 2}
         if tid == "bandidos":
             style = {"bandido": 6, "guerrero": 3, "jinete": 1}
@@ -804,7 +847,7 @@ class Game:
     def _roll_bandits(self) -> Optional[Any]:
         if self.mile < 300 or self.day - self.last_bandit_day < 14:
             return None
-        p = 0.012 * (1.8 if self.watch == "ninguna" else 0.6 if self.watch == "reforzada" else 1.0)
+        p = 0.012 * (1.8 if self.watch == "ninguna" else 0.6 if self.watch == "reforzada" else 1.0) * self.director.raid_mult(self)
         if self.rng.random() < p:
             self.last_bandit_day = self.day
             spec = self.compose_battle("bandidos", 5 + self.mile / 2000 * 7 + self.rng.uniform(0, 2))
@@ -838,6 +881,7 @@ class Game:
             (self._ev_road, 1), (self._ev_stranger, 2), (self._ev_music, 1), (self._ev_fire, 1),
             (self._ev_berries, 2), (self._ev_thieves, 1),
         ]
+        table = self.director.reweight(self, table)
         fn = rng.choices([t[0] for t in table], [t[1] for t in table])[0]
         return fn()
 
@@ -1096,6 +1140,7 @@ class Game:
             self.update_weather()
             self._daily_upkeep()
             self._daily_health(resting=True)
+            self.director.update(self)
             self.morale = min(100, self.morale + 3)
             for w in self.wagons:
                 w.hp = min(w.max_hp, w.hp + 18)
@@ -1221,6 +1266,7 @@ class Game:
         """Aplica el resultado de un combate y devuelve el resumen."""
         lines = []
         tid = spec.foe
+        self.director.on_battle_end(self, res)
         self.stats["raids"] += 1
         self.stats["kills"] += res.foes_killed
         native = tid in self.tribes

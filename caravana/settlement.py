@@ -33,6 +33,9 @@ class Settlement:
         self.notes: list[str] = []
         if game.profession == "granjero":
             self.site["fertility"] += data.PROFESSIONS["granjero"]["farm"]
+        self.site["fertility"] += game.flags.get("farm_bonus", 0)
+        from . import origin
+        origin.apply_purpose_to_site(game, self)
 
     @property
     def neighbor(self) -> str:

@@ -9,6 +9,7 @@ import pygame
 from . import sfx
 
 W, H = 1280, 720
+DEBUG_DIRECTOR = False  # F3: panel de depuración del Director de IA
 TOUCH = False  # modo táctil: objetivos de toque más grandes, sin depender de hover/clic derecho/teclado
 
 C = dict(
@@ -252,3 +253,18 @@ def vgradient(surf, rect, top, bottom):
         k = i / h
         col = tuple(int(top[j] + (bottom[j] - top[j]) * k) for j in range(3))
         pygame.draw.line(surf, col, (rect.x, rect.y + i), (rect.right - 1, rect.y + i))
+
+
+def draw_director(surf, g):
+    """Panel de depuración del Director de IA (F3)."""
+    d = g.director
+    r = pygame.Rect(W - 330, 60, 320, 150)
+    panel(surf, r, (14, 14, 22), C["blue"], 6, alpha=225, width=1)
+    text(surf, "DIRECTOR DE IA" + ("" if d.enabled else " (apagado)"), (r.x + 10, r.y + 6), 14, C["blue"], bold=True)
+    bar(surf, (r.x + 10, r.y + 28, r.w - 20, 10), d.tension, C["red"] if d.tension > 0.6 else C["gold"] if d.tension > 0.3 else C["green"])
+    text(surf, f"tensión {d.tension:.2f}  (cruda {d.raw:.2f})  · ataques ×{d.raid_mult(g):.2f}  · fuerza ×{d.strength_mult(g):.2f}",
+         (r.x + 10, r.y + 44), 12, C["text"])
+    yy = r.y + 64
+    for day, msg in d.log[-5:]:
+        text(surf, f"d{day}: {msg}"[:50], (r.x + 10, yy), 12, C["dim"])
+        yy += 16

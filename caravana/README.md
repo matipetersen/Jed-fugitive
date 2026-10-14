@@ -19,6 +19,29 @@ En la mesa de la víspera os hicisteis una **promesa** (tierra, paz o fortuna) y
   Montañas Azules. Lo que elijas abre o cierra puertas (p. ej. Eli puede hablar por vosotros ante los Lakota; Clara puede traer la ayuda Cayuse).
 * Al final, la crónica del asentamiento cierra el destino de cada uno y puntúa «Palabra cumplida» y «Familia unida».
 
+## Antes de partir: motivo, propósito y seguidores
+
+1. **Motivo** (por qué os vais): tierra propia, huir de las deudas, fe y comunidad, o fortuna y comercio. Cambia cómo parte la caravana
+   (dinero, mercancías, medicinas, confianza de los tuyos) y la promesa que cuenta para el epílogo.
+2. **Propósito** (qué pretendéis al llegar): granja, puesto de comercio, comunidad en paz o fuerte. Mejora el sitio donde fundéis
+   y puntúa si construís lo que corresponde.
+3. **Reclutar seguidores**: en la plaza de Independence hay seis candidatos al azar (médico, cazadora, herrero, predicador, mercenario,
+   intérprete, gemelos, partera, carretero, viuda…). Con 4 conversaciones puedes *persuadir* (la probabilidad depende de tu labia y de si su
+   motivación coincide con la tuya) o *contratar* con dinero. Cada uno aporta habilidades, pero también come, y alguno tiene sus propias
+   historias (la paga de Cobb, los niños Cayuse y el doctor Finch…). Máximo 18 personas.
+
+## Cutscenes
+
+Las escenas importantes (la partida, cada capítulo de la familia, la bifurcación final) son cinemáticas dentro del juego: fondo procedural,
+retratos con expresiones, texto a máquina de escribir y barras de cine. Toca o pulsa Espacio para avanzar; «Saltar» las omite.
+
+## Director de IA
+
+Un Director mide la **tensión** de la caravana (hambre, munición, salud, moral, bajas recientes, carretas dañadas) y ajusta el ritmo: espacia
+los ataques cuando vas al límite, aprieta cuando todo está tranquilo, retoca la fuerza del enemigo, reparte más alivios o más contratiempos
+en los eventos aleatorios, pospone los capítulos de la historia si el momento es malo y, en combate, adelanta la siguiente oleada si la
+anterior ya cayó o la retrasa un poco si la defensa está desbordada. Cada dificultad cambia su clemencia. **F3** muestra su panel de depuración.
+
 ## Cómo jugar
 
 ```bash

@@ -88,8 +88,9 @@ def resolve(g: Game, item, diplomacy: bool, stats: dict, seed: int):
 
 
 def play_full(seed: int = 1, profession: str = "granjero", diplomacy: bool = True, verbose: bool = False,
-              difficulty: str = "normal"):
+              difficulty: str = "normal", director: bool = True):
     g = Game.new("Jed", profession, seed, difficulty)
+    g.director.enabled = director
     stats: dict = {}
     # compra inicial
     spec = ShopSpec("Independence", 1.0)

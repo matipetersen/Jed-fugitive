@@ -187,8 +187,11 @@ def follow(g: Game, vs: list, chosen: str):
 
 
 # ---------------------------------------------------------------- capítulos
-def check(g: Game) -> Optional[Prompt]:
-    """Devuelve el siguiente capítulo si toca (máximo uno al día)."""
+def check(g: Game, scenes: bool = False):
+    """Devuelve el siguiente capítulo si toca (máximo uno al día; el Director puede posponerlo)."""
+    pending = [c for c in CHAPTERS if c[0] not in g.story_done and _safe(c[1], g)]
+    if pending and not g.director.allow_story(g):
+        return None
     for key, when, build in CHAPTERS:
         if key in g.story_done:
             continue
@@ -198,10 +201,23 @@ def check(g: Game) -> Optional[Prompt]:
                 p = build(g)
                 if p is not None:
                     g.log(f"Historia: {p.title}")
+                    if scenes and g.flags.get("cutscenes", True):
+                        from . import cutscenes
+                        cs = cutscenes.build(key, g)
+                        if cs is not None:
+                            cs.then = (lambda p=p: p)
+                            return cs
                     return p
         except Exception:
             g.story_done.add(key)
     return None
+
+
+def _safe(fn, g) -> bool:
+    try:
+        return bool(fn(g))
+    except Exception:
+        return False
 
 
 # 1 — Samuel desaparece en la noche
@@ -678,6 +694,65 @@ def _c_clara_montanas(g):
     ], "danger")
 
 
+# 10 — La paga de Cobb (mercenario reclutado)
+def _w_cobb(g):
+    return g.mile >= 640 and g.member("mercenario") is not None
+
+
+def _c_cobb(g):
+    body = ("Cobb espera su paga. «Hace semanas que cobré por adelantado y las semanas son largas. Un tirador contento dispara mejor.» "
+            "No hay amenaza en su voz, pero tampoco ninguna broma.")
+
+    def pay():
+        if g.sup.money < 25:
+            return ok("Sin dinero", "No llegas a los $25. Cobb se encoge de hombros: «Entonces, a ver cuánto me aguanto.»", "danger",
+                      then=lambda: promise())
+        g.sup.money -= 25
+        bump(g, "mercenario", 14)
+        return ok("Paga recibida", "Cobb cuenta los billetes dos veces, con la boca cerrada. «Así da gusto.» Esa noche dispara mejor que nunca.", "good")
+
+    def promise():
+        bump(g, "mercenario", -3)
+        return ok("«En Fort Hall»", "Cobb asiente muy despacio. Hay cosas que se quedan apuntadas.")
+
+    def refuse():
+        bump(g, "mercenario", -16)
+        return ok("«Ya cobraste»", "Cobb no discute. Se limpia las manos en los pantalones y se aleja. Algunos hombres dejan de ser leales sin hacer ruido.", "danger")
+
+    return Prompt("Cobb reclama su paga", body, [
+        Option("Pagarle $25 ahora", pay, "Cobb +14", ("Silas",)),
+        Option("Prometerle la paga en Fort Hall", promise, "Cobb -3", ("Martha",)),
+        Option("Negarte: ya cobró por adelantado", refuse, "Cobb -16 (puede desertar)", ("Thomas",)),
+    ], "info")
+
+
+# 11 — Finch y los niños Cayuse (médico reclutado)
+def _w_finch(g):
+    return g.mile >= 1550 and g.member("medico") is not None and g.sup.medicine >= 3
+
+
+def _c_finch(g):
+    body = ("Una mujer Cayuse espera junto al camino con un niño febril en brazos. Dr. Finch lo mira un segundo: sarampión. "
+            "«Lo vi en la ciudad de donde me fui. No es mi gente, pero es un niño. Dame tres medicinas y no preguntes más.»")
+
+    def give():
+        g.sup.medicine -= 3
+        g.tribes["cayuse"].attitude += 18
+        bump(g, "medico", 10)
+        g.morale = min(100, g.morale + 4)
+        return ok("Una deuda de gratitud", "El niño duerme esa noche sin toser. Al amanecer, los Cayuse han dejado un saco de pescado y una pluma azul en tu carreta. (+18 de trato)", "good")
+
+    def refuse():
+        bump(g, "medico", -12)
+        g.tribes["cayuse"].attitude -= 3
+        return ok("«Nos hacen falta»", "Finch no te discute, pero esa noche duerme apartado del fuego. La mujer se marcha sin una palabra. (-3)", "danger")
+
+    return Prompt("Niños con fiebre", body, [
+        Option("Darle las 3 medicinas", give, "+18 de trato con los Cayuse", ("Ruth", "Martha")),
+        Option("Negarte: son para los nuestros", refuse, "Finch -12", ("Thomas",)),
+    ], "info")
+
+
 CHAPTERS = [
     ("samuel_noche", _w_samuel_noche, _c_samuel_noche),
     ("clara_amiga", _w_clara_amiga, _c_clara_amiga),
@@ -688,6 +763,8 @@ CHAPTERS = [
     ("samuel_paso", _w_samuel_paso, _c_samuel_paso),
     ("eli_ultimo", _w_eli_ultimo, _c_eli_ultimo),
     ("clara_montanas", _w_clara_montanas, _c_clara_montanas),
+    ("cobb_paga", _w_cobb, _c_cobb),
+    ("finch_cayuse", _w_finch, _c_finch),
 ]
 
 
@@ -786,6 +863,24 @@ def epilogue(g: Game, st) -> tuple[list, list]:
         bd.append(("Palabra cumplida", 120))
     elif kept is False:
         lines.append(f"La promesa de {text[promise]} se quedó a medio camino. Martha lo recuerda sin reproches. Casi.")
+    from . import origin
+    pk = origin.purpose_kept(g, st)
+    if pk is not None:
+        pname = origin.PURPOSES[g.flags["purpose"]]["name"].lower()
+        if pk:
+            lines.append(f"Y se cumplió el propósito de la expedición: {pname}.")
+            bd.append(("Propósito cumplido", 100))
+        else:
+            lines.append(f"El propósito de {pname} quedó pendiente: el siguiente año dirá si se logra.")
+    for rid, line in (("medico", "Finch abre una consulta en la casa común; nadie le pregunta por su pasado."),
+                      ("predicador", "Lamb levanta una pequeña iglesia de troncos cuyas puertas nunca se cierran."),
+                      ("traductora", "Lena traduce los primeros tratos del valle y firma, en tres idiomas, el acta del asentamiento."),
+                      ("herrero", "Marsh monta su fragua junto al arroyo y no deja de martillar hasta que cae la nieve."),
+                      ("partera", "Rosa asiste a los primeros nacimientos del asentamiento, uno de ellos en pleno invierno."),
+                      ("cazadora", "Nora cuelga las pieles de su primera temporada sobre la puerta; la despensa nunca queda vacía.")):
+        mem = g.member(rid)
+        if mem is not None:
+            lines.append(line)
     m, s, c, e = g.by_role("esposa"), g.by_role("hijo"), g.by_role("hija"), g.by_role("abuelo")
     if m and m.alive:
         lines.append("Martha abre una escuela bajo un techo de troncos, con seis niños y la libreta de Clara como primer libro." if m.loyalty >= 50

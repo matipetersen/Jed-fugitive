@@ -7,9 +7,10 @@ import random
 import pygame
 
 from . import art, data, ui
-from .model import (ArrivalSpec, BattleSpec, Contact, ContactSpec, EndSpec, ForkSpec, Game, Option, Prompt,
-                    ShopSpec)
+from .model import (ArrivalSpec, BattleSpec, Contact, ContactSpec, CutsceneSpec, EndSpec, ForkSpec, Game, Option,
+                    Prompt, ShopSpec)
 from .scene import Scene
+from .scenes_cutscene import CutsceneScene
 from .ui import C, Button, text, panel, para, bar
 
 DAY_TIME = 0.75
@@ -216,9 +217,17 @@ class TravelScene(Scene):
     def enter(self):
         if self._intro:
             self._intro = False
-            from . import story
+            from . import cutscenes, story
             self.push_feed("La caravana parte de Independence.", C["gold"])
-            self.app.push(PromptScene(self.app, story.prologue(self.g)))
+            if self.g.flags.get("motive"):
+                cs = cutscenes.build("prologue", self.g) if self.g.flags.get("cutscenes", True) else None
+                if cs is not None:
+                    self.app.push(CutsceneScene(self.app, cs))
+                else:
+                    self.app.push(PromptScene(self.app, Prompt.info("Independence, 15 de abril de 1848",
+                                                                      "La caravana parte. Por delante: 1.950 millas.", "info")))
+            else:
+                self.app.push(PromptScene(self.app, story.prologue(self.g)))
 
     def resume(self):
         self._build()
@@ -313,6 +322,9 @@ class TravelScene(Scene):
             return
         if isinstance(it, Prompt):
             self.app.push(PromptScene(self.app, it))
+        elif isinstance(it, CutsceneSpec):
+            self.moving = False
+            self.app.push(CutsceneScene(self.app, it))
         elif isinstance(it, ContactSpec):
             self.moving = False
             c = Contact(g, it.tribe, it.kind, it.prep_text)
@@ -330,6 +342,14 @@ class TravelScene(Scene):
             self.app.push(CampScene(self.app, it.waypoint))
         elif isinstance(it, ForkSpec):
             self.moving = False
+            if not g.flags.get("fork_seen") and g.flags.get("cutscenes", True) and not g.forced_winter:
+                from . import cutscenes
+                g.flags["fork_seen"] = True
+                cs = cutscenes.build("fork", g)
+                if cs is not None:
+                    cs.then = (lambda: ForkSpec())
+                    self.app.push(CutsceneScene(self.app, cs))
+                    return
             self.app.push(SiteScene(self.app))
         elif isinstance(it, EndSpec):
             self.moving = False
@@ -362,6 +382,8 @@ class TravelScene(Scene):
                     self.hover_tip = tip
         if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
             self._menu()
+        if ev.type == pygame.KEYDOWN and ev.key == pygame.K_F3:
+            ui.DEBUG_DIRECTOR = not ui.DEBUG_DIRECTOR
 
     def update(self, dt):
         self.t += dt
@@ -402,6 +424,8 @@ class TravelScene(Scene):
         self._draw_bottom(screen)
         if self.hover_tip:
             ui.draw_tooltip(screen, self.hover_tip, pygame.mouse.get_pos())
+        if ui.DEBUG_DIRECTOR:
+            ui.draw_director(screen, g)
 
     def _draw_header(self, screen):
         g = self.g

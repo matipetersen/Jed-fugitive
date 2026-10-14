@@ -328,3 +328,181 @@ class Particles:
             else:
                 pygame.draw.circle(layer, col + (int(255 * k),), (int(sx), int(sy)), max(1, int(size * cam.s * (0.5 + k))))
         surf.blit(layer, (0, 0))
+
+
+# ---------------------------------------------------------------- retratos para cutscenes
+PORTRAIT_STYLES = {
+    # hair color, style, hat, beard, shirt
+    "esposa": ((96, 64, 42), "bun", "bonnet", None, (96, 120, 150)),
+    "hijo": ((120, 80, 46), "messy", "cap", None, (150, 90, 60)),
+    "hija": ((140, 96, 54), "braids", "ribbon", None, (190, 120, 130)),
+    "abuelo": ((226, 226, 226), "white", "hat", "full", (96, 96, 104)),
+    "tomas": ((40, 32, 28), "short", "hat", "full", (110, 80, 60)),
+    "ruth": ((120, 90, 60), "bun", "bonnet", None, (70, 70, 90)),
+    "ada": ((200, 160, 90), "braids", "ribbon", None, (170, 190, 140)),
+    "silas": ((70, 56, 44), "short", "hat", "stubble", (80, 90, 70)),
+    "mary": ((90, 60, 40), "braids", "hat", None, (120, 110, 70)),
+    "josiah": ((70, 50, 36), "short", "none", "stubble", (130, 100, 70)),
+    "hannah": ((110, 76, 50), "bun", "none", None, (120, 140, 120)),
+    "lucas": ((150, 110, 60), "messy", "none", None, (140, 140, 160)),
+    "emma": ((170, 120, 70), "braids", "none", None, (160, 120, 150)),
+    "medico": ((60, 50, 44), "short", "none", "stubble", (60, 64, 76)),
+    "cazadora": ((80, 56, 40), "braids", "hat", None, (110, 96, 60)),
+    "herrero": ((60, 40, 30), "bald", "none", "full", (88, 70, 60)),
+    "predicador": ((190, 190, 190), "white", "none", None, (30, 30, 36)),
+    "mercenario": ((40, 36, 34), "short", "hat", "stubble", (60, 50, 50)),
+    "traductora": ((50, 36, 30), "braids", "none", None, (150, 90, 70)),
+    "gemelos": ((110, 76, 44), "messy", "cap", None, (130, 110, 100)),
+    "partera": ((70, 50, 40), "bun", "bonnet", None, (110, 80, 90)),
+    "carretero": ((100, 70, 40), "short", "hat", "stubble", (120, 100, 70)),
+    "viuda": ((60, 50, 44), "bun", "bonnet", None, (40, 40, 48)),
+}
+SKINS = [(224, 186, 152), (206, 160, 124), (186, 138, 104), (232, 196, 164)]
+
+
+def _style_for(role: str, cid: int = 0, group: str = "adulto"):
+    base = role.split("_")[0]
+    if base in PORTRAIT_STYLES:
+        return PORTRAIT_STYLES[base]
+    hair = [(60, 44, 34), (120, 84, 50), (170, 130, 76), (40, 34, 30)][cid % 4]
+    return (hair, ["short", "bun", "messy", "braids"][cid % 4], ["hat", "none", "cap", "bonnet"][cid % 4],
+            "stubble" if cid % 3 == 0 and group == "adulto" else None, SHIRTS[cid % len(SHIRTS)])
+
+
+def draw_portrait(surf, cx, base_y, height, role: str, group="adulto", cid=0, mood="neutral",
+                  speaking=False, t=0.0, dim=False, back=False):
+    """Busto procedural. `back=True` dibuja una silueta de espaldas (para el protagonista, sin rostro)."""
+    scale = height / 360.0
+    if group == "niño":
+        scale *= 0.74
+    elif group == "anciano":
+        scale *= 0.94
+    W, H = int(380 * scale), int(400 * scale)
+    pic = pygame.Surface((W, H), pygame.SRCALPHA)
+    mx = W // 2
+    by = H - 2
+    hair, hstyle, hat, beard, shirt = _style_for(role, cid, group)
+    skin = SKINS[(cid + len(role)) % len(SKINS)]
+    k = scale
+
+    def E(x, y, w, h, col, width=0):
+        pygame.draw.ellipse(pic, col, (mx + x * k - w * k / 2, by + y * k - h * k / 2, w * k, h * k), max(0, int(width * k)))
+
+    def R(x, y, w, h, col, rad=0):
+        pygame.draw.rect(pic, col, (mx + x * k, by + y * k, w * k, h * k), border_radius=int(rad * k))
+
+    def L(x1, y1, x2, y2, col, w=2):
+        pygame.draw.line(pic, col, (mx + x1 * k, by + y1 * k), (mx + x2 * k, by + y2 * k), max(1, int(w * k)))
+
+    # cuerpo
+    E(0, 10, 300, 190, tuple(max(0, c - 28) for c in shirt))
+    E(0, 6, 290, 175, shirt)
+    # cuello y cabeza
+    head_y = -205
+    if back:
+        E(0, head_y, 120, 130, (50, 40, 36))
+        E(0, head_y - 52, 150, 38, (34, 26, 22))   # ala del sombrero
+        E(0, head_y - 70, 90, 60, (40, 32, 28))
+        E(0, 6, 290, 175, (36, 40, 52))
+        out = pic
+    else:
+        R(-24, head_y + 52, 48, 60, tuple(max(0, c - 22) for c in skin))
+        # pelo (detrás)
+        if hstyle in ("white", "messy"):
+            E(0, head_y - 4, 128, 140, hair)
+        if hstyle == "braids":
+            for sx in (-1, 1):
+                L(sx * 46, head_y + 20, sx * 52, head_y + 100, hair, 12)
+                E(sx * 52, head_y + 104, 14, 14, (200, 90, 90))
+        if hstyle == "bun":
+            E(0, head_y - 66, 52, 44, hair)
+        E(0, head_y, 106, 126, skin)
+        E(-52, head_y + 6, 16, 28, skin)
+        E(52, head_y + 6, 16, 28, skin)
+        # flequillo
+        if hstyle in ("short", "bun", "braids"):
+            E(0, head_y - 40, 106, 50, hair)
+        elif hstyle in ("messy", "white"):
+            E(-20, head_y - 46, 54, 36, hair)
+            E(24, head_y - 44, 50, 34, hair)
+        if beard == "full":
+            pygame.draw.ellipse(pic, hair, (mx - 46 * k, by + (head_y + 14) * k, 92 * k, 82 * k))
+            E(0, head_y + 20, 70, 36, skin)
+        elif beard == "stubble":
+            col_s = tuple(int(skin[i] * 0.62 + hair[i] * 0.38) for i in range(3))
+            pic.set_clip(pygame.Rect(0, int(by + (head_y + 14) * k), W, int(80 * k)))
+            E(0, head_y, 106, 126, col_s)
+            pic.set_clip(None)
+        # sombrero / gorro
+        if hat == "hat":
+            E(0, head_y - 50, 170, 28, (66, 46, 32))
+            E(0, head_y - 72, 90, 56, (80, 58, 40))
+            R(-45, head_y - 66, 90, 10, (40, 28, 20))
+        elif hat == "cap":
+            E(0, head_y - 52, 112, 56, (90, 100, 120))
+            E(30, head_y - 38, 60, 14, (70, 80, 96))
+        elif hat == "bonnet":
+            E(0, head_y - 22, 130, 118, (236, 228, 208), 0)
+            E(0, head_y + 2, 100, 112, skin)
+            E(0, head_y - 40, 104, 44, hair if hstyle != "white" else (230, 230, 230))
+        elif hat == "ribbon":
+            E(0, head_y - 62, 22, 18, (200, 90, 100))
+        # ojos y cejas
+        blink = (int(t * 1.7 + cid) % 5 == 0) and (t * 1.7 % 1 < 0.12)
+        ey = head_y - 4
+        for sx in (-1, 1):
+            if blink:
+                L(sx * 24 - 9, ey, sx * 24 + 9, ey, (40, 28, 24), 3)
+            else:
+                E(sx * 24, ey, 20, 14, (250, 248, 240))
+                E(sx * 24 + (3 if mood != "miedo" else 0), ey + (1 if mood == "triste" else 0), 9, 9, (50, 38, 30))
+            by0 = ey - 18
+            ex = sx * 24
+            brow = (50, 34, 26)
+            if mood == "enojado":
+                p1, p2 = ((ex - 12, by0 - 3), (ex + 12, by0 + 5)) if sx < 0 else ((ex - 12, by0 + 5), (ex + 12, by0 - 3))
+            elif mood == "triste":
+                p1, p2 = ((ex - 12, by0 + 4), (ex + 12, by0 - 4)) if sx < 0 else ((ex - 12, by0 - 4), (ex + 12, by0 + 4))
+            elif mood == "miedo":
+                p1, p2 = (ex - 12, by0 - 6), (ex + 12, by0 - 6)
+            elif mood in ("alegre", "risa"):
+                p1, p2 = ((ex - 12, by0 + 1), (ex + 12, by0 - 3)) if sx > 0 else ((ex - 12, by0 - 3), (ex + 12, by0 + 1))
+            else:
+                p1, p2 = (ex - 12, by0), (ex + 12, by0)
+            L(p1[0], p1[1], p2[0], p2[1], brow, 4 if mood == "enojado" else 3)
+        L(-2, ey + 6, 4, ey + 30, tuple(max(0, c - 40) for c in skin), 3)
+        # boca
+        my = head_y + 40
+        opening = speaking and (int(t * 9) % 3 != 0)
+        if mood in ("alegre", "risa"):
+            pygame.draw.arc(pic, (110, 50, 44), (mx - 20 * k, by + (my - 12) * k, 40 * k, 26 * k), math.pi, 2 * math.pi, max(1, int(3 * k)))
+            if mood == "risa" or opening:
+                E(0, my + 4, 22, 12, (90, 30, 30))
+        elif mood == "triste":
+            pygame.draw.arc(pic, (110, 50, 44), (mx - 16 * k, by + (my - 2) * k, 32 * k, 20 * k), 0, math.pi, max(1, int(3 * k)))
+        elif mood == "miedo":
+            E(0, my + 4, 18, 22, (90, 30, 30))
+        elif mood == "enojado":
+            L(-16, my + 2, 16, my - 2, (110, 50, 44), 4)
+        else:
+            if opening:
+                E(0, my + 2, 22, 12, (90, 30, 30))
+            else:
+                L(-14, my + 2, 14, my + 2, (110, 50, 44), 3)
+        # cicatriz del mercenario / Silas
+        if role.split("_")[0] in ("silas", "mercenario"):
+            L(24, head_y - 20, 38, head_y + 18, (170, 90, 80), 3)
+        if role.split("_")[0] == "medico":
+            for sx in (-1, 1):
+                E(sx * 24, ey, 30, 24, (0, 0, 0, 0), 3)
+            L(-9, ey, 9, ey, (60, 50, 40), 2)
+        if role.split("_")[0] == "predicador":
+            R(-18, head_y + 62, 36, 14, (240, 240, 240), 3)
+        out = pic
+    if dim:
+        shade = pygame.Surface(out.get_size(), pygame.SRCALPHA)
+        shade.fill((120, 120, 140, 255))
+        out = out.copy()
+        out.blit(shade, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+    bob = int(math.sin(t * 2.2 + cid) * 2 * k + (3 * k if speaking and not dim else 0) * (0.5 + 0.5 * math.sin(t * 8)))
+    surf.blit(out, out.get_rect(midbottom=(int(cx), int(base_y + bob))))

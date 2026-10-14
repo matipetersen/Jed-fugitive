@@ -26,14 +26,15 @@ class BattleScene extends Scene {
   inv(sx, sy) { return [(sx - this.cx) / S, (sy - this.cy) / S]; }
   get cam() { return {x: x => this.cx + x * S, y: y => this.cy + y * S, s: S}; }
   buildButtons() {
-    this.touch = UI.touch; const b = this.battle, x = 10, w = LEFT_W - 20, th = UI.touch ? 38 : 32, gp = th + 4, y = H - (UI.touch ? 252 : 236), h2 = w / 2 - 2, B = (...a) => new Button(...a);
+    this.touch = UI.touch; const b = this.battle, x = 10, w = LEFT_W - 20, th = UI.touch ? 38 : 32, gp = th + 4, y = H - (UI.touch ? 252 : 236) - (UI.touch ? 42 : 36), h2 = w / 2 - 2, B = (...a) => new Button(...a);
     this.autoB = B(x, y, h2, th, 'Auto (A)', () => b.autoAssign(), {size: 15, key: 'KeyA'});
     this.unasB = B(x + w / 2 + 2, y, h2, th, 'Quitar puesto', () => { if (this.selected) { b.unassign(this.selected); this.selected = null; } }, {size: 15});
     this.polB = B(x, y + gp, w, th, '', () => { const o = ['libre', 'contenido', 'alto']; b.policy = o[(o.indexOf(b.policy) + 1) % 3]; }, {size: 15, key: 'KeyF'});
     this.parB = B(x, y + 2 * gp, h2, th, 'Parlamento (P)', () => { if (b.parleyAvailable) this.parley = !this.parley; }, {size: 15, key: 'KeyP'});
     this.meltB = B(x + w / 2 + 2, y + 2 * gp, h2, th, 'Fundir (M)', () => b.melt(), {size: 15, key: 'KeyM'});
     this.startB = B(x, y + 3 * gp, w, th, '', () => b.startFight(), {size: 15, key: 'Enter'});
-    this.btns = [this.autoB, this.unasB, this.polB, this.parB, this.meltB, this.startB,
+    this.stakeB = B(x, y + 5 * gp, w, th, '', () => { this.stakeMode = !this.stakeMode; }, {size: 15, key: 'KeyE'});
+    this.btns = [this.autoB, this.stakeB, this.unasB, this.polB, this.parB, this.meltB, this.startB,
       B(x, y + 4 * gp, w / 3 - 2, th - 2, 'Pausa', () => { this.paused = !this.paused; }, {size: 14, key: 'Space'}),
       B(x + w / 3 + 1, y + 4 * gp, w / 3 - 2, th - 2, 'x1', () => { this.speed = 1; this.paused = false; }, {size: 14, key: 'Digit1'}),
       B(x + 2 * w / 3 + 2, y + 4 * gp, w / 3 - 2, th - 2, 'x2', () => { this.speed = 2; this.paused = false; }, {size: 14, key: 'Digit2'})];
@@ -69,6 +70,7 @@ class BattleScene extends Scene {
     for (const f of b.aliveFoes()) { if (!b.isVisible(f)) continue; const d = Math.hypot(f.x - wx, f.y - wy) * S; if (d < bd) { best = f; bd = d; } }
     if (best) { b.setFocus(b.focus === best ? null : best); return; }
     for (const w of b.wagons) if (w.destroyed && w.barricade <= 0 && Math.hypot(w.x - wx, w.y - wy) * S < (T_ ? 56 : 40)) { b.orderBarricade(w.idx); return; }
+    if (this.stakeMode) for (const w of b.wagons) if (!w.destroyed && Math.hypot(w.x - wx, w.y - wy) * S < (T_ ? 62 : 48)) { b.orderStakes(w.idx); return; }
     this.selected = null;
   }
   hover(ev) {
@@ -120,6 +122,7 @@ class BattleScene extends Scene {
     if (b.done) { if (this.endTimer === 0) CV.sfx.play(b.result.outcome === 'derrota' ? 'lose' : 'win', .7); this.endTimer += dt; }
     if (this.touch !== UI.touch) this.buildButtons();
     this.unasB.enabled = !!(this.selected && this.selected.ref.post);
+    this.stakeB.label = this.stakeMode ? 'Estacas: toca una carreta (E)' : `Estacas · 1 repuesto (E) [${this.game.sup.parts}]`; this.stakeB.selected = !!this.stakeMode;
     this.polB.label = {libre: 'Fuego libre (F)', contenido: 'Fuego contenido (F)', alto: 'Alto el fuego (F)'}[b.policy];
     this.startB.label = b.phase === 'prep' ? '¡Empezar ya! (Enter)' : 'Combate en curso'; this.startB.enabled = b.phase === 'prep';
     this.meltB.enabled = this.game.sup.goods >= 5; this.parB.enabled = b.parleyAvailable && b.phase === 'fight';
@@ -159,6 +162,7 @@ class BattleScene extends Scene {
       const r = w.ref, frac = Math.max(0, r.hp / Math.max(1, r.maxHp)), sx = this.cam.x(w.x), sy = this.cam.y(w.y);
       R.drawWagon(g, sx, sy, w.angle + Math.PI / 2, frac, r.reinforced, r.platform, r.cannon, r.lantern, w.destroyed, S);
       if (w.flash > 0 && !w.destroyed) { g.fillStyle = 'rgba(200,60,40,.35)'; g.beginPath(); g.arc(sx, sy, 24, 0, 7); g.fill(); }
+      if (!w.destroyed && w.stakes > 0) { const rr = this.battle.Rout + 24; g.strokeStyle = w.stakes > 40 ? '#d8c890' : '#a08860'; g.lineWidth = 2; for (let k = -3; k <= 3; k++) { const an = w.angle + k * .085, px = this.cam.x(Math.cos(an) * rr), py = this.cam.y(Math.sin(an) * rr); g.beginPath(); g.moveTo(px - 5, py - 6); g.lineTo(px + 5, py + 6); g.moveTo(px + 5, py - 6); g.lineTo(px - 5, py + 6); g.stroke(); } UI.bar(this.cam.x(Math.cos(w.angle) * (rr + 12)) - 16, this.cam.y(Math.sin(w.angle) * (rr + 12)) - 2, 32, 4, w.stakes / 80, '#d8c890'); }
       if (w.destroyed && w.barricade > 0) { const a = w.angle + Math.PI / 2; g.strokeStyle = '#785432'; g.lineWidth = 3; for (let i = -2; i <= 2; i++) { const px = sx + Math.cos(a) * i * 14 * S, py = sy + Math.sin(a) * i * 14 * S; g.beginPath(); g.moveTo(px - 5, py - 8); g.lineTo(px + 5, py + 8); g.moveTo(px + 5, py - 8); g.lineTo(px - 5, py + 8); g.stroke(); } UI.bar(sx - 18, sy + 14, 36, 4, w.barricade / 90, '#c8a05a'); }
       if (w.destroyed && w.buildProgress > 0 && w.barricade <= 0) UI.bar(sx - 18, sy + 14, 36, 4, w.buildProgress, '#82c878');
       if (!w.destroyed && frac < .999) UI.bar(sx + Math.cos(w.angle) * 34 * S - 18, sy + Math.sin(w.angle) * 34 * S - 3, 36, 5, frac, hpCol(frac));
@@ -249,7 +253,8 @@ class BattleScene extends Scene {
     if (b.phase === 'prep') T(`PREPARACIÓN  ${Math.max(0, b.prep).toFixed(0)}s`, W - 14, 11, {size: 18, color: C.gold, bold: true, align: 'right'});
     else T(`${Math.floor(b.fightTime / 60)}:${String(Math.floor(b.fightTime) % 60).padStart(2, '0')}`, W - 14, 11, {size: 18, bold: true, align: 'right'});
     if (this.paused) T('PAUSA', F.x + F.w / 2, 70, {size: 34, color: C.gold, bold: true, align: 'center', shadow: true});
-    if (b.phase === 'prep') { UI.panel(F.x + F.w / 2 - 290, 48, 580, 52, '#1e1610', C.gold, 6, .85, 1); T('Cierra el círculo: pon a tus mejores tiradores (T) en las carretas por donde vendrá el ataque.', F.x + F.w / 2, 54, {size: 14, align: 'center'}); T('Las flechas rojas del borde indican por dónde llegará cada oleada.', F.x + F.w / 2, 75, {size: 14, color: C.gold, align: 'center'}); }
+    if (this.stakeMode) T('Modo estacas: toca una carreta para clavar estacas (1 repuesto). Frenan a los atacantes a pie bajo tu fuego.', F.x + F.w / 2, H - 52, {size: 14, color: '#d2e6a0', align: 'center', shadow: true});
+    if (b.phase === 'prep') { UI.panel(F.x + F.w / 2 - 290, 48, 580, 52, '#1e1610', C.gold, 6, .85, 1); T('Cierra el círculo: tiradores (T) donde vendrá el ataque y estacas en las carretas más expuestas.', F.x + F.w / 2, 54, {size: 14, align: 'center'}); T('Las flechas rojas del borde indican por dónde llegará cada oleada.', F.x + F.w / 2, 75, {size: 14, color: C.gold, align: 'center'}); }
     let y = H - 24; for (const [t0, msg, col] of b.msgs.slice().reverse().slice(0, 6)) { const age = b.time - t0, a = age < 8 ? 1 : Math.max(0, 1 - (age - 8) * .25); if (a <= 0) continue; const w = UI.measure(msg, 15) + 12; g.fillStyle = `rgba(0,0,0,${.5 * a})`; g.fillRect(LEFT_W + 8, y - 1, w, 20); T(msg, LEFT_W + 14, y, {size: 15, color: col, alpha: a}); y -= 22; }
   }
   drawParley(g) {

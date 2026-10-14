@@ -42,8 +42,8 @@ class Director {
   raidMult(g) {
     if (!this.enabled) return 1;
     const t = this.tension; let m = 1;
-    if (g.day - this.lastDefeatDay <= 6) m = Math.min(.2 / this.mercy(g), .6);
-    else if (t > .75) m = .45; else if (t > .55) m = .7;
+    if (g.day - this.lastDefeatDay <= 6) m = Math.min(.3 / this.mercy(g), .7);
+    else if (t > .75) m = .6; else if (t > .55) m = .8;
     else if (t < .2 && g.day - this.lastBattleDay > 10) m = 1.45;
     if (m < .9) m = 1 - (1 - m) * Math.min(1.4, this.mercy(g));
     return Math.max(.05, m);

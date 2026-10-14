@@ -26,7 +26,7 @@ class Battle {
     this.n = n; this.R = Math.max(118, n * (WAGON_L + WAGON_GAP) / (2 * Math.PI)); this.Rout = this.R + 30;
     this.wagons = game.wagons.map((w, i) => {
       const a = -Math.PI / 2 + 2 * Math.PI * i / n;
-      return {ref: w, idx: i, angle: a, x: Math.cos(a) * this.R, y: Math.sin(a) * this.R, burning: 0, burnTime: 0, barricade: 0, buildProgress: 0, destroyed: false, flash: 0};
+      return {ref: w, idx: i, angle: a, x: Math.cos(a) * this.R, y: Math.sin(a) * this.R, burning: 0, burnTime: 0, barricade: 0, buildProgress: 0, stakes: 0, destroyed: false, flash: 0};
     });
     this.colonists = game.living().map(c => {
       const a = this.rng.uniform(0, 2 * Math.PI), r = this.rng.uniform(25, Math.max(30, this.R - 55));
@@ -74,6 +74,13 @@ class Battle {
     if (!wg.destroyed || wg.barricade > 0 || wg.buildProgress > .0001) return false;
     if (this.game.sup.parts < 1) { this.say('No quedan repuestos para una barricada.', '#ff8c78'); return false; }
     this.game.sup.parts--; wg.buildProgress = .001; this.say(`Se levanta una barricada en el hueco ${w + 1}.`); return true;
+  }
+  orderStakes(w) {
+    const wg = this.wagons[w];
+    if (!wg || wg.destroyed) return false;
+    if (wg.stakes > 55) { this.say(`La carreta ${w + 1} ya tiene estacas.`, '#c8c8a0'); return false; }
+    if (this.game.sup.parts < 1) { this.say('No quedan repuestos para clavar estacas.', '#ff8c78'); return false; }
+    this.game.sup.parts--; wg.stakes = 80; this.say(`Estacas afiladas frente a la carreta ${w + 1}: frenarán a los atacantes a pie.`, '#d2e6a0'); return true;
   }
   melt() {
     const s = this.game.sup;
@@ -150,7 +157,8 @@ class Battle {
   }
   newFoe(kind, x, y) {
     const d = D.FOES[kind], r = this.rng;
-    return {id: FOE_ID++, kind, x, y, hp: d.hp, maxHp: d.hp, speed: d.speed * r.uniform(.9, 1.1), state: 'approach', cool: r.uniform(1, 4), shots: r.int(3, 6), orbitR: 0, orbitDir: r.choice([-1, 1]),
+    const hs = 1 + .25 * this.game.mile / 2000;
+    return {id: FOE_ID++, kind, x, y, hp: d.hp * hs, maxHp: d.hp * hs, speed: d.speed * r.uniform(.9, 1.1), state: 'approach', cool: r.uniform(1, 4), shots: r.int(3, 6), orbitR: 0, orbitDir: r.choice([-1, 1]),
       standR: 0, timer: 0, attackCool: r.uniform(0, 1), targetWagon: null, alive: true, fled: false, flash: 0, face: 0, revealed: 0, mounted: kind === 'jinete' || kind === 'jefe'};
   }
   // ---------------------------------------------------------- colonos
@@ -262,7 +270,7 @@ class Battle {
       let tgt;
       if (this.focus && targets.includes(this.focus)) tgt = this.focus;
       else tgt = targets.reduce((a, b) => this.prio(a, w) <= this.prio(b, w) ? a : b);
-      const c = bc.ref; let cd = 8 * (1.3 - .06 * c.shoot);
+      const c = bc.ref; let cd = 5.2 * (1.3 - .06 * c.shoot);
       const helper = g.postOf(w.idx, 'ayuda'); if (helper && helper.health > 25) cd *= .68;
       if (c.health < 50) cd *= 1.25;
       bc.cool = cd * this.rng.uniform(.9, 1.15);
@@ -343,6 +351,12 @@ class Battle {
     if (r > this.Rout + 4) {
       if (gap) { const gx = Math.cos(gap.angle) * (this.Rout + 8), gy = Math.sin(gap.angle) * (this.Rout + 8); if (r > this.Rout + 60 || Math.abs(angDiff(gap.angle, ang)) > .08) { this.move(f, gx, gy, speed, dt); return; } }
       const sec = this.wagons[this.sector(ang)];
+      if (!sec.destroyed && sec.stakes > 0) {
+        if (r > this.Rout + 28) { this.move(f, Math.cos(ang) * (this.Rout + 24), Math.sin(ang) * (this.Rout + 24), speed, dt); return; }
+        f.attackCool -= dt;
+        if (f.attackCool <= 0) { f.attackCool = 1; sec.stakes -= 7 * (f.kind === 'jefe' ? 1.5 : 1); this.emit('chop', f.x, f.y); if (sec.stakes <= 0) { sec.stakes = 0; this.say(`Las estacas de la carreta ${sec.idx + 1} ceden.`, '#ff8c64'); } }
+        return;
+      }
       if (sec.destroyed && sec.barricade <= 0) { this.move(f, 0, 0, speed, dt); }
       else { this.move(f, Math.cos(ang) * (this.Rout + 2), Math.sin(ang) * (this.Rout + 2), speed, dt); if (hyp(f.x, f.y) <= this.Rout + 6) { f.state = 'attack'; f.targetWagon = sec.idx; } }
       return;
@@ -361,7 +375,7 @@ class Battle {
     if (hyp(f.x, f.y) < 40) { f.timer += dt; if (f.timer > 3) { f.timer = 0; const s = this.game.sup; s.food = Math.max(0, s.food - 12); s.goods = Math.max(0, s.goods - (this.rng.random() < .4 ? 1 : 0)); } }
   }
   meleeWagon(f, sec) {
-    const dmg = 8 * (f.kind === 'jefe' ? 1.5 : 1), reinforce = 1 - .08 * sec.ref.reinforced;
+    const dmg = 9 * (f.kind === 'jefe' ? 1.5 : 1), reinforce = 1 - .08 * sec.ref.reinforced;
     if (sec.destroyed && sec.barricade > 0) { sec.barricade -= dmg; if (sec.barricade <= 0) { sec.barricade = 0; this.say(`¡La barricada del hueco ${sec.idx + 1} cede!`, '#ff8c64'); } this.emit('chop', f.x, f.y); return; }
     sec.ref.hp -= dmg * reinforce; sec.flash = .2; this.emit('chop', f.x, f.y);
     if (this.rng.random() < .3) { const tir = this.game.postOf(sec.idx, 'tirador'); if (tir) { const bc = this.colonists.find(b => b.ref === tir && b.ref.alive); if (bc) this.hurtColonist(bc, this.rng.uniform(7, 13)); } }
@@ -470,7 +484,7 @@ CV.runHeadless = function (game, spec, seed, smart) {
   const b = new Battle(game, spec, seed); b.startFight();
   let t = 0, nxt = 0;
   while (!b.done && t < 600) {
-    if (smart !== false && t >= nxt) { b.autoAssign(); nxt = t + 6; if (game.sup.parts > 0) for (const w of b.wagons) if (w.destroyed && w.barricade <= 0 && w.buildProgress <= 0) b.orderBarricade(w.idx); }
+    if (smart !== false && t >= nxt) { b.autoAssign(); nxt = t + 6; if (game.sup.parts > 0) for (const w of b.wagons) if (w.destroyed && w.barricade <= 0 && w.buildProgress <= 0) b.orderBarricade(w.idx); if (game.sup.parts > 6) { const th = b.threatMap(); b.wagons.filter(w => !w.destroyed && w.stakes <= 0).sort((a, c) => (th[c.idx] || 0) - (th[a.idx] || 0)).slice(0, 2).forEach(w => b.orderStakes(w.idx)); } }
     b.update(.1); t += .1;
   }
   if (!b.done) b.finish('huida');

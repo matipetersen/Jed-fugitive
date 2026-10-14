@@ -57,7 +57,7 @@ D.PROFESSIONS = {
 };
 D.ITEMS = {
   food:{name:'Comida', unit:'50 lb', price:8, per:50},
-  ammo:{name:'Munición', unit:'20 balas', price:9, per:20},
+  ammo:{name:'Munición', unit:'20 balas', price:6, per:20},
   goods:{name:'Mercancías', unit:'1 lote', price:6, per:1},
   parts:{name:'Repuestos', unit:'1 juego', price:12, per:1},
   medicine:{name:'Medicinas', unit:'1 dosis', price:10, per:1},
@@ -73,9 +73,9 @@ D.RATION_LABEL = {escasas:'Escasas', normales:'Normales', abundantes:'Abundantes
 D.WATCH_LABEL = {ninguna:'Sin guardia', normal:'Guardia normal', reforzada:'Guardia reforzada'};
 D.DISEASES = ['disentería','cólera','fiebre tifoidea','sarampión','mordedura de serpiente','pierna rota','agotamiento'];
 D.DIFFICULTY = {
-  facil:{name:'Relajada', raid:.75, money:1.25, disease:.7, score:.8, mercy:1.3, desc:'Menos enemigos, más dinero y menos enfermedades.'},
-  normal:{name:'Normal', raid:1, money:1, disease:1, score:1, mercy:1, desc:'La experiencia pensada.'},
-  dificil:{name:'Implacable', raid:1.3, money:.9, disease:1.3, score:1.3, mercy:.6, desc:'Ataques más duros, escasez y puntuación ×1,3.'},
+  facil:{name:'Relajada', raid:.8, money:1.25, disease:.7, score:.8, mercy:1.3, desc:'Menos enemigos, más dinero y menos enfermedades.'},
+  normal:{name:'Normal', raid:1.1, money:1, disease:1, score:1, mercy:1, desc:'Asaltos cada pocos días y oleadas que crecen con las millas.'},
+  dificil:{name:'Implacable', raid:1.5, money:.9, disease:1.3, score:1.3, mercy:.6, desc:'Asedios brutales, escasez y puntuación ×1,3.'},
 };
 D.ROLE_NAMES = {lider:'Líder',esposa:'Esposa',hijo:'Hijo',hija:'Hija',abuelo:'Abuelo',tomas:'Vecino',ruth:'Vecina',ada:'Niña',silas:'Peón',mary:'Peón',josiah:'Peón',hannah:'Peona',lucas:'Niño',emma:'Joven',
   medico:'Médico',cazadora:'Cazadora',herrero:'Herrero',predicador:'Predicador',mercenario:'Mercenario',traductora:'Intérprete',gemelos:'Joven',partera:'Partera',carretero:'Carretero',viuda:'Viuda'};

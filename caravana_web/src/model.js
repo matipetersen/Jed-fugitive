@@ -48,7 +48,7 @@ class Game {
     this.visited = ['Independence']; this.nextWp = 1;
     this.guideUntil = -1; this.guideTribe = ''; this.lastBanditDay = -99;
     this.stats = {raids: 0, kills: 0, parleys: 0, gifts: 0, hunted: 0, lost: 0, treaties: 0};
-    this.nextCid = 0; this.cannonStock = 0; this.over = false; this.arrivedSite = null; this.forcedWinter = false; this.starving = false;
+    this.nextSiege = 12; this.nextCid = 0; this.cannonStock = 0; this.over = false; this.arrivedSite = null; this.forcedWinter = false; this.starving = false;
     this.flags = {}; this.storyDone = []; this.talked = {};
     this.director = new CV.Director();
   }
@@ -58,7 +58,7 @@ class Game {
     g.difficulty = difficulty || 'normal';
     g.leaderName = leaderName || 'Jed'; g.profession = profession;
     const prof = D.PROFESSIONS[profession];
-    g.sup.money = prof.money * D.DIFFICULTY[g.difficulty].money;
+    g.sup.money = Math.round(prof.money * 1.25 * D.DIFFICULTY[g.difficulty].money);
     const leader = g.make('adulto', g.leaderName, prof.skills);
     leader.isLeader = true; leader.roleId = 'lider';
     CV.story.populate(g);
@@ -311,8 +311,8 @@ class Game {
   raidProbability(tid) {
     const ts = this.tribes[tid], t = D.TRIBES[tid];
     if (ts.allied) return 0;
-    let p = t.aggression * Math.max(0, 25 - ts.attitude) / 100 * .22;
-    if (this.day <= ts.treatyUntil) p *= .08;
+    let p = t.aggression * Math.max(0, 40 - ts.attitude) / 100 * .3;
+    if (this.day <= ts.treatyUntil) p *= .3;
     if (this.hasGuide() && this.guideTribe === tid) p *= .6;
     return p * this.director.raidMult(this);
   }
@@ -327,10 +327,23 @@ class Game {
     }
     if (rng.random() < .05 && this.day > ts.lastRaid + 4) { ts.met = true; return {kind: 'contact', tribe: tid, ctype: ts.attitude >= 15 ? 'visit' : 'patrol', opening: t.greet}; }
     if (this.day > ts.lastRaid + 3 && rng.random() < this.raidProbability(tid)) return this.raidWarning(tid);
-    return null;
+    return this.siegeCheck(tid);
+  }
+  // Reloj de asedio: aunque la diplomacia funcione, el camino trae un asalto cada 7-12 días (más espaciado con tregua).
+  siegeCheck(tid) {
+    if (this.day < (this.nextSiege || 12)) return null;
+    const ts = this.tribes[tid], rng = this.rng;
+    if (this.director.tension > .85 && this.day < this.nextSiege + 4) return null;
+    if (ts.allied || this.day <= ts.treatyUntil && rng.random() < .5) {
+      this.nextSiege = this.day + rng.int(3, 6);
+      if (ts.allied) { this.lastBanditDay = this.day; const spec = this.composeBattle('bandidos', 6 + this.mile / 2000 * 12 + rng.uniform(0, 3)); spec.night = rng.random() < .4; spec.prepTime = 14; spec.reason = 'Aprovechando que los vuestros descansan, una banda de salteadores ataca el círculo.'; this.note(spec.reason); return spec; }
+      return null;
+    }
+    return this.raidWarning(tid);
   }
   raidWarning(tid) {
     const ts = this.tribes[tid]; ts.lastRaid = this.day;
+    this.nextSiege = this.day + Math.round(this.rng.int(8, 13) * (this.day <= ts.treatyUntil ? 1.4 : 1));
     let warn = {ninguna: .3, normal: .6, reforzada: .92}[this.watch];
     if (this.hasGuide()) warn += .2;
     const spec = this.makeRaid(tid);
@@ -353,7 +366,7 @@ class Game {
   }
   flee(spec) {
     const rng = this.rng;
-    let chance = .45 + .1 * (this.sup.oxen / Math.max(1, 2 * this.wagons.length)) - .02 * spec.strength / 4;
+    let chance = .33 + .1 * (this.sup.oxen / Math.max(1, 2 * this.wagons.length)) - .02 * spec.strength / 4;
     if (this.pace === 'rapido') chance += .1;
     if (rng.random() < chance && this.oxenFactor() > .4) {
       const lost = [];
@@ -369,8 +382,8 @@ class Game {
   makeRaid(tid, extra) {
     const t = D.TRIBES[tid], ts = this.tribes[tid], rng = this.rng;
     const progress = this.mile / 2000;
-    let strength = (7 + progress * 12 + ts.arms * 1.1 + rng.uniform(0, 3) + (extra || 0)) * t.strength;
-    if (this.day <= ts.treatyUntil) strength *= .45;
+    let strength = (6 + progress * 11 + ts.arms * 1.2 + rng.uniform(0, 3) + (extra || 0)) * t.strength;
+    if (this.day <= ts.treatyUntil) strength *= .7;
     return this.composeBattle(tid, strength);
   }
   composeBattle(tid, strength) {
@@ -379,10 +392,10 @@ class Game {
     let style = D.TRIBES[tid] ? D.TRIBES[tid].style : {bandido: 6, guerrero: 2};
     if (tid === 'bandidos') style = {bandido: 6, guerrero: 3, jinete: 1};
     const kinds = Object.keys(style), weights = kinds.map(k => style[k]);
-    const nWaves = strength < 8 ? 1 : strength < 15 ? 2 : strength < 24 ? 3 : 4;
+    const nWaves = strength < 7 ? 1 : strength < 12 ? 2 : strength < 18 ? 3 : strength < 26 ? 4 : 5;
     let budget = strength; const waves = [];
     const base = rng.uniform(0, Math.PI * 2); let t = 0;
-    const boss = strength >= 16 && tid !== 'bandidos';
+    const boss = strength >= 14 && tid !== 'bandidos';
     for (let wi = 0; wi < nWaves; wi++) {
       let wb = budget / (nWaves - wi) * rng.uniform(.8, 1.2);
       const comp = {};
@@ -396,7 +409,7 @@ class Game {
         const angle = wi === 0 ? base : wi % 2 === 1 ? base + Math.PI + rng.uniform(-.5, .5) : base + rng.choice([-1, 1]) * Math.PI / 2 + rng.uniform(-.4, .4);
         waves.push([t, angle, comp]);
       }
-      t += rng.uniform(22, 38);
+      t += rng.uniform(18, 30);
     }
     if (strength > 12 && waves.length) {
       const [t0, a0, c0] = waves[0], split = {};
@@ -404,14 +417,14 @@ class Game {
       if (Object.keys(split).length) waves.splice(1, 0, [t0 + 1.5, a0 + rng.choice([-1, 1]) * rng.uniform(1.8, 2.6), split]);
     }
     const allies = 4 * D.TERRITORY_TRIBES.filter(k => this.tribes[k].allied && k !== tid).length;
-    return {kind: 'battle', foe: tid, strength, waves, allies, night: rng.random() < .18, prepTime: 28, reason: tid === 'bandidos' ? 'Una banda de salteadores os ha tendido una emboscada.' : '', tense: false};
+    return {kind: 'battle', foe: tid, strength, waves, allies, night: rng.random() < .3, prepTime: 22, reason: tid === 'bandidos' ? 'Una banda de salteadores os ha tendido una emboscada.' : '', tense: false};
   }
   rollBandits() {
-    if (this.mile < 300 || this.day - this.lastBanditDay < 14) return null;
-    const p = .012 * (this.watch === 'ninguna' ? 1.8 : this.watch === 'reforzada' ? .6 : 1) * this.director.raidMult(this);
+    if (this.mile < 150 || this.day - this.lastBanditDay < 9) return null;
+    const p = .03 * (this.watch === 'ninguna' ? 1.8 : this.watch === 'reforzada' ? .6 : 1) * this.director.raidMult(this);
     if (this.rng.random() < p) {
       this.lastBanditDay = this.day;
-      const spec = this.composeBattle('bandidos', 5 + this.mile / 2000 * 7 + this.rng.uniform(0, 2));
+      const spec = this.composeBattle('bandidos', 6 + this.mile / 2000 * 12 + this.rng.uniform(0, 3));
       spec.night = this.rng.random() < .4; spec.prepTime = this.watch !== 'reforzada' ? 10 : 25;
       spec.reason = 'Un grupo de salteadores aprovecha la oscuridad del camino y os asalta.';
       return prompt('¡Bandoleros!', 'Hombres armados salen de entre las rocas gritando que dejéis la carga y os marchéis.', [
@@ -423,7 +436,7 @@ class Game {
   }
   payBandits() {
     if (this.sup.goods >= 6 && this.sup.ammo >= 20) { this.sup.goods -= 6; this.sup.ammo -= 20; this.morale -= 8; return info('Un mal trato', 'Los bandidos toman el pago y se esfuman. La rabia pesa más que la pérdida.'); }
-    const spec = this.composeBattle('bandidos', 5 + this.mile / 2000 * 7); spec.prepTime = 6; spec.reason = 'No podéis pagar. Los bandidos atacan de todos modos.';
+    const spec = this.composeBattle('bandidos', 6 + this.mile / 2000 * 12); spec.prepTime = 6; spec.reason = 'No podéis pagar. Los bandidos atacan de todos modos.';
     return spec;
   }
   // ---------------------------------------------------------- eventos aleatorios
@@ -639,11 +652,12 @@ class Game {
       for (const k of D.TERRITORY_TRIBES) if (k !== tid) this.tribes[k].attitude = clamp(this.tribes[k].attitude - res.killed * .15, -100, 100);
     } else if (res.outcome === 'victoria' || res.outcome === 'huida') {
       if (res.killed) {
-        const la = this.rng.int(5, 8) * Math.max(1, Math.floor(res.killed / 3)), lg = this.rng.int(0, 3);
-        this.sup.ammo += la; this.sup.goods += lg; lines.push(`Botín de los bandidos: +${la} balas, +${lg} mercancías.`);
+        const la = this.rng.int(5, 8) * Math.max(1, Math.floor(res.killed / 3)), lg = this.rng.int(1, 3), lm = res.killed * 6;
+        this.sup.ammo += la; this.sup.goods += lg; this.sup.money += lm; lines.push(`Botín de los bandidos: +${la} balas, +${lg} mercancías, +$${lm}.`);
       }
     }
-    if ((res.outcome === 'victoria' || res.outcome === 'huida') && res.ammoUsed > 10) { const back = Math.floor(res.ammoUsed * .12); this.sup.ammo += back; lines.push(`Recoges balas y flechas aprovechables: +${back} balas.`); }
+    if (native && (res.outcome === 'victoria') && res.killed) { const lg = Math.ceil(res.killed / 5); this.sup.goods += lg; lines.push(`Entre lo que dejan atrás hay pieles y herramientas utilizables: +${lg} mercancías.`); }
+    if ((res.outcome === 'victoria' || res.outcome === 'huida') && res.ammoUsed > 10) { const back = Math.floor(res.ammoUsed * .1); this.sup.ammo += back; lines.push(`Recoges balas y flechas aprovechables: +${back} balas.`); }
     if (res.outcome === 'victoria') this.morale = Math.min(100, this.morale + 6);
     else if (res.outcome === 'derrota') { this.morale = Math.max(0, this.morale - 25); this.sup.food *= .5; this.sup.goods = Math.floor(this.sup.goods / 2); lines.push('Los atacantes saquean la mitad de las provisiones antes de retirarse.'); }
     this.normalizePosts();

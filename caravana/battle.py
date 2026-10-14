@@ -421,7 +421,12 @@ class Battle:
             if not bc.alive:
                 continue
             c = bc.ref
-            if c.health < 30:
+            panic = c.loyalty < 25 and c.health < 55 and not c.is_leader
+            if panic and c.post and not getattr(bc, "_panicked", False):
+                bc._panicked = True
+                self.say(f"{c.name} pierde los nervios y abandona su puesto.", (255, 190, 130))
+                c.post = None
+            if c.health < 30 or (panic and c.health < 55):
                 bc.task = "wounded"
                 bc.tx, bc.ty = -14 + (c.cid % 5) * 8, 42 + (c.cid % 3) * 9
                 self._move(bc, bc.tx, bc.ty, WALK_SPEED * 0.4, dt)
@@ -581,8 +586,9 @@ class Battle:
         if self.night and not w.ref.lantern:
             nf = 0.75
         pf = 1.15 if w.ref.platform else 1.0
+        lf = 1.0 + 0.08 * (c.loyalty - 50) / 50.0
         mv = 0.8 if f.mounted and f.state in ("orbit", "approach", "retreat") else 1.0
-        return max(0.05, min(0.95, base * distf * hf * mf * nf * pf * mv))
+        return max(0.05, min(0.95, base * distf * hf * mf * nf * pf * mv * lf))
 
     def _targets_for(self, w: BWagon) -> list[Foe]:
         rng_ = RIFLE_RANGE + (PLATFORM_RANGE if w.ref.platform else 0)

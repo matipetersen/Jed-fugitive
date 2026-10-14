@@ -31,17 +31,18 @@ class PromptScene(Scene):
         body_lines = ui.wrap(p.body, 19, 640)
         h_body = len(body_lines) * (ui.font(19).get_linesize() + 3)
         n = len(p.options)
-        h = 78 + h_body + 20 + n * 54 + 20
+        h = 78 + h_body + 20 + sum(70 if o.who else 54 for o in p.options) + 20
         self.rect = pygame.Rect(0, 0, 700, h)
         self.rect.center = (ui.W // 2, ui.H // 2 - 10)
         self.btns = []
         y = self.rect.y + 78 + h_body + 20
         for i, opt in enumerate(p.options):
             lbl = opt.label + (f"   ·   {opt.hint}" if opt.hint else "")
-            b = Button((self.rect.x + 30, y, 640, 46), lbl, (lambda o=opt: self._choose(o)), size=18,
+            hh = 62 if opt.who else 46
+            b = Button((self.rect.x + 30, y, 640, hh), lbl, (lambda o=opt: self._choose(o)), size=18,
                        key=(pygame.K_1 + i) if i < 9 else None)
             self.btns.append(b)
-            y += 54
+            y += hh + 8
 
     def _choose(self, opt: Option):
         res = opt.action()
@@ -64,8 +65,10 @@ class PromptScene(Scene):
         panel(screen, self.rect, C["panel"], col, 12, width=3)
         text(screen, self.prompt.title, (self.rect.centerx, self.rect.y + 20), 32, col, bold=True, serif=True, anchor="midtop", shadow=True)
         para(screen, self.prompt.body, (self.rect.x + 30, self.rect.y + 76), 640, 19, C["text"], gap=3)
-        for b in self.btns:
+        for b, opt in zip(self.btns, self.prompt.options):
             b.draw(screen)
+            if opt.who:
+                text(screen, "Lo defienden: " + ", ".join(opt.who), (b.rect.x + 14, b.rect.bottom - 3), 12, (230, 200, 130), anchor="bottomleft")
 
 
 class JournalScene(Scene):
@@ -76,10 +79,22 @@ class JournalScene(Scene):
         self.g = app.game
         self.scroll = 0
         self.close = Button((ui.W // 2 - 70, 624, 140, 42), "Cerrar", self.app.pop, size=18)
+        self.up = Button((960, 130, 60, 60), "Subir", lambda: self._scroll(-4), size=17)
+        self.down = Button((960, 200, 60, 60), "Bajar", lambda: self._scroll(4), size=17)
+        self._press = None
+
+    def _scroll(self, d):
+        self.scroll = max(0, self.scroll + d)
 
     def handle(self, ev):
-        if self.close.handle(ev):
+        if self.close.handle(ev) or self.up.handle(ev) or self.down.handle(ev):
             return
+        if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+            self._press = ev.pos
+        elif ev.type == pygame.MOUSEBUTTONUP:
+            self._press = None
+        elif ev.type == pygame.MOUSEMOTION and self._press is not None and ev.buttons[0]:
+            self.scroll = max(0, self.scroll - int(ev.rel[1] / 13))
         if ev.type == pygame.MOUSEWHEEL:
             self.scroll = max(0, self.scroll - ev.y * 2)
         elif ev.type == pygame.KEYDOWN:
@@ -103,7 +118,9 @@ class JournalScene(Scene):
             text(screen, f"Día {d}", (270, y), 15, (120, 84, 44), bold=True)
             text(screen, t, (350, y), 16, C["ink"])
             y += 26
-        text(screen, "Rueda del ratón: desplazar", (640, 604), 13, (110, 90, 60), anchor="midtop")
+        text(screen, "Arrastra, usa Subir/Bajar o la rueda del ratón", (640, 604), 13, (110, 90, 60), anchor="midtop")
+        self.up.draw(screen)
+        self.down.draw(screen)
         self.close.draw(screen)
 
 
@@ -199,14 +216,9 @@ class TravelScene(Scene):
     def enter(self):
         if self._intro:
             self._intro = False
-            g = self.g
+            from . import story
             self.push_feed("La caravana parte de Independence.", C["gold"])
-            self.app.push(PromptScene(self.app, Prompt.info(
-                "Independence, 15 de abril de 1848",
-                f"{g.leader_name} y sus 13 compañeros miran el horizonte. Por delante hay 1.950 millas, ríos crecidos, "
-                "pasos de montaña y pueblos que ya vieron pasar a demasiados forasteros.\n\n"
-                "Ritmo, raciones y guardia se ajustan abajo. Acampa cuando lo necesites. Y pase lo que pase: "
-                "llegad antes del 15 de diciembre.", "info")))
+            self.app.push(PromptScene(self.app, story.prologue(self.g)))
 
     def resume(self):
         self._build()
@@ -708,6 +720,7 @@ class CampScene(Scene):
         self.pace_btn = add(0, 4, "", self._cycle_pace)
         self.rations_btn = add(1, 4, "", self._cycle_rations)
         self.watch_btn = add(0, 5, "", self._cycle_watch)
+        add(1, 5, "Consejo familiar", self._family)
         self.go_btn = Button((bx[0], y + 6 * 56 + 14, 2 * w + 10, 56), "Levantar el campamento y seguir", self._leave, size=22, color=(98, 74, 40))
         self.btns.append(self.go_btn)
 
@@ -813,6 +826,17 @@ class CampScene(Scene):
         left = sum(1 for c in g.living() if c.sick)
         self.app.push(PromptScene(self.app, Prompt.info("Enfermería", f"Gastas {used} medicinas. Siguen enfermos: {left}." if used else "No quedan medicinas.", "good" if used else "danger")))
 
+    def _family(self):
+        from . import story
+        g = self.g
+        opts = []
+        for role in ("esposa", "hijo", "hija", "abuelo"):
+            c = g.member(role)
+            if c is not None:
+                opts.append(Option(f"Hablar con {c.name.split()[0]}", (lambda r=role: story.family_talk(g, r)), f"lealtad {c.loyalty}"))
+        opts.append(Option("Ahora no", lambda: None))
+        self.app.push(PromptScene(self.app, Prompt("Consejo familiar", "Es la hora tranquila de la noche. ¿Con quién te sientas?", opts, "info")))
+
     def _leave(self):
         self.app.pop()
         if self.app.travel:
@@ -854,7 +878,10 @@ class CampScene(Scene):
             text(screen, c.name, (88, y), 17, C["text"])
             text(screen, c.role_label + (f" · {c.sick}" if c.sick else ""), (88, y + 18), 12, C["red"] if c.sick else C["dim"])
             bar(screen, (320, y + 8, 130, 9), c.health / 100.0, C["green"] if c.health > 50 else C["orange"] if c.health > 25 else C["red"])
-            text(screen, f"Punt. {c.shoot} · Med. {c.medic} · Lab. {c.talk}", (466, y + 6), 13, C["dim"])
+            text(screen, f"Punt. {c.shoot} · Med. {c.medic} · Lab. {c.talk}", (440, y + 6), 13, C["dim"])
+            if c.role_id in data.FAMILY_ROLES and not c.is_leader:
+                lc = C["green"] if c.loyalty >= 60 else C["gold"] if c.loyalty >= 35 else C["red"]
+                text(screen, f"Lealtad {c.loyalty}", (560, y + 6), 13, lc)
             y += 36
             if y > ui.H - 60:
                 break

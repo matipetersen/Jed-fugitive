@@ -21,10 +21,12 @@ class ShopScene(Scene):
         self.msg_col = C["dim"]
         self.bg = art.ground_surface((ui.W + 40, ui.H + 40), "pradera" if initial else self.g.terrain(), 21)
         self.used: set[int] = set()
+        self.bulk = False
         self.offers = tribe_offers(self.g, spec.barter_tribe) if spec.barter_tribe else []
         self.items = [k for k in ("food", "ammo", "goods", "parts", "medicine", "oxen", "wagon", "cannon")
                       if not (k == "cannon" and not spec.cannon) and not (k == "wagon" and not spec.wagons)]
         self.buttons: list[Button] = []
+        self.bulk_btn = Button((620, 30, 220, 40), "", self._toggle_bulk, size=16)
         self.done_btn = Button((ui.W - 330, ui.H - 74, 270, 50), "¡Partir hacia Oregón!" if initial else "Terminar", self._done,
                                size=21, color=(98, 74, 40))
         self._build()
@@ -33,7 +35,10 @@ class ShopScene(Scene):
         return self.spec.mult
 
     def _qty(self):
-        return 5 if pygame.key.get_mods() & pygame.KMOD_SHIFT else 1
+        return 5 if (self.bulk or pygame.key.get_mods() & pygame.KMOD_SHIFT) else 1
+
+    def _toggle_bulk(self):
+        self.bulk = not self.bulk
 
     def _build(self):
         self.buttons = []
@@ -79,6 +84,8 @@ class ShopScene(Scene):
     def handle(self, ev):
         if self.done_btn.handle(ev):
             return
+        if not self.spec.barter_tribe and self.bulk_btn.handle(ev):
+            return
         for b in self.buttons:
             if b.handle(ev):
                 return
@@ -111,7 +118,9 @@ class ShopScene(Scene):
             text(screen, self.spec.name, (50, 30), 38, C["gold"], serif=True, bold=True)
             text(screen, "Precios con recargo por la distancia" if self.spec.mult > 1.05 else "Los precios más baratos de todo el camino",
                  (52, 80), 16, C["dim"])
-            text(screen, "Mayús + clic: ×5", (52, 98), 13, C["dim"])
+            self.bulk_btn.label = "Cantidad: ×5" if self.bulk else "Cantidad: ×1"
+            self.bulk_btn.selected = self.bulk
+            self.bulk_btn.draw(screen)
             for i, k in enumerate(self.items):
                 y = 120 + i * ROW_H
                 name, unit, base, per = data.ITEMS[k]

@@ -220,6 +220,10 @@ class Settlement:
         bd.append(("Fertilidad y agua del lugar", (site["fertility"] + site["water"]) * 4))
         early = max(0, int((data.FORCED_WINTER_DAY - g.day) / 3))
         bd.append(("Llegada temprana", early))
+        from . import story
+        epi_lines, epi_bd = story.epilogue(g, self)
+        lines.extend(epi_lines)
+        bd.extend(epi_bd)
         subtotal = sum(v for _, v in bd)
         mult = g.diff["score"]
         if abs(mult - 1.0) > 1e-6:

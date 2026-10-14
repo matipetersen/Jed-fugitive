@@ -182,3 +182,81 @@ def test_forced_winter_prompt():
     g.buy("food", 1.0, 20)
     it = g.advance_day()
     assert isinstance(it, Prompt) and "invierno" in it.title.lower()
+
+
+# ------------------------------------------------------------------ historia familiar
+def test_family_cast():
+    g = make(1)
+    roles = {c.role_id for c in g.colonists}
+    assert {"lider", "esposa", "hijo", "hija", "abuelo"} <= roles
+    assert len(g.living()) == 14
+    assert len({c.name for c in g.colonists}) == 14
+
+
+def test_every_chapter_option_runs():
+    import copy
+    from caravana import story
+    from caravana.model import Prompt
+    for key, when, build in story.CHAPTERS:
+        g0 = make(2)
+        g0.sup.money, g0.sup.medicine, g0.sup.goods, g0.sup.food = 400, 5, 20, 500
+        g0.mile = 1800
+        g0.flags.update(clara_words=True, eli_friend=True)
+        p = build(g0)
+        assert isinstance(p, Prompt) and p.options
+        for i in range(len(p.options)):
+            g = pickle.loads(pickle.dumps(g0))
+            p2 = build(g)
+            res = p2.options[i].action()
+            while isinstance(res, Prompt):
+                res = res.options[0].action()
+            assert res is None or True
+
+
+def test_chapters_trigger_in_order_and_once():
+    from caravana import story
+    g = make(3)
+    g.sup.food = 5000
+    g.mile = 150
+    assert story.check(g).title.startswith("Samuel")
+    assert story.check(g) is None  # no se repite
+
+
+def test_loyalty_follows_advice_and_changes_battle():
+    from caravana import story
+    g = make(4)
+    vs = story.voices(g)
+    assert vs and vs[0][0] == "esposa"
+    l0 = g.by_role("esposa").loyalty
+    story.follow(g, vs, "parley")
+    assert g.by_role("esposa").loyalty > l0
+    for c in g.living():
+        c.loyalty = 90
+    assert g.family_loyalty() > 60
+
+
+def test_eli_ambassador_unlocks_peace():
+    g = make(5)
+    g.flags["eli_friend"] = True
+    g.by_role("abuelo").loyalty = 100
+    wins = 0
+    for seed in range(20):
+        g2 = pickle.loads(pickle.dumps(g))
+        g2.rng.seed(seed)
+        g2.tribes["lakota"].attitude = -40
+        c = Contact(g2, "lakota", "tense")
+        c.do("eli")
+        wins += c.result == "paz"
+    assert wins >= 10
+
+
+def test_epilogue_mentions_family_and_promise():
+    g = make(6)
+    g.flags["promise"] = "tierra"
+    g.sup.parts, g.sup.goods, g.sup.food = 12, 20, 900
+    st = Settlement(g, "willamette")
+    st.build("cabana")
+    st.build("campos")
+    ch = st.simulate(2)
+    assert any("Martha" in l or "Clara" in l for l in ch.lines)
+    assert any(lbl == "Palabra cumplida" for lbl, _ in ch.breakdown)

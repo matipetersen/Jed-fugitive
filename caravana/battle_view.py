@@ -62,6 +62,9 @@ class BattleScene(Scene):
         self.oxen = [(rng.uniform(-0.5, 0.5) * R * 0.9, rng.uniform(-0.5, 0.5) * R * 0.9, rng.uniform(0, 6.28)) for _ in range(min(7, 3 + game.sup.oxen // 4))]
         self.oxen = [o for o in self.oxen if math.hypot(o[0], o[1]) > 36]
         self.buttons: list[Button] = []
+        self.roster_scroll = 0
+        self._rdown = None
+        self._rdrag = False
         self._build_buttons()
         self.update(0.0)
 
@@ -80,24 +83,35 @@ class BattleScene(Scene):
         return g
 
     def _build_buttons(self):
+        self._touch = ui.TOUCH
         x = 10
         w = LEFT_W - 20
-        y = ui.H - 238
-        b = self.battle
+        th = 38 if ui.TOUCH else 30
+        gp = th + 4
+        y = ui.H - 238 if not ui.TOUCH else ui.H - 252
+        h2 = w // 2 - 2
         self.buttons = [
-            Button((x, y, w, 30), "Auto-asignar por amenaza (A)", self._auto, size=15, key=pygame.K_a),
-            Button((x, y + 34, w, 30), "", self._cycle_policy, size=15, key=pygame.K_f),
-            Button((x, y + 68, w // 2 - 2, 30), "Parlamento (P)", self._toggle_parley, size=15, key=pygame.K_p),
-            Button((x + w // 2 + 2, y + 68, w // 2 - 2, 30), "Fundir (M)", self._melt, size=15, key=pygame.K_m),
-            Button((x, y + 102, w, 30), "", self._start, size=15, key=pygame.K_RETURN),
-            Button((x, y + 136, w // 3 - 2, 28), "Pausa", self._pause, size=14, key=pygame.K_SPACE),
-            Button((x + w // 3 + 1, y + 136, w // 3 - 2, 28), "x1", lambda: self._set_speed(1), size=14, key=pygame.K_1),
-            Button((x + 2 * w // 3 + 2, y + 136, w // 3 - 2, 28), "x2", lambda: self._set_speed(2), size=14, key=pygame.K_2),
+            Button((x, y, h2, th), "Auto (A)", self._auto, size=15, key=pygame.K_a),
+            Button((x + w // 2 + 2, y, h2, th), "Quitar puesto", self._unassign_sel, size=15),
+            Button((x, y + gp, w, th), "", self._cycle_policy, size=15, key=pygame.K_f),
+            Button((x, y + 2 * gp, h2, th), "Parlamento (P)", self._toggle_parley, size=15, key=pygame.K_p),
+            Button((x + w // 2 + 2, y + 2 * gp, h2, th), "Fundir (M)", self._melt, size=15, key=pygame.K_m),
+            Button((x, y + 3 * gp, w, th), "", self._start, size=15, key=pygame.K_RETURN),
+            Button((x, y + 4 * gp, w // 3 - 2, th - 2), "Pausa", self._pause, size=14, key=pygame.K_SPACE),
+            Button((x + w // 3 + 1, y + 4 * gp, w // 3 - 2, th - 2), "x1", lambda: self._set_speed(1), size=14, key=pygame.K_1),
+            Button((x + 2 * w // 3 + 2, y + 4 * gp, w // 3 - 2, th - 2), "x2", lambda: self._set_speed(2), size=14, key=pygame.K_2),
         ]
-        self.policy_btn = self.buttons[1]
-        self.start_btn = self.buttons[4]
-        self.melt_btn = self.buttons[3]
-        self.parley_btn = self.buttons[2]
+        self.unassign_btn = self.buttons[1]
+        self.policy_btn = self.buttons[2]
+        self.parley_btn = self.buttons[3]
+        self.melt_btn = self.buttons[4]
+        self.start_btn = self.buttons[5]
+        self.roster_bottom = y - 6
+
+    def _unassign_sel(self):
+        if self.selected is not None:
+            self.battle.unassign(self.selected)
+            self.selected = None
 
     def _auto(self):
         self.battle.auto_assign()
@@ -143,27 +157,56 @@ class BattleScene(Scene):
                 return
         if ev.type == pygame.MOUSEMOTION:
             self._hover(ev.pos)
+            if self._rdown is not None and ev.buttons[0]:
+                dy = ev.pos[1] - self._rdown[0][1]
+                if abs(dy) > 8 or self._rdrag:
+                    self._rdrag = True
+                    self.roster_scroll -= ev.rel[1]
+        elif ev.type == pygame.MOUSEWHEEL:
+            if self._roster_area().collidepoint(pygame.mouse.get_pos()):
+                self.roster_scroll -= ev.y * 30
         elif ev.type == pygame.MOUSEBUTTONDOWN:
             if ev.button == 1:
-                self._click(ev.pos)
+                self._hover(ev.pos)
+                if self._roster_area().collidepoint(ev.pos):
+                    self._rdown = (ev.pos, None)
+                    self._rdrag = False
+                else:
+                    self._click(ev.pos)
             elif ev.button == 3:
                 self._rclick(ev.pos)
+        elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
+            if self._rdown is not None and not self._rdrag:
+                self._click(ev.pos)
+            self._rdown = None
+            self._rdrag = False
         elif ev.type == pygame.KEYDOWN:
             if ev.key == pygame.K_ESCAPE:
                 self.selected = None
             elif ev.key == pygame.K_3:
                 self._set_speed(3)
 
+    def _roster_geom(self):
+        n = max(1, len(self.battle.colonists))
+        top = 60
+        avail = self.roster_bottom - top
+        rh = max(26 if ui.TOUCH else 21, min(31 if not ui.TOUCH else 34, avail // n))
+        return top, avail, rh
+
     def _roster_rows(self):
         rows = []
-        n = max(1, len(self.battle.colonists))
-        avail = ui.H - 238 - 62 - 6
-        rh = max(21, min(31, avail // n))
-        y = 60
+        top, avail, rh = self._roster_geom()
+        total = rh * len(self.battle.colonists)
+        self.roster_scroll = max(0, min(self.roster_scroll, max(0, total - avail)))
+        y = top - self.roster_scroll
         for bc in self.battle.colonists:
             rows.append((bc, pygame.Rect(8, y, LEFT_W - 16, rh - 2)))
             y += rh
         return rows
+
+    def _roster_area(self):
+        top, avail, rh = self._roster_geom()
+        return pygame.Rect(0, top, LEFT_W, avail)
 
     def _slot_positions(self):
         out = []
@@ -187,7 +230,7 @@ class BattleScene(Scene):
             return
         # plazas
         for widx, slot, (sx, sy) in self._slot_positions():
-            if math.hypot(pos[0] - sx, pos[1] - sy) < 15:
+            if math.hypot(pos[0] - sx, pos[1] - sy) < (28 if ui.TOUCH else 15):
                 occupant = b.game.post_of(widx, slot)
                 if self.selected is not None:
                     if slot == "tirador" and not self.selected.ref.can_shoot:
@@ -203,7 +246,7 @@ class BattleScene(Scene):
         # enemigos
         wx, wy = self.cam.inv(*pos)
         best = None
-        bd = 26
+        bd = 44 if ui.TOUCH else 26
         for f in b.alive_foes():
             if not b.is_visible(f):
                 continue
@@ -215,7 +258,7 @@ class BattleScene(Scene):
             return
         # carretas destruidas -> barricada
         for w in b.wagons:
-            if w.destroyed and w.barricade <= 0 and math.hypot(w.x - wx, w.y - wy) * S < 40:
+            if w.destroyed and w.barricade <= 0 and math.hypot(w.x - wx, w.y - wy) * S < (56 if ui.TOUCH else 40):
                 b.order_barricade(w.idx)
                 return
         self.selected = None
@@ -226,7 +269,7 @@ class BattleScene(Scene):
                 self.battle.unassign(bc)
                 return
         for widx, slot, (sx, sy) in self._slot_positions():
-            if math.hypot(pos[0] - sx, pos[1] - sy) < 15:
+            if math.hypot(pos[0] - sx, pos[1] - sy) < (28 if ui.TOUCH else 15):
                 occ = self.battle.game.post_of(widx, slot)
                 if occ:
                     occ.post = None
@@ -278,6 +321,9 @@ class BattleScene(Scene):
             if self.end_timer == 0.0:
                 sfx.play("win" if b.result.outcome in ("victoria", "huida", "paz") else "lose", 0.7)
             self.end_timer += dt
+        if self._touch != ui.TOUCH:
+            self._build_buttons()
+        self.unassign_btn.enabled = self.selected is not None and self.selected.ref.post is not None
         # texto de botones
         pol = {"libre": "Fuego libre (F)", "contenido": "Fuego contenido (F)", "alto": "Alto el fuego (F)"}[b.policy]
         self.policy_btn.label = pol
@@ -599,7 +645,9 @@ class BattleScene(Scene):
         # panel izquierdo
         panel(screen, (0, 0, LEFT_W, ui.H), (40, 30, 22), C["edge"], 0)
         text(screen, "DEFENSA DEL CÍRCULO", (LEFT_W // 2, 14), 17, C["gold"], bold=True, anchor="midtop", serif=True)
-        text(screen, "clic colono → clic plaza T/A · dcho: quitar", (LEFT_W // 2, 38), 12, C["dim"], anchor="midtop")
+        text(screen, "toca un colono → toca una plaza T/A", (LEFT_W // 2, 38), 12, C["dim"], anchor="midtop")
+        clip_old = screen.get_clip()
+        screen.set_clip(self._roster_area())
         for bc, r in self._roster_rows():
             c = bc.ref
             sel = self.selected is bc
@@ -624,6 +672,7 @@ class BattleScene(Scene):
                 lbl = "herido"
                 col = C["red"]
             text(screen, lbl, (r.right - 6, r.centery), 12, col, anchor="midright")
+        screen.set_clip(clip_old)
         for btn in self.buttons:
             btn.draw(screen)
         # barra superior

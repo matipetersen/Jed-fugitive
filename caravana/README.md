@@ -3,6 +3,22 @@
 Simulador de caravana de colonos con **defensa tipo tower-defense a 360°**, comercio y diplomacia
 entre ataques, hasta llegar al lugar donde fundar el asentamiento. Inspirado en *The Oregon Trail*.
 
+## La familia y la historia
+
+Viajas con tu esposa **Martha**, vuestros hijos **Samuel** (16, impulsivo) y **Clara** (10, curiosa) y el viejo **Eli**
+(el padre de Martha, veterano de una guerra de frontera), más los vecinos Brooks y los peones Reed y Cole.
+En la mesa de la víspera os hicisteis una **promesa** (tierra, paz o fortuna) y cada decisión de la historia la acerca o la aleja.
+
+* Cada personaje tiene una **lealtad** (0-100). Se ve en el *Consejo familiar* del campamento. La lealtad de la familia cambia
+  la moral diaria, la puntería en combate (los leales disparan mejor; los que no confían pierden los nervios) y la diplomacia
+  (la prudencia de Martha y las palabras que Clara aprende con sus amigas suman labia).
+* Ante un ataque, la familia **opina** (Martha y Ruth quieren hablar, Samuel y Thomas quieren pelear, Mary quiere huir…).
+  Quienes defendían lo que elijas ganan lealtad; los contrarios, la pierden.
+* Nueve capítulos, a lo largo del camino: la fuga nocturna de Samuel, la amiga Cheyenne de Clara, Eli ante la roca, la fiebre de Martha,
+  Thomas y el cañón, el pasado de Silas, el ultimátum de Samuel en South Pass, los últimos días de Eli y Clara perdida en las
+  Montañas Azules. Lo que elijas abre o cierra puertas (p. ej. Eli puede hablar por vosotros ante los Lakota; Clara puede traer la ayuda Cayuse).
+* Al final, la crónica del asentamiento cierra el destino de cada uno y puntúa «Palabra cumplida» y «Familia unida».
+
 ## Cómo jugar
 
 ```bash
@@ -10,7 +26,16 @@ pip install pygame          # una sola dependencia
 python -m caravana          # desde la raíz del repositorio
 ```
 
-Ventana de 1280×720 (escala sola). Todo se maneja con el ratón; hay atajos de teclado.
+Ventana de 1280×720 (escala sola). Todo se maneja con el ratón o **con el dedo**; los atajos de teclado son opcionales.
+
+### Táctil / móvil
+
+* El modo táctil se activa solo al tocar la pantalla (o con `python -m caravana --touch`): objetivos de toque más grandes,
+  sin depender de pasar el ratón, del clic derecho ni del teclado (hay botones «Quitar puesto», «Cantidad ×1/×5», «Otro nombre»,
+  Subir/Bajar en el diario; la lista de colonos se desplaza arrastrando; al tocar un colono, carreta o enemigo ves su ficha).
+* Para jugar en un móvil o tablet desde el **navegador**: `pip install pygbag` y `./scripts/build_web_caravana.sh`
+  (empaqueta con pygbag y activa el modo táctil). Hay que hacerlo con internet: descarga el runtime de pygame-web.
+  Sin embargo, el empaquetado final y la prueba en un teléfono real aún no se han podido verificar desde el entorno donde se escribió.
 
 ### El viaje (≈ 1.950 millas, ~130-160 días)
 

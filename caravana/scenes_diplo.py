@@ -61,16 +61,19 @@ class DiplomacyScene(Scene):
             ("Mostrar fuerza", "fuerza", "Arriesgado: intimidar puede evitar o provocar una guerra."),
             ("Despedirse", "adios", "Termina la reunión."),
         ]
+        if g.flags.get("eli_friend") and g.member("abuelo") is not None:
+            defs.insert(1, ("Enviar a Eli como emisario", "eli", "Eli conoce a un hombre de esta gente… quizá sea suficiente."))
         y = 110
+        step = 52 if len(defs) <= 9 else 47
         for lbl, key, hint in defs:
             if key is None:
                 fn = lambda: self._set_gift(True)
             else:
                 fn = (lambda k=key: self._do(k))
-            b = Button((x, y, w, 46), lbl, fn, size=18)
+            b = Button((x, y, w, 44), lbl, fn, size=18)
             b.hint = hint
             self.btns.append(b)
-            y += 52
+            y += step
 
     def _set_gift(self, v):
         self.gift_open = v

@@ -9,6 +9,7 @@ import pygame
 from . import sfx
 
 W, H = 1280, 720
+TOUCH = False  # modo táctil: objetivos de toque más grandes, sin depender de hover/clic derecho/teclado
 
 C = dict(
     bg=(26, 20, 15), panel=(52, 38, 26), panel2=(70, 52, 36), edge=(120, 90, 54), gold=(238, 192, 96),

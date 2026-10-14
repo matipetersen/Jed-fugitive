@@ -152,6 +152,13 @@ FEMALE = ["Martha", "Ruth", "Clara", "Abigail", "Hannah", "Lydia", "Emma", "Sara
           "Eliza", "Ada", "Rebecca", "Mary", "Louisa", "Tess"]
 SURNAMES = ["Hale", "Whitaker", "Brooks", "Cole", "Marlow", "Pryor", "Dunn", "Ellis"]
 
+ROLE_NAMES = {
+    "lider": "Líder", "esposa": "Esposa", "hijo": "Hijo", "hija": "Hija", "abuelo": "Abuelo",
+    "tomas": "Vecino", "ruth": "Vecina", "ada": "Niña", "silas": "Peón", "mary": "Peón",
+    "josiah": "Peón", "hannah": "Peona", "lucas": "Niño", "emma": "Joven",
+}
+FAMILY_ROLES = {"lider", "esposa", "hijo", "hija", "abuelo"}
+
 # ---------------------------------------------------------------- Asentamientos
 SITES = {
     "willamette": dict(name="Valle Willamette", extra=120, fertility=9, defense=4, water=9,

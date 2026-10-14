@@ -24,7 +24,8 @@ class DefenseScene(Scene):
         self.msg_col = C["dim"]
         self.bg = art.ground_surface((ui.W + 40, ui.H + 40), self.g.terrain(), 51)
         self.close = Button((ui.W - 300, ui.H - 60, 270, 46), "Listo", self.app.pop, size=20, color=(98, 74, 40))
-        self.auto = Button((30, ui.H - 60, 270, 46), "Auto-asignar", self._auto, size=18)
+        self.auto = Button((30, ui.H - 60, 200, 46), "Auto-asignar", self._auto, size=18)
+        self.unassign = Button((240, ui.H - 60, 200, 46), "Quitar puesto", self._unassign_sel, size=18)
         self.up_btns: list[Button] = []
         self.t = 0.0
         self._geom()
@@ -48,6 +49,11 @@ class DefenseScene(Scene):
     def _auto(self):
         self.g.auto_assign()
         self.msg, self.msg_col = "Tiradores y ayudantes reasignados.", C["green"]
+
+    def _unassign_sel(self):
+        if self.sel_col is not None:
+            self.sel_col.post = None
+            self.sel_col = None
 
     def _slot_pos(self, i, slot):
         a = self.wag[i][1]
@@ -91,7 +97,7 @@ class DefenseScene(Scene):
         return out
 
     def handle(self, ev):
-        for b in [self.close, self.auto] + self.up_btns:
+        for b in [self.close, self.auto, self.unassign] + self.up_btns:
             if b.handle(ev):
                 return
         g = self.g
@@ -103,7 +109,7 @@ class DefenseScene(Scene):
             for i in range(self.n):
                 for slot in ("tirador", "ayuda"):
                     sx, sy = self._slot_pos(i, slot)
-                    if math.hypot(ev.pos[0] - sx, ev.pos[1] - sy) < 15:
+                    if math.hypot(ev.pos[0] - sx, ev.pos[1] - sy) < (28 if ui.TOUCH else 15):
                         if self.sel_col is not None:
                             if slot == "tirador" and not self.sel_col.can_shoot:
                                 self.msg, self.msg_col = "Sólo adultos y jóvenes sanos pueden disparar: ponlos de ayudantes.", C["red"]
@@ -151,7 +157,7 @@ class DefenseScene(Scene):
         veil.fill((16, 11, 7, 150))
         screen.blit(veil, (0, 0))
         text(screen, "Plan de defensa", (30, 22), 38, C["gold"], serif=True, bold=True)
-        text(screen, "Clic en un colono y luego en una plaza (T = tirador, A = ayudante). Clic derecho: quitar.", (32, 66), 14, C["dim"])
+        text(screen, "Toca un colono y luego una plaza (T = tirador, A = ayudante). «Quitar puesto» o clic derecho para soltar.", (32, 66), 14, C["dim"])
         # círculo
         pygame.draw.circle(screen, (110, 88, 58), (CX, CY), int(self.R * S + 46), 0)
         pygame.draw.circle(screen, (126, 102, 66), (CX, CY), int(self.R * S + 46), 3)
@@ -221,6 +227,8 @@ class DefenseScene(Scene):
         sh = len(g.shooters())
         text(screen, f"Tiradores disponibles: {sh} · Plazas de tirador: {self.n} · Munición: {g.sup.ammo}", (30, ui.H - 100), 15, C["parch"])
         if self.msg:
-            text(screen, self.msg, (350, ui.H - 52), 16, self.msg_col)
+            text(screen, self.msg, (460, ui.H - 52), 16, self.msg_col)
+        self.unassign.enabled = self.sel_col is not None and self.sel_col.post is not None
         self.close.draw(screen)
         self.auto.draw(screen)
+        self.unassign.draw(screen)

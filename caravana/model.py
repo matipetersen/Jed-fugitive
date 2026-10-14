@@ -28,6 +28,10 @@ class Colonist:
     is_leader: bool = False
     kills: int = 0
     cause: str = ""
+    role_id: str = ""      # personaje de la historia ('esposa', 'hijo', ...)
+    loyalty: int = 50      # 0-100: confianza en el líder
+    trait: str = ""
+    bio: str = ""
 
     @property
     def can_shoot(self) -> bool:
@@ -37,6 +41,8 @@ class Colonist:
     def role_label(self) -> str:
         if self.is_leader:
             return "Líder"
+        if self.role_id and self.role_id in data.ROLE_NAMES:
+            return data.ROLE_NAMES[self.role_id]
         return {"adulto": "Adulto", "joven": "Joven", "niño": "Niño/a", "anciano": "Anciano/a"}[self.group]
 
 
@@ -84,6 +90,7 @@ class Option:
     label: str
     action: Callable[[], Any]
     hint: str = ""
+    who: tuple = ()        # nombres de quienes respaldan esta opción
 
 
 @dataclass
@@ -190,6 +197,9 @@ class Game:
         self.arrived_site: Optional[str] = None
         self.forced_winter = False
         self.starving = False
+        self.flags: dict = {}
+        self.story_done: set = set()
+        self.talked: dict = {}
 
     # ------------------------------------------------------------ creación
     @classmethod
@@ -205,27 +215,9 @@ class Game:
 
         leader = g._make("adulto", g.leader_name, **prof["skills"])
         leader.is_leader = True
-
-        sur = rng.choice(data.SURNAMES)
-        sur2 = rng.choice([s for s in data.SURNAMES if s != sur])
-        # familia A
-        g._make("adulto", f"{rng.choice(data.MALE)} {sur}", shoot=rng.randint(4, 7), build=rng.randint(4, 7))
-        g._make("adulto", f"{rng.choice(data.FEMALE)} {sur}", medic=rng.randint(4, 7), talk=rng.randint(4, 7),
-                shoot=rng.randint(2, 5))
-        g._make("niño", f"{rng.choice(data.FEMALE)} {sur}", shoot=1, hunt=2)
-        g._make("niño", f"{rng.choice(data.MALE)} {sur}", shoot=1, hunt=3)
-        g._make("anciano", f"{rng.choice(data.MALE)} {sur}", shoot=rng.randint(2, 5), medic=rng.randint(3, 6))
-        # familia B
-        g._make("adulto", f"{rng.choice(data.MALE)} {sur2}", shoot=rng.randint(4, 8), hunt=rng.randint(4, 7))
-        g._make("adulto", f"{rng.choice(data.FEMALE)} {sur2}", shoot=rng.randint(3, 6), talk=rng.randint(3, 6),
-                medic=rng.randint(3, 6))
-        g._make("joven", f"{rng.choice(data.MALE)} {sur2}", shoot=rng.randint(4, 7))
-        g._make("niño", f"{rng.choice(data.FEMALE)} {sur2}", shoot=1)
-        # peones contratados
-        g._make("joven", f"{rng.choice(data.MALE)} Reed", shoot=rng.randint(5, 8), build=rng.randint(3, 6))
-        g._make("joven", f"{rng.choice(data.FEMALE)} Reed", shoot=rng.randint(4, 7), hunt=rng.randint(4, 7))
-        g._make("adulto", f"{rng.choice(data.MALE)} Cole", shoot=rng.randint(5, 8), build=rng.randint(4, 7))
-        g._make("adulto", f"{rng.choice(data.FEMALE)} Cole", medic=rng.randint(5, 8), talk=rng.randint(4, 7))
+        leader.role_id = "lider"
+        from . import story
+        story.populate(g)
 
         g.wagons = [Wagon() for _ in range(7)]
         g.sup.oxen = 14
@@ -270,6 +262,20 @@ class Game:
                  "septiembre", "octubre", "noviembre", "diciembre"]
         d = self.date()
         return f"{d.day} de {meses[d.month - 1]} de {d.year}"
+
+    def by_role(self, role: str) -> Optional[Colonist]:
+        for c in self.colonists:
+            if c.role_id == role:
+                return c
+        return None
+
+    def member(self, role: str) -> Optional[Colonist]:
+        c = self.by_role(role)
+        return c if c is not None and c.alive else None
+
+    def family_loyalty(self) -> float:
+        fam = [c.loyalty for c in self.living() if c.role_id in data.FAMILY_ROLES]
+        return sum(fam) / len(fam) if fam else 50.0
 
     def living(self) -> list[Colonist]:
         return [c for c in self.colonists if c.alive]
@@ -499,6 +505,11 @@ class Game:
             self.visited.add(arrived["name"])
             return self.arrival_interrupt(arrived)
 
+        # historia familiar
+        from . import story
+        evt = story.check(self)
+        if evt:
+            return evt
         # eventos
         evt = self._roll_tribe_events()
         if evt:
@@ -550,7 +561,7 @@ class Game:
             self.note("¡La comida se ha agotado! Todos pasan hambre.")
             self.morale = max(0, self.morale - 4)
         # recuperación de moral
-        target = 70 if not self.starving else 20
+        target = (70 + (self.family_loyalty() - 50) / 8.0) if not self.starving else 20
         self.morale += (target - self.morale) * 0.02
         if self.pace == "rapido":
             self.morale -= 0.5
@@ -667,22 +678,30 @@ class Game:
             spec.tense = True
             name = self.tribe_name(tid)
 
+            from . import story
+            vs = story.voices(self)
+
             def prepare():
+                story.follow(self, vs, "fight")
                 return spec
 
             def parley():
+                story.follow(self, vs, "parley")
                 return ContactSpec(tid, "tense", "Envías un emisario con las manos vacías hacia la partida de guerra.")
 
             def flee():
+                story.follow(self, vs, "flee")
                 return self.flee(spec)
 
+            body = (f"Los vigías divisan una partida de guerra {name} que se aproxima, unos "
+                    f"{max(5, int(spec.strength * 1.1))} guerreros. Todavía hay tiempo de decidir.")
+            if vs:
+                body += "\n\n" + story.voices_text(vs)
             return Prompt(
-                f"¡{name} se acercan!",
-                f"Los vigías divisan una partida de guerra {name} que se aproxima, unos "
-                f"{max(5, int(spec.strength * 1.1))} guerreros. Todavía hay tiempo de decidir.",
-                [Option("Cerrar el círculo y prepararse", prepare, "Combate (tendrás tiempo de organizar posiciones)"),
-                 Option("Salir a parlamentar", parley, "Diplomacia: última oportunidad de evitar la sangre"),
-                 Option("Forzar la marcha y huir", flee, "Arriesgado: bueyes y carretas pueden sufrir")],
+                f"¡{name} se acercan!", body,
+                [Option("Cerrar el círculo y prepararse", prepare, "Combate (tendrás tiempo de organizar posiciones)", story.backers(vs, "fight")),
+                 Option("Salir a parlamentar", parley, "Diplomacia: última oportunidad de evitar la sangre", story.backers(vs, "parley")),
+                 Option("Forzar la marcha y huir", flee, "Arriesgado: bueyes y carretas pueden sufrir", story.backers(vs, "flee"))],
                 "danger")
         spec.night = self.rng.random() < 0.5
         spec.prep_time = 6.0
@@ -1313,7 +1332,8 @@ class Contact:
 
     def talk_skill(self) -> float:
         g = self.game
-        s = g.best("talk") + (3 if g.has_guide() else 0)
+        from . import story
+        s = g.best("talk") + (3 if g.has_guide() else 0) + story.talk_bonus(g)
         return s
 
     def chance(self, base: float, per_skill: float = 0.04) -> float:
@@ -1469,6 +1489,24 @@ class Contact:
                     self.result = "hostil"
                     self.ended = True
                     msg += " Ya no hay vuelta atrás."
+            self._tick()
+        elif key == "eli":
+            e = g.member("abuelo")
+            if e is None or not g.flags.get("eli_friend"):
+                return "Eli no está en condiciones de hablar por vosotros."
+            p = 0.5 + (0.3 if self.tribe == "lakota" else 0.0) + 0.002 * e.loyalty
+            if rng.random() < p:
+                ts.attitude += 25
+                e.loyalty = min(100, e.loyalty + 6)
+                msg = ("Eli avanza solo, con las manos abiertas, y dice un nombre: «Sombra del Roble». Hay un silencio largo. "
+                       "Al rato, un hombre mayor responde. Las lanzas bajan.")
+                self.result = "paz"
+                ts.treaty_until = max(ts.treaty_until, g.day + 10)
+                self.ended = True
+            else:
+                ts.attitude -= 5
+                e.loyalty = max(0, e.loyalty - 2)
+                msg = "Eli habla con firmeza, pero no es su gente: no conocen el nombre. Vuelve al círculo con la cabeza gacha."
             self._tick()
         elif key == "adios":
             self.ended = True

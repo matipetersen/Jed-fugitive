@@ -87,8 +87,9 @@ def resolve(g: Game, item, diplomacy: bool, stats: dict, seed: int):
     return None
 
 
-def play_full(seed: int = 1, profession: str = "granjero", diplomacy: bool = True, verbose: bool = False):
-    g = Game.new("Jed", profession, seed)
+def play_full(seed: int = 1, profession: str = "granjero", diplomacy: bool = True, verbose: bool = False,
+              difficulty: str = "normal"):
+    g = Game.new("Jed", profession, seed, difficulty)
     stats: dict = {}
     # compra inicial
     spec = ShopSpec("Independence", 1.0)

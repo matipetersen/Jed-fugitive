@@ -17,6 +17,10 @@ def _mood(att: float) -> str:
     return "hostiles" if att < -30 else "recelosos" if att < -5 else "cautos" if att < 20 else "amistosos" if att < 50 else "aliados"
 
 
+PREFS = {"esposa": "willamette", "hannah": "willamette", "hija": "willamette", "abuelo": "walla", "ruth": "walla",
+         "hijo": "columbia", "tomas": "columbia", "silas": "columbia", "mary": "columbia"}
+
+
 class SiteScene(Scene):
     def __init__(self, app):
         super().__init__(app)
@@ -40,6 +44,10 @@ class SiteScene(Scene):
     def _choose(self, key):
         from .scenes_menu import EndScene
         g = self.g
+        for role, pref in PREFS.items():
+            c = g.member(role)
+            if c is not None and key != "improvisado":
+                c.loyalty = max(0, min(100, c.loyalty + (4 if pref == key else -1)))
         notes = g.travel_to_site(key) if key != "improvisado" else []
         if not g.living():
             self.app.replace(EndScene(self.app, "El último tramo fue el definitivo",
@@ -100,6 +108,9 @@ class SiteScene(Scene):
             att = g.tribes[nb].attitude
             text(screen, f"Vecinos: {t['name']} ({_mood(att)})", (r.x + 22, y + 6), 16, t["color"], bold=True)
             if k != "improvisado":
+                fans = [g.member(r).name.split()[0] for r, p in PREFS.items() if p == k and g.member(r)]
+                if fans:
+                    para(screen, "Lo prefieren: " + ", ".join(fans[:5]), (r.x + 22, r.y + 430), r.w - 120, 13, C["parch"], max_lines=1)
                 days = int(math.ceil(site["extra"] / 17.0))
                 text(screen, f"+{site['extra']} millas · ~{days} días" if site["extra"] else "Sin viaje adicional", (r.x + 22, y + 32), 15, C["dim"])
         for b in self.btns:

@@ -13,8 +13,15 @@ from . import sfx, ui
 from .model import Game
 from .scene import Scene
 
-SAVE_PATH = Path(os.environ.get("CARAVANA_SAVE", Path.home() / ".caravana_save.pkl"))
-SCORES_PATH = Path(os.environ.get("CARAVANA_SCORES", Path.home() / ".caravana_scores.json"))
+def _home() -> Path:
+    try:
+        return Path.home()
+    except Exception:
+        return Path(".")
+
+
+SAVE_PATH = Path(os.environ.get("CARAVANA_SAVE", _home() / ".caravana_save.pkl"))
+SCORES_PATH = Path(os.environ.get("CARAVANA_SCORES", _home() / ".caravana_scores.json"))
 
 
 class App:
@@ -32,7 +39,8 @@ class App:
         self.travel = None
         self.running = True
         self.fps = 60
-        sfx.init()
+        if sys.platform != "emscripten":
+            sfx.init()  # la síntesis en Python es lenta en el navegador
 
     # ------------------------------------------------------------ pila de escenas
     def push(self, scene: Scene):
@@ -113,11 +121,20 @@ class App:
         for sc in self.scenes[start:]:
             sc.draw(self.screen)
 
+    def _touch_seen(self, ev) -> bool:
+        """Detecta que se juega con el dedo (SDL marca los clics sintéticos con touch=True)."""
+        return ev.type in (pygame.FINGERDOWN, pygame.FINGERMOTION, pygame.FINGERUP) or bool(getattr(ev, "touch", False))
+
     def step(self, dt: float, events=None):
         for ev in (events if events is not None else pygame.event.get()):
             if ev.type == pygame.QUIT:
                 self.running = False
-            elif self.scenes:
+                continue
+            if not ui.TOUCH and self._touch_seen(ev):
+                ui.TOUCH = True
+            if ev.type in (pygame.FINGERDOWN, pygame.FINGERMOTION, pygame.FINGERUP):
+                continue  # SDL ya emite los eventos de ratón equivalentes
+            if self.scenes:
                 self.scenes[-1].handle(ev)
         if self.scenes:
             self.scenes[-1].update(dt)
@@ -132,9 +149,35 @@ class App:
             pygame.display.flip()
         pygame.quit()
 
+    async def run_async(self):
+        """Bucle cooperativo (navegador/móvil con pygbag): cede el control en cada fotograma."""
+        import asyncio
+        from .scenes_menu import TitleScene
+        self.replace(TitleScene(self))
+        while self.running:
+            dt = min(0.05, self.clock.tick(self.fps) / 1000.0)
+            self.step(dt)
+            pygame.display.flip()
+            await asyncio.sleep(0)
+        pygame.quit()
 
-def main():
-    App().run()
+
+def _parse_args(argv=None):
+    import argparse
+    p = argparse.ArgumentParser(prog="caravana", description="LA CARAVANA — Hacia el Oeste")
+    p.add_argument("--touch", action="store_true", help="fuerza el modo táctil (también se detecta solo al tocar la pantalla)")
+    p.add_argument("--fullscreen", action="store_true", help="pantalla completa")
+    return p.parse_args(argv)
+
+
+def main(argv=None):
+    args = _parse_args(argv)
+    if args.touch or os.environ.get("CARAVANA_TOUCH") == "1":
+        ui.TOUCH = True
+    app = App()
+    if args.fullscreen:
+        pygame.display.toggle_fullscreen()
+    app.run()
     return 0
 
 

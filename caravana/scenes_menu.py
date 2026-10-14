@@ -189,6 +189,7 @@ class SetupScene(Scene):
         self.t = 0.0
         self.cards = []
         self.go = Button((ui.W - 360, ui.H - 76, 300, 50), "Comprar provisiones →", self._go, size=21, color=(98, 74, 40))
+        self.rnd = Button((230, 168, 380, 28), "Otro nombre", self._random_name, size=14)
         self.back = Button((60, ui.H - 76, 160, 50), "Volver", self.app.pop, size=19)
         self.bg = art.ground_surface((ui.W + 40, ui.H + 40), "pradera", 11)
 
@@ -199,24 +200,39 @@ class SetupScene(Scene):
         from .scenes_trade import ShopScene
         self.app.replace(ShopScene(self.app, ShopSpec("Independence, Misuri", 1.0), initial=True))
 
+    NAMES = ["Jed", "Abel", "Nora", "Caleb", "Lydia", "Gideon", "Tess", "Amos", "Ada", "Isaac"]
+
+    def _random_name(self):
+        i = (self.NAMES.index(self.name) + 1) % len(self.NAMES) if self.name in self.NAMES else 0
+        self.name = self.NAMES[i]
+
+    def _set_focus(self, v: bool):
+        self.focus = v
+        try:
+            (pygame.key.start_text_input if v else pygame.key.stop_text_input)()
+        except Exception:
+            pass
+
     def handle(self, ev):
-        if self.go.handle(ev) or self.back.handle(ev):
+        if self.go.handle(ev) or self.back.handle(ev) or self.rnd.handle(ev):
             return
         if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-            self.focus = pygame.Rect(230, 120, 380, 44).collidepoint(ev.pos)
+            self._set_focus(pygame.Rect(230, 120, 380, 44).collidepoint(ev.pos))
             for i, key in enumerate(data.PROFESSIONS):
                 if self._card_rect(i).collidepoint(ev.pos):
                     self.prof = key
             for i, key in enumerate(data.DIFFICULTY):
                 if pygame.Rect(690 + i * 180, 120, 170, 44).collidepoint(ev.pos):
                     self.diff = key
+        elif ev.type == pygame.TEXTINPUT and self.focus:
+            for ch in ev.text:
+                if ch.isprintable() and len(self.name) < 16:
+                    self.name += ch
         elif ev.type == pygame.KEYDOWN and self.focus:
             if ev.key == pygame.K_BACKSPACE:
                 self.name = self.name[:-1]
             elif ev.key in (pygame.K_RETURN, pygame.K_TAB):
-                self.focus = False
-            elif ev.unicode and ev.unicode.isprintable() and len(self.name) < 16:
-                self.name += ev.unicode
+                self._set_focus(False)
 
     def update(self, dt):
         self.t += dt
@@ -262,6 +278,7 @@ class SetupScene(Scene):
         text(screen, "Tu compañía", (rc.x + 16, rc.y + 12), 22, C["parch"], serif=True, bold=True)
         para(screen, "Dos familias y cuatro peones: 14 almas, siete carretas y catorce bueyes. Los niños y ancianos no disparan, "
                      "pero recargan, curan y apagan fuegos. Cada colono tiene sus propias habilidades.", (rc.x + 16, rc.y + 48), rc.w - 32, 15, C["dim"])
+        self.rnd.draw(screen)
         self.go.draw(screen)
         self.back.draw(screen)
 

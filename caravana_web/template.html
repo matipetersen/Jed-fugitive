@@ -1,0 +1,20 @@
+<title>La Caravana</title>
+<style>
+:root{--bg:#0e0a07;--fg:#f0e4c8;--accent:#eec060}
+:root:not([data-theme="light"]){--bg:#0e0a07;--fg:#f0e4c8;--accent:#eec060}
+:root[data-theme="dark"]{--bg:#0e0a07;--fg:#f0e4c8;--accent:#eec060}
+html,body{margin:0;height:100%;background:#0e0a07;color:#f0e4c8;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#stage{position:fixed;inset:0;background:#0e0a07;display:flex;align-items:center;justify-content:center}
+#game{width:min(100vw,177.78vh);height:min(56.25vw,100vh);background:#1a140f;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;display:block;cursor:default}
+#nameInput{position:fixed;display:none;box-sizing:border-box;background:#1e1610;color:#f0e4c8;border:2px solid #eec060;border-radius:6px;padding:0 10px;font-family:Georgia,serif;outline:none}
+#rotate{position:fixed;left:0;right:0;top:0;padding:10px 16px;background:rgba(14,10,7,.94);color:#eec060;text-align:center;font-size:15px;display:none;z-index:5}
+@media (orientation:portrait) and (max-width:700px){#rotate{display:block}}
+#err{position:fixed;left:8px;bottom:8px;max-width:90vw;background:#6e1c14;color:#fff;padding:6px 10px;font-size:12px;border-radius:4px;display:none;z-index:9}
+</style>
+<div id="stage"><canvas id="game" width="1280" height="720"></canvas></div>
+<input id="nameInput" maxlength="16" autocomplete="off" spellcheck="false" aria-label="Nombre del líder">
+<div id="rotate">Gira el teléfono en horizontal para jugar (toca para ocultar este aviso)</div>
+<div id="err"></div>
+<script>
+/*__CODE__*/
+</script>

@@ -56,7 +56,11 @@ Ventana de 1280×720 (escala sola). Todo se maneja con el ratón o **con el dedo
 * El modo táctil se activa solo al tocar la pantalla (o con `python -m caravana --touch`): objetivos de toque más grandes,
   sin depender de pasar el ratón, del clic derecho ni del teclado (hay botones «Quitar puesto», «Cantidad ×1/×5», «Otro nombre»,
   Subir/Bajar en el diario; la lista de colonos se desplaza arrastrando; al tocar un colono, carreta o enemigo ves su ficha).
-* Para jugar en un móvil o tablet desde el **navegador**: `pip install pygbag` y `./scripts/build_web_caravana.sh`
+* **Versión web (JavaScript, sin instalar nada):** `caravana_web/` contiene un port completo del juego a canvas/JS pensado para táctil.
+  `node caravana_web/build.js` genera `caravana_web/dist/index.html` (una sola página autónoma, ábrela en el navegador) y
+  `dist/fragment.html` (la que se publica como artefacto). Las partidas se guardan en el `localStorage` del navegador.
+  Es un port: la lógica (viaje, combate, director, historia) está duplicada en JS, así que puede divergir del juego en Python.
+* Alternativa para el navegador con el código Python: `pip install pygbag` y `./scripts/build_web_caravana.sh`
   (empaqueta con pygbag y activa el modo táctil). Hay que hacerlo con internet: descarga el runtime de pygame-web.
   Sin embargo, el empaquetado final y la prueba en un teléfono real aún no se han podido verificar desde el entorno donde se escribió.
 

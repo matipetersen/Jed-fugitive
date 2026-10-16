@@ -14,12 +14,95 @@ def calculate_hit(accuracy: int, evasion: int) -> bool:
     hit_chance = max(5, min(95, accuracy - evasion + 50))
     return random.randint(1, 100) <= hit_chance
 
+MELEE_TYPES = tuple(t for t in (getattr(WeaponType, n, None) for n in (
+    'VIBROBLADE', 'COMBAT_KNIFE', 'ELECTROSTAFF', 'MELEE')) if t is not None)
+RANGED_TYPES = tuple(t for t in (getattr(WeaponType, n, None) for n in (
+    'BLASTER_PISTOL', 'BLASTER_RIFLE', 'HEAVY_BLASTER', 'RANGED', 'WOOKIE_BOWCASTER', 'CROSSBOW')) if t is not None)
+ARMOR_IGNORING = ('Ignores Armor',)
+ARMOR_PIERCING = ('Armor Penetration', 'Armor Pierce', 'Mono-Molecular', 'Disintegrate')
+
+
+def weapon_roll(weapon, rng=random):
+    """Damage roll of a weapon. Unarmed: 1-4.
+
+    Weapons built without a damage_range (e.g. the starting vibroblade used to be
+    created with only base_damage, so it rolled (0, 0) = 0 damage) derive one
+    from base_damage instead.
+    """
+    if not weapon:
+        return rng.randint(1, 4)
+    if isinstance(weapon, dict):
+        rng_pair = weapon.get('damage_range')
+        base = int(weapon.get('base_damage', weapon.get('attack', 3)) or 3)
+    else:
+        rng_pair = getattr(weapon, 'damage_range', None)
+        base = int(getattr(weapon, 'base_damage', 3) or 3)
+    try:
+        lo, hi = int(rng_pair[0]), int(rng_pair[1])
+    except Exception:
+        lo = hi = 0
+    if hi <= 0:
+        lo, hi = max(1, base - 2), max(2, base + 2)
+    upgrade = int(getattr(weapon, 'upgrade_damage', 0) or 0) if not isinstance(weapon, dict) else 0
+    return rng.randint(min(lo, hi), max(lo, hi)) + upgrade
+
+
+def attack_bonus(player):
+    """+1 damage per 2 points of the character's own Attack above 10.
+
+    Uses the base stats (without equipment) so weapon stats are not counted
+    twice; levels, level-up choices and skills feed into it.
+    """
+    base = getattr(player, '_base_stats', None) or {}
+    atk = base.get('attack', getattr(player, 'attack', 10))
+    try:
+        from jedi_fugitive.game import survival
+        wound = survival.damage_penalty(player)
+    except Exception:
+        wound = 0
+    try:
+        return (int(atk) - 10) // 2 - wound
+    except Exception:
+        return 0
+
+
+def generic_crit_chance(player, weapon):
+    crit_mod = int(getattr(weapon, 'crit_mod', 0) or 0) if weapon is not None and not isinstance(weapon, dict) else 0
+    bonus = float(getattr(player, 'crit_chance_bonus', 0) or 0)
+    return min(0.5, 0.05 + crit_mod / 100.0 + bonus / 100.0)
+
+
+def _specials(weapon):
+    if weapon is None:
+        return ()
+    sp = weapon.get('special', ()) if isinstance(weapon, dict) else getattr(weapon, 'special', ())
+    return tuple(sp or ())
+
+
+def apply_armor(dmg, enemy, weapon):
+    """Enemy defense absorbs half its value; piercing weapons a quarter; 'Ignores Armor' none."""
+    defense = int(getattr(enemy, 'defense', 0) or 0)
+    sp = _specials(weapon)
+    if any(s in sp for s in ARMOR_IGNORING):
+        absorbed = 0
+    elif any(s in sp for s in ARMOR_PIERCING):
+        absorbed = defense // 4
+    else:
+        absorbed = defense // 2
+    return max(1, int(dmg) - absorbed)
+
+
 def player_attack(player, enemy, messages=None, game=None):
     """Player attacks enemy. Accepts optional messages buffer and game for compatibility."""
     try:
         # Update pursuit system if available
         if game and hasattr(game, 'pursuit_system'):
-            game.pursuit_system.update_detection('combat')
+            game.pursuit_system.update_detection('combat', turn=getattr(game, 'turn_count', 0))
+        try:
+            if game is not None and getattr(game, 'combo_tracker', None) is not None:
+                game.combo_tracker.record_action('melee_attack')
+        except Exception:
+            pass
 
         # prefer player's effective accuracy which accounts for stress/equipment
         try:
@@ -29,42 +112,48 @@ def player_attack(player, enemy, messages=None, game=None):
             acc = getattr(player, "accuracy", 0)
         ev = getattr(enemy, "evasion", 0)
         if calculate_hit(acc, ev):
-            if getattr(player, "equipped_weapon", None):
-                try:
-                    dmg = player.equipped_weapon.get_damage()
-                except Exception as e:
-                    logger.exception(f"Exception getting weapon damage: {e}")
-                    dmg = getattr(player, "attack", 1)
-            else:
-                dmg = getattr(player, "attack", 1)
-            
-            # Apply mastery bonuses
             weapon = getattr(player, "equipped_weapon", None)
             offhand = getattr(player, "offhand", None)
-            
+            # damage = weapon roll + character attack bonus (+ masteries), crit, then enemy armour
+            dmg = weapon_roll(weapon) + attack_bonus(player)
+
             if weapon:
                 try:
                     weapon_type = getattr(weapon, 'weapon_type', None)
                     # Apply melee/ranged mastery
-                    if weapon_type in [WeaponType.VIBROBLADE, WeaponType.COMBAT_KNIFE, WeaponType.ELECTROSTAFF]:
-                        melee_bonus = getattr(player, 'melee_mastery', 0)
-                        dmg += melee_bonus
-                    elif weapon_type in [WeaponType.BLASTER_PISTOL, WeaponType.BLASTER_RIFLE, WeaponType.HEAVY_BLASTER]:
-                        ranged_bonus = getattr(player, 'ranged_mastery', 0)
-                        dmg += ranged_bonus
+                    if weapon_type in MELEE_TYPES:
+                        dmg += getattr(player, 'melee_mastery', 0)
+                    elif weapon_type in RANGED_TYPES:
+                        dmg += getattr(player, 'ranged_mastery', 0)
                     # Apply dual wield mastery if both hands have weapons
                     if offhand and hasattr(offhand, 'weapon_type'):
-                        dual_bonus = getattr(player, 'dual_wield_mastery', 0)
-                        dmg += dual_bonus
+                        dmg += getattr(player, 'dual_wield_mastery', 0)
                 except Exception as e:
                     logger.exception(f"Exception applying mastery bonuses: {e}")
+
+            crit = False
+            # combo finisher bonus (set by combo_system when a sequence completes)
+            bonus = int(getattr(player, 'combo_damage_bonus', 0) or 0)
+            if bonus:
+                dmg += bonus
+                try:
+                    del player.combo_damage_bonus
+                except Exception:
+                    player.combo_damage_bonus = 0
             # Lightsaber form mechanics (stance bonuses, crits, cleave, ...)
             form_notes = []
             try:
                 from jedi_fugitive.game import form_combat
-                dmg, form_notes = form_combat.modify_player_attack(player, enemy, int(dmg), game)
+                if form_combat.has_lightsaber(player) and form_combat._form(player) is not None:
+                    dmg, form_notes = form_combat.modify_player_attack(player, enemy, int(dmg), game)
+                    crit = any('CRITICAL' in n for n in form_notes)
+                elif random.random() < generic_crit_chance(player, weapon):
+                    # weapons without a lightsaber form crit through their own crit_mod
+                    dmg = int(dmg * 1.5)
+                    crit = True
             except Exception as e:
                 logger.exception(f"Exception applying form mechanics: {e}")
+            dmg = apply_armor(int(dmg), enemy, weapon)
             try:
                 enemy.hp = getattr(enemy, "hp", 0) - int(dmg)
             except Exception as e:
@@ -97,10 +186,10 @@ def player_attack(player, enemy, messages=None, game=None):
                             f"★ KILLING BLOW ★ Devastating strike to {enemy_name}'s {random.choice(body_parts)}! [{dmg} dmg]"
                         ]
                         messages.add(random.choice(death_messages))
-                    elif dmg >= 8:
-                        # High damage critical hits with emphasis
+                    elif crit:
+                        # real critical hits (form crit or weapon crit_mod)
                         crit_messages = [
-                            f"#2##CRITICAL!#0# You brutally slash {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]",
+                            f"#2#CRITICAL!#0# You brutally slash {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]",
                             f"★ POWER STRIKE! ★ Your weapon tears through {enemy_name}'s {random.choice(body_parts)}! [{dmg} dmg]",
                             f"◆ BRUTAL HIT! ◆ Vicious strike to {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]",
                             f"⚔ HEAVY BLOW! ⚔ You cut deep into {enemy_name}'s {random.choice(body_parts)}! [{dmg} damage]"

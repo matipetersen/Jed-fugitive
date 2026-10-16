@@ -3,6 +3,7 @@ Enhanced inspection system with detailed lore for enemies, items, and environmen
 Provides rich descriptions and storytelling through the inspect command.
 """
 import random
+from jedi_fugitive.game.level import Display
 
 # Enemy lore by type
 ENEMY_LORE = {
@@ -377,7 +378,7 @@ def get_tile_description(tile_char, biome=None, in_tomb=False):
     }
     
     # Use biome for floor tiles if available
-    if tile_char == '.' and biome:
+    if tile_char == Display.FLOOR and biome:
         location_type = biome
     else:
         location_type = tile_map.get(tile_char, 'floor')

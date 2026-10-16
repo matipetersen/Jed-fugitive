@@ -38,7 +38,7 @@ class HeroJournalManager:
         self.major_milestones = []
         
         # Entry categorization
-        self.entries_by_type = {entry_type: [] for entry_type in vars(JournalEntryType).values() if not entry_type.startswith('__')}
+        self.entries_by_type = {v: [] for k, v in vars(JournalEntryType).items() if not k.startswith('__') and isinstance(v, str)}
         
         # Hero's journey progression
         self.trials_faced = 0

@@ -5,6 +5,7 @@ Adds living ecosystems to each biome with creatures the player can interact with
 All encounters are logged in the player's journal for immersive storytelling.
 """
 import random
+from jedi_fugitive.game.level import Display
 
 # Fauna types and their characteristics
 class FaunaType:
@@ -462,7 +463,7 @@ class FaunaEncounter:
             # Ensure spawn location is valid
             if (0 <= spawn_x < len(game.game_map[0]) and
                 0 <= spawn_y < len(game.game_map) and
-                game.game_map[spawn_y][spawn_x] == '.'):
+                game.game_map[spawn_y][spawn_x] == Display.FLOOR):
                 
                 # Create enemy with fauna stats
                 enemy = Enemy(

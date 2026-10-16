@@ -61,10 +61,49 @@ JediFugitive/
 ## Features
 
 ### Save System 🎮
-- **Autosave**: Game automatically saves every 20 turns
-- **Manual Save**: Press Shift+S to save anytime
-- **Load on Startup**: Continue your adventure from where you left off
-- See [SAVE_SYSTEM.md](SAVE_SYSTEM.md) for complete documentation
+- **Autosave** every 200 world ticks; **manual save** with Shift+S.
+- **Continue**: the start screen offers the most recent save; `--continue` skips straight to it.
+- A save keeps the whole run: the world is regenerated from its seed, and the
+  player (inventory, equipment, powers, forms, wounds, skills), quests, factions,
+  Heat, codex and tomb progress are restored (`game/save_codec.py`).
+- **Permadeath**: dying deletes the autosave.
+- `JEDI_FUGITIVE_SAVE_DIR` overrides the save folder.
+
+### Play in the browser (`web/`)
+The whole Python game runs in the browser on Pyodide (CPython compiled to
+WebAssembly); `web/index.html` draws the map and HUD on a canvas and adds touch
+controls. `src/jedi_fugitive/web/bridge.py` drives the game one key at a time: when
+the game opens one of its own menus, the page shows that screen and replays the
+action with the player's answer, so every existing menu works unchanged.
+
+    ./web/build.sh                       # page + game source + Pyodide into web/dist
+    python3 -m http.server -d web/dist 8000
+
+### Being hunted: Heat (Force signature)
+Every Force power and every fight leaves a trace (`game/pursuit.py`). Heat
+decays while you stay quiet (faster underground; meditation lowers it).
+At 30 a patrol is sent to where you were, at 60 patrols come more often with
+a Sith warrior and nearby Sith converge, at 90 a Sith Predator is dispatched.
+
+### Sith tombs with identity (`game/tomb_lords.py`)
+Each tomb belongs to one Dark Lord (Ajunta Pall, Tulak Hord, Marka Ragnos,
+Naga Sadow, Freedon Nadd) with its own trial, garrison and named guardian
+beside the corrupted Jedi relic. One holocron fragment (`◊`) lies on each of
+the first three floors; recover all three to inherit what that Lord knew
+(Protect, Juyo / Vaapad, Force Rage, Force Phantom or Drain, plus a stat).
+
+### Survival: wounds and camping (`game/survival.py`)
+Heavy hits leave wounds (leg, arm, torso, head) that the Force cannot heal.
+Medkits treat one; **K** makes camp for 40 ticks to rest and treat a wound,
+at a risk of being found that grows with Heat, wounds, at night and inside tombs.
+
+### Day and night (`game/daynight.py`)
+A day lasts 480 world ticks. At night you see 2 tiles less, hide more easily,
+and a camp is far more likely to be found.
+
+### NPC quests
+Survivors on the surface offer deliver / recover / hunt / escort / scout
+quests; **Q** shows the quest log.
 
 ### Explanation of Structure
 

@@ -1,0 +1,664 @@
+<title>Jedi Fugitive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a field terminal. Map fills the stage; HUD strip above, chronicle beside (below on phones), controls under. */
+:root {
+  --void: #07080d;        /* page and unexplored space */
+  --panel: #0f121b;       /* panels */
+  --rule: #232a3d;        /* hairlines */
+  --text: #d7dbe8;        /* body text */
+  --muted: #7d859e;       /* labels */
+  --saber: #6fd3ff;       /* the player, focus, primary action */
+  --sith: #ff4d5e;        /* danger, enemies, hp */
+  --holo: #b48cff;        /* Force, lore, holocrons */
+  --amber: #f3b54a;       /* loot, landmarks, warnings */
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--void); color: var(--text); font-family: var(--font-mono); font-size: 13px; overflow: hidden; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--saber); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; padding: 8px 16px; box-sizing: border-box; }
+.hud { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.stage { position: relative; min-width: 0; min-height: 0; background: #000; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+#map { width: 100%; height: 100%; display: block; touch-action: none; }
+.side { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.group { display: grid; gap: 6px; min-width: 0; }
+.group.grow { flex: 1; }
+.group h3 { margin: 0; font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.move { display: flex; gap: 8px; align-items: center; }
+.stack { display: grid; gap: 6px; }
+.tabs { display: flex; gap: 2px; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 0 8px 4px 0; margin-right: 8px; cursor: pointer; font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.tab[aria-selected="true"] { color: var(--saber); border-bottom-color: var(--saber); }
+.btn.poi.ready { border-color: var(--amber); color: var(--amber); box-shadow: 0 0 0 1px rgba(243, 181, 74, .35), 0 0 14px rgba(243, 181, 74, .25); }
+
+.brand { font-family: var(--font-display); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 15px; color: var(--saber); margin-right: 6px; }
+.bar { display: grid; gap: 2px; min-width: 112px; }
+.bar label { font-family: var(--font-display); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.bar label b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.track { height: 6px; background: #1a1f2e; border-radius: 3px; overflow: hidden; }
+.fill { height: 100%; width: 0; border-radius: 3px; transition: width .18s ease-out; }
+.chip { font-family: var(--font-display); font-size: 11px; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--rule); border-radius: 999px; color: var(--muted); white-space: nowrap; }
+.chip.warn { color: var(--sith); border-color: color-mix(in srgb, var(--sith) 50%, transparent); }
+.chip.time { color: var(--amber); }
+
+.banner { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-family: var(--font-display); font-weight: 600; letter-spacing: .05em; font-size: 12px; padding: 5px 12px; border-radius: 999px; color: var(--sith); background: rgba(10, 4, 8, .82); border: 1px solid rgba(255, 77, 94, .5); max-width: 90%; text-align: center; }
+.zoom { position: absolute; right: 10px; top: 10px; display: flex; gap: 4px; }
+.zoom .btn { width: 32px; height: 32px; padding: 0; font-size: 16px; background: rgba(15, 18, 27, .85); }
+.tip { position: absolute; left: 10px; top: 10px; font-size: 11px; color: var(--muted); background: rgba(7, 8, 13, .7); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
+
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; min-height: 0; }
+.panel h2 { margin: 0; padding: 7px 10px; font-family: var(--font-display); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--rule); font-weight: 600; }
+.log { flex: 1; display: flex; flex-direction: column; }
+#log { flex: 1; overflow-y: auto; padding: 8px 10px; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; line-height: 1.4; font-size: 12px; overflow-wrap: anywhere; }
+#log li { color: var(--text); opacity: .62; }
+#log li.new { opacity: 1; }
+#log .c-red { color: var(--sith); } #log .c-gold { color: var(--amber); } #log .c-holo { color: var(--holo); } #log .c-cyan { color: var(--saber); }
+.keys { padding: 8px 10px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+.keys kbd { font-family: var(--font-mono); color: var(--text); background: #1a1f2e; border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px; }
+
+.pad { display: grid; grid-template-columns: repeat(3, 42px); grid-template-rows: repeat(3, 42px); gap: 4px; }
+.btn { background: #141927; border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; cursor: pointer; font-family: var(--font-display); font-size: 12px; letter-spacing: .04em; color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.btn:hover { border-color: var(--saber); }
+.btn:active { background: #1d2538; }
+.btn small { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.pad .btn { padding: 0; font-size: 16px; }
+.actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; min-width: 0; max-width: 620px; }
+.btn.force { border-color: color-mix(in srgb, var(--holo) 45%, var(--rule)); }
+.btn.danger { border-color: color-mix(in srgb, var(--sith) 45%, var(--rule)); }
+
+/* overlays */
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(4, 5, 9, .78); z-index: 10; padding: 16px; }
+.dialog { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; max-width: min(980px, 100%); max-height: 100%; display: flex; flex-direction: column; min-width: 0; }
+.dialog .screen { margin: 0; padding: 12px 14px; overflow: auto; font-size: 12px; line-height: 1.35; white-space: pre; min-height: 0; }
+.screen .line { cursor: pointer; display: block; }
+.screen .line:hover { background: rgba(111, 211, 255, .07); }
+.screen .rev, .screen .rev * { background: var(--saber); color: #04121a !important; }
+.screen .p1, .screen .p2, .screen .p6, .screen .p9, .screen .p10, .screen .p11, .screen .p12 { color: var(--sith); }
+.screen .p3, .screen .p13 { color: var(--amber); }
+.screen .p5, .screen .p7, .screen .p14, .screen .p15 { color: var(--holo); }
+.dialog .row { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--rule); }
+
+.title { text-align: center; max-width: 560px; display: grid; gap: 14px; padding: 28px 24px; }
+.title h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 7vw, 54px); letter-spacing: .2em; text-transform: uppercase; color: var(--saber); text-wrap: balance; text-shadow: 0 0 18px rgba(111, 211, 255, .45); }
+.title p { margin: 0; color: var(--muted); line-height: 1.6; text-wrap: pretty; }
+.title .row { justify-content: center; border: 0; padding: 0; }
+.title select { font: inherit; background: #141927; color: var(--text); border: 1px solid var(--rule); border-radius: 6px; padding: 7px; }
+.title .btn.primary { border-color: var(--saber); color: var(--saber); }
+#status { font-size: 12px; color: var(--amber); min-height: 1.4em; }
+.note { font-size: 11px; color: var(--muted); }
+
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(300px, 52vh) auto auto; height: auto; min-height: 100%; }
+  .side { order: 3; }
+  .controls { order: 2; justify-content: center; }
+  .keys { display: none; }
+  #log { max-height: 160px; }
+  .bar { min-width: 86px; }
+  .brand { font-size: 13px; }
+  .hud { gap: 5px 10px; }
+  .chip { font-size: 10px; padding: 2px 7px; }
+  .controls { align-items: flex-start; }
+  .actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .group.grow { flex-basis: 100%; }
+  .controls { justify-content: flex-start; }
+  .actions .btn { padding: 8px 4px; font-size: 11px; }
+  .actions .btn small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+
+<div class="app" id="app">
+  <header class="hud" aria-label="Estado">
+    <span class="brand">Jedi Fugitive</span>
+    <div class="bar"><label>HP <b id="hpT">–</b></label><div class="track"><div class="fill" id="hpF" style="background: var(--sith)"></div></div></div>
+    <div class="bar"><label>Fuerza <b id="fT">–</b></label><div class="track"><div class="fill" id="fF" style="background: var(--holo)"></div></div></div>
+    <div class="bar" id="stressBar" hidden><label>Estrés <b id="sT">–</b></label><div class="track"><div class="fill" id="sF" style="background: var(--amber)"></div></div></div>
+    <div class="bar"><label>Heat <b id="heatT">–</b></label><div class="track"><div class="fill" id="heatF" style="background: linear-gradient(90deg, #8f74ff, var(--sith))"></div></div></div>
+    <span class="chip" id="lvl">Nv 1</span>
+    <span class="chip" id="corr">Corrupción 0%</span>
+    <span class="chip" id="where">—</span>
+    <span class="chip time" id="clock" hidden></span>
+    <span class="chip" id="arts">Artefactos 0/3</span>
+    <span id="wounds" style="display: contents"></span>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="map" aria-label="Mapa"></canvas>
+    <div class="tip" id="tip"></div>
+    <div class="zoom" aria-label="Zoom">
+      <button class="btn" id="zoomOut" aria-label="Alejar">−</button>
+      <button class="btn" id="zoomIn" aria-label="Acercar">+</button>
+    </div>
+    <div class="banner" id="banner" hidden></div>
+  </main>
+
+  <aside class="side">
+    <section class="panel log" aria-label="Crónica">
+      <h2>Crónica</h2>
+      <ol id="log"></ol>
+    </section>
+    <section class="panel keys" aria-label="Teclado">
+      <kbd>←↑→↓</kbd> <kbd>hjkl</kbd> moverse y atacar · diagonales <kbd>7 9 1 3</kbd> o <kbd>y b n</kbd> · <kbd>.</kbd> esperar<br>
+      <kbd>Enter</kbd> interactuar con ruinas, santuarios y reliquias (absorber o destruir)<br>
+      <kbd>g</kbd> recoger · <kbd>i</kbd> inventario · <kbd>e</kbd> equipar · <kbd>u</kbd> usar<br>
+      <kbd>z</kbd> Fuerza · <kbd>f</kbd> disparar · <kbd>G</kbd> granada · <kbd>m</kbd> meditar<br>
+      <kbd>K</kbd> acampar · <kbd>Z</kbd> esconderse · <kbd>t</kbd> hablar · <kbd>T</kbd> comerciar<br>
+      <kbd>&gt;</kbd> entrar a tumba / bajar · <kbd>&lt;</kbd> subir · <kbd>Q</kbd> misiones · <kbd>J</kbd> diario<br>
+      <kbd>v</kbd> códice · <kbd>C</kbd> taller · <kbd>S</kbd> guardar · <kbd>Esc</kbd> cerrar
+    </section>
+  </aside>
+
+  <footer class="controls" aria-label="Controles">
+    <section class="group" aria-labelledby="gMove">
+      <h3 id="gMove">Movimiento</h3>
+      <div class="move">
+        <div class="pad" id="pad">
+          <button class="btn" data-k="7" aria-label="Noroeste">↖</button>
+          <button class="btn" data-code="259" aria-label="Norte">↑</button>
+          <button class="btn" data-k="9" aria-label="Noreste">↗</button>
+          <button class="btn" data-code="260" aria-label="Oeste">←</button>
+          <button class="btn" data-k="." aria-label="Esperar un turno" title="Esperar un turno">·</button>
+          <button class="btn" data-code="261" aria-label="Este">→</button>
+          <button class="btn" data-k="1" aria-label="Suroeste">↙</button>
+          <button class="btn" data-code="258" aria-label="Sur">↓</button>
+          <button class="btn" data-k="3" aria-label="Sureste">↘</button>
+        </div>
+        <div class="stack">
+          <button class="btn" data-k="&gt;">Entrar / bajar<small>&gt;</small></button>
+          <button class="btn" data-k="&lt;">Subir<small>&lt;</small></button>
+        </div>
+      </div>
+    </section>
+    <section class="group grow" aria-label="Acciones y otros">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tabAct" aria-selected="true" aria-controls="grpAct">Acciones</button>
+        <button class="tab" role="tab" id="tabOther" aria-selected="false" aria-controls="grpOther">Otros</button>
+      </div>
+      <div class="actions" id="grpAct" role="tabpanel" aria-labelledby="tabAct">
+        <button class="btn poi" id="interact" data-code="10">Interactuar<small>Enter</small></button>
+        <button class="btn" data-k="g">Recoger<small>g</small></button>
+        <button class="btn" data-k="t">Hablar<small>t</small></button>
+        <button class="btn force" data-k="z">Fuerza<small>z</small></button>
+        <button class="btn danger" data-k="f">Disparar<small>f</small></button>
+        <button class="btn danger" data-k="G">Granada<small>G</small></button>
+        <button class="btn force" data-k="m">Meditar<small>m</small></button>
+        <button class="btn" data-k="Z">Esconderse<small>Z</small></button>
+        <button class="btn" data-k="K">Acampar<small>K</small></button>
+      </div>
+      <div class="actions" id="grpOther" role="tabpanel" aria-labelledby="tabOther" hidden>
+        <button class="btn" data-k="i">Inventario<small>i</small></button>
+        <button class="btn" data-k="u">Usar objeto<small>u</small></button>
+        <button class="btn" data-k="e">Equipar<small>e</small></button>
+        <button class="btn" data-k="T">Comerciar<small>T</small></button>
+        <button class="btn" data-k="C">Taller<small>C</small></button>
+        <button class="btn" data-k="Q">Misiones<small>Q</small></button>
+        <button class="btn" data-k="J">Diario<small>J</small></button>
+        <button class="btn" data-k="v">Códice<small>v</small></button>
+        <button class="btn" data-k="S">Guardar<small>S</small></button>
+      </div>
+    </section>
+  </footer>
+</div>
+
+<div class="overlay" id="titleScreen">
+  <div class="dialog title">
+    <h1>Jedi Fugitive</h1>
+    <p>Tu nave se estrelló en un mundo Sith. Las fuerzas del Imperio ya están cerrando el cerco. Rompé el anillo, sobreviví, recuperá los artefactos Jedi de las tumbas y escapá.</p>
+    <div class="row">
+      <label for="size" class="note" style="align-self: center">Mundo</label>
+      <select id="size">
+        <option value="small">Pequeño</option>
+        <option value="normal" selected>Normal</option>
+        <option value="large">Grande (más lento al generar)</option>
+      </select>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="newGame" disabled>Nueva partida</button>
+      <button class="btn" id="continueGame" hidden>Continuar</button>
+    </div>
+    <div id="status" role="status">Preparando el motor…</div>
+    <p class="note">El juego original en Python corre entero en tu navegador. Los textos del juego están en inglés.</p>
+  </div>
+</div>
+
+<div class="overlay" id="promptBox" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="Pantalla del juego">
+    <pre class="screen" id="screen"></pre>
+    <div class="row" id="promptKeys"></div>
+  </div>
+</div>
+
+<div class="overlay" id="endBox" hidden>
+  <div class="dialog title">
+    <h1 id="endTitle">Caíste</h1>
+    <p id="endText"></p>
+    <div class="row"><button class="btn primary" id="again">Nueva partida</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pyodide@0.26.4/pyodide.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const K = { ArrowUp: 259, ArrowDown: 258, ArrowLeft: 260, ArrowRight: 261, Enter: 10, Escape: 27, Backspace: 263, ' ': 32 };
+  let py = null, bridge = null, S = null, busy = false, turnsSinceSync = 0, saveFs = false;
+
+  // ------------------------------------------------------------ boot
+  const status = (t) => { $('status').textContent = t; };
+  async function boot() {
+    try {
+      status('Cargando Python en el navegador (≈12 MB)…');
+      // python_stdlib.wasm is Pyodide's python_stdlib.zip under a name the host serves;
+      // Pyodide reads it as plain bytes.
+      py = await loadPyodide({
+        indexURL: new URL('pyodide/', location.href).href,
+        stdLibURL: new URL('pyodide/python_stdlib.wasm', location.href).href,
+      });
+      status('Cargando el juego…');
+      const files = await (await fetch('game.json')).json();
+      for (const [path, src] of Object.entries(files)) {
+        const full = '/game/' + path;
+        py.FS.mkdirTree(full.slice(0, full.lastIndexOf('/')));
+        py.FS.writeFile(full, src);
+      }
+      try {
+        py.FS.mkdirTree('/saves');
+        py.FS.mount(py.FS.filesystems.IDBFS, {}, '/saves');
+        await new Promise((res) => py.FS.syncfs(true, () => res()));
+        saveFs = true;
+      } catch (e) { saveFs = false; }
+      py.runPython(`
+import sys, io, contextlib
+sys.path.insert(0, '/game')
+from jedi_fugitive.web import bridge as _bridge
+_sink = io.StringIO()
+def _call(name, *a):
+    with contextlib.redirect_stdout(_sink), contextlib.redirect_stderr(_sink):
+        out = getattr(_bridge, name)(*a)
+    _sink.seek(0); _sink.truncate()
+    return out
+`);
+      const call = py.globals.get('_call');
+      window.__jfPython = (code) => py.runPython(code);  // for automated tests
+      bridge = (name, ...a) => JSON.parse(call(name, ...a));
+      $('continueGame').hidden = !bridge('has_save');
+      $('newGame').disabled = false;
+      status('Listo.');
+    } catch (e) {
+      console.error(e);
+      status('No se pudo iniciar el motor: ' + (e && e.message ? e.message.split('\n').slice(-2).join(' ') : e));
+    }
+  }
+
+  function start(resume) {
+    status(resume ? 'Cargando la partida…' : 'Generando el mundo…');
+    $('newGame').disabled = true;
+    setTimeout(() => {
+      try {
+        fitView();
+        S = bridge('start', $('size').value, null, !!resume);
+        $('log').innerHTML = '';
+        $('titleScreen').hidden = true;
+        $('endBox').hidden = true;
+        apply(S);
+      } catch (e) {
+        console.error(e);
+        status('Error al generar el mundo: ' + String(e.message || e).split('\n').slice(-2).join(' '));
+      }
+      $('newGame').disabled = false;
+    }, 30);
+  }
+
+  // ------------------------------------------------------------ input
+  function codeOf(ev) {
+    if (K[ev.key] !== undefined) return K[ev.key];
+    if (ev.key.length === 1) return ev.key.charCodeAt(0);
+    return null;
+  }
+  function send(code) {
+    if (!bridge || !S || busy) return;
+    busy = true;
+    try {
+      S = bridge(S.prompt ? 'answer' : 'press', code);
+      apply(S);
+    } catch (e) { console.error(e); }
+    busy = false;
+  }
+  document.addEventListener('keydown', (ev) => {
+    if (!$('titleScreen').hidden || !$('endBox').hidden) return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const c = codeOf(ev);
+    if (c === null) return;
+    ev.preventDefault();
+    send(c);
+  });
+  document.querySelectorAll('[data-k], [data-code]').forEach((b) => {
+    b.addEventListener('click', () => send(b.dataset.code ? +b.dataset.code : b.dataset.k.charCodeAt(0)));
+  });
+  const tabs = [['tabAct', 'grpAct'], ['tabOther', 'grpOther']];
+  tabs.forEach(([t, g]) => $(t).addEventListener('click', () => {
+    tabs.forEach(([t2, g2]) => { $(t2).setAttribute('aria-selected', String(t2 === t)); $(g2).hidden = t2 !== t; });
+  }));
+  $('newGame').addEventListener('click', () => start(false));
+  $('continueGame').addEventListener('click', () => start(true));
+  $('again').addEventListener('click', () => { $('endBox').hidden = true; $('titleScreen').hidden = false; });
+
+  // tap / click on the map: step towards it (attack if an enemy is there)
+  $('map').addEventListener('pointerdown', (ev) => {
+    if (!S || S.prompt || !geom) return;
+    const r = $('map').getBoundingClientRect();
+    const tx = Math.floor((ev.clientX - r.left - geom.ox) / geom.T);
+    const ty = Math.floor((ev.clientY - r.top - geom.oy) / geom.T);
+    const dx = Math.sign(tx - S.player.x), dy = Math.sign(ty - S.player.y);
+    const key = { '-1,-1': 'y', '0,-1': 'k', '1,-1': 'u', '-1,0': 'h', '1,0': 'l', '-1,1': 'b', '0,1': 'j', '1,1': 'n' }[dx + ',' + dy];
+    if (key) send(key.charCodeAt(0));
+  });
+
+  // ------------------------------------------------------------ state → page
+  const MSG_CLASS = { 1: 'c-red', 2: 'c-red', 6: 'c-red', 9: 'c-red', 10: 'c-red', 11: 'c-red', 12: 'c-red', 3: 'c-gold', 13: 'c-gold', 5: 'c-holo', 7: 'c-holo', 14: 'c-holo', 15: 'c-holo' };
+  function setBar(fill, label, v, max, text) {
+    $(fill).style.width = Math.max(0, Math.min(100, (100 * v) / Math.max(1, max))) + '%';
+    $(label).textContent = text;
+  }
+  function apply(s) {
+    if (!s || !s.ready) return;
+    const h = s.hud;
+    setBar('hpF', 'hpT', h.hp, h.maxHp, `${Math.max(0, h.hp)}/${h.maxHp}`);
+    setBar('fF', 'fT', h.force, h.maxForce, `${h.force}/${h.maxForce}`);
+    $('stressBar').hidden = !h.stressOn;
+    setBar('sF', 'sT', h.stress, h.maxStress, `${h.stress}/${h.maxStress}`);
+    setBar('heatF', 'heatT', h.heat, 100, h.tier || String(h.heat));
+    $('lvl').textContent = `Nv ${h.level}`;
+    $('corr').textContent = `Corrupción ${h.corruption}%`;
+    $('where').textContent = h.where;
+    $('clock').hidden = !h.time;
+    $('clock').textContent = h.time || '';
+    $('arts').textContent = `Artefactos ${h.artifacts}/${h.artifactsNeeded}`;
+    $('wounds').innerHTML = h.wounds.map((w) => `<span class="chip warn">${esc(w)}</span>`).join('');
+    $('banner').hidden = !s.banner;
+    $('banner').textContent = s.banner || '';
+    $('tip').textContent = s.targeting ? 'Apuntando: mover la mira con las flechas, Enter para confirmar, Esc para cancelar' : '';
+    $('tip').hidden = !s.targeting;
+    $('interact').classList.toggle('ready', !!s.onPoi);
+    log(s.messages);
+    drawPrompt(s.prompt);
+    draw();
+    if ((s.dead || s.victory) && !s.prompt) {
+      $('endTitle').textContent = s.victory ? 'Escapaste' : 'Caíste';
+      $('endText').textContent = s.victory
+        ? `Llegaste a tu nave con ${h.artifacts} artefactos, en ${h.turn} turnos.`
+        : `Turno ${h.turn}, nivel ${h.level}. El Imperio no perdona; tu autoguardado se perdió con vos.`;
+      $('endBox').hidden = false;
+    }
+    if (++turnsSinceSync >= 25) persist();
+  }
+  function persist() {
+    turnsSinceSync = 0;
+    if (!saveFs) return;
+    try { py.FS.syncfs(false, () => {}); } catch (e) { /* storage blocked: saves stay in memory */ }
+  }
+  addEventListener('pagehide', persist);
+
+  function esc(t) { return String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function log(msgs) {
+    const ol = $('log');
+    ol.querySelectorAll('.new').forEach((li) => li.classList.remove('new'));
+    for (const m of msgs || []) {
+      const li = document.createElement('li');
+      li.className = 'new ' + (MSG_CLASS[m.color] || '');
+      li.textContent = m.text;
+      ol.appendChild(li);
+      if (/saved|Game saved/i.test(m.text)) persist();
+    }
+    while (ol.children.length > 120) ol.removeChild(ol.firstChild);
+    ol.scrollTop = ol.scrollHeight;
+  }
+
+  // the game's own modal screens (menus, journal, dialogs)
+  function drawPrompt(p) {
+    $('promptBox').hidden = !p;
+    if (!p) return;
+    const pre = $('screen');
+    pre.innerHTML = '';
+    let selected = -1;
+    p.lines.forEach((line, i) => {
+      const span = document.createElement('span');
+      span.className = 'line';
+      const runs = p.runs[i] || [];
+      let pos = 0, html = '';
+      for (const [a, b, pair, rev] of runs) {
+        if (a > pos) html += esc(line.slice(pos, a));
+        html += `<span class="p${pair}${rev ? ' rev' : ''}">${esc(line.slice(a, b))}</span>`;
+        if (rev && b - a > 3) selected = i;
+        pos = Math.max(pos, b);
+      }
+      html += esc(line.slice(pos));
+      span.innerHTML = html || ' ';
+      span.addEventListener('click', () => pick(i, selected));
+      pre.appendChild(span);
+      pre.appendChild(document.createTextNode('\n'));
+    });
+    // buttons: the keys this screen talks about, plus navigation
+    const text = p.lines.join('\n');
+    const found = new Set();
+    for (const m of text.matchAll(/\[([A-Za-z0-9])\]|'([A-Za-z0-9])'/g)) found.add(m[1] || m[2]);
+    const row = $('promptKeys');
+    row.innerHTML = '';
+    const add = (label, code) => {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = label;
+      b.addEventListener('click', () => send(code));
+      row.appendChild(b);
+    };
+    if (p.info) { add('Continuar', 10); return; }
+    if (selected >= 0) { add('↑', 259); add('↓', 258); add('Elegir', 10); }
+    const LABEL = { D: 'Destruir (D)', A: 'Absorber (A)' };
+    [...found].slice(0, 12).forEach((k) => add(LABEL[k] || k, k.charCodeAt(0)));
+    if (selected < 0 && !found.size) add('Continuar', 10);
+    add('Cerrar (Esc)', 27);
+  }
+  // tapping a menu line moves the game's own cursor there, then selects it
+  function pick(target, selected) {
+    if (selected < 0) return send(10);
+    let guard = 40;
+    let cur = selected;
+    while (cur !== target && guard-- > 0 && S && S.prompt) {
+      send(cur < target ? 258 : 259);
+      const next = S.prompt ? S.prompt.runs.findIndex((r) => r.some(([a, b, , rev]) => rev && b - a > 3)) : -1;
+      if (next === cur || next < 0) break;
+      cur = next;
+    }
+    if (S && S.prompt) send(10);
+  }
+
+  // ------------------------------------------------------------ map renderer
+  const cv = $('map'), ctx = cv.getContext('2d');
+  let geom = null, t0 = performance.now();
+  const BIOME = { f: '#13261a', p: '#1d2416', d: '#2c2516', r: '#22232a', m: '#24252b', s: '#162420', w: '#13202c', c: '#26201d', u: '#211d22' };
+  const ITEMS = new Set('+!0cftn:;zvb/smhwepliKk$&E'.split(''));
+  const LORE = new Set('?§¶†‡%'.split(''));
+  const LAND = new Set('MOAWYHIVFUPGNLBR'.split(''));
+
+  function fitView() {
+    const r = $('stage').getBoundingClientRect();
+    const T = Math.round((r.width < 520 ? 26 : 34) * zoom);
+    let w = Math.floor(r.width / T), h = Math.floor(r.height / T);
+    w = Math.max(15, Math.min(61, w | 1));
+    h = Math.max(11, Math.min(41, h | 1));
+    if (bridge) { try { const s2 = bridge('set_view', w, h); if (S) { S = Object.assign(s2, { messages: [], prompt: S.prompt }); } } catch (e) {} }
+  }
+  addEventListener('resize', () => { fitView(); draw(); });
+  let zoom = 1;
+  try { zoom = +localStorage.getItem('jf-zoom') || 1; } catch (e) { zoom = 1; }
+  const setZoom = (z) => {
+    zoom = Math.max(0.5, Math.min(1.5, z));
+    try { localStorage.setItem('jf-zoom', String(zoom)); } catch (e) { /* not stored */ }
+    fitView(); draw();
+  };
+  $('zoomIn').addEventListener('click', () => setZoom(zoom + 0.25));
+  $('zoomOut').addEventListener('click', () => setZoom(zoom - 0.25));
+
+  function draw() {
+    const r = $('stage').getBoundingClientRect();
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, r.width, r.height);
+    if (!S || !S.ready) return;
+    const rows = S.map.length, cols = S.map[0] ? S.map[0].length : 0;
+    const T = Math.floor(Math.min(r.width / cols, r.height / rows));
+    const ox = Math.floor((r.width - T * cols) / 2), oy = Math.floor((r.height - T * rows) / 2);
+    geom = { T, ox, oy };
+    const now = (performance.now() - t0) / 1000;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const font = (px, w = 600) => `${w} ${px}px "IBM Plex Mono", ui-monospace, monospace`;
+    for (let y = 0; y < rows; y++) {
+      const row = S.map[y], seen = S.seen[y], bio = S.biome[y] || '';
+      for (let x = 0; x < cols; x++) {
+        const v = seen[x];
+        if (v === '0') continue;
+        const ch = row[x], px = ox + x * T, py = oy + y * T, cx = px + T / 2, cy = py + T / 2;
+        const lit = v === '2';
+        ctx.globalAlpha = lit ? 1 : 0.38;
+        // ground
+        let ground = S.tomb ? '#17141f' : (BIOME[bio[x]] || BIOME.p);
+        if (ch === '~') ground = bio[x] === 'w' ? '#163552' : '#3a3020';
+        ctx.fillStyle = ground; ctx.fillRect(px, py, T, T);
+        ctx.fillStyle = 'rgba(255,255,255,0.025)'; ctx.fillRect(px, py, T, 1);
+        if (ch === '#') {
+          ctx.fillStyle = S.tomb ? '#3a2f52' : '#3b4052'; ctx.fillRect(px, py, T, T);
+          ctx.fillStyle = S.tomb ? '#4b3e6b' : '#4b5166'; ctx.fillRect(px, py, T, Math.max(2, T * 0.28));
+          continue;
+        }
+        if (ch === '.') { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(cx - 1, cy - 1, 2, 2); continue; }
+        if (ch === 'T') {
+          ctx.fillStyle = '#1f5a34'; ctx.beginPath(); ctx.arc(cx, cy - T * 0.06, T * 0.36, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#2f7a49'; ctx.beginPath(); ctx.arc(cx - T * 0.1, cy - T * 0.16, T * 0.16, 0, Math.PI * 2); ctx.fill();
+          continue;
+        }
+        if (ch === 'r') {
+          ctx.fillStyle = '#5c5f6b'; ctx.beginPath(); ctx.ellipse(cx, cy + T * 0.06, T * 0.34, T * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#787c8a'; ctx.beginPath(); ctx.ellipse(cx - T * 0.08, cy - T * 0.02, T * 0.12, T * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+          continue;
+        }
+        if (ch === '~') {
+          ctx.strokeStyle = bio[x] === 'w' ? '#4f8fc4' : '#7a6440'; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.arc(cx, cy + T * 0.3, T * 0.35, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+          continue;
+        }
+        let color = '#c9cedd', size = T * 0.66, glow = 0;
+        if (ch === 'D') { color = '#ff4d5e'; glow = 0.6 + 0.4 * Math.sin(now * 3 + x); size = T * 0.8; }
+        else if (ch === '>' || ch === '<') { color = '#f3b54a'; size = T * 0.8; }
+        else if (ch === '◊') { color = '#c9a8ff'; glow = 0.6 + 0.4 * Math.sin(now * 2.4); }
+        else if (LORE.has(ch)) { color = '#b48cff'; glow = 0.35; }
+        else if (ch === 'Q' && S.tomb) { color = '#6fd3ff'; glow = 0.8; }
+        else if (ITEMS.has(ch)) { color = '#f3b54a'; size = T * 0.6; }
+        else if (ch === 'x') { color = '#ff9a52'; }
+        else if (ch === 'S' || ch === 'C') { color = '#6fd3ff'; size = T * 0.8; glow = 0.4; }
+        else if (ch === 'X') { color = '#7ee0a0'; }
+        else if (LAND.has(ch) || ch === 'Q') { color = '#d9b36a'; }
+        else if (ch === '=') { color = '#9b7a52'; }
+        else if (ch === '*') { color = '#9fe7ff'; }
+        if (glow && lit) { ctx.shadowColor = color; ctx.shadowBlur = T * 0.6 * glow; }
+        ctx.fillStyle = color; ctx.font = font(Math.round(size));
+        ctx.fillText(ch, cx, cy + 1);
+        ctx.shadowBlur = 0;
+      }
+    }
+    ctx.globalAlpha = 1;
+    // survivors
+    for (const n of S.npcs) {
+      const cx = ox + n.x * T + T / 2, cy = oy + n.y * T + T / 2;
+      ctx.fillStyle = '#7ee0a0'; ctx.font = font(Math.round(T * 0.72), 700); ctx.fillText('☺', cx, cy + 1);
+    }
+    // enemies
+    for (const e of S.enemies) {
+      const px = ox + e.x * T, py = oy + e.y * T, cx = px + T / 2, cy = py + T / 2;
+      const color = e.boss ? '#ff5cf0' : e.beast ? '#ff9a52' : '#ff4d5e';
+      ctx.globalAlpha = e.illusion ? 0.55 + 0.25 * Math.sin(now * 6) : 1;
+      ctx.fillStyle = 'rgba(40, 6, 12, 0.6)'; ctx.fillRect(px + 1, py + 1, T - 2, T - 2);
+      ctx.shadowColor = color; ctx.shadowBlur = T * 0.35;
+      ctx.fillStyle = color; ctx.font = font(Math.round(T * (e.boss ? 0.86 : 0.74)), 700);
+      ctx.fillText(e.ch, cx, cy + 1);
+      ctx.shadowBlur = 0;
+      const f = Math.max(0, Math.min(1, e.hp / e.max));
+      ctx.fillStyle = '#3a0f16'; ctx.fillRect(px + 2, py + T - 4, T - 4, 3);
+      ctx.fillStyle = color; ctx.fillRect(px + 2, py + T - 4, (T - 4) * f, 3);
+      ctx.globalAlpha = 1;
+    }
+    // the fugitive
+    {
+      const cx = ox + S.player.x * T + T / 2, cy = oy + S.player.y * T + T / 2;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, T * 1.4);
+      g.addColorStop(0, 'rgba(111,211,255,0.35)'); g.addColorStop(1, 'rgba(111,211,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(cx - T * 1.5, cy - T * 1.5, T * 3, T * 3);
+      ctx.shadowColor = '#6fd3ff'; ctx.shadowBlur = T * 0.5;
+      ctx.fillStyle = '#e8f8ff'; ctx.font = font(Math.round(T * 0.8), 700); ctx.fillText('@', cx, cy + 1);
+      ctx.shadowBlur = 0;
+    }
+    // night: tint everything outside a pool around the player
+    const dark = S.hud.dark || 0;
+    if (dark > 0.01) {
+      const cx = ox + S.player.x * T + T / 2, cy = oy + S.player.y * T + T / 2;
+      const g = ctx.createRadialGradient(cx, cy, T * 1.5, cx, cy, T * 6);
+      g.addColorStop(0, 'rgba(6,10,34,0)'); g.addColorStop(1, `rgba(6,10,34,${0.9 * dark})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, r.width, r.height);
+    }
+    // the cordon: the ring they are tightening, and the line you must cross
+    if (S.ring) {
+      const cx = ox + S.ring.x * T + T / 2, cy = oy + S.ring.y * T + T / 2;
+      ctx.save();
+      ctx.setLineDash([T * 0.5, T * 0.35]);
+      ctx.lineWidth = 2; ctx.strokeStyle = `rgba(255,77,94,${0.55 + 0.25 * Math.sin(now * 2.5)})`;
+      ctx.beginPath(); ctx.arc(cx, cy, S.ring.r * T, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([2, T * 0.4]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(126,224,160,0.55)';
+      ctx.beginPath(); ctx.arc(cx, cy, S.ring.escape * T, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    // presences sensed through the Force, beyond sight
+    const pcx = ox + S.player.x * T + T / 2, pcy = oy + S.player.y * T + T / 2;
+    for (const e of S.sensed || []) {
+      const cx = ox + e.x * T + T / 2, cy = oy + e.y * T + T / 2;
+      const a = (e.far ? 0.25 : 0.4) + 0.2 * Math.sin(now * 3 + e.x);
+      ctx.fillStyle = e.boss ? `rgba(255,92,240,${a + 0.15})` : `rgba(255,77,94,${a})`;
+      const inside = e.x >= 0 && e.y >= 0 && e.x < cols && e.y < rows;
+      if (inside) {
+        ctx.beginPath(); ctx.arc(cx, cy, T * (e.boss ? 0.22 : 0.15), 0, Math.PI * 2); ctx.fill();
+      } else {
+        // off the map view: a small arrow on the edge, pointing at it
+        const ang = Math.atan2(cy - pcy, cx - pcx);
+        const m = 10, w = r.width, h = r.height;
+        const tx = Math.cos(ang), ty = Math.sin(ang);
+        const k = Math.min(Math.abs((tx > 0 ? w - m - pcx : pcx - m) / (tx || 1e-9)), Math.abs((ty > 0 ? h - m - pcy : pcy - m) / (ty || 1e-9)));
+        const ex = pcx + tx * k, ey = pcy + ty * k;
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+        ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-5, -5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+    }
+    if (S.reticle) {
+      const px = ox + S.reticle.x * T, py = oy + S.reticle.y * T;
+      ctx.strokeStyle = '#ff4d5e'; ctx.lineWidth = 2; ctx.strokeRect(px + 1, py + 1, T - 2, T - 2);
+    }
+  }
+  // gentle animation for pulsing tombs and holocrons
+  (function loop() { if (S && !document.hidden) draw(); setTimeout(() => requestAnimationFrame(loop), 120); })();
+
+  if (typeof loadPyodide === 'function') boot();
+  else status('No se pudo cargar el motor de Python (bloqueado por la red).');
+})();
+</script>

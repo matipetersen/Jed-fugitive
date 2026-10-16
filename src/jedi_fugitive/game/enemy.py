@@ -594,8 +594,8 @@ class Enemy:
                         err_ += dx_
                         y_ += sy_
 
-            wall_ch = getattr(game, "Display", None) and getattr(game.Display, "WALL", "#") or "#"
-            tree_ch = getattr(game, "Display", None) and getattr(game.Display, "TREE", "T") or "T"
+            from jedi_fugitive.game.level import Display as _D
+            wall_ch, tree_ch = _D.WALL, _D.TREE
 
             # find the stopping point: first blocking tile encountered (or player)
             stop_x, stop_y = px, py
@@ -1195,39 +1195,44 @@ def process_enemies(game):
                                 except Exception:
                                     taunt = "..."
 
-                            # post the taunt
-                            try:
-                                # include a short prefix sometimes for flavor
-                                prefix = f"{getattr(e,'name','Enemy')}: "
-                                game.ui.messages.add(prefix + taunt)
-                            except Exception:
-                                pass
-
-                            # increase player stress modestly when taunted
-                            try:
-                                # stronger taunts from officers or inquisitors
-                                taunt_stress = 5
+                            # One taunt every few turns across ALL enemies: with a squad around you
+                            # taunts were ~a quarter of all messages and the main source of stress.
+                            _tnow = getattr(game, 'turn_count', 0)
+                            if _tnow - getattr(game, '_last_global_taunt', -99) >= 4:
+                                game._last_global_taunt = _tnow
+                                # post the taunt
                                 try:
-                                    et = getattr(e, 'type', None)
-                                    from jedi_fugitive.game.enemy import EnemyType
-                                    if et == getattr(EnemyType, 'INQUISITOR', None):
-                                        taunt_stress = 20
-                                except Exception:
-                                    # fallback to name-based heuristic
-                                    if 'officer' in (getattr(e, 'name', '') or '').lower():
-                                        taunt_stress = 15
-                                # apply stress via helper so resilience is respected
-                                try:
-                                    added = game.player.add_stress(taunt_stress, source='taunt')
-                                except Exception:
-                                    added = taunt_stress
-                                try:
-                                    if getattr(game.ui, 'messages', None):
-                                        game.ui.messages.add(f"(Stress +{added})")
+                                    # include a short prefix sometimes for flavor
+                                    prefix = f"{getattr(e,'name','Enemy')}: "
+                                    game.ui.messages.add(prefix + taunt)
                                 except Exception:
                                     pass
-                            except Exception:
-                                pass
+
+                                # increase player stress modestly when taunted
+                                try:
+                                    # stronger taunts from officers or inquisitors
+                                    taunt_stress = 5
+                                    try:
+                                        et = getattr(e, 'type', None)
+                                        from jedi_fugitive.game.enemy import EnemyType
+                                        if et == getattr(EnemyType, 'INQUISITOR', None):
+                                            taunt_stress = 20
+                                    except Exception:
+                                        # fallback to name-based heuristic
+                                        if 'officer' in (getattr(e, 'name', '') or '').lower():
+                                            taunt_stress = 15
+                                    # apply stress via helper so resilience is respected
+                                    try:
+                                        added = game.player.add_stress(taunt_stress, source='taunt')
+                                    except Exception:
+                                        added = taunt_stress
+                                    try:
+                                        if getattr(game.ui, 'messages', None):
+                                            game.ui.messages.add(f"(Stress +{added})")
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
 
                             # record last taunt turn on enemy
                             try:

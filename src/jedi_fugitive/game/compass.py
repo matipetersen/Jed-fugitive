@@ -1,5 +1,5 @@
 from jedi_fugitive.game import logger
-log = getattr(logger, 'log', None)
+log = logger  # the Logger itself (logger.log is a bound method with no .error/.info)
 """
 Compass and scanning system to reveal nearby Points of Interest, enemies, and objectives.
 """

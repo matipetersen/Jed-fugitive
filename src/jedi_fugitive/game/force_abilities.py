@@ -26,6 +26,22 @@ def consume_force_energy(user, amount):
     
     return True
 
+def pay_energy(user, energy_cost, messages=None):
+    """Charge an energy cost scaled by the user's stress/alignment multiplier."""
+    import math
+    try:
+        mult = float(getattr(user, 'get_force_cost_multiplier', lambda: 1.0)())
+    except Exception:
+        mult = 1.0
+    cost = int(math.ceil(energy_cost * mult))
+    if not consume_force_energy(user, cost):
+        if messages is not None and getattr(user, 'name', 'Player') == 'Player':
+            try: messages.add(f"Not enough Force energy ({cost} needed).")
+            except Exception: pass
+        return False
+    return True
+
+
 def restore_force_energy(user, amount):
     """Restore Force energy, capped at maximum"""
     current = get_force_energy(user)
@@ -197,6 +213,7 @@ class ForcePushPull(ForceAbility):
 class ForceReveal(ForceAbility):
     name = "Reveal"
     base_cost = 1
+    energy_cost = 20
     target_type = "self"
     description = "Expand your field of view for a short time."
 
@@ -206,21 +223,10 @@ class ForceReveal(ForceAbility):
         self.bonus = bonus
 
     def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
-        try:
-            import math
-            cost = int(math.ceil(self.base_cost * getattr(user, 'get_force_cost_multiplier', lambda: 1.0)()))
-        except Exception:
-            cost = self.base_cost
-        fp = getattr(user, "force_points", 0)
-        if fp < cost:
-            if messages is not None:
-                try: messages.add("Not enough force points.")
-                except Exception: pass
+        # pay in Force energy (the old force_points cost was refilled from energy every
+        # tick, which made Reveal/Heal/Lightning free)
+        if not pay_energy(user, self.energy_cost, messages):
             return False
-        try:
-            user.force_points = fp - cost
-        except Exception:
-            pass
         # set duration (turns) and bonus radius so visibility code can use it
         user.los_bonus_turns = getattr(user, "los_bonus_turns", 0) + int(self.duration)
         # store the extra radius provided by this reveal (multiple reveals stack by taking max)
@@ -247,6 +253,7 @@ class ForceReveal(ForceAbility):
 class ForceHeal(ForceAbility):
     name = "Heal"
     base_cost = 1
+    energy_cost = 30
     target_type = "self"
     description = "Restore a small amount of HP to the user."
 
@@ -255,21 +262,10 @@ class ForceHeal(ForceAbility):
         self.amount = amount
 
     def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0) -> bool:
-        try:
-            import math
-            cost = int(math.ceil(self.base_cost * getattr(user, 'get_force_cost_multiplier', lambda: 1.0)()))
-        except Exception:
-            cost = self.base_cost
-        fp = getattr(user, "force_points", 0)
-        if fp < cost:
-            if messages is not None:
-                try: messages.add("Not enough force points.")
-                except Exception: pass
+        # pay in Force energy (the old force_points cost was refilled from energy every
+        # tick, which made Reveal/Heal/Lightning free)
+        if not pay_energy(user, self.energy_cost, messages):
             return False
-        try:
-            user.force_points = fp - cost
-        except Exception:
-            pass
         try:
             user.hp = min(getattr(user, "max_hp", getattr(user, "hp", 0)), getattr(user, "hp", 0) + int(self.amount))
             if messages is not None:
@@ -290,6 +286,8 @@ class ForceHeal(ForceAbility):
 class ForceLightning(ForceAbility):
     name = "Lightning"
     base_cost = 2
+    energy_cost = 40
+    alignment = "dark"  # Sith power: no longer offered to Light-side characters as "neutral"
     target_type = "enemy"
     description = "Strike a visible enemy in a straight line for damage."
 
@@ -298,21 +296,10 @@ class ForceLightning(ForceAbility):
         self.damage = damage
 
     def use(self, user, target, game_map, messages: Any = None, player_rank: int = 0, game=None, **kwargs) -> bool:
-        try:
-            import math
-            cost = int(math.ceil(self.base_cost * getattr(user, 'get_force_cost_multiplier', lambda: 1.0)()))
-        except Exception:
-            cost = self.base_cost
-        fp = getattr(user, "force_points", 0)
-        if fp < cost:
-            if messages is not None:
-                try: messages.add("Not enough force points.")
-                except Exception: pass
+        # pay in Force energy (the old force_points cost was refilled from energy every
+        # tick, which made Reveal/Heal/Lightning free)
+        if not pay_energy(user, self.energy_cost, messages):
             return False
-        try:
-            user.force_points = fp - cost
-        except Exception:
-            pass
         # target expected to be an actor object
         try:
             if not target:

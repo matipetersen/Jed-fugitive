@@ -50,3 +50,6 @@ Thumbs.db
 test_output/
 check_output.txt
 run_output.txt
+
+# runtime crash logs (written on every run)
+logs/game_crash_log_*.txt

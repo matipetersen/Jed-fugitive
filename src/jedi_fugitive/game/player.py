@@ -305,7 +305,10 @@ class Player:
         light_level = getattr(self, 'light_level', 1)
         dark_level = getattr(self, 'dark_level', 1)
         old_level = getattr(self, 'level', 1)
-        self.level = max(old_level, light_level, dark_level)
+        # +1 per level-up, never below the alignment paths. (max(old, light, dark)
+        # alone left the level stuck at 1, so the XP threshold never grew and every
+        # 100 XP re-applied the level-up bonuses.)
+        self.level = max(old_level + 1, light_level, dark_level)
         # Invalidate stats cache when leveling up
         self._invalidate_stats_cache()
         
@@ -897,7 +900,11 @@ class Player:
             if old_stress < threshold_95 and new_stress >= threshold_95:
                 self._stress_warning_95 = True
             
-            # cap not enforced here (breaking point handled elsewhere)
+            # stress cannot exceed the maximum: reaching it triggers the breaking point
+            # (it used to grow without bound, e.g. 1140/100)
+            if self.stress > self.max_stress:
+                effective = max(0, effective - (self.stress - self.max_stress))
+                self.stress = self.max_stress
             return effective
         except Exception:
             return 0

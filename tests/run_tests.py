@@ -48,18 +48,18 @@ def run():
     gm._world_tick()
     assert gm.turn_count == 2, 'world tick did not advance turn_count after equip'
     # test unequip with full inventory
-    p.inventory = ['i'] * int(getattr(gm, 'max_inventory', 9) or 9)
+    p.inventory = ['i'] * p.get_max_inventory()
     p.equipped_weapon = {'name': 'Test Blade'}
     returned = p.unequip_weapon()
     assert returned is not None, 'unequip returned None'
-    assert len(p.inventory) == int(getattr(gm, 'max_inventory', 9) or 9), 'inventory size changed unexpectedly'
+    assert len(p.inventory) == p.get_max_inventory(), 'inventory size changed unexpectedly'
     # try pickup when full
-    p.inventory = ['i'] * int(getattr(gm, 'max_inventory', 9) or 9)
+    p.inventory = ['i'] * p.get_max_inventory()
     gm.turn_count = 0
     gm.game_map[y][x] = 'b'
     gm.items_on_map.append({'x': x, 'y': y, 'token': 'b', 'name': 'Blaster'})
     equipment.pick_up(gm)
-    assert len(p.inventory) == int(getattr(gm, 'max_inventory', 9) or 9), 'pickup allowed when full'
+    assert len(p.inventory) == p.get_max_inventory(), 'pickup allowed when full'
     assert gm.turn_count == 0, 'turn_count changed when pickup should have failed'
     print('All quick tests passed.')
 

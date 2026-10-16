@@ -76,7 +76,7 @@ class QuestNPC:
     def _get_player_alignment(self, player) -> str:
         """Determine player alignment category"""
         try:
-            dark_points = getattr(player, 'dark_side_points', 0)
+            dark_points = getattr(player, 'dark_corruption', getattr(player, 'dark_side_points', 0)) or 0
             if dark_points <= 20:
                 return "light"
             elif dark_points <= 60:
@@ -263,122 +263,134 @@ class QuestNPC:
 
 
 class Quest:
-    """Represents an individual quest"""
-    
+    """A quest with objectives the game actually updates.
+
+    kinds:
+      deliver  - hand the NPC a healing item (checked when you talk to them)
+      recover  - pick up a quest item placed somewhere on the map, bring it back
+      hunt     - kill a named Sith that was spawned for this quest, then report
+      escort   - the NPC follows you to a destination
+      scout    - reach a location (usually a tomb entrance), then report
+    """
+
     def __init__(self, quest_id: str, quest_type: QuestType, npc: QuestNPC, description: str):
         self.quest_id = quest_id
+        self.id = quest_id
         self.quest_type = quest_type
         self.npc = npc
         self.title = ""
         self.description = description
+        self.kind = "deliver"
         self.objectives = []
         self.state = QuestState.AVAILABLE
-        self.progress = {}
-        self.rewards = {}
-        self.time_limit = None
-        self.alignment_bonus = ""
+        self.target = None          # (x, y) for recover/escort/scout
+        self.target_enemy = None    # Enemy for hunt
+        self.item_name = ""
+        self.done = False           # objective met; reward on return (or on arrival for escort)
         self.xp_reward = 0
+        self.experience_reward = 0
+        self.rewards = {}
         self.created_turn = 0
-        
+        self.start_turn = 0
+        self.time_limit = None
+        self.completion_text = ""
+
+    def status_line(self, game=None) -> str:
+        where = ""
+        if game is not None:
+            tgt = self.current_target(game)
+            if tgt:
+                dx, dy = tgt[0] - game.player.x, tgt[1] - game.player.y
+                where = f" [{_direction(dx, dy)} {abs(dx) + abs(dy)}m]"
+        state = "report back" if self.done and self.kind != "escort" else "in progress"
+        return f"{self.title}: {self.description}{where} ({state})"
+
+    def current_target(self, game):
+        if self.state != QuestState.ACTIVE:
+            return None
+        if self.done or self.kind == "deliver":
+            return (self.npc.x, self.npc.y)
+        if self.kind == "hunt" and self.target_enemy is not None:
+            return (self.target_enemy.x, self.target_enemy.y)
+        return self.target
+
+    # kept for compatibility with older callers
     def check_completion(self, game) -> bool:
-        """Check if quest objectives are completed"""
-        try:
-            for obj in self.objectives:
-                if not self._check_objective(obj, game):
-                    return False
-            return True
-        except Exception:
-            return False
-    
-    def _check_objective(self, objective: Dict, game) -> bool:
-        """Check individual objective completion"""
-        obj_type = objective.get('type')
-        
-        if obj_type == 'escort':
-            # Check if NPC reached destination
-            target_x, target_y = objective.get('destination', (0, 0))
-            return abs(self.npc.x - target_x) <= 1 and abs(self.npc.y - target_y) <= 1
-            
-        elif obj_type == 'deliver':
-            # Check if player has delivered item
-            return objective.get('delivered', False)
-            
-        elif obj_type == 'protect':
-            # Check if NPC is still alive and safe
-            return self.npc.state == "alive" and objective.get('threats_cleared', False)
-            
-        elif obj_type == 'gather':
-            # Check if required items collected
-            required = objective.get('required_amount', 1)
-            collected = objective.get('collected_amount', 0)
-            return collected >= required
-            
-        return False
+        return self.done
+
+
+def _direction(dx, dy):
+    ns = "N" if dy < 0 else ("S" if dy > 0 else "")
+    ew = "W" if dx < 0 else ("E" if dx > 0 else "")
+    return (ns + ew) or "here"
+
+
+HEALING_IDS = ('medkit_small', 'stimpack', 'ration', 'water_canteen', 'nutrient_paste')
+
+# (kind, title, description, item, xp)
+QUEST_TEMPLATES = {
+    NPCType.REFUGEE: [
+        ("escort", "Safe Passage", "Escort {name} to the hidden camp", "", 80),
+        ("deliver", "Medical Aid", "Bring {name} something to treat their wounds", "", 50),
+    ],
+    NPCType.CIVILIAN: [
+        ("recover", "Lost Heirloom", "Recover {name}'s family heirloom from the ruins", "Family Heirloom", 60),
+        ("deliver", "Hunger", "Bring {name} food or water", "", 45),
+    ],
+    NPCType.CHILD: [
+        ("escort", "Find Family", "Take {name} back to their family's shelter", "", 90),
+    ],
+    NPCType.MERCHANT: [
+        ("recover", "Stolen Cargo", "Recover the cargo crate the Sith seized from {name}", "Cargo Crate", 70),
+    ],
+    NPCType.JEDI_SURVIVOR: [
+        ("scout", "Echoes in the Dark", "Find the Sith tomb {name} sensed in a vision", "", 110),
+        ("recover", "Lost Knowledge", "Recover the Jedi holocron {name} hid before the purge", "Jedi Holocron", 120),
+    ],
+    NPCType.REPUBLIC: [
+        ("hunt", "Cut the Head", "Eliminate the Sith patrol leader hunting {name}'s unit", "", 120),
+    ],
+    NPCType.INJURED_PILOT: [
+        ("recover", "Flight Recorder", "Recover the flight recorder from {name}'s wreck", "Flight Recorder", 80),
+        ("deliver", "Field Dressing", "Bring {name} a medkit or stimpack", "", 50),
+    ],
+    NPCType.RESEARCHER: [
+        ("scout", "Survey", "Survey the tomb entrance {name} has been studying", "", 90),
+    ],
+}
+
+QUEST_FACTION = {
+    NPCType.REFUGEE: 'Settlers', NPCType.CIVILIAN: 'Settlers', NPCType.CHILD: 'Settlers',
+    NPCType.MERCHANT: 'Hutt', NPCType.REPUBLIC: 'Republic', NPCType.INJURED_PILOT: 'Republic',
+    NPCType.JEDI_SURVIVOR: 'Republic', NPCType.RESEARCHER: 'Settlers',
+}
 
 
 class QuestManager:
-    """Manages all NPC quests and interactions"""
-    
+    """Manages NPC quests: offers, objectives, progress each tick, rewards."""
+
     def __init__(self):
-        self.active_quests = {}
+        self.active_quests = {}       # quest_id -> Quest (accepted)
         self.completed_quests = []
         self.available_npcs = []
         self.quest_log = []
         self.next_quest_id = 1
-        
-    def spawn_contextual_npc(self, game, location: Tuple[int, int]) -> Optional[QuestNPC]:
-        """Spawn an NPC appropriate to the current location and game state"""
-        try:
-            biome = getattr(game, 'current_biome', 'unknown')
-            in_tomb = getattr(game, 'in_tomb', False)
-            player_level = getattr(game.player, 'level', 1)
-            
-            # Don't spawn NPCs in tombs unless it's a researcher
-            if in_tomb and random.random() > 0.1:
-                return None
-                
-            # Determine appropriate NPC type based on context
-            npc_type = self._choose_npc_type(biome, in_tomb, player_level)
-            if not npc_type:
-                return None
-                
-            # Generate NPC
-            npc = self._create_npc(npc_type, location, game)
-            if npc:
-                self.available_npcs.append(npc)
-                return npc
-                
-        except Exception:
-            pass
-        return None
-    
+
+    # ------------------------------------------------------------ spawning
     def _choose_npc_type(self, biome: str, in_tomb: bool, player_level: int) -> Optional[NPCType]:
-        """Choose appropriate NPC type for context"""
-        
         if in_tomb:
-            # Researchers and injured explorers in tombs
             return random.choice([NPCType.RESEARCHER, NPCType.REFUGEE])
-        
         biome_npcs = {
-            'desert': [NPCType.REFUGEE, NPCType.MERCHANT, NPCType.CIVILIAN],
+            'desert': [NPCType.REFUGEE, NPCType.MERCHANT, NPCType.CIVILIAN, NPCType.INJURED_PILOT],
             'forest': [NPCType.REFUGEE, NPCType.JEDI_SURVIVOR, NPCType.CHILD, NPCType.CIVILIAN],
-            'mountains': [NPCType.REFUGEE, NPCType.REPUBLIC, NPCType.CIVILIAN],
-            'crash_site': [NPCType.INJURED_PILOT, NPCType.REFUGEE, NPCType.RESEARCHER],
+            'rocky': [NPCType.REFUGEE, NPCType.REPUBLIC, NPCType.RESEARCHER],
+            'mountain_pass': [NPCType.REPUBLIC, NPCType.JEDI_SURVIVOR, NPCType.RESEARCHER],
+            'river': [NPCType.CIVILIAN, NPCType.CHILD, NPCType.MERCHANT],
+            'plains': [NPCType.REFUGEE, NPCType.CIVILIAN, NPCType.INJURED_PILOT, NPCType.REPUBLIC],
         }
-        
-        possible_types = biome_npcs.get(biome, [NPCType.REFUGEE, NPCType.CIVILIAN])
-        
-        # Higher level players more likely to meet important NPCs
-        if player_level >= 5 and random.random() < 0.3:
-            possible_types.append(NPCType.JEDI_SURVIVOR)
-        if player_level >= 3 and random.random() < 0.4:
-            possible_types.append(NPCType.REPUBLIC)
-            
-        return random.choice(possible_types) if possible_types else None
-    
+        return random.choice(biome_npcs.get(biome, [NPCType.REFUGEE, NPCType.CIVILIAN]))
+
     def _create_npc(self, npc_type: NPCType, location: Tuple[int, int], game) -> QuestNPC:
-        """Create NPC with contextual details"""
-        
         name_pools = {
             NPCType.REFUGEE: ["Kira Thorne", "Marcus Vale", "Elena Skyborn", "David Cross", "Sarah Vex"],
             NPCType.MERCHANT: ["Josto the Trader", "Mira Coinwright", "Bren Goodseller", "Nala Markup"],
@@ -386,314 +398,131 @@ class QuestManager:
             NPCType.REPUBLIC: ["Captain Rex", "Lieutenant Maya", "Sergeant Korr", "Agent Blackwood"],
             NPCType.CHILD: ["Little Timmy", "Young Vette", "Small Ben", "Tiny Sara"],
             NPCType.INJURED_PILOT: ["Pilot Voss", "Commander Ash", "Flight Leader Tano", "Captain Solo"],
-            NPCType.RESEARCHER: ["Dr. Aphra", "Scholar Voss", "Archaeologist Ming", "Professor Kell"]
+            NPCType.RESEARCHER: ["Dr. Aphra", "Scholar Voss", "Archaeologist Ming", "Professor Kell"],
+            NPCType.CIVILIAN: ["Old Jorrin", "Tessa Marr", "Fenn Rook", "Ama Dorran"],
         }
-        
-        names = name_pools.get(npc_type, ["Unknown Traveler"])
-        name = random.choice(names)
-        
-        npc = QuestNPC(npc_type, name, location)
+        npc = QuestNPC(npc_type, random.choice(name_pools.get(npc_type, ["Unknown Traveler"])), location)
         npc.spawn_turn = getattr(game, 'turn_count', 0)
-        
-        # Set contextual details
         self._set_npc_backstory(npc, game)
-        self._generate_quest_for_npc(npc, game)
-        
         return npc
-    
+
     def _set_npc_backstory(self, npc: QuestNPC, game):
-        """Generate contextual backstory and personality"""
-        
         biome = getattr(game, 'current_biome', 'unknown')
-        
         backstories = {
             NPCType.REFUGEE: [
                 f"Fled when the Sith attacked their settlement in the {biome}.",
-                f"Lost everything in a recent Sith raid.",
-                f"Searching for family members separated during the evacuation.",
-                f"Former civilian now struggling to survive in the wilderness."
+                "Lost everything in a recent Sith raid.",
+                "Searching for family members separated during the evacuation.",
+                "Former civilian now struggling to survive in the wilderness.",
             ],
             NPCType.JEDI_SURVIVOR: [
-                f"Went into hiding during Order 66, living as a hermit.",
-                f"Former Padawan who escaped the Great Purge.",
-                f"Aging Jedi Master protecting the last remnants of the Order.",
-                f"Knight who lost their lightsaber but not their connection to the Force."
+                "Survived the purge by living as a hermit.",
+                "Former Padawan who escaped the massacre at the enclave.",
+                "Aging Jedi Master protecting the last remnants of the Order.",
+                "Knight who lost their lightsaber but not their connection to the Force.",
             ],
             NPCType.CHILD: [
-                f"Orphaned by the war, trying to find surviving relatives.",
-                f"Lost and scared, separated from parents during an attack.",
+                "Orphaned by the war, trying to find surviving relatives.",
+                "Lost and scared, separated from parents during an attack.",
                 f"Hiding in the {biome} after their home was destroyed.",
-                f"Too young to understand the war, just wants to go home."
-            ]
+                "Too young to understand the war, just wants to go home.",
+            ],
         }
-        
         stories = backstories.get(npc.npc_type, [f"A {npc.npc_type.value} trying to survive."])
         npc.backstory = random.choice(stories)
-        
-        # Set personality traits
         trait_pools = {
             NPCType.REFUGEE: ["desperate", "hopeful", "grateful", "fearful", "determined"],
             NPCType.MERCHANT: ["greedy", "shrewd", "friendly", "cautious", "opportunistic"],
             NPCType.JEDI_SURVIVOR: ["wise", "melancholy", "protective", "patient", "haunted"],
-            NPCType.CHILD: ["innocent", "scared", "curious", "trusting", "lonely"]
+            NPCType.CHILD: ["innocent", "scared", "curious", "trusting", "lonely"],
         }
-        
         traits = trait_pools.get(npc.npc_type, ["neutral"])
         npc.personality_traits = random.sample(traits, min(2, len(traits)))
-    
-    def _generate_quest_for_npc(self, npc: QuestNPC, game):
-        """Generate appropriate quest based on NPC type and context"""
-        
-        quest_templates = {
-            NPCType.REFUGEE: [
-                {
-                    'type': QuestType.ESCORT,
-                    'title': 'Safe Passage',
-                    'description': f'Escort {npc.name} to safety',
-                    'xp_reward': 75,
-                    'objectives': [{'type': 'escort', 'destination': None}]
-                },
-                {
-                    'type': QuestType.MEDICAL,
-                    'title': 'Medical Aid', 
-                    'description': f'Provide healing to {npc.name}',
-                    'xp_reward': 50,
-                    'objectives': [{'type': 'deliver', 'item': 'medkit'}]
-                }
-            ],
-            NPCType.JEDI_SURVIVOR: [
-                {
-                    'type': QuestType.INFORMATION,
-                    'title': 'Lost Knowledge',
-                    'description': f'Help {npc.name} recover Jedi artifacts',
-                    'xp_reward': 100,
-                    'objectives': [{'type': 'gather', 'item': 'jedi_artifact', 'required_amount': 1}]
-                }
-            ],
-            NPCType.CHILD: [
-                {
-                    'type': QuestType.PROTECTION,
-                    'title': 'Find Family',
-                    'description': f'Help {npc.name} find their family',
-                    'xp_reward': 80,
-                    'objectives': [{'type': 'escort', 'destination': None}]
-                }
-            ]
-        }
-        
-        templates = quest_templates.get(npc.npc_type, [])
-        if templates:
-            template = random.choice(templates)
-            
-            quest_id = f"quest_{self.next_quest_id}"
-            self.next_quest_id += 1
-            
-            quest = Quest(quest_id, template['type'], npc, template['description'])
-            quest.title = template['title']
-            quest.xp_reward = template['xp_reward']
-            quest.objectives = template['objectives']
-            quest.created_turn = getattr(game, 'turn_count', 0)
-            
-            npc.quest_data = quest
-    
-    def update_quests(self, game):
-        """Update all active quests based on game state"""
-        try:
-            for quest_id, quest in list(self.active_quests.items()):
-                if quest.check_completion(game):
-                    self._complete_quest(quest, game, success=True)
-                elif self._check_quest_failure(quest, game):
-                    self._complete_quest(quest, game, success=False)
-        except Exception:
-            pass
-    
-    def _complete_quest(self, quest: Quest, game, success: bool):
-        """Complete quest and give rewards"""
-        try:
-            if success:
-                # Award XP
-                if hasattr(game.player, 'add_experience'):
-                    game.player.add_experience(quest.xp_reward)
-                    
-                # Award items/rewards
-                for reward_type, amount in quest.rewards.items():
-                    self._give_reward(game.player, reward_type, amount)
-                
-                # Update relationship
-                quest.npc.relationship_level += 25
-                
-                quest.state = QuestState.COMPLETED
-                self.completed_quests.append(quest)
-                
-                # Message
-                if hasattr(game.ui, 'messages'):
-                    game.ui.messages.add(f"✓ Quest completed: {quest.title} (+{quest.xp_reward} XP)")
-                    
-            else:
-                quest.state = QuestState.FAILED
-                quest.npc.relationship_level -= 10
-                
-                if hasattr(game.ui, 'messages'):
-                    game.ui.messages.add(f"✗ Quest failed: {quest.title}")
-            
-            # Remove from active quests
-            if quest.quest_id in self.active_quests:
-                del self.active_quests[quest.quest_id]
-                
-        except Exception:
-            pass
-    
-    def _give_reward(self, player, reward_type: str, amount: int):
-        """Give quest reward to player"""
-        try:
-            if reward_type == 'credits' and hasattr(player, 'credits'):
-                player.credits += amount
-            elif reward_type == 'experience' and hasattr(player, 'add_experience'):
-                player.add_experience(amount)
-            # Add more reward types as needed
-        except Exception:
-            pass
-    
-    def _check_quest_failure(self, quest: Quest, game) -> bool:
-        """Check if quest has failed"""
-        try:
-            # NPC died
-            if quest.npc.state == "dead":
-                return True
-            
-            # Time limit exceeded
-            if quest.time_limit:
-                current_turn = getattr(game, 'turn_count', 0)
-                if current_turn - quest.created_turn > quest.time_limit:
-                    return True
-                    
-            return False
-        except Exception:
-            return False
-    
-    def get_nearest_npc(self, player_x: int, player_y: int, max_distance: int = 1) -> Optional[QuestNPC]:
-        """Find nearest interactable NPC"""
-        try:
-            nearest = None
-            min_dist = float('inf')
-            
-            for npc in self.available_npcs:
-                if npc.state != "alive":
-                    continue
-                    
-                dist = abs(npc.x - player_x) + abs(npc.y - player_y)
-                if dist <= max_distance and dist < min_dist:
-                    min_dist = dist
-                    nearest = npc
-                    
-            return nearest
-        except Exception:
+
+    def _make_quest(self, npc: QuestNPC, game) -> Optional[Quest]:
+        templates = QUEST_TEMPLATES.get(npc.npc_type)
+        if not templates:
             return None
-    
-    def create_random_npc(self, x: int, y: int, level: int = 1, biome: str = 'forest') -> Optional[QuestNPC]:
-        """Create a random NPC with quest at specified location"""
+        kind, title, desc, item, xp = random.choice(templates)
+        q = Quest(f"quest_{self.next_quest_id}", QuestType.RECOVERY, npc, desc.format(name=npc.name))
+        self.next_quest_id += 1
+        q.kind = kind
+        q.title = title
+        q.item_name = item
+        q.xp_reward = q.experience_reward = xp
+        q.created_turn = getattr(game, 'turn_count', 0)
+        q.objectives = [{'type': kind}]
+        q.completion_text = {
+            'escort': "We made it. I don't know how to thank you.",
+            'deliver': "This will keep me going. Thank you.",
+            'recover': "You found it! I thought it was lost forever.",
+            'hunt': "With that monster gone we can breathe again.",
+            'scout': "So the vision was true. The Force guided you.",
+        }[kind]
+        return q
+
+    def create_random_npc(self, x: int, y: int, level: int = 1, biome: str = 'forest', game=None) -> Optional[QuestNPC]:
+        """Create an NPC with a quest offer at (x, y)."""
         try:
-            # Create a mock game object for context
-            class MockGame:
-                def __init__(self, biome, level):
-                    self.current_biome = biome
-                    self.in_tomb = False
-                    self.turn_count = 0
-                    self.player = MockPlayer(level)
-                    
-            class MockPlayer:
-                def __init__(self, level):
-                    self.level = level
-            
-            mock_game = MockGame(biome, level)
-            npc = self.spawn_contextual_npc(mock_game, (x, y))
-            
-            if npc:
-                # Generate a quest for this NPC
-                quest = self._generate_quest_for_npc(npc, mock_game)
-                if quest:
-                    npc.current_quest = quest
-                    self.active_quests[quest.id] = quest
-                
+            class _Ctx:
+                pass
+            ctx = game if game is not None else _Ctx()
+            if game is None:
+                ctx.current_biome = biome
+                ctx.turn_count = 0
+            npc_type = self._choose_npc_type(biome, False, level)
+            npc = self._create_npc(npc_type, (x, y), ctx)
+            npc.current_quest = self._make_quest(npc, ctx)
+            npc.quest_data = npc.current_quest
+            self.available_npcs.append(npc)
             return npc
-            
         except Exception:
             return None
-            
-    def start_conversation(self, npc: QuestNPC, player) -> Optional[Dict[str, Any]]:
-        """Start a conversation with an NPC"""
+
+    # --------------------------------------------------------- conversation
+    def start_conversation(self, npc: QuestNPC, player, game=None) -> Optional[Dict[str, Any]]:
+        """Talk to an NPC. Completes deliver/report quests on the spot when possible."""
         try:
-            if not npc or not player:
-                return None
-                
-            # Check if NPC has an active quest
-            if hasattr(npc, 'current_quest') and npc.current_quest:
-                quest = npc.current_quest
-                
-                # Check quest state
-                if quest.state == QuestState.AVAILABLE:
-                    return {
-                        'message': self._get_quest_offer_dialogue(npc, quest),
-                        'quest_offered': True,
-                        'quest': quest
-                    }
-                elif quest.state == QuestState.ACTIVE:
-                    # Check if quest can be completed
-                    if self._can_complete_quest(quest, player):
-                        return {
-                            'message': self._get_quest_completion_dialogue(npc, quest),
-                            'quest_complete': True,
-                            'quest': quest
-                        }
-                    else:
-                        return {
-                            'message': self._get_quest_progress_dialogue(npc, quest),
-                            'quest_active': True,
-                            'quest': quest
-                        }
-                elif quest.state == QuestState.COMPLETED:
-                    return {
-                        'message': self._get_post_quest_dialogue(npc),
-                        'quest_completed': True
-                    }
-            
-            # Default conversation if no quest
-            return {
-                'message': self._get_default_dialogue(npc),
-                'greeting': True
-            }
-            
+            quest = getattr(npc, 'current_quest', None)
+            greeting = npc.get_greeting(player) if hasattr(npc, 'get_greeting') else f"{npc.name}: Hello."
+            npc.first_meeting = False
+            if quest is None:
+                return {'message': greeting, 'greeting': True}
+            if quest.state == QuestState.AVAILABLE:
+                return {'message': f"{greeting} {self._get_quest_offer_dialogue(npc, quest)}",
+                        'quest_offered': True, 'quest': quest}
+            if quest.state == QuestState.ACTIVE:
+                if quest.kind == 'deliver' and game is not None and self._take_delivery(quest, game):
+                    quest.done = True
+                if quest.done and quest.kind != 'escort':
+                    return {'message': f"{npc.name}: {quest.completion_text}", 'quest_complete': True, 'quest': quest}
+                return {'message': f"{npc.name}: {self._get_quest_progress_dialogue(npc, quest)}",
+                        'quest_active': True, 'quest': quest}
+            return {'message': f"{npc.name}: {self._get_post_quest_dialogue(npc)}", 'quest_completed': True}
         except Exception:
             return None
-    
+
     def _get_quest_offer_dialogue(self, npc: QuestNPC, quest) -> str:
-        """Generate quest offer dialogue"""
         greetings = {
-            NPCType.REFUGEE: f"Please, you must help me! {quest.description}",
-            NPCType.MERCHANT: f"I have a business proposition: {quest.description}",
-            NPCType.JEDI_SURVIVOR: f"The Force led you to me. {quest.description}",
-            NPCType.REPUBLIC: f"We need your assistance, friend. {quest.description}",
-            NPCType.CHILD: f"Mister, can you help me? {quest.description}",
-            NPCType.INJURED_PILOT: f"My ship crashed... {quest.description}",
-            NPCType.RESEARCHER: f"My research depends on this: {quest.description}"
+            NPCType.REFUGEE: f"Please, you must help me! {quest.description}.",
+            NPCType.MERCHANT: f"I have a business proposition: {quest.description}.",
+            NPCType.JEDI_SURVIVOR: f"The Force led you to me. {quest.description}.",
+            NPCType.REPUBLIC: f"We need your assistance, friend. {quest.description}.",
+            NPCType.CHILD: f"Can you help me? {quest.description}.",
+            NPCType.INJURED_PILOT: f"My ship went down too... {quest.description}.",
+            NPCType.RESEARCHER: f"My research depends on this: {quest.description}.",
         }
-        
-        return greetings.get(npc.npc_type, f"I need your help. {quest.description}")
-    
-    def _get_quest_completion_dialogue(self, npc: QuestNPC, quest) -> str:
-        """Generate quest completion dialogue"""
-        return f"You've done it! {quest.completion_text or 'Thank you for your help!'}"
-    
+        return greetings.get(npc.npc_type, f"I need your help. {quest.description}.")
+
     def _get_quest_progress_dialogue(self, npc: QuestNPC, quest) -> str:
-        """Generate dialogue for active quest"""
-        return f"Have you made progress on {quest.title}? {quest.description}"
-    
+        if quest.kind == 'deliver':
+            return "Do you have anything that could help? (a medkit, stimpack, ration or water)"
+        return f"Any news? {quest.description}."
+
     def _get_post_quest_dialogue(self, npc: QuestNPC) -> str:
-        """Generate dialogue after quest completion"""
         return "Thank you again for all your help. I won't forget your kindness."
-    
+
     def _get_default_dialogue(self, npc: QuestNPC) -> str:
-        """Generate default NPC dialogue"""
         defaults = {
             NPCType.REFUGEE: "This world is so dangerous... I'm just trying to survive.",
             NPCType.MERCHANT: "Looking for supplies? I might have something useful.",
@@ -701,59 +530,235 @@ class QuestManager:
             NPCType.REPUBLIC: "Keep fighting the good fight, friend.",
             NPCType.CHILD: "Are you a Jedi? You look brave!",
             NPCType.INJURED_PILOT: "My ship's in bad shape, but I'll manage.",
-            NPCType.RESEARCHER: "This planet holds many secrets..."
+            NPCType.RESEARCHER: "This planet holds many secrets...",
         }
-        
         return defaults.get(npc.npc_type, "Hello there, traveler.")
-    
-    def _can_complete_quest(self, quest, player) -> bool:
-        """Check if quest objectives are met"""
-        try:
-            if quest.quest_type == QuestType.RESCUE:
-                # Simple completion check - could be enhanced with actual objectives
-                return True
-            elif quest.quest_type == QuestType.SUPPLY:
-                # Check if player has required items (simplified)
-                return True
-            elif quest.quest_type == QuestType.INFORMATION:
-                # Information quests auto-complete when returned to
-                return True
-            else:
-                return True  # Simplified - all quests can be completed
-        except Exception:
+
+    # ------------------------------------------------------------ lifecycle
+    def accept_quest(self, quest, player, game=None) -> bool:
+        if not quest or quest.state != QuestState.AVAILABLE:
             return False
-    
-    def accept_quest(self, quest, player) -> bool:
-        """Accept a quest"""
+        quest.state = QuestState.ACTIVE
+        quest.start_turn = getattr(game, 'turn_count', 0) if game is not None else 0
+        self.active_quests[quest.id] = quest
+        self.quest_log.append(quest)
+        if game is not None:
+            self._setup_objective(quest, game)
+        return True
+
+    def _random_spot(self, game, origin, rmin, rmax):
+        from jedi_fugitive.game.level import Display
+        gm = game.game_map
+        mh, mw = len(gm), len(gm[0]) if gm else 0
+        floor = getattr(Display, 'FLOOR', '.')
+        for _ in range(600):
+            ang = random.random() * math.tau
+            r = random.randint(rmin, rmax)
+            x = int(origin[0] + math.cos(ang) * r)
+            y = int(origin[1] + math.sin(ang) * r)
+            if 2 <= x < mw - 2 and 2 <= y < mh - 2 and gm[y][x] == floor:
+                return (x, y)
+        return None
+
+    def _setup_objective(self, quest, game):
+        npc = quest.npc
+        origin = (npc.x, npc.y)
+        if quest.kind == 'recover':
+            spot = self._random_spot(game, origin, 18, 45)
+            if spot:
+                quest.target = spot
+                game.game_map[spot[1]][spot[0]] = 'E'
+                game.items_on_map.append({'x': spot[0], 'y': spot[1], 'token': 'E', 'name': quest.item_name,
+                                          'type': 'quest_token', 'quest_id': quest.id,
+                                          'description': f"The {quest.item_name.lower()} {npc.name} asked you to find."})
+        elif quest.kind == 'escort':
+            quest.target = self._random_spot(game, origin, 20, 40)
+            npc.following = True
+        elif quest.kind == 'scout':
+            tombs = list(getattr(game, 'tomb_entrances', []) or [])
+            if tombs:
+                quest.target = min(tombs, key=lambda t: abs(t[0] - npc.x) + abs(t[1] - npc.y))
+            else:
+                quest.target = self._random_spot(game, origin, 20, 40)
+        elif quest.kind == 'hunt':
+            from jedi_fugitive.game import enemies_sith as sith
+            spot = self._random_spot(game, origin, 20, 45)
+            if spot:
+                e = sith.create_sith_warrior(level=max(1, getattr(game.player, 'level', 1) + 1))
+                e.name = random.choice(["Patrol Leader Vex", "Lieutenant Karsh", "Hunter Dral"])
+                e.x, e.y = spot
+                e.quest_target = quest.id
+                game.enemies.append(e)
+                quest.target_enemy = e
+                quest.target = spot
         try:
-            if quest and quest.state == QuestState.AVAILABLE:
-                quest.state = QuestState.ACTIVE
-                quest.start_turn = getattr(player, 'turn_count', 0)
-                self.quest_log.append(quest)
+            from jedi_fugitive.game.map_features import ensure_reachable
+            if quest.target:
+                ensure_reachable(game, [quest.target])
+        except Exception:
+            pass
+
+    def _take_delivery(self, quest, game) -> bool:
+        inv = getattr(game.player, 'inventory', []) or []
+        for it in list(inv):
+            iid = it.get('id') if isinstance(it, dict) else getattr(it, 'id', None)
+            if iid in HEALING_IDS:
+                inv.remove(it)
+                game.add_message(f"You give {quest.npc.name} your {it.get('name', 'supplies') if isinstance(it, dict) else 'supplies'}.")
                 return True
-        except Exception:
-            pass
         return False
-    
-    def complete_quest(self, quest, player) -> Dict[str, int]:
-        """Complete a quest and return rewards"""
+
+    def update_quests(self, game):
+        """Advance objectives once per world tick."""
+        for quest in list(self.active_quests.values()):
+            try:
+                self._update_one(quest, game)
+            except Exception:
+                continue
+
+    def _update_one(self, quest, game):
+        npc = quest.npc
+        px, py = game.player.x, game.player.y
+        if quest.kind == 'hunt' and not quest.done:
+            e = quest.target_enemy
+            if e is None or getattr(e, 'hp', 0) <= 0 or e not in game.enemies:
+                quest.done = True
+                game.add_message(f"#6#Quest: {quest.title}#0# - target eliminated. Report to {npc.name}.")
+        elif quest.kind == 'recover' and not quest.done:
+            inv = getattr(game.player, 'inventory', []) or []
+            if any(isinstance(i, dict) and i.get('quest_id') == quest.id for i in inv):
+                quest.done = True
+                game.add_message(f"#6#Quest: {quest.title}#0# - you have the {quest.item_name.lower()}. Return to {npc.name}.")
+        elif quest.kind == 'scout' and not quest.done and quest.target:
+            if abs(px - quest.target[0]) + abs(py - quest.target[1]) <= 3:
+                quest.done = True
+                game.add_message(f"#6#Quest: {quest.title}#0# - location surveyed. Report to {npc.name}.")
+        elif quest.kind == 'escort' and getattr(npc, 'following', False):
+            self._follow(npc, game)
+            if quest.target and max(abs(npc.x - quest.target[0]), abs(npc.y - quest.target[1])) <= 2:
+                npc.following = False
+                quest.done = True
+                game.add_message(f"{npc.name}: {quest.completion_text}")
+                self.finish(quest, game)
+
+    def _follow(self, npc, game):
+        """Escorted NPCs path towards you (short BFS around walls); if they fall far
+        behind they catch up next to you. Keeps npcs_on_map in sync."""
+        from collections import deque
+        from jedi_fugitive.game.level import BLOCKING_TILES
+        px, py = game.player.x, game.player.y
+        if max(abs(npc.x - px), abs(npc.y - py)) <= 1:
+            npc._lag = 0
+            return
+        gm = game.game_map
+        mh, mw = len(gm), len(gm[0])
+        occupied = {(getattr(e, 'x', None), getattr(e, 'y', None)) for e in game.enemies}
+        start = (npc.x, npc.y)
+        prev = {start: None}
+        q = deque([start])
+        goal = None
+        while q:
+            c = q.popleft()
+            if max(abs(c[0] - px), abs(c[1] - py)) <= 1 and c != (px, py):
+                goal = c
+                break
+            if abs(c[0] - start[0]) + abs(c[1] - start[1]) > 40:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+                n = (c[0] + dx, c[1] + dy)
+                if 0 <= n[0] < mw and 0 <= n[1] < mh and n not in prev and gm[n[1]][n[0]] not in BLOCKING_TILES \
+                        and n not in occupied and n != (px, py) and (n not in game.npcs_on_map or n == start):
+                    prev[n] = c
+                    q.append(n)
+        step = None
+        if goal is not None:
+            c = goal
+            while prev[c] is not None and prev[c] != start:
+                c = prev[c]
+            step = c if prev[c] is not None else None
+        npc._lag = getattr(npc, '_lag', 0) + (0 if step else 1)
+        if step is None and npc._lag >= 3:
+            # lost you: catch up on a free tile next to you
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+                n = (px + dx, py + dy)
+                if 0 <= n[0] < mw and 0 <= n[1] < mh and gm[n[1]][n[0]] not in BLOCKING_TILES \
+                        and n not in occupied and n not in game.npcs_on_map:
+                    step = n
+                    break
+        if step:
+            game.npcs_on_map.pop((npc.x, npc.y), None)
+            npc.x, npc.y = step
+            game.npcs_on_map[step] = npc
+
+    def finish(self, quest, game) -> Dict[str, int]:
+        """Pay out rewards and close the quest."""
+        if quest.state != QuestState.ACTIVE:
+            return {}
+        quest.state = QuestState.COMPLETED
+        self.active_quests.pop(quest.id, None)
+        self.completed_quests.append(quest)
+        p = game.player
+        rewards = {'experience': quest.xp_reward}
         try:
-            if quest and quest.state == QuestState.ACTIVE:
-                quest.state = QuestState.COMPLETED
-                self.completed_quests.append(quest)
-                
-                # Remove from active quests
-                if quest.id in self.active_quests:
-                    del self.active_quests[quest.id]
-                
-                # Calculate rewards
-                rewards = {}
-                if hasattr(quest, 'experience_reward') and quest.experience_reward:
-                    rewards['experience'] = quest.experience_reward
-                if hasattr(quest, 'credits_reward') and quest.credits_reward:
-                    rewards['credits'] = quest.credits_reward
-                
-                return rewards
+            p.gain_xp(quest.xp_reward)
         except Exception:
             pass
-        return {}
+        # remove the quest token from the pack
+        try:
+            p.inventory[:] = [i for i in p.inventory if not (isinstance(i, dict) and i.get('quest_id') == quest.id)]
+        except Exception:
+            pass
+        # a useful item, from the registry
+        try:
+            from jedi_fugitive.items import registry
+            from jedi_fugitive.items.tokens import TOKEN_MAP
+            tok = random.choice(['+', '+', '!', 'c', 'f', 'h', 'i', 'l'])
+            item = registry.materialize(TOKEN_MAP[tok])
+            if len(p.inventory) < int(getattr(game, 'max_inventory', 9) or 9):
+                p.inventory.append(item)
+                game.add_message(f"{quest.npc.name} gives you: {registry.item_name(item)}.")
+        except Exception:
+            pass
+        faction = QUEST_FACTION.get(quest.npc.npc_type)
+        fm = getattr(p, 'faction_manager', None)
+        if faction and fm is not None:
+            try:
+                fm.adjust_reputation(faction, 10)
+                rewards['reputation'] = 10
+            except Exception:
+                pass
+        # helping people pulls you towards the light
+        try:
+            p.dark_corruption = max(0, int(getattr(p, 'dark_corruption', 0) or 0) - 2)
+        except Exception:
+            pass
+        # Jedi survivors share what they know: codex entries
+        if quest.npc.npc_type == NPCType.JEDI_SURVIVOR and getattr(game, 'sith_codex', None) is not None:
+            try:
+                cx = game.sith_codex
+                pool = [(c, e) for c, es in cx.categories.items() for e in es if (c, e) not in cx.discovered_entries]
+                for c, e in random.sample(pool, min(2, len(pool))):
+                    game._register_codex_discovery(p, c, e)
+            except Exception:
+                pass
+        game.add_message(f"#6#Quest complete: {quest.title}#0# (+{quest.xp_reward} XP)")
+        try:
+            p.add_to_travel_log(f"[QUEST] {quest.title}: I helped {quest.npc.name}. {quest.completion_text}")
+        except Exception:
+            pass
+        quest.npc.relationship_level = min(100, quest.npc.relationship_level + 40)
+        return rewards
+
+    # compatibility wrapper
+    def complete_quest(self, quest, player, game=None) -> Dict[str, int]:
+        if game is None:
+            return {}
+        return self.finish(quest, game)
+
+    def get_nearest_npc(self, player_x: int, player_y: int, max_distance: int = 1) -> Optional[QuestNPC]:
+        best = None
+        for npc in self.available_npcs:
+            d = max(abs(npc.x - player_x), abs(npc.y - player_y))
+            if d <= max_distance and (best is None or d < best[0]):
+                best = (d, npc)
+        return best[1] if best else None

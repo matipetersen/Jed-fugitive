@@ -6,48 +6,71 @@ from jedi_fugitive.game import logger as game_logger
 log = getattr(game_logger, 'get_logger', lambda name=None: None)("equipment")
 
 
+# Alignment milestones grant real abilities. The old tables named powers that do
+# not exist ("Force Choke", "Drain Life", "Force Shield"...), so the name lookup
+# never matched and the "Power Unlocked" message granted nothing.
+DARK_UNLOCKS = {
+    2: ("Choke", "Crush an enemy's throat from afar"),
+    3: ("Lightning", "Unleash devastating lightning"),
+    4: ("Drain", "Steal life from your enemies"),
+    5: ("Force Rage", "Boost attack at the cost of your sanity"),
+    6: ("Fear", "Break the will of those around you"),
+}
+LIGHT_UNLOCKS = {
+    2: ("Heal", "Restore HP with the Force"),
+    3: ("Protect", "Raise a protective barrier"),
+    4: ("Force Stun", "Overwhelm a foe without killing"),
+    5: ("Force Sight", "Sense every living being on this level"),
+    6: ("Force Speed", "Move with preternatural speed"),
+}
+
+
+def _grant_ability(game, ability_name):
+    """Give the player a copy of the named ability. Returns the ability or None."""
+    import copy
+    from jedi_fugitive.game.force_abilities import FORCE_ABILITIES
+    known = getattr(game.player, 'force_abilities', None)
+    if known is None:
+        game.player.force_abilities = known = {}
+    for ability in FORCE_ABILITIES:
+        if getattr(ability, 'name', '') == ability_name:
+            if ability_name in known:
+                return known[ability_name]
+            granted = copy.deepcopy(ability)
+            granted.unlocked = True
+            known[ability_name] = granted
+            return granted
+    return None
+
+
+def _unlock_alignment_ability(game, side):
+    level = getattr(game.player, f'{side}_level', 1)
+    table = DARK_UNLOCKS if side == 'dark' else LIGHT_UNLOCKS
+    if level not in table:
+        return
+    ability_name, desc = table[level]
+    if _grant_ability(game, ability_name) is None:
+        return
+    label = "Dark Side" if side == 'dark' else "Light Side"
+    game.ui.messages.add(f"{label} Power Unlocked: {ability_name} - {desc}")
+    if hasattr(game.player, 'add_log_entry'):
+        if side == 'dark':
+            entry = game.player.narrative_text(
+                light_version=f"Reluctantly learned {ability_name}, fearing its corrupting influence.",
+                dark_version=f"Mastered {ability_name}, feeling the intoxicating power of the dark side!",
+                balanced_version=f"Gained dark power: {ability_name}")
+        else:
+            entry = game.player.narrative_text(
+                light_version=f"Achieved harmony with the Force, gaining insight into {ability_name}.",
+                dark_version=f"Learned {ability_name}, though it feels weak compared to dark powers.",
+                balanced_version=f"Gained light power: {ability_name}")
+        game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
+
+
 def _unlock_dark_ability(game):
     """Unlock a Dark Side Force ability when leveling up on dark path."""
     try:
-        dark_level = getattr(game.player, 'dark_level', 1)
-        
-        # Define dark abilities by level
-        dark_abilities = {
-            2: ("Force Choke", "Crush an enemy's throat from afar"),
-            3: ("Force Lightning", "Unleash devastating lightning"),
-            4: ("Drain Life", "Steal HP from enemies"),
-            5: ("Dark Rage", "Boost attack but lose control"),
-            6: ("Dominate Mind", "Control weak-willed enemies"),
-        }
-        
-        if dark_level in dark_abilities:
-            ability_name, desc = dark_abilities[dark_level]
-            
-            # Actually grant the ability to the player
-            try:
-                from jedi_fugitive.game.force_abilities import FORCE_ABILITIES
-                import copy
-                
-                # Find the ability by name
-                for ability in FORCE_ABILITIES:
-                    if getattr(ability, 'name', '').lower().replace(' ', '').replace('/', '') == ability_name.lower().replace(' ', '').replace('/', ''):
-                        # Create unlocked copy for player
-                        player_ability = copy.deepcopy(ability)
-                        player_ability.unlocked = True
-                        game.player.force_abilities[ability_name] = player_ability
-                        break
-            except Exception:
-                pass
-            
-            game.ui.messages.add(f"Dark Side Power Unlocked: {ability_name} - {desc}")
-            if hasattr(game.player, 'add_log_entry'):
-                # Dark ability unlock - narrative reflects embrace of power
-                entry = game.player.narrative_text(
-                    light_version=f"Reluctantly learned {ability_name}, fearing its corrupting influence.",
-                    dark_version=f"Mastered {ability_name}, feeling the intoxicating power of the dark side!",
-                    balanced_version=f"Gained dark power: {ability_name}"
-                )
-                game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
+        _unlock_alignment_ability(game, 'dark')
     except Exception:
         pass
 
@@ -55,45 +78,7 @@ def _unlock_dark_ability(game):
 def _unlock_light_ability(game):
     """Unlock a Light Side Force ability when leveling up on light path."""
     try:
-        light_level = getattr(game.player, 'light_level', 1)
-        
-        # Define light abilities by level
-        light_abilities = {
-            2: ("Force Heal", "Restore HP with the Force"),
-            3: ("Force Shield", "Create a protective barrier"),
-            4: ("Battle Meditation", "Boost all stats temporarily"),
-            5: ("Force Enlightenment", "Reveal hidden paths and items"),
-            6: ("Redemption", "Purify corruption and heal stress"),
-        }
-        
-        if light_level in light_abilities:
-            ability_name, desc = light_abilities[light_level]
-            
-            # Actually grant the ability to the player
-            try:
-                from jedi_fugitive.game.force_abilities import FORCE_ABILITIES
-                import copy
-                
-                # Find the ability by name
-                for ability in FORCE_ABILITIES:
-                    if getattr(ability, 'name', '').lower().replace(' ', '').replace('/', '') == ability_name.lower().replace(' ', '').replace('/', ''):
-                        # Create unlocked copy for player
-                        player_ability = copy.deepcopy(ability)
-                        player_ability.unlocked = True
-                        game.player.force_abilities[ability_name] = player_ability
-                        break
-            except Exception:
-                pass
-            
-            game.ui.messages.add(f"Light Side Power Unlocked: {ability_name} - {desc}")
-            if hasattr(game.player, 'add_log_entry'):
-                # Light ability unlock - narrative reflects wisdom and restraint
-                entry = game.player.narrative_text(
-                    light_version=f"Achieved harmony with the Force, gaining insight into {ability_name}.",
-                    dark_version=f"Learned {ability_name}, though it feels weak compared to dark powers.",
-                    balanced_version=f"Gained light power: {ability_name}"
-                )
-                game.player.add_log_entry(entry, getattr(game, 'turn_count', 0))
+        _unlock_alignment_ability(game, 'light')
     except Exception:
         pass
 
@@ -538,6 +523,10 @@ def pick_up(game):
                     except Exception: pass
                     try:
                         game.player.add_to_travel_log(f"[ARTIFACT] Recovered a corrupted Jedi relic ({have}/3). Its dark pulse beats against my palm.")
+                    except Exception: pass
+                    try:
+                        from jedi_fugitive.game import tomb_lords
+                        tomb_lords.on_relic_recovered(game)
                     except Exception: pass
             # clear the glyph once nothing else lies on this tile
             try:
@@ -1234,6 +1223,13 @@ def use_item(game):
                 try: game.ui.messages.add(f"Used {item_obj.get('name','item')}: healed {heal} HP.")
                 except Exception: pass
                 used = True
+                # medkits also dress a wound (the Force cannot)
+                try:
+                    from jedi_fugitive.game import survival
+                    if survival.is_medkit(item_obj):
+                        survival.treat(game)
+                except Exception:
+                    pass
             except Exception:
                 used = False
 
@@ -1657,6 +1653,7 @@ def craft_item(game, recipe_name):
             if stat == 'attack':
                 current_damage = getattr(weapon, 'base_damage', 0)
                 weapon.base_damage = current_damage + bonus
+                weapon.upgrade_damage = getattr(weapon, 'upgrade_damage', 0) + bonus  # read by combat.weapon_roll
                 # Note: Player attack will be updated when equipment effects are reapplied
             elif stat == 'accuracy':
                 current_acc = getattr(weapon, 'accuracy_mod', 0)
@@ -1668,6 +1665,7 @@ def craft_item(game, recipe_name):
             elif stat == 'damage':  # Handle 'damage' stat (used by some recipes)
                 current_damage = getattr(weapon, 'base_damage', 0)
                 weapon.base_damage = current_damage + bonus
+                weapon.upgrade_damage = getattr(weapon, 'upgrade_damage', 0) + bonus  # read by combat.weapon_roll
             
             # Handle secondary stat bonuses (e.g., Crystal Focus gives accuracy + attack)
             if 'stat2' in result and 'bonus2' in result:
@@ -1676,6 +1674,7 @@ def craft_item(game, recipe_name):
                 if stat2 == 'attack':
                     current_damage = getattr(weapon, 'base_damage', 0)
                     weapon.base_damage = current_damage + bonus2
+                    weapon.upgrade_damage = getattr(weapon, 'upgrade_damage', 0) + bonus2  # read by combat.weapon_roll
                 elif stat2 == 'accuracy':
                     current_acc = getattr(weapon, 'accuracy_mod', 0)
                     weapon.accuracy_mod = current_acc + bonus2
